@@ -1,0 +1,5 @@
+# Reinvented Looper
+This is a module for PDB protein structures loop modeling that is deemed as a **reinvent-the-wheel** effort.
+For a given PDB structure with gaps/loops in the chain, this tool will query PDB for the residue sequence and fill in the gap/loop region with the residues coordinates from homology models.
+
+This tool requires Biopython and its strucuture alignment routine. No other sophisticated algorithmns involved, just a naive solution for the problem.
