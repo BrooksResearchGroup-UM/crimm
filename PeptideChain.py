@@ -39,35 +39,37 @@ class PeptideChain(Chain):
     ## TODO: Implement hetflag check for florecence proteins (chromophore residues)
     def __init__(self, chain_id: str):
         super().__init__(chain_id)
-        
         self._ppb = PPBuilder()
-        self.modified_res = []
-        self.disordered_res = dict()
         
-    def _add_disordered_res(self, res):
-        resseq = res.id[1]
-        if resseq not in self.disordered_res:
-            # if the disordered residue has not been recorded
-        #     disordered = DisorderedResidue(res.id)
-        #     self.disordered_res[resseq] = disordered
-        #     self.add(disordered)
-        # self.disordered_res[resseq].disordered_add(res)
-            # We only add the first one onto the chain
-            self.add(res)
-            self.disordered_res[resseq] = []
-        self.disordered_res[resseq].append(res)
-        
-    def _is_res_modified(self, hetflag: str):
-        resname = hetflag.lstrip("H_")
-        if resname in ('CRO','GYS','PIA','NRQ'):
-            # These are known peptide-derived chromophores that
-            # do not have a one-letter-code representation, but
-            # they are indeed modified residues
-            # This is not a complete list, and many other chromophore
-            # residue will slip through!
-            return True
-        return resname in protein_letters_3to1_extended
-
+    def find_het_by_seq(self, resseq):
+        modified_het_ids = []
+        for res in self:
+            if resseq == res.id[1]:
+                modified_het_ids.append(res.id)
+        return modified_het_ids
+    
+    @staticmethod
+    def is_res_modified(res):
+        if not isinstance(res, DisorderedResidue):
+            for child_res in res.child_dict.values():
+                if child_res.id[0].startswith('H_'):
+                    return True
+        return res.id[0].startswith('H_')
+    
+    def get_modified_res(self):
+        modified_res = []
+        for res in self:
+            if self.is_res_modified(res):
+                modified_res.append(res)
+        return modified_res
+    
+    def get_disordered_res(self):
+        disordered_res = []
+        for res in self:
+            if isinstance(res, DisorderedResidue):
+                disordered_res.append(res)
+        return disordered_res
+    
     def get_segments(self):
         """
         Build polypeptide segments based on C-N distance criterion
@@ -228,7 +230,6 @@ class StandardChain(PeptideChain):
                 ChainConstructionWarning
             )
         
-    
     def update(self):
         """Update the following attribute based on the current present residues:
         seq, missing_res, masked_seq, gaps
