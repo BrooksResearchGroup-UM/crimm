@@ -13,14 +13,14 @@ import warnings
 # SMCRA hierarchy
 from Bio.PDB.StructureBuilder import StructureBuilder
 from Bio.PDB.PDBExceptions import PDBConstructionWarning, PDBConstructionException
-from PeptideChain import PeptideChain
+from PeptideChain import PeptideChain, StandardChain
 
 from Bio.PDB.Structure import Structure
 from Bio.PDB.Model import Model
 from Bio.PDB.Chain import Chain
 from Bio.PDB.Residue import Residue, DisorderedResidue
 from Bio.PDB.Atom import Atom, DisorderedAtom
-
+from collections import namedtuple
 class ChmStructureBuilder(StructureBuilder):
     """Deals with constructing the Structure object.
     The StructureBuilder class is used by the PDBParser classes to
@@ -60,17 +60,30 @@ class ChmStructureBuilder(StructureBuilder):
             self.chain = PeptideChain(chain_id)
             self.model.add(self.chain)
 
+    def init_schain(self, chain_id, chain_info: namedtuple):
+        if self.model.has_id(chain_id):
+            self.chain = self.model[chain_id]
+            warnings.warn(
+                "WARNING: Chain %s is discontinuous at line %i."
+                % (chain_id, self.line_counter),
+                PDBConstructionWarning,
+            )
+        else:
+            self.chain = StandardChain(chain_id, **chain_info._asdict())
+            self.model.add(self.chain)
+
     def reset_disordered_res(self,disordered_residue):
         for resname, child_residue in disordered_residue.child_dict.items():
             if child_residue.id == disordered_residue.id:
                 disordered_residue.disordered_select(resname)
 
-    def reset_chain_disordered_res(self):
+    def finish_chain_construction(self):
         if not hasattr(self, 'chain'):
             return
         for res in self.chain:
             if isinstance(res, DisorderedResidue):
                 self.reset_disordered_res(res)
+        self.chain.update()
             
     def init_seg(self, segid):
         """Flag a change in segid.

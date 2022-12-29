@@ -67,12 +67,13 @@ class ChMMCIFParser:
     
     def _build_structure(self, structure_id):
 
-        all_atoms = self._mmcif_dict.create_namedtuple('atom_site')
+        all_atoms = self._mmcif_dict.create_namedtuples('atom_site')
         coords = self._mmcif_dict.find_atom_coords()
-        all_anisou = self._mmcif_dict.create_namedtuple('atom_site_anisotrop')
-        cell = self._mmcif_dict.create_namedtuple('cell')
-        symmetry = self._mmcif_dict.create_namedtuple('symmetry')
-        
+        all_anisou = self._mmcif_dict.create_namedtuples('atom_site_anisotrop')
+        cell = self._mmcif_dict.create_namedtuples('cell')[0]
+        symmetry = self._mmcif_dict.create_namedtuples('symmetry')[0]
+        chain_info_dict = self._mmcif_dict.create_chain_info_dict()
+
         if structure_id is None:
             structure_id = self._mmcif_dict['data']
         self._structure_builder.init_structure(structure_id)
@@ -80,7 +81,6 @@ class ChMMCIFParser:
 
         current_model_id = -1
         current_serial_id = -1
-        cur_id_diff = 0
 
         current_chain_id = None
         current_residue_id = None
@@ -102,22 +102,28 @@ class ChMMCIFParser:
                 current_residue_id = None
                 current_resname = None
             
-            chainid = atom_site.label_asym_id
+            chainid = atom_site.auth_asym_id
             if current_chain_id != chainid:
-                self._structure_builder.reset_chain_disordered_res()
+                self._structure_builder.finish_chain_construction()
                 current_chain_id = chainid
-                self._structure_builder.init_chain(current_chain_id)
+                chain_info = chain_info_dict[current_chain_id]
+                # starting seq idx for the off-chain hetrogens
+                off_chain_het_idx = len(chain_info.reported_res)
+                if chain_info.chain_type == 'polypeptide(L)':
+                    self._structure_builder.init_schain(current_chain_id, chain_info)
+                else:
+                    self._structure_builder.init_schain(current_chain_id)
                 current_residue_id = None
                 current_resname = None
             
             resname = atom_site.label_comp_id
             hetatm_flag = self._assign_hetflag(atom_site.group_PDB, resname)
-            cur_auth_seq = int(atom_site.auth_seq_id)
             if atom_site.label_seq_id == None:
-                int_resseq = cur_id_diff + cur_auth_seq
+                off_chain_het_idx += 1
+                int_resseq = off_chain_het_idx
             else:
-                int_resseq = int(atom_site.label_seq_id)
-                cur_id_diff = int_resseq - cur_auth_seq
+                int_resseq = atom_site.label_seq_id
+                
             if atom_site.pdbx_PDB_ins_code == None:
                 icode = ' '
             else:
@@ -139,8 +145,8 @@ class ChMMCIFParser:
                 name = atom_site.label_atom_id,
                 fullname = atom_site.label_atom_id,
                 coord = coord,
-                b_factor = float(atom_site.B_iso_or_equiv),
-                occupancy = float(atom_site.occupancy),
+                b_factor = atom_site.B_iso_or_equiv,
+                occupancy = atom_site.occupancy,
                 altloc = altloc,
                 serial_number = atom_serial,
                 element = atom_site.type_symbol,
@@ -156,6 +162,8 @@ class ChMMCIFParser:
                     anisou.U33,
                 )
                 self._structure_builder.set_anisou(numpy.array(u, "f"))
+        
+        self._structure_builder.finish_chain_construction()
         
         if cell and symmetry and hasattr(symmetry, "space_group_name_H_M"):
             a = float(cell.length_a)

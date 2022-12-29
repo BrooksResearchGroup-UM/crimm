@@ -40,7 +40,10 @@ class PeptideChain(Chain):
     def __init__(self, chain_id: str):
         super().__init__(chain_id)
         self._ppb = PPBuilder()
-        
+    
+    def update(self):
+        raise NotImplementedError
+    
     def find_het_by_seq(self, resseq):
         modified_het_ids = []
         for res in self:
@@ -206,7 +209,10 @@ class StandardChain(PeptideChain):
     continuous and start from 1 (Missing terminal residues will be included). 
     Author reported canonical sequence and missing residues are required for init. 
     """
-    def __init__(self, chain: Chain,
+    def __init__(self, 
+        chain_id: str,
+        entity_id: int,
+        chain_type: str,
         known_sequence: str,
         canon_sequence: str,
         reported_res: List[Tuple[int, str]],
@@ -215,8 +221,12 @@ class StandardChain(PeptideChain):
         Attributes:
             instance_attribute (str): The instance attribute
         """
-        super().__init__(chain.id)
+        super().__init__(chain_id)
+        self.entity_id = entity_id
+        self.type = chain_type
         self.reported_res = reported_res
+        if reported_missing_res == None:
+            reported_missing_res = []
         self.reported_missing_res = reported_missing_res
         self.known_seq = Seq(known_sequence)
         self.can_seq = Seq(canon_sequence)
