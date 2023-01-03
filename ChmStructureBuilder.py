@@ -11,17 +11,15 @@ This is used by the PDBParser and MMCIFparser classes.
 import warnings
 
 # SMCRA hierarchy
-from Bio.PDB.StructureBuilder import StructureBuilder
 from Bio.PDB.PDBExceptions import PDBConstructionWarning, PDBConstructionException
-from PeptideChain import PeptideChain, StandardChain
+from Chain import Chain, PolymerChain
 
-from Bio.PDB.Structure import Structure
-from Bio.PDB.Model import Model
-from Bio.PDB.Chain import Chain
+from Structure import Structure
+from Model import Model
 from Bio.PDB.Residue import Residue, DisorderedResidue
 from Bio.PDB.Atom import Atom, DisorderedAtom
-from collections import namedtuple
-class ChmStructureBuilder(StructureBuilder):
+
+class ChmStructureBuilder():
     """Deals with constructing the Structure object.
     The StructureBuilder class is used by the PDBParser classes to
     translate a file to a Structure object.
@@ -29,11 +27,33 @@ class ChmStructureBuilder(StructureBuilder):
 
     def __init__(self):
         """Initialize the class."""
-        super().__init__()
+        self.line_counter = 0
+        self.header = {}
+
+    def _is_completely_disordered(self, residue):
+        """Return 1 if all atoms in the residue have a non blank altloc (PRIVATE)."""
+        atom_list = residue.get_unpacked_list()
+        for atom in atom_list:
+            altloc = atom.get_altloc()
+            if altloc == " ":
+                return 0
+        return 1
 
     # Public methods called by the Parser classes
+    def set_header(self, header):
+        """Set header."""
+        self.header = header
 
-    def init_structure(self, structure_id):
+    def set_line_counter(self, line_counter):
+        """Tracks line in the PDB file that is being parsed.
+
+        Arguments:
+         - line_counter - int
+
+        """
+        self.line_counter = line_counter
+
+    def init_structure(self, structure_id, model_template = None):
         """Initialize a new Structure object with given id.
 
         Arguments:
@@ -41,6 +61,21 @@ class ChmStructureBuilder(StructureBuilder):
 
         """
         self.structure = Structure(structure_id)
+        if model_template is not None:
+            self.model_template = model_template
+        return self.structure
+
+    def init_model(self, model_id, serial_num = None):
+        """Create a new Model object with given id.
+
+        Arguments:
+         - id - int
+         - serial_num - int
+
+        """
+        self.model = Model(model_id, serial_num)
+        self.structure.add(self.model)
+        return self.model
 
     def init_chain(self, chain_id):
         """Create a new Chain object with given id.
@@ -57,33 +92,9 @@ class ChmStructureBuilder(StructureBuilder):
                 PDBConstructionWarning,
             )
         else:
-            self.chain = PeptideChain(chain_id)
+            self.chain = Chain(chain_id)
             self.model.add(self.chain)
-
-    def init_schain(self, chain_id, chain_info: namedtuple):
-        if self.model.has_id(chain_id):
-            self.chain = self.model[chain_id]
-            warnings.warn(
-                "WARNING: Chain %s is discontinuous at line %i."
-                % (chain_id, self.line_counter),
-                PDBConstructionWarning,
-            )
-        else:
-            self.chain = StandardChain(chain_id, **chain_info._asdict())
-            self.model.add(self.chain)
-
-    def reset_disordered_res(self,disordered_residue):
-        for resname, child_residue in disordered_residue.child_dict.items():
-            if child_residue.id == disordered_residue.id:
-                disordered_residue.disordered_select(resname)
-
-    def finish_chain_construction(self):
-        if not hasattr(self, 'chain'):
-            return
-        for res in self.chain:
-            if isinstance(res, DisorderedResidue):
-                self.reset_disordered_res(res)
-        self.chain.update()
+        return self.chain
             
     def init_seg(self, segid):
         """Flag a change in segid.
@@ -160,6 +171,10 @@ class ChmStructureBuilder(StructureBuilder):
         disordered_residue.disordered_add(new_residue)
         self.residue = disordered_residue
 
+    def process_simple_res(self, res_id, resname):
+        self.residue = Residue(res_id, resname, self.segid)
+        self.chain.add(self.residue)
+
     def init_residue(self, resname, field, resseq, icode):
         """Create a new Residue object.
 
@@ -176,14 +191,14 @@ class ChmStructureBuilder(StructureBuilder):
                 # The hetero field consists of H_ + the residue name (e.g. H_FUC)
                 field = "H_" + resname
         res_id = (field, resseq, icode)
-        
-        if self.chain.has_id(res_id):
+        if not isinstance(self.chain, PolymerChain):
+            self.process_simple_res(res_id, resname)
+        elif self.chain.has_id(res_id):
             self.process_duplicate_res(res_id, resname)
         elif len(self.chain.find_het_by_seq(resseq)) > 0:
             self.process_duplicate_het(res_id, resname)
         else:
-            self.residue = Residue(res_id, resname, self.segid)
-            self.chain.add(self.residue)
+            self.process_simple_res(res_id, resname)
 
     def init_atom(
         self,
@@ -195,9 +210,6 @@ class ChmStructureBuilder(StructureBuilder):
         fullname,
         serial_number=None,
         element=None,
-        pqr_charge=None,
-        radius=None,
-        is_pqr=False,
     ):
         """Create a new Atom object.
 
@@ -209,9 +221,6 @@ class ChmStructureBuilder(StructureBuilder):
          - altloc - string, alternative location specifier
          - fullname - string, atom name including spaces, e.g. " CA "
          - element - string, upper case, e.g. "HG" for mercury
-         - pqr_charge - float, atom charge (PQR format)
-         - radius - float, atom radius (PQR format)
-         - is_pqr - boolean, flag to specify if a .pqr file is being parsed
 
         """
         residue = self.residue
@@ -236,30 +245,16 @@ class ChmStructureBuilder(StructureBuilder):
                     % (duplicate_fullname, fullname, self.line_counter),
                     PDBConstructionWarning,
                 )
-        if not is_pqr:
-            self.atom = Atom(
-                name,
-                coord,
-                b_factor,
-                occupancy,
-                altloc,
-                fullname,
-                serial_number,
-                element,
-            )
-        elif is_pqr:
-            self.atom = Atom(
-                name,
-                coord,
-                None,
-                None,
-                altloc,
-                fullname,
-                serial_number,
-                element,
-                pqr_charge,
-                radius,
-            )
+        self.atom = Atom(
+            name,
+            coord,
+            b_factor,
+            occupancy,
+            altloc,
+            fullname,
+            serial_number,
+            element,
+        )
         if altloc != " ":
             # The atom is disordered
             if residue.has_id(name):
@@ -296,6 +291,26 @@ class ChmStructureBuilder(StructureBuilder):
         else:
             # The atom is not disordered
             residue.add(self.atom)
+    
+    def set_anisou(self, anisou_array):
+        """Set anisotropic B factor of current Atom."""
+        self.atom.set_anisou(anisou_array)
+                
+    def set_siguij(self, siguij_array):
+        """Set standard deviation of anisotropic B factor of current Atom."""
+        self.atom.set_siguij(siguij_array)
+
+    def set_sigatm(self, sigatm_array):
+        """Set standard deviation of atom position of current Atom."""
+        self.atom.set_sigatm(sigatm_array)
+
+    def get_structure(self):
+        """Return the structure."""
+        # first sort everything
+        # self.structure.sort()
+        # Add the header dict
+        self.structure.header = self.header
+        return self.structure
 
     def set_symmetry(self, spacegroup, cell):
         """Set symmetry."""

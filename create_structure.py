@@ -2,7 +2,7 @@ import os
 import warnings
 from Bio.PDB.MMCIFParser import MMCIFParser
 from Bio.PDB.Polypeptide import protein_letters_3to1_extended
-from PeptideChain import StandardChain as SChain
+from Chain import PolymerChain 
 
 def find_local_cif_path(pdb_id):
     pdb_id = pdb_id.lower()
@@ -115,5 +115,5 @@ def make_schain(pdbid, chain_id = None):
         reported_missing_res = []
     all_res = all_res_dict[entity_id]
 
-    schain = SChain(chain, known_seq, can_seq, all_res, reported_missing_res)
-    return schain
+    pchain = PolymerChain(chain, known_seq, can_seq, all_res, reported_missing_res)
+    return pchain

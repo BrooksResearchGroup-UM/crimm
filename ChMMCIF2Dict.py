@@ -49,13 +49,31 @@ class ChMMCIF2Dict(dict):
             return self[key].get(subkey)
         return None
     
-    def create_namedtuples(self, key):
+    def retrieve_single_value_dict(self, key):
+        citation = dict()
+        subdict = self.get(key)
+        if subdict is None:
+            return None
+        for k, v in subdict.items():
+            if len(v) != 1:
+                raise ValueError(
+                    'Sub-dict "{}" is not a single value dict'.format(key)
+                )
+            if v[0] is not None: 
+                citation[k] = v[0]
+        return citation
+    
+    def create_namedtuples(self, key, single_value = False):
         '''Create a list of namedtuples from a section of the mmcif dict'''
         if key not in self:
             return ()
         sub_dict = self[key]
         named_entries = namedtuple(key, sub_dict.keys())
 
+        if single_value:
+            entry = list(zip(*sub_dict.values()))[0]
+            return named_entries(*entry)
+        
         all_entries = []
         for entry in zip(*sub_dict.values()):
             all_entries.append(named_entries(*entry))
@@ -69,7 +87,7 @@ class ChMMCIF2Dict(dict):
         for i,k in enumerate(["Cartn_x", "Cartn_y", "Cartn_z"]):
             coords[:,i] = numpy.asarray(sub_dict[k],'f')
         return coords
-    
+
     def create_chain_info_dict(self):
         zero_occupancy_residues = self.create_namedtuples(
             'pdbx_unobs_or_zero_occ_residues'
@@ -83,7 +101,11 @@ class ChMMCIF2Dict(dict):
             )
 
         entity_poly = self.create_namedtuples('entity_poly')
-        entity_poly_dict = {entity.pdbx_strand_id: entity for entity in entity_poly}
+        entity_poly_dict = dict()
+        for entity in entity_poly:
+            auth_chain_ids = entity.pdbx_strand_id.split(',')
+            for chain_id in auth_chain_ids:
+                entity_poly_dict[chain_id] = entity
 
         entity_poly_seq = self.create_namedtuples('entity_poly_seq')
         reported_res_dict = dict()
@@ -91,7 +113,7 @@ class ChMMCIF2Dict(dict):
             if res.entity_id not in reported_res_dict:
                 reported_res_dict[res.entity_id] = []
             reported_res_dict[res.entity_id].append((res.num, res.mon_id))
-
+        ## TODO: Initiate Chain class directly here
         chain_info = namedtuple(
             'chain_info',
             [
@@ -104,13 +126,13 @@ class ChMMCIF2Dict(dict):
             ]
         )
         chain_dict = dict()
-        for entity_info in entity_poly_dict.values():
-            chain_dict[entity_info.pdbx_strand_id] = chain_info._make([
+        for chain_id, entity_info in entity_poly_dict.items():
+            chain_dict[chain_id] = chain_info._make([
                 entity_info.entity_id,
                 entity_info.type,
                 entity_info.pdbx_seq_one_letter_code,
                 entity_info.pdbx_seq_one_letter_code_can,
                 reported_res_dict.get(entity_info.entity_id),
-                missing_res_dict.get(entity_info.pdbx_strand_id)
+                missing_res_dict.get(chain_id)
             ])
         return chain_dict

@@ -2,16 +2,17 @@ from Bio.PDB.MMCIFParser import MMCIFParser
 from ChMMCIF2Dict import ChMMCIF2Dict
 from ChmStructureBuilder import ChmStructureBuilder
 from Bio.PDB.PDBExceptions import PDBConstructionWarning
+from Chain import Chain, PolymerChain, Ligands, Saccharide, Solvent
+from Model import Model
 from itertools import zip_longest
 import numpy
 import warnings
 
 class ChMMCIFParser:
-    def __init__(self, structure_builder = None, QUIET = False):
-        if structure_builder == None:
-            self._structure_builder = ChmStructureBuilder()
-        else:
-            self._structure_builder = structure_builder
+    def __init__(self, sturcture_builder = None, QUIET = False):
+        if sturcture_builder == None:
+            sturcture_builder = ChmStructureBuilder()
+        self._structure_builder = sturcture_builder
         self.QUIET = QUIET
 
     def _get_header(self):
@@ -21,25 +22,26 @@ class ChMMCIFParser:
             ("em_3d_reconstruction", "resolution"),
         ]
         for key, subkey in resolution_keys:
-            resolution = self._mmcif_dict.level_two_get(key, subkey)
-            if resolution is not None:
+            resolution = self.cifdict.level_two_get(key, subkey)
+            if resolution is not None and resolution[0] is not None:
                 break
                 
         self.header = {
-            "name": self._mmcif_dict.get("data"),
-            "head": self._mmcif_dict.get("struct_keywords"),
-            "idcode": self._mmcif_dict.get('struct'),
-            "deposition_date": self._mmcif_dict.level_two_get(
+            "name": self.cifdict.get("data"),
+            "keywords": self.cifdict.retrieve_single_value_dict("struct_keywords"),
+            "citation": self.cifdict.get("citation"),
+            "idcode": self.cifdict.retrieve_single_value_dict('struct'),
+            "deposition_date": self.cifdict.level_two_get(
                 "pdbx_database_status", "recvd_initial_deposition_date"
-            ),
-            "structure_method": self._mmcif_dict.level_two_get(
+            )[0],
+            "structure_method": self.cifdict.level_two_get(
                 "exptl", "method"
-            ),
+            )[0],
             "resolution": resolution,
         }
 
         return self.header
-
+    
     def get_structure(self, filename, structure_id = None):
         """Return the structure.
 
@@ -51,12 +53,81 @@ class ChMMCIFParser:
         with warnings.catch_warnings():
             if self.QUIET:
                 warnings.filterwarnings("ignore", category=PDBConstructionWarning)
-            self._mmcif_dict = ChMMCIF2Dict(filename)
+            self.cifdict = ChMMCIF2Dict(filename)
             self._build_structure(structure_id)
             self._structure_builder.set_header(self._get_header())
 
         return self._structure_builder.get_structure()
     
+    def create_polymer_chain_dict(self):
+        zero_occupancy_residues = self.cifdict.create_namedtuples(
+            'pdbx_unobs_or_zero_occ_residues'
+        )
+        missing_res_dict = dict()
+        for res in zero_occupancy_residues:
+            if res.auth_asym_id not in missing_res_dict:
+                missing_res_dict[res.auth_asym_id] = []
+            missing_res_dict[res.auth_asym_id].append(
+                (res.label_seq_id, res.label_comp_id)
+            )
+
+        entity_poly = self.cifdict.create_namedtuples('entity_poly')
+        entity_poly_dict = dict()
+        for entity in entity_poly:
+            auth_chain_ids = entity.pdbx_strand_id.split(',')
+            for chain_id in auth_chain_ids:
+                entity_poly_dict[chain_id] = entity
+
+        entity_poly_seq = self.cifdict.create_namedtuples('entity_poly_seq')
+        reported_res_dict = dict()
+        for res in entity_poly_seq:
+            if res.entity_id not in reported_res_dict:
+                reported_res_dict[res.entity_id] = []
+            reported_res_dict[res.entity_id].append((res.num, res.mon_id))
+
+        polymer_dict = dict()
+        for auth_chain_id, entity_info in entity_poly_dict.items():
+            entity_id = entity_info.entity_id
+            pchain = PolymerChain(
+                entity_id,
+                auth_chain_id,
+                entity_info.type,
+                entity_info.pdbx_seq_one_letter_code,
+                entity_info.pdbx_seq_one_letter_code_can,
+                reported_res_dict.get(entity_info.entity_id),
+                missing_res_dict.get(chain_id)
+            )
+            polymer_dict[entity_id] = pchain
+        return polymer_dict
+
+    def set_chain_attr(self, entity, chain):
+        for k, v in entity._asdict().items():
+            if k != 'id' and k != 'type' and v is not None:
+                setattr(chain, k, v)
+
+    def create_model_template(self, strict_parser = True):
+        model_temp = Model('template')
+
+        poly_dict = self.create_polymer_chain_dict()
+        entity_info = self.cifdict.create_namedtuples('entity')
+
+        for entity in entity_info:
+            if entity.type == 'polymer':
+                cur_chain = poly_dict[entity.id]
+            elif entity.type == 'non-polymer':
+                cur_chain = Ligands(entity.id)
+            elif entity.type == 'branched':
+                cur_chain = Saccharide(entity.id)
+            elif entity.type == 'water':
+                cur_chain = Solvent(entity.id)
+            elif not strict_parser:
+                cur_chain = Chain(entity.id)
+            else:
+                raise TypeError('Unknown Chain Type: {}'.format(entity.type))
+            self.set_chain_attr(entity, cur_chain)
+            model_temp.add(cur_chain)
+        return model_temp
+
     @staticmethod
     def _assign_hetflag(fieldname, resname):
         if fieldname != "HETATM":
@@ -64,63 +135,72 @@ class ChMMCIFParser:
         if resname in ("HOH", "WAT"):
             return "W"
         return "H"
-    
-    def _build_structure(self, structure_id):
 
-        all_atoms = self._mmcif_dict.create_namedtuples('atom_site')
-        coords = self._mmcif_dict.find_atom_coords()
-        all_anisou = self._mmcif_dict.create_namedtuples('atom_site_anisotrop')
-        cell = self._mmcif_dict.create_namedtuples('cell')[0]
-        symmetry = self._mmcif_dict.create_namedtuples('symmetry')[0]
-        chain_info_dict = self._mmcif_dict.create_chain_info_dict()
+    def _build_structure(self, structure_id):
+        sb = self._structure_builder
+        model_template = self.create_model_template()
+
+        atom_site = self.cifdict.create_namedtuples('atom_site')
+        coords = self.cifdict.find_atom_coords()
+        all_anisou = self.cifdict.create_namedtuples('atom_site_anisotrop')
 
         if structure_id is None:
-            structure_id = self._mmcif_dict['data']
-        self._structure_builder.init_structure(structure_id)
-        self._structure_builder.init_seg(" ")
+            structure_id = self.cifdict['data']
+        sb.init_structure(structure_id, model_template)
+        sb.init_seg(" ")
 
-        current_model_id = -1
-        current_serial_id = -1
-
-        current_chain_id = None
-        current_residue_id = None
+        last_chain_id = None
+        last_entity_id = None
+        last_auth_seq = None
+        het_chain_resseq = 0
+        sb.chain = None
         current_resname = None
+        current_res_id = None
 
-        all_data = zip_longest(all_atoms, coords, all_anisou)
+        all_data = zip_longest(atom_site, coords, all_anisou)
         for i, (atom_site, coord, anisou) in enumerate(all_data):
             # set the line_counter for 'ATOM' lines only and not
             # as a global line counter found in the PDBParser()
-            self._structure_builder.set_line_counter(i)
+            sb.set_line_counter(i)
             
             model_serial_id = atom_site.pdbx_PDB_model_num
-            if current_serial_id != model_serial_id:
+            if model_serial_id not in sb.structure:
                 # if serial changes, update it and start new model
-                current_serial_id = model_serial_id
-                current_model_id += 1
-                self._structure_builder.init_model(current_model_id, current_serial_id)
-                current_chain_id = None
-                current_residue_id = None
+                model = sb.init_model(model_serial_id)
                 current_resname = None
-            
-            chainid = atom_site.auth_asym_id
-            if current_chain_id != chainid:
-                self._structure_builder.finish_chain_construction()
-                current_chain_id = chainid
-                chain_info = chain_info_dict[current_chain_id]
-                # starting seq idx for the off-chain hetrogens
-                off_chain_het_idx = len(chain_info.reported_res)
-                if chain_info.chain_type == 'polypeptide(L)':
-                    self._structure_builder.init_schain(current_chain_id, chain_info)
+                current_res_id = None
+                het_chain_resseq = 0
+
+            entity_id = atom_site.label_entity_id
+            chain_id = atom_site.label_asym_id
+            if entity_id != last_entity_id or \
+                (isinstance(sb.chain, PolymerChain) and chain_id != last_chain_id ):
+                last_chain_id = chain_id
+                last_entity_id = entity_id
+                if isinstance(sb.chain, PolymerChain):
+                    sb.chain.reset_disordered_residues()
+                    sb.chain.update()
+                if chain_id not in model:
+                    chain = sb.model_template[entity_id].copy()
+                    chain.id = chain_id
+                    model.add(chain)
                 else:
-                    self._structure_builder.init_schain(current_chain_id)
-                current_residue_id = None
-                current_resname = None
-            
+                    chain = model[chain_id]
+                sb.chain = chain
+
             resname = atom_site.label_comp_id
             hetatm_flag = self._assign_hetflag(atom_site.group_PDB, resname)
+            auth_seq_id = atom_site.auth_seq_id
+            auth_chain_id = atom_site.auth_asym_id
+            # For heterogens that do not have resseq
             if atom_site.label_seq_id == None:
-                off_chain_het_idx += 1
-                int_resseq = off_chain_het_idx
+                # if the atom does not the same author seq id as the last atom,
+                # they are in the separate molecules, and the resseq needs to increment
+                if auth_seq_id != last_auth_seq or chain_id != last_chain_id:
+                    last_chain_id = chain_id
+                    het_chain_resseq += 1
+                    int_resseq = het_chain_resseq
+                    last_auth_seq = 1*auth_seq_id
             else:
                 int_resseq = atom_site.label_seq_id
                 
@@ -129,11 +209,12 @@ class ChMMCIFParser:
             else:
                 icode = atom_site.pdbx_PDB_ins_code
             res_id = (hetatm_flag, int_resseq, icode)
-            if current_residue_id != res_id or current_resname != resname:
-                current_residue_id = res_id
+
+            if res_id != current_res_id or current_resname != resname:
+                current_res_id = res_id
                 current_resname = resname
-                self._structure_builder.init_residue(resname, hetatm_flag, int_resseq, icode)
-            
+                sb.init_residue(resname, hetatm_flag, int_resseq, icode)
+
             # Reindex the atom serial number
             atom_serial = i+1
             if atom_site.label_alt_id == None:
@@ -141,7 +222,7 @@ class ChMMCIFParser:
             else:
                 altloc = atom_site.label_alt_id
             
-            self._structure_builder.init_atom(
+            sb.init_atom(
                 name = atom_site.label_atom_id,
                 fullname = atom_site.label_atom_id,
                 coord = coord,
@@ -161,17 +242,26 @@ class ChMMCIFParser:
                     anisou.U23,
                     anisou.U33,
                 )
-                self._structure_builder.set_anisou(numpy.array(u, "f"))
+                sb.set_anisou(numpy.array(u, "f"))
         
-        self._structure_builder.finish_chain_construction()
+        if isinstance(sb.chain, PolymerChain):
+            sb.chain.reset_disordered_residues()
+            sb.chain.update()
         
-        if cell and symmetry and hasattr(symmetry, "space_group_name_H_M"):
-            a = float(cell.length_a)
-            b = float(cell.length_b)
-            c = float(cell.length_c)
-            alpha = float(cell.angle_alpha)
-            beta = float(cell.angle_beta)
-            gamma = float(cell.angle_gamma)
-            cell_data = numpy.array((a, b, c, alpha, beta, gamma), "f")
-            spacegroup = symmetry.space_group_name_H_M #Hermann-Mauguin space-group symbol
-            self._structure_builder.set_symmetry(spacegroup, cell_data)
+        cell = self.cifdict.create_namedtuples('cell', single_value=True)
+        symmetry = self.cifdict.create_namedtuples('symmetry', single_value=True)
+
+        if not (
+            cell and symmetry and hasattr(symmetry, "space_group_name_H_M")
+        ):
+            return
+        
+        a = float(cell.length_a)
+        b = float(cell.length_b)
+        c = float(cell.length_c)
+        alpha = float(cell.angle_alpha)
+        beta = float(cell.angle_beta)
+        gamma = float(cell.angle_gamma)
+        cell_data = numpy.array((a, b, c, alpha, beta, gamma), "f")
+        spacegroup = symmetry.space_group_name_H_M #Hermann-Mauguin space-group symbol
+        sb.set_symmetry(spacegroup, cell_data)

@@ -1,7 +1,7 @@
 import json
 import requests
 import warnings
-from PeptideChain import PeptideChain, StandardChain
+from Chain import Chain, StandardChain
 from ChainSuperimposer import ChainSuperimposer
 from create_structure import make_schain
 

@@ -2,7 +2,7 @@
 from Bio.Align import PairwiseAligner
 from Bio.PDB import Superimposer
 from Bio.PDB.Chain import Chain
-from PeptideChain import PeptideChain, StandardChain
+from Chain import Chain, StandardChain
 import warnings
 
 class ChainSuperimposer(Superimposer):
@@ -11,12 +11,12 @@ class ChainSuperimposer(Superimposer):
         super().__init__()
 
     def find_all_common_res(self, 
-        ref_chain: PeptideChain | StandardChain, 
-        mov_chain: PeptideChain | StandardChain):
+        ref_chain: Chain | StandardChain, 
+        mov_chain: Chain | StandardChain):
         """ Find all common residues from two chains """
 
-        # if any of the chains is not PeptideChain class, convert them
-        ## FIXME: change to CanonicalPeptideChain for both
+        # if any of the chains is not Chain class, convert them
+        ## FIXME: change to Canonical Chain for both
         is_ref_standard = isinstance(ref_chain, StandardChain)
         is_mov_standard = isinstance(mov_chain, StandardChain)
 
@@ -62,7 +62,7 @@ class ChainSuperimposer(Superimposer):
         return ref_aligned, mov_aligned
 
     def _find_common_res_for_simple_chain(
-            self, ref_chain: PeptideChain, mov_chain: PeptideChain
+            self, ref_chain: Chain, mov_chain: Chain
         ):
         ref_seq = ref_chain.extract_all_seq()
         mov_seq = mov_chain.extract_all_seq()
@@ -96,7 +96,7 @@ class ChainSuperimposer(Superimposer):
         return set(aligned_res)
 
     def _get_present_res_ids_from_sele(
-            self, chain: PeptideChain, selected_res_id: set = set()
+            self, chain: Chain, selected_res_id: set = set()
         ):
         """
         Get a set of residue ids present in chain from a set of 
@@ -137,15 +137,15 @@ class ChainSuperimposer(Superimposer):
     
     def check_chain_type(self, chain):
         if (
-            isinstance(chain, PeptideChain) or \
+            isinstance(chain, Chain) or \
             isinstance(chain, StandardChain)
         ):
             return chain
         elif isinstance(chain, Chain):
-            return PeptideChain(chain)
+            return Chain(chain)
         else:
             raise TypeError(
-                'Chain, PeptideChain, or StandardChain class is required to use'
+                'Chain, Chain, or StandardChain class is required to use'
                 'ChainImposer for superposition.'
                 )
         
@@ -281,11 +281,11 @@ class ChainSuperimposer(Superimposer):
                 "protein structures."
                 "http://nglviewer.org/nglview/latest/index.html#installation"
             )
-        # if any of the chains is not PeptideChain class, convert them
-        if not isinstance(ref_chain, PeptideChain):
-            ref_chain = PeptideChain(ref_chain)
-        if not isinstance(mov_chain, PeptideChain):
-            mov_chain = PeptideChain(mov_chain)
+        # if any of the chains is not Chain class, convert them
+        if not isinstance(ref_chain, Chain):
+            ref_chain = Chain(ref_chain)
+        if not isinstance(mov_chain, Chain):
+            mov_chain = Chain(mov_chain)
 
         view = nv.NGLWidget()
         ref_chain.load_nglview(view)
