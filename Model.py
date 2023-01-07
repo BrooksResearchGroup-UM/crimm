@@ -1,4 +1,5 @@
 from Bio.PDB.Model import Model as _Model
+from NGLVisualization import load_nglview_multiple
 import warnings
 
 class Model(_Model):
@@ -16,17 +17,31 @@ class Model(_Model):
         if len(self) == 0:
             return
         from IPython.display import display
-
-        try:
-            import nglview as nv
-        except ImportError:
-            warnings.warn(
-                "WARNING: nglview not found! Install nglview to show\
-                protein structures. \
-                http://nglviewer.org/nglview/latest/index.html#installation"
-            )
-            return self.__repr__()
-        view = nv.NGLWidget()
-        for chain in self:
-            chain.load_nglview(view)
+        self.reset_atom_serial_numbers
+        view = load_nglview_multiple(self)
         display(view)
+
+    def reset_atom_serial_numbers(self):
+        i = 1
+        for atom in self.get_unpacked_atoms():
+            atom.serial_number = i
+            i+=1
+
+    def get_unpacked_atoms(self):
+        atoms = []
+        for chain in self:
+            atoms.extend(chain.get_unpacked_atoms())
+        return atoms
+    
+    def get_pdb_str(self, reset_serial = True, include_alt = True):
+        if reset_serial:
+            self.reset_atom_serial_numbers()
+        pdb_str = ''
+        for chain in self:
+            pdb_str += chain.get_pdb_str(
+                    reset_serial = False, 
+                    include_alt = include_alt
+                )
+        return pdb_str
+        
+            

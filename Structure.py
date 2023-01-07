@@ -11,7 +11,7 @@ class Structure(_Structure):
         first_model = self.child_list[0]
         hierarchy_str+='\n|\n|---'+first_model.__repr__()
         if len(self) > 1:
-            hierarchy_str+=f'[{len(self)-1} models truncated ...]'
+            hierarchy_str+=f'\n[{len(self)-1} models truncated ...]'
         return hierarchy_str
     
     def _repr_html_(self):

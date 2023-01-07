@@ -1,7 +1,7 @@
 import json
 import requests
 import warnings
-from Chain import Chain, StandardChain
+from Chain import Chain, PolymerChain
 from ChainSuperimposer import ChainSuperimposer
 from create_structure import make_schain
 
@@ -10,7 +10,7 @@ class ChainLooper:
     loop modeller for PDB protein structures by homology modeling
     """
 
-    def __init__(self, model_chain: StandardChain):
+    def __init__(self, model_chain: PolymerChain):
         self.model_chain = model_chain
         self.model_can_seq = model_chain.can_seq
         self.repaired_gaps = []
@@ -19,7 +19,7 @@ class ChainLooper:
         if self.model_can_seq == None:
             raise AttributeError('Canonical sequence is required to model loops')
 
-    def set_template_chain(self, template_chain: StandardChain):
+    def set_template_chain(self, template_chain: PolymerChain):
         self.template_chain = template_chain
         self.template_can_seq = template_chain.can_seq
         if self.template_can_seq == None:
@@ -112,7 +112,7 @@ class ChainLooper:
                 self.template_chain.detach_child(self.template_chain[i].get_id())
 
     def repair_gaps_from_template(self, 
-            template_chain : StandardChain = None, 
+            template_chain : PolymerChain = None, 
             keep_template_structure = False, 
             rmsd_threshold = 0.8):
         """
@@ -273,7 +273,7 @@ class ChainLooper:
         return view
     
 class ReLooper(ChainLooper):
-    def __init__(self, model_chain: StandardChain, canonical_seq = None) -> None:
+    def __init__(self, model_chain: PolymerChain, canonical_seq = None) -> None:
         if canonical_seq != None:
             # Overwrite canonical sequence in model chain
             model_chain.can_seq = canonical_seq

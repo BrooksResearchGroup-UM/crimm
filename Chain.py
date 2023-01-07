@@ -6,9 +6,10 @@ from Bio.Data.PDBData import nucleic_letters_3to1_extended
 from Bio.Data.PDBData import protein_letters_1to3
 from Bio.PDB.Chain import Chain as _Chain
 from Bio.PDB.PDBExceptions import PDBIOException
-from Bio.PDB.Residue import DisorderedResidue, Residue
+from Residue import DisorderedResidue, Residue
 import warnings
 from ChainExceptions import ChainConstructionException, ChainConstructionWarning
+from NGLVisualization import load_nglview
 from typing import List, Tuple
 
 ## TODO: Get rid of chain_type attr. Use isinstance() instead
@@ -19,10 +20,9 @@ class BaseChain(_Chain):
 
     def reset_atom_serial_numbers(self):
         i = 1
-        for res in self:
-            for atom in res:
-                atom.serial_number = i
-                i+=1
+        for atom in self.get_unpacked_atoms():
+            atom.serial_number = i
+            i+=1
 
     def _disordered_reset(self, disordered_residue):
         for resname, child_residue in disordered_residue.child_dict.items():
@@ -36,56 +36,43 @@ class BaseChain(_Chain):
 
     def __repr__(self):
         """Return the peptide chain identifier."""
-        return f"<{self.chain_type} id={self.get_id()} Residues/Molecules={len(self)}>"
+        repr_str = f"<{self.chain_type} id={self.get_id()} Residues/Molecules={len(self)}>"
+        return repr_str
 
     def _repr_html_(self):
         """Return the nglview interactive visualization window"""
         if len(self) == 0:
             return
         from IPython.display import display
-
-        try:
-            import nglview as nv
-        except ImportError:
-            warnings.warn(
-                "WARNING: nglview not found! Install nglview to show\
-                protein structures. \
-                http://nglviewer.org/nglview/latest/index.html#installation"
-            )
-            return self.__repr__()
-        view = nv.NGLWidget()
-        self.load_nglview(view)
+        view = load_nglview(self)
         display(view)
 
-    def load_nglview(self, view):
-        """
-        Load pdb string into nglview instance
-        """
-        blob = self.get_pdb_str()
-        ngl_args = [{'type': 'blob', 'data': blob, 'binary': False}]
-        view._ngl_component_names.append(self.get_id())
-        view._remote_call("loadFile",
-                          target='Stage',
-                          args=ngl_args,
-                          kwargs= {'ext':'pdb',
-                          'defaultRepresentation':True}
-                          )
-        # view.add_licorice('not protein')
-
-    def get_pdb_str(self):
+    def get_unpacked_atoms(self):
+        atoms = []
+        for res in self.get_unpacked_list():
+            atoms.extend(res.get_unpacked_atoms())
+        return atoms
+    
+    def get_pdb_str(self, reset_serial = True, include_alt = True):
         """
         Get the PDB format string for all atoms in the chain
         """
         # This is copied and modified from Bio.PDB.PDBIO
-        self.reset_atom_serial_numbers()
+        if reset_serial:
+            self.reset_atom_serial_numbers()
         io = PDBIO()
         pdb_string = ''
-        for residue in self.get_unpacked_list():
+        if include_alt:
+            get_child = lambda x: x.get_unpacked_list()
+        else:
+            get_child = lambda x: x.child_list
+
+        for residue in get_child(self):
             hetfield, resseq, icode = residue.id
             resname = residue.resname
             segid = residue.segid
 
-            for atom in residue.get_unpacked_list():
+            for atom in get_child(residue):
                 atom_number = atom.serial_number
                 s = io._get_atom_line(
                     atom,
@@ -98,6 +85,7 @@ class BaseChain(_Chain):
                     self.get_id(),
                 )
                 pdb_string += s
+        pdb_string += 'TER\n'
         return pdb_string
 
 class Chain(BaseChain):
@@ -115,9 +103,10 @@ class Chain(BaseChain):
             **protein_letters_3to1_extended,
             **{v:v for k, v in nucleic_letters_3to1_extended.items()}
         }
-    def update(self):
-        raise NotImplementedError
     
+    ## FIXME: move this to Polymer Chain that is constructed from mmCIF
+    ## Since mmCIF sourced structure has unique resseq and no duplicate exists,
+    ## but PDB parser can generate duplicated resseq, and this method will fail.
     def find_het_by_seq(self, resseq):
         modified_het_ids = []
         for res in self:
@@ -128,10 +117,12 @@ class Chain(BaseChain):
     @staticmethod
     def is_res_modified(res):
         if not isinstance(res, DisorderedResidue):
-            for child_res in res.child_dict.values():
-                if child_res.id[0].startswith('H_'):
-                    return True
-        return res.id[0].startswith('H_')
+            return res.id[0].startswith('H_')
+
+        for child_res in res.child_dict.values():
+            if child_res.id[0].startswith('H_'):
+                return True
+        
     
     def get_modified_res(self):
         modified_res = []
@@ -190,12 +181,6 @@ class Chain(BaseChain):
                 one_letter_code = self.letter_3to1_dict[res.resname]
             seq+=one_letter_code
         return seq
-
-    def load_nglview(self, view):
-        """
-        Load pdb string into nglview instance
-        """
-        super().load_nglview(view)
     
     def is_continuous(self):
         """
@@ -351,40 +336,23 @@ class PolymerChain(Chain):
         return len(sequence_segments) == 1
     
 class Ligands(BaseChain):
-    def __init__(self, entity: int):
-        super().__init__(entity)
+    def __init__(self, chain_id: str):
+        super().__init__(chain_id)
         self.chain_type = 'Ligands'
 
-    def load_nglview(self, view):
-        """
-        Load pdb string into nglview instance
-        """
-        super().load_nglview(view)
-        # view.add_licorice('not protein')
-
+class Macrolide(BaseChain):
+    def __init__(self, chain_id: str):
+        super().__init__(chain_id)
+        self.chain_type = 'Macrolide'
 class Saccharide(BaseChain):
-    def __init__(self, entity: int):
-        super().__init__(entity)
+    def __init__(self, chain_id: str):
+        super().__init__(chain_id)
         self.chain_type = 'Saccharide'
 
-    def load_nglview(self, view):
-        """
-        Load pdb string into nglview instance
-        """
-        super().load_nglview(view)
-        # view.add_licorice('not protein')
-
 class Solvent(BaseChain):
-    def __init__(self, entity: int):
-        super().__init__(entity)
+    def __init__(self, chain_id: str):
+        super().__init__(chain_id)
         self.chain_type = 'Solvent'
-
-    def load_nglview(self, view):
-        """
-        Load pdb string into nglview instance
-        """
-        super().load_nglview(view)
-        # view.add_licorice('not protein')
 
 def convert_chain(chain: _Chain):
     """Convert a Biopython Chain class to CHARMM Chain"""

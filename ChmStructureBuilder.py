@@ -12,11 +12,11 @@ import warnings
 
 # SMCRA hierarchy
 from Bio.PDB.PDBExceptions import PDBConstructionWarning, PDBConstructionException
-from Chain import Chain, PolymerChain
+from Chain import Chain, PolymerChain, Ligands
 
 from Structure import Structure
 from Model import Model
-from Bio.PDB.Residue import Residue, DisorderedResidue
+from Residue import Residue, DisorderedResidue, Ligand
 from Bio.PDB.Atom import Atom, DisorderedAtom
 
 class ChmStructureBuilder():
@@ -172,7 +172,10 @@ class ChmStructureBuilder():
         self.residue = disordered_residue
 
     def process_simple_res(self, res_id, resname):
-        self.residue = Residue(res_id, resname, self.segid)
+        if isinstance(self.chain, Ligands):
+            self.residue = Ligand(res_id, resname, self.segid)
+        else:
+            self.residue = Residue(res_id, resname, self.segid)
         self.chain.add(self.residue)
 
     def init_residue(self, resname, field, resseq, icode):

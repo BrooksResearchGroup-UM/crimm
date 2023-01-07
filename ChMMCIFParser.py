@@ -2,7 +2,7 @@ from Bio.PDB.MMCIFParser import MMCIFParser
 from ChMMCIF2Dict import ChMMCIF2Dict
 from ChmStructureBuilder import ChmStructureBuilder
 from Bio.PDB.PDBExceptions import PDBConstructionWarning
-from Chain import Chain, PolymerChain, Ligands, Saccharide, Solvent
+from Chain import Chain, PolymerChain, Ligands, Saccharide, Solvent, Macrolide
 from Model import Model
 from itertools import zip_longest
 import numpy
@@ -120,6 +120,8 @@ class ChMMCIFParser:
                 cur_chain = Saccharide(entity.id)
             elif entity.type == 'water':
                 cur_chain = Solvent(entity.id)
+            elif entity.type == 'macrolide':
+                cur_chain = Macrolide(entity.id)
             elif not strict_parser:
                 cur_chain = Chain(entity.id)
             else:
@@ -220,7 +222,9 @@ class ChMMCIFParser:
             if atom_site.label_alt_id == None:
                 altloc = ' '
             else:
-                altloc = atom_site.label_alt_id
+                # Convert any possible int to string to allow ord() when sorting
+                # on the altlocs
+                altloc = str(atom_site.label_alt_id)
             
             sb.init_atom(
                 name = atom_site.label_atom_id,

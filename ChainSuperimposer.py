@@ -2,7 +2,8 @@
 from Bio.Align import PairwiseAligner
 from Bio.PDB import Superimposer
 from Bio.PDB.Chain import Chain
-from Chain import Chain, StandardChain
+from Chain import Chain, PolymerChain
+from NGLVisualization import load_nglview_multiple
 import warnings
 
 class ChainSuperimposer(Superimposer):
@@ -11,14 +12,14 @@ class ChainSuperimposer(Superimposer):
         super().__init__()
 
     def find_all_common_res(self, 
-        ref_chain: Chain | StandardChain, 
-        mov_chain: Chain | StandardChain):
+        ref_chain: Chain | PolymerChain, 
+        mov_chain: Chain | PolymerChain):
         """ Find all common residues from two chains """
 
         # if any of the chains is not Chain class, convert them
         ## FIXME: change to Canonical Chain for both
-        is_ref_standard = isinstance(ref_chain, StandardChain)
-        is_mov_standard = isinstance(mov_chain, StandardChain)
+        is_ref_standard = isinstance(ref_chain, PolymerChain)
+        is_mov_standard = isinstance(mov_chain, PolymerChain)
 
         if is_ref_standard and is_mov_standard:
             ref_aligned, mov_aligned = self._find_common_res_for_standard_chain(ref_chain, mov_chain)
@@ -30,7 +31,7 @@ class ChainSuperimposer(Superimposer):
         return ref_aligned, mov_aligned
          
     def _find_common_res_for_standard_chain(
-            self, ref_chain: StandardChain, mov_chain: StandardChain
+            self, ref_chain: PolymerChain, mov_chain: PolymerChain
         ):
         if ref_chain.can_seq == mov_chain.can_seq:
             # If canonical sequences are present and identical
@@ -138,14 +139,14 @@ class ChainSuperimposer(Superimposer):
     def check_chain_type(self, chain):
         if (
             isinstance(chain, Chain) or \
-            isinstance(chain, StandardChain)
+            isinstance(chain, PolymerChain)
         ):
             return chain
         elif isinstance(chain, Chain):
             return Chain(chain)
         else:
             raise TypeError(
-                'Chain, Chain, or StandardChain class is required to use'
+                'Chain, Chain, or PolymerChain class is required to use'
                 'ChainImposer for superposition.'
                 )
         
@@ -271,24 +272,12 @@ class ChainSuperimposer(Superimposer):
         self.apply(chain.get_atoms())
 
     def show(self, ref_chain, mov_chain):
-
         from IPython.display import display
-        try:
-            import nglview as nv
-        except ImportError:
-            raise ImportError(
-                "WARNING: nglview not found! Install nglview to show"
-                "protein structures."
-                "http://nglviewer.org/nglview/latest/index.html#installation"
-            )
         # if any of the chains is not Chain class, convert them
         if not isinstance(ref_chain, Chain):
             ref_chain = Chain(ref_chain)
         if not isinstance(mov_chain, Chain):
             mov_chain = Chain(mov_chain)
 
-        view = nv.NGLWidget()
-        ref_chain.load_nglview(view)
-        mov_chain.load_nglview(view)
-        
+        view = load_nglview_multiple([ref_chain, mov_chain])
         display(view)
