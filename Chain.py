@@ -199,24 +199,28 @@ class PolymerChain(Chain):
     Author reported canonical sequence and missing residues are required for init. 
     """
     def __init__(
-        self, 
+        self,
+        chain_id: str,
         entity_id: int,
         author_chain_id: str,
         chain_type: str,
         known_sequence: str,
         canon_sequence: str,
         reported_res: List[Tuple[int, str]],
-        reported_missing_res: List[Tuple[int, str]] = []
+        reported_missing_res: List[Tuple[int, str]] = None
     ):
         """
         Attributes:
             instance_attribute (str): The instance attribute
         """
-        super().__init__(entity_id)
+        if chain_id is None:
+            chain_id = entity_id
+        super().__init__(chain_id)
+        self.entity_id = entity_id
         self.author_chain_id = author_chain_id
         self.chain_type = chain_type[0].upper()+chain_type[1:]
         self.reported_res = reported_res
-        if reported_missing_res == None:
+        if reported_missing_res is None:
             reported_missing_res = []
         self.reported_missing_res = reported_missing_res
         self.known_seq = Seq(known_sequence)
@@ -224,6 +228,7 @@ class PolymerChain(Chain):
         self.seq = Seq('')
         self.cur_missing_res = reported_res
         self.masked_seq = Seq('-'*len(canon_sequence))
+        self.gaps = None
         if len(self.reported_res) != len(self.can_seq):
             warnings.warn(
                 "Total number of reported residues do not match with the "
@@ -335,19 +340,19 @@ class PolymerChain(Chain):
         sequence_segments = [seq for seq in self.masked_seq.split('-') if len(seq) > 0]
         return len(sequence_segments) == 1
     
-class Ligands(BaseChain):
+class Heterogens(BaseChain):
     def __init__(self, chain_id: str):
         super().__init__(chain_id)
-        self.chain_type = 'Ligands'
+        self.chain_type = 'Heterogens'
 
 class Macrolide(BaseChain):
     def __init__(self, chain_id: str):
         super().__init__(chain_id)
         self.chain_type = 'Macrolide'
-class Saccharide(BaseChain):
+class Oligosaccharide(BaseChain):
     def __init__(self, chain_id: str):
         super().__init__(chain_id)
-        self.chain_type = 'Saccharide'
+        self.chain_type = 'Oligosaccharide'
 
 class Solvent(BaseChain):
     def __init__(self, chain_id: str):

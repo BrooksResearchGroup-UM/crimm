@@ -11,12 +11,16 @@ This is used by the PDBParser and MMCIFparser classes.
 import warnings
 
 # SMCRA hierarchy
-from Bio.PDB.PDBExceptions import PDBConstructionWarning, PDBConstructionException
-from Chain import Chain, PolymerChain, Ligands
+from ChainExceptions import (
+    ChainConstructionWarning,
+    ChainConstructionException,
+    AtomAltLocException
+)
+from Chain import Chain, PolymerChain, Heterogens
 
 from Structure import Structure
 from Model import Model
-from Residue import Residue, DisorderedResidue, Ligand
+from Residue import Residue, DisorderedResidue, Heterogen
 from Bio.PDB.Atom import Atom, DisorderedAtom
 
 class ChmStructureBuilder():
@@ -35,7 +39,7 @@ class ChmStructureBuilder():
         atom_list = residue.get_unpacked_list()
         for atom in atom_list:
             altloc = atom.get_altloc()
-            if altloc == " ":
+            if altloc == ' ':
                 return 0
         return 1
 
@@ -89,7 +93,7 @@ class ChmStructureBuilder():
             warnings.warn(
                 "WARNING: Chain %s is discontinuous at line %i."
                 % (chain_id, self.line_counter),
-                PDBConstructionWarning,
+                ChainConstructionWarning,
             )
         else:
             self.chain = Chain(chain_id)
@@ -112,7 +116,7 @@ class ChmStructureBuilder():
         warnings.warn(
             "WARNING: Residue ('%s', %i, '%s') redefined at line %i."
             % (field, resseq, icode, self.line_counter),
-            PDBConstructionWarning,
+            ChainConstructionWarning,
         )
         duplicate_residue = self.chain[res_id]
         self.process_disordered_res(duplicate_residue, res_id, resname)
@@ -146,7 +150,7 @@ class ChmStructureBuilder():
                 "WARNING: Residue ('%s', %i, '%s','%s') already defined "
                 "with the same name at line  %i."
                 % (field, resseq, icode, resname, self.line_counter),
-                PDBConstructionWarning,
+                ChainConstructionWarning,
             )
             self.residue = duplicate_residue
             return
@@ -154,11 +158,12 @@ class ChmStructureBuilder():
         # Make a new DisorderedResidue object and put all
         # the Residue objects with the id (field, resseq, icode) in it.
         # These residues each should have non-blank altlocs for all their atoms.
-        # If not, the PDB file probably contains an error.
+        # If not, the mmCIF file probably contains an error.
+        # e.g. PDB ID: 2BWX Residue 249 (CYS|CSO)
         if not self._is_completely_disordered(duplicate_residue):
             # if this exception is ignored, a residue will be missing
             self.residue = None
-            raise PDBConstructionException(
+            raise AtomAltLocException(
                 "Blank altlocs in duplicate residue %s ('%s', %i, '%s')"
                 % (resname, field, resseq, icode)
             )
@@ -172,8 +177,8 @@ class ChmStructureBuilder():
         self.residue = disordered_residue
 
     def process_simple_res(self, res_id, resname):
-        if isinstance(self.chain, Ligands):
-            self.residue = Ligand(res_id, resname, self.segid)
+        if isinstance(self.chain, Heterogens):
+            self.residue = Heterogen(res_id, resname, self.segid)
         else:
             self.residue = Residue(res_id, resname, self.segid)
         self.chain.add(self.residue)
@@ -246,7 +251,7 @@ class ChmStructureBuilder():
                 warnings.warn(
                     "Atom names %r and %r differ only in spaces at line %i."
                     % (duplicate_fullname, fullname, self.line_counter),
-                    PDBConstructionWarning,
+                    ChainConstructionWarning,
                 )
         self.atom = Atom(
             name,
@@ -280,7 +285,7 @@ class ChmStructureBuilder():
                     warnings.warn(
                         "WARNING: disordered atom found with blank altloc before "
                         "line %i.\n" % self.line_counter,
-                        PDBConstructionWarning,
+                        ChainConstructionWarning,
                     )
             else:
                 # The residue does not contain this disordered atom

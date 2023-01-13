@@ -3,7 +3,9 @@ import requests
 import warnings
 from Chain import Chain, PolymerChain
 from ChainSuperimposer import ChainSuperimposer
-from create_structure import make_schain
+from ChMMCIFParser import ChMMCIFParser
+from create_structure import fetch_rcsb_cif
+from io import StringIO
 
 class ChainLooper:
     """
@@ -91,7 +93,6 @@ class ChainLooper:
         return self.imposer.rms
 
     def _copy_gap_residues(self, gap, keep = False):
-        id_st = 1
         # gap is a set and has to be sorted before calculated the idx for 
         # insertion. Otherwise, it would mess up the residue sequence in
         # the structure
@@ -99,8 +100,10 @@ class ChainLooper:
             # The residues from the template, template_chain, will get 
             # recursively copied, and template_chain will remain intact. 
             for i in sorted(gap):
+                # Get item i from template chain refers to residue seq num
                 copy_res = self.template_chain[i].copy()
-                self.model_chain.insert(i-id_st, copy_res)
+                # while i in insert refer to child list index, thus i-1 here
+                self.model_chain.insert(i-1, copy_res)
         else:
             # By default, we are not using copy() 
             # The caveat is that the gap residues will be directly transfered 
@@ -108,7 +111,7 @@ class ChainLooper:
             # That is, model_chain will get fixed, but the resulting structure 
             # of template_chain will have the gaps.
             for i in sorted(gap):
-                self.model_chain.insert(i-id_st, self.template_chain[i])
+                self.model_chain.insert(i-1, self.template_chain[i])
                 self.template_chain.detach_child(self.template_chain[i].get_id())
 
     def repair_gaps_from_template(self, 
@@ -125,7 +128,7 @@ class ChainLooper:
             raise AttributeError('Template chain not set!' 
                 'Use set_template_chain() to load template first')
         
-        cur_repaired = []
+        all_repaired = dict()
         for gap in self.find_repairable_gaps():
             st, end = min(gap), max(gap)
             self.imposer.set_around_gap(self.model_chain, self.template_chain, st, end)
@@ -133,19 +136,21 @@ class ChainLooper:
             rmsd = self.imposer.rms
             if rmsd <= rmsd_threshold:
                 self._copy_gap_residues(gap, keep_template_structure)
-                cur_repaired.append(gap)
+                cur_repaired = self.model_chain.child_list[st-1:end]
+                all_repaired[(st,end)] = cur_repaired
             else:
                 warnings.warn(
                     'RMSD ({}) of superposition around gap {} is '
                     'higher than the threshold {}. Repair not applied!'
-                    .format(rmsd, gap, rmsd_threshold))
+                    .format(rmsd, gap, rmsd_threshold)
+                )
             self.model_chain.update()
             self.template_chain.update()
 
         self.model_chain.reset_atom_serial_numbers()
         self.template_chain.reset_atom_serial_numbers()
-        self.repaired_gaps.extend(cur_repaired)
-        return cur_repaired
+        self.repaired_gaps.extend(all_repaired)
+        return all_repaired
 
     def highlight_repaired_gaps(self, gaps = None, chain = None, add_licorice = False):
         """
@@ -170,28 +175,31 @@ class ChainLooper:
         ngl_args = [{'type': 'blob', 'data': blob, 'binary': False}]
         view._ngl_component_names.append('Model Chain')
         # Load data, and do not add any representation
-        view._remote_call("loadFile",
-                        target='Stage',
-                        args=ngl_args,
-                        kwargs= {'ext':'pdb',
-                        'defaultRepresentation':False}
-                        )
+        view._remote_call(
+            "loadFile",
+            target='Stage',
+            args=ngl_args,
+            kwargs= {'ext':'pdb',
+            'defaultRepresentation':False}
+        )
         # Add color existing residues grey
-        view._remote_call('addRepresentation',
-                        target='compList',
-                        args=['cartoon'],
-                        kwargs={
-                            'sele': 'protein', 
-                            'color': 'grey', 
-                            'component_index': 0
-                        }
-                        )
+        view._remote_call(
+            'addRepresentation',
+            target='compList',
+            args=['cartoon'],
+            kwargs={
+                'sele': 'protein', 
+                'color': 'grey', 
+                'component_index': 0
+            }
+        )
 
         # Select atoms by atom indices
         gap_atom_selection = []
-        for gap in gaps:
-            for res_id in gap:
-                atom_ids = [atom.get_serial_number() for atom in self.model_chain[res_id]]
+        for st, end in gaps:
+            for i in range(st-1, end):
+                res = self.model_chain.child_list[i]
+                atom_ids = [atom.get_serial_number() for atom in res]
                 gap_atom_selection.extend(atom_ids)
 
         if len(gap_atom_selection) == 0:
@@ -200,25 +208,27 @@ class ChainLooper:
         # Convert to string array for JS
         sele_str = "@" + ",".join(str(s) for s in gap_atom_selection)
         # Highlight the repaired gap atoms with red color
-        view._remote_call('addRepresentation',
-                        target='compList',
-                        args=['cartoon'],
-                        kwargs={
-                            'sele': sele_str, 
-                            'color': 'red', 
-                            'component_index': 0
-                        }
-                        )
+        view._remote_call(
+            'addRepresentation',
+            target='compList',
+            args=['cartoon'],
+            kwargs={
+                'sele': sele_str, 
+                'color': 'red', 
+                'component_index': 0
+            }
+        )
         if add_licorice:
             # Add licorice representations
-            view._remote_call('addRepresentation',
-                            target='compList',
-                            args=['licorice'],
-                            kwargs={
-                                'sele': sele_str,  
-                                'component_index': 0
-                            }
-                            )
+            view._remote_call(
+                'addRepresentation',
+                target='compList',
+                args=['licorice'],
+                kwargs={
+                    'sele': sele_str,  
+                    'component_index': 0
+                }
+            )
         view.center()
         return view
 
@@ -251,11 +261,12 @@ class ChainLooper:
         sele_str = '-'.join([st,end]).strip('-')
         if sele_str == '':
             raise ValueError('Invalid selection of gap: {}'.format(gap))
-        view._remote_call('autoView',
-                        target='compList',
-                        args=[sele_str, 0],
-                        kwargs={'component_index': 0},
-                        )
+        view._remote_call(
+            'autoView',
+            target='compList',
+            args=[sele_str, 0],
+            kwargs={'component_index': 0},
+        )
         return view
 
     def show(self):
@@ -273,13 +284,11 @@ class ChainLooper:
         return view
     
 class ReLooper(ChainLooper):
-    def __init__(self, model_chain: PolymerChain, canonical_seq = None) -> None:
-        if canonical_seq != None:
-            # Overwrite canonical sequence in model chain
-            model_chain.can_seq = canonical_seq
-        elif model_chain.can_seq == None:
-            raise ValueError('Canonical sequence is required to for homology'
-                'loop modeling!')
+    def __init__(self, model_chain: PolymerChain) -> None:
+        if not isinstance(model_chain, PolymerChain):
+            raise TypeError(
+                'PolymerChain is required for homology loop modeling!'
+            )
         super().__init__(model_chain)
         self.query_results = None
 
@@ -343,17 +352,25 @@ class ReLooper(ChainLooper):
                 results[entry['score']][pdb_id].append(chain_id)
             return results
         else:
-            raise ValueError('Query on the sequence did not return '+\
-            'requested information. {}'.format(r))
+            raise ValueError(
+                'Query on the sequence did not return '
+                'requested information. {}'.format(r)
+            )
 
     def get_templates(self, query_results: dict):
         """
         Return a generator of all template chains from the query result dict
         """
+        Parser = ChMMCIFParser(QUIET=True)
         for entity_dict in query_results.values():
             for pdbid, chain_ids in entity_dict.items():
+                ## TODO: Use Parser to make template chains
+                cif_str = fetch_rcsb_cif(pdbid)
+                file_handle = StringIO(cif_str)
+                structure = Parser.get_structure(file_handle)
                 for chain_id in chain_ids:
-                    template_chain = make_schain(pdbid, chain_id)
+                    # Get the first model and get the chain by id
+                    template_chain = structure.child_list[0][chain_id]
                     # we want to use a generator here because the loop for
                     # auto_rebuild has a breaking condition, and pulling 
                     # all PDB template model data from rcsb.org at once 

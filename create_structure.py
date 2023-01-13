@@ -3,6 +3,34 @@ import warnings
 from Bio.PDB.MMCIFParser import MMCIFParser
 from Bio.PDB.Polypeptide import protein_letters_3to1_extended
 from Chain import PolymerChain 
+import requests
+
+def fetch_rcsb_cif(code):
+    """Fetches a file from a remote location via HTTP.
+    If a PDB code is given, the .cif form of that struture will be fetched from
+    the RCSB servers. If that code is given an extension, that file format will
+    be obtained instead of .cif. If a URL is given, the function will simply
+    look in that location.
+    For example:
+    
+        >>> atomium.fetch('1lol.mmtf', file_dict=True)
+    
+    This will get the .mmtf version of structure 1LOL, but only go as far as
+    converting it to an atomium file dictionary.
+    :param str code: the file to fetch.
+    :param bool file_dict: if ``True``, parsing will stop at the file ``dict``.
+    :param bool data_dict: if ``True``, parsing will stop at the data ``dict``.
+    :raises ValueError: if no file is found.
+    :rtype: ``File``"""
+
+    
+    if "." not in code: code += ".cif"
+    url = "https://files.rcsb.org/view/" + code.lower()
+    response = requests.get(url, stream=True)
+    if response.status_code == 200:
+        text = response.text
+        return text
+    raise ValueError("Could not find anything at {}".format(url))
 
 def find_local_cif_path(pdb_id):
     pdb_id = pdb_id.lower()

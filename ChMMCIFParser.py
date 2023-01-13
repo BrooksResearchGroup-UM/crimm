@@ -1,19 +1,22 @@
-from Bio.PDB.MMCIFParser import MMCIFParser
-from ChMMCIF2Dict import ChMMCIF2Dict
-from ChmStructureBuilder import ChmStructureBuilder
-from Bio.PDB.PDBExceptions import PDBConstructionWarning
-from Chain import Chain, PolymerChain, Ligands, Saccharide, Solvent, Macrolide
-from Model import Model
+import warnings
 from itertools import zip_longest
 import numpy
-import warnings
+from Bio.PDB.PDBExceptions import PDBConstructionWarning
+from Bio.PDB.Atom import Atom
+from ChMMCIF2Dict import ChMMCIF2Dict
+from ChmStructureBuilder import ChmStructureBuilder
+from Chain import Chain, PolymerChain, Heterogens, Oligosaccharide, Solvent, Macrolide
+from Model import Model
+
 
 class ChMMCIFParser:
     def __init__(self, sturcture_builder = None, QUIET = False):
-        if sturcture_builder == None:
+        if sturcture_builder is None:
             sturcture_builder = ChmStructureBuilder()
         self._structure_builder = sturcture_builder
         self.QUIET = QUIET
+        self.cifdict = None
+        self.header = None
 
     def _get_header(self):
         resolution_keys = [
@@ -89,13 +92,14 @@ class ChMMCIFParser:
         for auth_chain_id, entity_info in entity_poly_dict.items():
             entity_id = entity_info.entity_id
             pchain = PolymerChain(
+                None,
                 entity_id,
                 auth_chain_id,
                 entity_info.type,
                 entity_info.pdbx_seq_one_letter_code,
                 entity_info.pdbx_seq_one_letter_code_can,
-                reported_res_dict.get(entity_info.entity_id),
-                missing_res_dict.get(chain_id)
+                reported_res_dict[entity_info.entity_id],
+                missing_res_dict.get(auth_chain_id)
             )
             polymer_dict[entity_id] = pchain
         return polymer_dict
@@ -115,20 +119,76 @@ class ChMMCIFParser:
             if entity.type == 'polymer':
                 cur_chain = poly_dict[entity.id]
             elif entity.type == 'non-polymer':
-                cur_chain = Ligands(entity.id)
-            elif entity.type == 'branched':
-                cur_chain = Saccharide(entity.id)
+                cur_chain = Heterogens(entity.id)
             elif entity.type == 'water':
                 cur_chain = Solvent(entity.id)
+            elif entity.type == 'branched':
+                cur_chain = Oligosaccharide(entity.id)
             elif entity.type == 'macrolide':
                 cur_chain = Macrolide(entity.id)
             elif not strict_parser:
                 cur_chain = Chain(entity.id)
             else:
-                raise TypeError('Unknown Chain Type: {}'.format(entity.type))
+                raise TypeError(f'Unknown Chain Type: {entity.type}')
             self.set_chain_attr(entity, cur_chain)
             model_temp.add(cur_chain)
         return model_temp
+
+    def create_atom_from_namedtuple(self, atom_entry, atom_id):
+        """Create an Atom object from the namedtuple of an "atom_site" entry
+        from the mmCIF dict
+
+        :param atom_entry: A namedtuple created from mmCIF "atom_site" entries
+                           with field names as attributes in the tuple
+        :type atom_entry: namedtuple
+
+        :param atom_id: The serial number of the atom. It should be continuous
+                        and sequential. HETATOMs should also be assigned with atom_id
+                        even though mmCIF does not contain such record for them.
+        :type atom_id: int
+        """
+        coord = numpy.array(
+                [atom_entry.Cartn_x, atom_entry.Cartn_y, atom_entry.Cartn_z]
+        )
+        altloc = atom_entry.label_alt_id
+        if altloc is None:
+            altloc = ' '
+
+        atom = Atom(
+            name = atom_entry.label_atom_id,
+            fullname = atom_entry.label_atom_id,
+            coord = coord,
+            bfactor = atom_entry.B_iso_or_equiv,
+            occupancy = atom_entry.occupancy,
+            altloc = altloc,
+            serial_number = atom_id,
+            element = atom_entry.type_symbol,
+        )
+        return atom
+
+    def create_atom_site_entry_dict(self):
+        atom_site = self.cifdict.create_namedtuples('atom_site')
+        model_dict = dict()
+        for i, atom_entry in enumerate(atom_site):
+            atom_id = i+1
+            model_num = atom_entry.pdbx_PDB_model_num
+            if model_num not in model_dict:
+                model_dict[model_num] = dict()
+                entity_dict = model_dict[model_num]
+            entity_id = atom_entry.label_entity_id
+            if entity_id not in entity_dict:
+                entity_dict[entity_id] = dict()
+                chain_dict = entity_dict[entity_id]
+            chain_id = atom_entry.label_asym_id
+            if chain_id not in chain_dict:
+                chain_dict[chain_id] = dict()
+                res_dict = chain_dict[chain_id]
+            resseq = atom_entry.label_seq_id
+            if resseq not in res_dict:
+                res_dict[resseq] = []
+            atom = self.create_atom_from_namedtuple(atom_entry, atom_id)
+            res_dict[resseq].append(atom)
+        return model_dict
 
     @staticmethod
     def _assign_hetflag(fieldname, resname):
@@ -169,20 +229,28 @@ class ChMMCIFParser:
             if model_serial_id not in sb.structure:
                 # if serial changes, update it and start new model
                 model = sb.init_model(model_serial_id)
+                last_entity_id = None
+                last_chain_id = None
                 current_resname = None
                 current_res_id = None
                 het_chain_resseq = 0
 
             entity_id = atom_site.label_entity_id
             chain_id = atom_site.label_asym_id
-            if entity_id != last_entity_id or \
-                (isinstance(sb.chain, PolymerChain) and chain_id != last_chain_id ):
+            if entity_id != last_entity_id \
+                or (
+                    isinstance(sb.chain, PolymerChain) \
+                    and chain_id != last_chain_id 
+                ):
                 last_chain_id = chain_id
                 last_entity_id = entity_id
                 if isinstance(sb.chain, PolymerChain):
                     sb.chain.reset_disordered_residues()
                     sb.chain.update()
                 if chain_id not in model:
+                    # Get the entity template for the chain
+                    # Different chain can have the same entity id 
+                    # (different instances of identical polymers)
                     chain = sb.model_template[entity_id].copy()
                     chain.id = chain_id
                     model.add(chain)
@@ -190,12 +258,13 @@ class ChMMCIFParser:
                     chain = model[chain_id]
                 sb.chain = chain
 
-            resname = atom_site.label_comp_id
+            # Convert any possible int resname to str for heterogens
+            resname = str(atom_site.label_comp_id)
             hetatm_flag = self._assign_hetflag(atom_site.group_PDB, resname)
             auth_seq_id = atom_site.auth_seq_id
             auth_chain_id = atom_site.auth_asym_id
             # For heterogens that do not have resseq
-            if atom_site.label_seq_id == None:
+            if atom_site.label_seq_id is None:
                 # if the atom does not the same author seq id as the last atom,
                 # they are in the separate molecules, and the resseq needs to increment
                 if auth_seq_id != last_auth_seq or chain_id != last_chain_id:
@@ -206,7 +275,7 @@ class ChMMCIFParser:
             else:
                 int_resseq = atom_site.label_seq_id
                 
-            if atom_site.pdbx_PDB_ins_code == None:
+            if atom_site.pdbx_PDB_ins_code is None:
                 icode = ' '
             else:
                 icode = atom_site.pdbx_PDB_ins_code
@@ -219,7 +288,7 @@ class ChMMCIFParser:
 
             # Reindex the atom serial number
             atom_serial = i+1
-            if atom_site.label_alt_id == None:
+            if atom_site.label_alt_id is None:
                 altloc = ' '
             else:
                 # Convert any possible int to string to allow ord() when sorting
@@ -251,7 +320,10 @@ class ChMMCIFParser:
         if isinstance(sb.chain, PolymerChain):
             sb.chain.reset_disordered_residues()
             sb.chain.update()
+
+        self.add_cell_and_symmetry_info()
         
+    def add_cell_and_symmetry_info(self):
         cell = self.cifdict.create_namedtuples('cell', single_value=True)
         symmetry = self.cifdict.create_namedtuples('symmetry', single_value=True)
 
@@ -268,4 +340,4 @@ class ChMMCIFParser:
         gamma = float(cell.angle_gamma)
         cell_data = numpy.array((a, b, c, alpha, beta, gamma), "f")
         spacegroup = symmetry.space_group_name_H_M #Hermann-Mauguin space-group symbol
-        sb.set_symmetry(spacegroup, cell_data)
+        self._structure_builder.set_symmetry(spacegroup, cell_data)

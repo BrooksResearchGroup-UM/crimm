@@ -93,7 +93,7 @@ class DisorderedResidue(_DisorderedResidue):
         
         return pdb_str
 
-class Ligand(Residue):
+class Heterogen(Residue):
     def __init__(self, id, resname, segid):
         super().__init__(id, resname, segid)
 

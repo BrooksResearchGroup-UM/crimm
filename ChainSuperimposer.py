@@ -17,20 +17,21 @@ class ChainSuperimposer(Superimposer):
         """ Find all common residues from two chains """
 
         # if any of the chains is not Chain class, convert them
-        ## FIXME: change to Canonical Chain for both
-        is_ref_standard = isinstance(ref_chain, PolymerChain)
-        is_mov_standard = isinstance(mov_chain, PolymerChain)
+        is_ref_polymer = isinstance(ref_chain, PolymerChain)
+        is_mov_polymer = isinstance(mov_chain, PolymerChain)
 
-        if is_ref_standard and is_mov_standard:
-            ref_aligned, mov_aligned = self._find_common_res_for_standard_chain(ref_chain, mov_chain)
+        if is_ref_polymer and is_mov_polymer:
+            ref_aligned, mov_aligned = \
+                self._find_common_res_for_polymer_chain(ref_chain, mov_chain)
         else:
-            ref_aligned, mov_aligned = self._find_common_res_for_simple_chain(ref_chain, mov_chain)       
+            ref_aligned, mov_aligned = \
+                self._find_common_res_for_simple_chain(ref_chain, mov_chain)       
 
         assert len(ref_aligned) == len(mov_aligned)
 
         return ref_aligned, mov_aligned
          
-    def _find_common_res_for_standard_chain(
+    def _find_common_res_for_polymer_chain(
             self, ref_chain: PolymerChain, mov_chain: PolymerChain
         ):
         if ref_chain.can_seq == mov_chain.can_seq:
@@ -47,8 +48,9 @@ class ChainSuperimposer(Superimposer):
             ## TODO: TEST THIS!!
             # Canonical sequence is present for both but they are not identical
             # Align them first to find the common segments
-            ref_range, mov_range = self._get_aligned_ranges(ref_chain.can_seq, 
-                                                            mov_chain.can_seq)
+            ref_range, mov_range = self._get_aligned_ranges(
+                ref_chain.can_seq, mov_chain.can_seq
+            )
             # Create a set of the common residue ids from alignment
             r_sele_res = self._get_aligned_res_ids(1, ref_range)
             # Get residues ids that are present in these common residues
@@ -71,8 +73,8 @@ class ChainSuperimposer(Superimposer):
             # No canonical sequence. Fall back to present sequence.
             # Align to find the common residue first
             ref_range, mov_range = self._get_aligned_ranges(ref_seq, mov_seq)
-            # Since no canonical sequence, all residues from aligned 
-            # sequence is used as common residues for superposition
+            # Since no canonical sequence exists, the aligned residues
+            # are used as common residues for superposition
             ref_aligned = self._get_aligned_res(ref_chain, ref_range)
             mov_aligned = self._get_aligned_res(mov_chain, mov_range) 
         else:
@@ -146,9 +148,9 @@ class ChainSuperimposer(Superimposer):
             return Chain(chain)
         else:
             raise TypeError(
-                'Chain, Chain, or PolymerChain class is required to use'
+                'Chain or PolymerChain class is required to use'
                 'ChainImposer for superposition.'
-                )
+            )
         
     def set_chains(self, ref_chain, mov_chain, on_atoms = 'CA'):
         
