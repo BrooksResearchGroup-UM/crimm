@@ -17,6 +17,7 @@ class ChMMCIFParser:
         self.QUIET = QUIET
         self.cifdict = None
         self.header = None
+        self.model_template = None
 
     def _get_header(self):
         resolution_keys = [
@@ -57,6 +58,7 @@ class ChMMCIFParser:
             if self.QUIET:
                 warnings.filterwarnings("ignore", category=PDBConstructionWarning)
             self.cifdict = ChMMCIF2Dict(filename)
+            self.model_template = self.create_model_template()
             self._build_structure(structure_id)
             self._structure_builder.set_header(self._get_header())
 
@@ -91,7 +93,7 @@ class ChMMCIFParser:
         polymer_dict = dict()
         for auth_chain_id, entity_info in entity_poly_dict.items():
             entity_id = entity_info.entity_id
-            pchain = PolymerChain(
+            chain = PolymerChain(
                 None,
                 entity_id,
                 auth_chain_id,
@@ -101,7 +103,7 @@ class ChMMCIFParser:
                 reported_res_dict[entity_info.entity_id],
                 missing_res_dict.get(auth_chain_id)
             )
-            polymer_dict[entity_id] = pchain
+            polymer_dict[entity_id] = chain
         return polymer_dict
 
     def set_chain_attr(self, entity, chain):
@@ -134,18 +136,13 @@ class ChMMCIFParser:
             model_temp.add(cur_chain)
         return model_temp
 
-    def create_atom_from_namedtuple(self, atom_entry, atom_id):
+    def create_atom_from_namedtuple(self, atom_entry):
         """Create an Atom object from the namedtuple of an "atom_site" entry
         from the mmCIF dict
 
         :param atom_entry: A namedtuple created from mmCIF "atom_site" entries
                            with field names as attributes in the tuple
         :type atom_entry: namedtuple
-
-        :param atom_id: The serial number of the atom. It should be continuous
-                        and sequential. HETATOMs should also be assigned with atom_id
-                        even though mmCIF does not contain such record for them.
-        :type atom_id: int
         """
         coord = numpy.array(
                 [atom_entry.Cartn_x, atom_entry.Cartn_y, atom_entry.Cartn_z]
@@ -161,16 +158,58 @@ class ChMMCIFParser:
             bfactor = atom_entry.B_iso_or_equiv,
             occupancy = atom_entry.occupancy,
             altloc = altloc,
-            serial_number = atom_id,
+            serial_number = atom_entry.id,
             element = atom_entry.type_symbol,
         )
         return atom
 
+    @staticmethod
+    def _assign_hetflag(fieldname, resname):
+        if fieldname != "HETATM":
+            return ' '
+        if resname in ("HOH", "WAT"):
+            return "W"
+        return "H"
+
+    def _create_residue_dict_entry(self, atom_entry, resseq):
+        """Create a residue dictionary entry with empty atom list"""
+        resname = str(atom_entry.label_comp_id)
+        hetatm_flag = self._assign_hetflag(
+            atom_entry.group_PDB, resname
+        )
+        icode = atom_entry.pdbx_PDB_ins_code
+        if icode is None:
+            icode = ' '
+        res_id = (hetatm_flag, resseq, icode)
+        res_dict_entry = {
+            "resname": resname,
+            "res_id": res_id,
+            "atom_list": []
+        }
+        return res_dict_entry
+        
     def create_atom_site_entry_dict(self):
+        """Create a dictionary containing structured data from all "atom_site" 
+        fields in mmCIF. Return a dictionary that contains four levels, which 
+        are keyed by [model_id,[chain_id,[resseq]]].
+
+        The dictionary adopt the strucuture as following.
+        structure_dict : {
+            model_dict[model_id] : {
+                chain_dict[chain_id] : {
+                    res_dict[resseq] : {
+                        "resname": str,
+                        "res_id": Tuple[hetflag: str, resseq: int, icode: str],
+                        "atom_list": List[atoms: Atom]
+                    }
+                }
+            }
+        }
+        """
         atom_site = self.cifdict.create_namedtuples('atom_site')
         model_dict = dict()
-        for i, atom_entry in enumerate(atom_site):
-            atom_id = i+1
+
+        for atom_entry in atom_site:
             model_num = atom_entry.pdbx_PDB_model_num
             if model_num not in model_dict:
                 model_dict[model_num] = dict()
@@ -181,145 +220,73 @@ class ChMMCIFParser:
                 chain_dict = entity_dict[entity_id]
             chain_id = atom_entry.label_asym_id
             if chain_id not in chain_dict:
+                last_auth_seq = None
+                het_chain_resseq = 0
                 chain_dict[chain_id] = dict()
                 res_dict = chain_dict[chain_id]
+
             resseq = atom_entry.label_seq_id
+            auth_seq_id = atom_entry.auth_seq_id
+            if resseq is None:
+                # The residue sequence for HETATOM is not defined in mmCIF, 
+                # we need to manually increment it from the last sequence number
+                if auth_seq_id != last_auth_seq:
+                    het_chain_resseq += 1
+                    last_auth_seq = auth_seq_id
+                resseq = het_chain_resseq
+
             if resseq not in res_dict:
-                res_dict[resseq] = []
-            atom = self.create_atom_from_namedtuple(atom_entry, atom_id)
-            res_dict[resseq].append(atom)
+                res_dict[resseq] = self._create_residue_dict_entry(atom_entry, resseq)
+            atom = self.create_atom_from_namedtuple(atom_entry)
+            res_dict[resseq]['atom_list'].append(atom)
+
         return model_dict
 
-    @staticmethod
-    def _assign_hetflag(fieldname, resname):
-        if fieldname != "HETATM":
-            return ' '
-        if resname in ("HOH", "WAT"):
-            return "W"
-        return "H"
+
 
     def _build_structure(self, structure_id):
         sb = self._structure_builder
-        model_template = self.create_model_template()
-
-        atom_site = self.cifdict.create_namedtuples('atom_site')
-        coords = self.cifdict.find_atom_coords()
+        self.model_template = self.create_model_template()
         all_anisou = self.cifdict.create_namedtuples('atom_site_anisotrop')
-
         if structure_id is None:
             structure_id = self.cifdict['data']
-        sb.init_structure(structure_id, model_template)
+        sb.init_structure(structure_id)
         sb.init_seg(" ")
 
-        last_chain_id = None
-        last_entity_id = None
-        last_auth_seq = None
-        het_chain_resseq = 0
-        sb.chain = None
-        current_resname = None
-        current_res_id = None
+        atom_site = self.create_atom_site_entry_dict()
 
-        all_data = zip_longest(atom_site, coords, all_anisou)
-        for i, (atom_site, coord, anisou) in enumerate(all_data):
-            # set the line_counter for 'ATOM' lines only and not
-            # as a global line counter found in the PDBParser()
-            sb.set_line_counter(i)
-            
-            model_serial_id = atom_site.pdbx_PDB_model_num
-            if model_serial_id not in sb.structure:
-                # if serial changes, update it and start new model
-                model = sb.init_model(model_serial_id)
-                last_entity_id = None
-                last_chain_id = None
-                current_resname = None
-                current_res_id = None
-                het_chain_resseq = 0
-
-            entity_id = atom_site.label_entity_id
-            chain_id = atom_site.label_asym_id
-            if entity_id != last_entity_id \
-                or (
-                    isinstance(sb.chain, PolymerChain) \
-                    and chain_id != last_chain_id 
-                ):
-                last_chain_id = chain_id
-                last_entity_id = entity_id
+        for model_id, entity_dict in atom_site.items():
+            model = Model(model_id)
+            sb.structure.add(model)
+            sb.model = model
+            for entity_id, chain_dict in entity_dict.items():
+                chain = self.model_template[entity_id].copy()
+                model.add(chain)
+                sb.chain = chain
+                for chain_id, res_dict in chain_dict.items():
+                    # This is the mmCIF label chain id
+                    chain.id = chain_id
+                    for resseq, res_info in res_dict.items():
+                        resname = res_info["resname"]
+                        res_id = res_info["res_id"]
+                        atoms = res_info["atom_list"]
+                        sb.init_residue(resname, *res_id)
+                        for atom in atoms:
+                            sb.add_atom(atom)
+                            if atom.serial_number <= len(all_anisou):
+                                anisou = all_anisou[atom.id-1]
+                                u = (
+                                    anisou.U11,
+                                    anisou.U12,
+                                    anisou.U13,
+                                    anisou.U22,
+                                    anisou.U23,
+                                    anisou.U33,
+                                )
+                                sb.set_anisou(numpy.array(u, "f"))
                 if isinstance(sb.chain, PolymerChain):
                     sb.chain.reset_disordered_residues()
                     sb.chain.update()
-                if chain_id not in model:
-                    # Get the entity template for the chain
-                    # Different chain can have the same entity id 
-                    # (different instances of identical polymers)
-                    chain = sb.model_template[entity_id].copy()
-                    chain.id = chain_id
-                    model.add(chain)
-                else:
-                    chain = model[chain_id]
-                sb.chain = chain
-
-            # Convert any possible int resname to str for heterogens
-            resname = str(atom_site.label_comp_id)
-            hetatm_flag = self._assign_hetflag(atom_site.group_PDB, resname)
-            auth_seq_id = atom_site.auth_seq_id
-            auth_chain_id = atom_site.auth_asym_id
-            # For heterogens that do not have resseq
-            if atom_site.label_seq_id is None:
-                # if the atom does not the same author seq id as the last atom,
-                # they are in the separate molecules, and the resseq needs to increment
-                if auth_seq_id != last_auth_seq or chain_id != last_chain_id:
-                    last_chain_id = chain_id
-                    het_chain_resseq += 1
-                    int_resseq = het_chain_resseq
-                    last_auth_seq = 1*auth_seq_id
-            else:
-                int_resseq = atom_site.label_seq_id
-                
-            if atom_site.pdbx_PDB_ins_code is None:
-                icode = ' '
-            else:
-                icode = atom_site.pdbx_PDB_ins_code
-            res_id = (hetatm_flag, int_resseq, icode)
-
-            if res_id != current_res_id or current_resname != resname:
-                current_res_id = res_id
-                current_resname = resname
-                sb.init_residue(resname, hetatm_flag, int_resseq, icode)
-
-            # Reindex the atom serial number
-            atom_serial = i+1
-            if atom_site.label_alt_id is None:
-                altloc = ' '
-            else:
-                # Convert any possible int to string to allow ord() when sorting
-                # on the altlocs
-                altloc = str(atom_site.label_alt_id)
-            
-            sb.init_atom(
-                name = atom_site.label_atom_id,
-                fullname = atom_site.label_atom_id,
-                coord = coord,
-                b_factor = atom_site.B_iso_or_equiv,
-                occupancy = atom_site.occupancy,
-                altloc = altloc,
-                serial_number = atom_serial,
-                element = atom_site.type_symbol,
-            )
-            
-            if anisou:
-                u = (
-                    anisou.U11,
-                    anisou.U12,
-                    anisou.U13,
-                    anisou.U22,
-                    anisou.U23,
-                    anisou.U33,
-                )
-                sb.set_anisou(numpy.array(u, "f"))
-        
-        if isinstance(sb.chain, PolymerChain):
-            sb.chain.reset_disordered_residues()
-            sb.chain.update()
 
         self.add_cell_and_symmetry_info()
         
