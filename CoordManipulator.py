@@ -2,7 +2,7 @@ from typing import List, Tuple
 from Bio.PDB.Atom import Atom
 import numpy as np
 from scipy.spatial.transform import Rotation as R
-from scipy.spatial.distance import cdist
+from scipy.spatial.distance import pdist
 
 
 class CoordManipulator:
@@ -20,7 +20,7 @@ class CoordManipulator:
 
     def get_dist_matrix(self) -> np.array:
         if not hasattr(self, "_dist_matrix"):
-            self._dist_matrix = cdist(self.coords, self.coords)
+            self._dist_matrix = pdist(self.coords)
         return self._dist_matrix
 
     def get_farthest_atom_pair(self) -> Tuple[Atom, Atom]:

@@ -1,14 +1,29 @@
-from Bio.PDB.Residue import Residue as _Residue
-from Bio.PDB.Residue import DisorderedResidue as _DisorderedResidue
-from Bio.PDB import PDBIO
-from ResidueExceptions import LigandBondOrderException, SmilesQueryException
 import warnings
 import json
 import requests
+from Bio.PDB.Residue import Residue as _Residue
+from Bio.PDB.Entity import Entity
+from Bio.PDB.Residue import DisorderedResidue as _DisorderedResidue
+from Bio.PDB import PDBIO
+from ResidueExceptions import LigandBondOrderException, SmilesQueryException
+
 
 class Residue(_Residue):
+    """Residue class derived from Biopython Residue and made compatible with
+    CHARMM Topology."""
     def __init__(self, id, resname, segid):
         super().__init__(id, resname, segid)
+        # Forcefield Parameters
+        self.topo_definition = None
+        self.groups = None
+        self.total_charge = None
+        self.bonds = None
+        self.impropers = None
+        self.cmap = None
+        self.H_donors = None
+        self.H_acceptors = None
+        self.is_patch = None
+        self.param_desc = None
 
     def get_unpacked_atoms(self):
         return self.get_unpacked_list()
@@ -27,7 +42,7 @@ class Residue(_Residue):
             chain = self.get_parent()
             chain_id = chain.get_id()
         else:
-            chain_id = 'XX'
+            chain_id = 'X'
 
         io = PDBIO()
         pdb_string = ''
@@ -41,7 +56,7 @@ class Residue(_Residue):
 
         for atom in get_child(self):
             atom_number = atom.serial_number
-            s = io._get_atom_line(
+            atom_line = io._get_atom_line(
                 atom,
                 hetfield,
                 segid,
@@ -51,7 +66,7 @@ class Residue(_Residue):
                 icode,
                 chain_id,
             )
-            pdb_string += s
+            pdb_string += atom_line
         return pdb_string
         
     
@@ -96,6 +111,26 @@ class DisorderedResidue(_DisorderedResidue):
 class Heterogen(Residue):
     def __init__(self, id, resname, segid):
         super().__init__(id, resname, segid)
+        self.smiles = None
+
+    def add(self, atom):
+        """Special method for Add an Atom object to Heterogen. Any duplicated 
+        Atom id will be renamed.
+
+        Checks for adding duplicate atoms, and raises a warning if so.
+        """
+        atom_id = atom.get_id()
+        if self.has_id(atom_id):
+            # some ligands in PDB could have duplicated atom names, we will
+            # recursively check and rename the atom.
+            atom.id = atom.id+'A'
+            warnings.warn(
+                f"Atom {atom_id} defined twice in residue {self}!"+
+                f' Atom id renamed to {atom.id}.'
+            )
+            self.add(atom)
+        else:
+            Entity.add(self, atom)
 
     def _build_smiles_query(self):
         query = '''
@@ -111,14 +146,18 @@ class Heterogen(Residue):
         return query
 
     def query_pdb_for_smiles(self):
+        """Query the canonical SMILES for the molecule from PDB based on chem_comps
+        ID"""
         url="https://data.rcsb.org/graphql"
-        r = requests.post(url, json={'query': self._build_smiles_query()})
-        r_dict = json.loads(r.text)
-        return_vals = r_dict['data']['chem_comps']
+        response = requests.post(
+                url, json={'query': self._build_smiles_query()}, timeout=1000
+            )
+        response_dict = json.loads(response.text)
+        return_vals = response_dict['data']['chem_comps']
         if not return_vals:
             warnings.warn(
-                'Query on {} did not return requested information: '
-                'chem_comps (smiles string)'.format(lig_id)
+                f'Query on {self.resname} did not return requested information: '
+                'chem_comps (smiles string)'
             )
             return
 
@@ -126,7 +165,13 @@ class Heterogen(Residue):
         return smiles
             
     
-    def to_rdkit(self):
+    def to_rdkit(self, smiles = None):
+        """Convert the molecule to an rdkit mol object. SMILES string is required to
+        set the correct bond orders on the molecule. If no SMILES string is supplied
+        as a parameter, rcsb PDB will be queried based on the molecule's chem_comp ID 
+        for its canonical SMILES. 
+        Note: The query might not return the correct SMILES. In this case, a exception
+        will be raised."""
         try:
             from rdkit import Chem
             from rdkit.Chem import AllChem
@@ -134,22 +179,25 @@ class Heterogen(Residue):
             raise ImportError('Rdkit is required for conversion to rdkit Mol')
 
         mol = Chem.MolFromPDBBlock(self.get_pdb_str())
-        smiles = self.query_pdb_for_smiles()
-        # We do not allow rdkit mol return if the correct bond orders are not set
         if smiles is None:
+            self.smiles = self.query_pdb_for_smiles()
+        else:
+            self.smiles = smiles
+        # We do not allow rdkit mol return if the correct bond orders are not set
+        if self.smiles is None:
             raise SmilesQueryException(
                 'Fail to set bond orders on the Ligand mol! PDB query on SMILES does not'
                 'return any result.'
             )
 
-        template = AllChem.MolFromSmiles(smiles)
+        template = AllChem.MolFromSmiles(self.smiles)
         template = Chem.RemoveHs(template)
         try:
             mol = AllChem.AssignBondOrdersFromTemplate(template, mol)
-        except ValueError:
+            return mol 
+        except ValueError as exc:
             raise LigandBondOrderException(
-                'No structure match found! Possibly the SMILES string reported on PDB ' 
+                'No structure match found! Possibly the SMILES string supplied or reported on PDB '
                 'mismatches the ligand structure.'
-            )
-        
-        return mol
+            ) from exc
+

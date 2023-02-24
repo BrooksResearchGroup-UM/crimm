@@ -1,5 +1,5 @@
-
 # Copyright (C) 2002, Thomas Hamelryck (thamelry@binf.ku.dk)
+# Copyright (C) 2023, Truman Xu, Brooks Lab at the University of Michigan
 # This code is part of the Biopython distribution and governed by its
 # license.  Please see the LICENSE file that should have been included
 # as part of this package.
@@ -9,17 +9,15 @@ This is used by the PDBParser and MMCIFparser classes.
 """
 # SMCRA hierarchy
 import warnings
-from Bio.PDB.Atom import Atom, DisorderedAtom
 from ChainExceptions import (
     ChainConstructionWarning,
     AtomAltLocException
 )
-from Chain import Chain, PolymerChain, Heterogens
-
 from Structure import Structure
 from Model import Model
+from Chain import Chain, PolymerChain, Heterogens
 from Residue import Residue, DisorderedResidue, Heterogen
-
+from Atom import Atom, DisorderedAtom
 
 class ChmStructureBuilder():
     """Deals with constructing the Structure object.
@@ -109,7 +107,7 @@ class ChmStructureBuilder():
         """
         self.segid = segid
 
-    def _process_duplicated_res(self, new_residue, duplicate_residue):
+    def _process_duplicated_res(self, new_residue, duplicate_residue, chain):
         resname = new_residue.resname
         res_id = new_residue.get_id()
         field, resseq, icode = res_id
@@ -124,8 +122,7 @@ class ChmStructureBuilder():
                 # The new residue does not exist in the DisorderedResidue
                 # add the new residue to it
                 duplicate_residue.disordered_add(new_residue)
-            self.residue = duplicate_residue
-            return
+            return duplicate_residue
         
         if resname == duplicate_residue.resname:
             # Not disordered but resname and id already exist
@@ -136,8 +133,7 @@ class ChmStructureBuilder():
                 f"line {self.line_counter}.",
                 ChainConstructionWarning,
             )
-            self.residue = duplicate_residue
-            return
+            return duplicate_residue
         
         # Make a new DisorderedResidue object and put all
         # the Residue objects with the id (field, resseq, icode) in it.
@@ -147,47 +143,47 @@ class ChmStructureBuilder():
         # atom altloc definitions (e.g. PDB ID: 2BWX Residue 249 (CYS|CSO))
         if not self._is_completely_disordered(duplicate_residue):
             # if this exception is ignored, a residue will be missing.
-            self.residue = None
             raise AtomAltLocException(
                 "Blank altlocs in duplicate residue %s ('%s', %i, '%s')"
                 % (resname, field, resseq, icode)
             )
-        
-        self.chain.detach_child(duplicate_residue.id)
+            return None
+
+        chain.detach_child(duplicate_residue.id)
         disordered_residue = DisorderedResidue(duplicate_residue.id)
-        self.chain.add(disordered_residue)
+        chain.add(disordered_residue)
         disordered_residue.disordered_add(duplicate_residue)
         disordered_residue.disordered_add(new_residue)
-        self.residue = disordered_residue
+        return disordered_residue
 
-    def add_residue(self, residue):
+    def add_residue(self, residue, chain):
         """Add a residue to the current chain, and set it as the current residue
          to be built"""
-        if not isinstance(self.chain, PolymerChain):
+        if not isinstance(chain, PolymerChain):
             # if current chain is not a polymer, we simply add the residue
             # to the chain
-            self.chain.add(self.residue)
-            return
+            chain.add(residue)
+            return residue
 
         res_id = residue.get_id()
         resseq = res_id[1]
-        het_res_ids = self.chain.find_het_by_seq(resseq)
-        if self.chain.has_id(res_id):
+        het_res_ids = chain.find_het_by_seq(resseq)
+        if chain.has_id(res_id):
             duplicated_res_id = res_id
         elif len(het_res_ids) > 0:
             # This only works on mmCIF for now
             duplicated_res_id = het_res_ids[0]
         else:
-            self.chain.add(self.residue)
-            return
+            chain.add(residue)
+            return residue
         # The residue id is duplicated
         warnings.warn(
             "WARNING: Residue ('%s', %i, '%s') redefined at line %i."
             % (*res_id, self.line_counter),
             ChainConstructionWarning,
         )
-        duplicate_residue = self.chain[duplicated_res_id]
-        self._process_duplicated_res(residue, duplicate_residue)
+        duplicate_residue = chain[duplicated_res_id]
+        return self._process_duplicated_res(residue, duplicate_residue, chain)
 
     def init_residue(self, resname, field, resseq, icode):
         """Create a new Residue object.
@@ -206,12 +202,12 @@ class ChmStructureBuilder():
                 field = "H_" + resname
         res_id = (field, resseq, icode)
         if isinstance(self.chain, Heterogens):
-            self.residue = Heterogen(res_id, resname, self.segid)
+            new_residue = Heterogen(res_id, resname, self.segid)
         else:
-            self.residue = Residue(res_id, resname, self.segid)
-        self.add_residue(self.residue)
+            new_residue = Residue(res_id, resname, self.segid)
+        self.residue = self.add_residue(new_residue, self.chain)
 
-    def _assign_atom_names(self, atom):
+    def _assign_atom_names(self, atom, residue):
         # First check if this atom is already present in the residue.
         # If it is, it might be due to the fact that the two atoms have atom
         # names that differ only in spaces (e.g. "CA.." and ".CA.",
@@ -219,10 +215,10 @@ class ChmStructureBuilder():
         # in the atom name of the current atom.
         name = atom.name
         fullname = atom.fullname
-        if not self.residue.has_id(name):
+        if not residue.has_id(name):
             return name
 
-        duplicate_atom = self.residue[name]
+        duplicate_atom = residue[name]
         # atom name with spaces of duplicate atom
         duplicate_fullname = duplicate_atom.get_fullname()
 
@@ -236,16 +232,16 @@ class ChmStructureBuilder():
             )
         return name
 
-    def _create_disordered_atom(self, atom, atom_name):
+    def _create_disordered_atom(self, atom, atom_name, residue):
         disordered_atom = DisorderedAtom(atom_name)
-        self.residue.add(disordered_atom)
+        residue.add(disordered_atom)
         # Add the real atom to the disordered atom, and the
         # disordered atom to the residue
         disordered_atom.disordered_add(atom)
-        self.residue.flag_disordered()
+        residue.flag_disordered()
 
-    def _add_to_disordered_atom(self, atom, duplicated_atom_name):
-        duplicate_atom = self.residue[duplicated_atom_name]
+    def _add_to_disordered_atom(self, atom, duplicated_atom_name, residue):
+        duplicate_atom = residue[duplicated_atom_name]
         if duplicate_atom.is_disordered() == 2:
             # The duplicate is the DisorderedAtom entity not the Atom object itself
             duplicate_atom.disordered_add(atom)
@@ -257,37 +253,37 @@ class ChmStructureBuilder():
         # Detach the duplicate atom, and put it in a
         # DisorderedAtom object together with the current
         # atom.
-        self.residue.detach_child(duplicated_atom_name)
+        residue.detach_child(duplicated_atom_name)
         disordered_atom = DisorderedAtom(duplicated_atom_name)
-        self.residue.add(disordered_atom)
+        residue.add(disordered_atom)
         disordered_atom.disordered_add(atom)
         disordered_atom.disordered_add(duplicate_atom)
-        self.residue.flag_disordered()
+        residue.flag_disordered()
         warnings.warn(
             "WARNING: disordered atom found with blank altloc before "
             f"line {self.line_counter}",
             ChainConstructionWarning,
         )
 
-    def add_atom(self, atom):
-        """Add an Atom object to the current Residue that is initiated.
+    def add_atom(self, atom, residue):
+        """Add an Atom object to a Residue that has been initiated.
         Checks will be performed to determine if the atom is duplicated, 
         and DisorderedAtom object will be instantiated and filled if necessary.
         """
-        name = self._assign_atom_names(atom)
+        name = self._assign_atom_names(atom, residue)
         if atom.altloc == " ":
             # The atom is not disordered
-            self.residue.add(atom)
+            residue.add(atom)
             return
 
         # The atom is disordered
-        if self.residue.has_id(name):
+        if residue.has_id(name):
             # The disordered atom should be already created at this point
-            self._add_to_disordered_atom(atom, name)
+            self._add_to_disordered_atom(atom, name, residue)
         else:
             # The residue does not contain this disordered atom
             # so we create a new one.
-            self._create_disordered_atom(atom, name)
+            self._create_disordered_atom(atom, name, residue)
 
     def init_atom(
         self,
@@ -328,7 +324,7 @@ class ChmStructureBuilder():
             element,
         )
 
-        self.add_atom(self.atom)
+        self.add_atom(self.atom, self.residue)
 
     def set_anisou(self, anisou_array):
         """Set anisotropic B factor of current Atom."""

@@ -3,6 +3,8 @@ from Bio.PDB.Structure import Structure as _Structure
 class Structure(_Structure):
     def __init__(self, id) -> None:
         super().__init__(id)
+        self.assemblies = None
+        self.cell_info = None
 
     def __repr__(self):
         hierarchy_str = f"<Structure id={self.get_id()} Models={len(self)}>"

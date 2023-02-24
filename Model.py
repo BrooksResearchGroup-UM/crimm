@@ -1,6 +1,7 @@
+import warnings
 from Bio.PDB.Model import Model as _Model
 from NGLVisualization import load_nglview_multiple
-import warnings
+
 
 class Model(_Model):
     def __init__(self, id, serial_num=None):
@@ -32,7 +33,7 @@ class Model(_Model):
         for chain in self:
             atoms.extend(chain.get_unpacked_atoms())
         return atoms
-    
+
     def get_pdb_str(self, reset_serial = True, include_alt = True):
         if reset_serial:
             self.reset_atom_serial_numbers()
@@ -43,5 +44,3 @@ class Model(_Model):
                     include_alt = include_alt
                 )
         return pdb_str
-        
-            

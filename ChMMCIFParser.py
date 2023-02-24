@@ -1,5 +1,11 @@
+# Copyright (C) 2023, Truman Xu, Brooks Lab at the University of Michigan
+# This code is part of the Biopython distribution and governed by its
+# license.  Please see the LICENSE file that should have been included
+# as part of this package.
+
+"""Module containing the parser class for constructing structures from mmCIF 
+files from PDB"""
 import warnings
-from itertools import zip_longest
 import numpy
 from Bio.PDB.PDBExceptions import PDBConstructionWarning
 from Bio.PDB.Atom import Atom
@@ -8,13 +14,22 @@ from ChmStructureBuilder import ChmStructureBuilder
 from Chain import Chain, PolymerChain, Heterogens, Oligosaccharide, Solvent, Macrolide
 from Model import Model
 
-
 class ChMMCIFParser:
-    def __init__(self, sturcture_builder = None, QUIET = False):
-        if sturcture_builder is None:
-            sturcture_builder = ChmStructureBuilder()
-        self._structure_builder = sturcture_builder
+    """Parser class for standard mmCIF files from PDB"""
+    def __init__(
+            self,
+            first_model_only = True,
+            first_assembly_only = True,
+            include_solvent = True,
+            strict_parser = True,
+            QUIET = False
+        ):
+        self._structure_builder = ChmStructureBuilder()
         self.QUIET = QUIET
+        self.first_model_only = first_model_only
+        self.first_assembly_only = first_assembly_only
+        self.include_solvent = include_solvent
+        self.strict_parser = strict_parser
         self.cifdict = None
         self.header = None
         self.model_template = None
@@ -29,7 +44,7 @@ class ChMMCIFParser:
             resolution = self.cifdict.level_two_get(key, subkey)
             if resolution is not None and resolution[0] is not None:
                 break
-                
+
         self.header = {
             "name": self.cifdict.get("data"),
             "keywords": self.cifdict.retrieve_single_value_dict("struct_keywords"),
@@ -45,13 +60,13 @@ class ChMMCIFParser:
         }
 
         return self.header
-    
+
     def get_structure(self, filename, structure_id = None):
         """Return the structure.
 
         Arguments:
-         - structure_id - string, the id that will be used for the structure
-         - filename - name of mmCIF file, OR an open text mode file handle
+         :structure_id: string, the id that will be used for the structure
+         :filename: name of mmCIF file, OR an open text mode file handle
 
         """
         with warnings.catch_warnings():
@@ -63,8 +78,13 @@ class ChMMCIFParser:
             self._structure_builder.set_header(self._get_header())
 
         return self._structure_builder.get_structure()
-    
+
     def create_polymer_chain_dict(self):
+        """Create a dictionary for the PolymerChain object from mmCIF. Empty 
+        PolymerChain classes will be created, and information on entity id, 
+        author chain id, reported sequence, and reported missing residues will 
+        be assigned. Return a dictionary with empty PolymerChain objects keyed
+        by entity id (int)"""
         zero_occupancy_residues = self.cifdict.create_namedtuples(
             'pdbx_unobs_or_zero_occ_residues'
         )
@@ -79,7 +99,7 @@ class ChMMCIFParser:
         entity_poly = self.cifdict.create_namedtuples('entity_poly')
         entity_poly_dict = dict()
         for entity in entity_poly:
-            auth_chain_ids = entity.pdbx_strand_id.split(',')
+            auth_chain_ids = str(entity.pdbx_strand_id).split(',')
             for chain_id in auth_chain_ids:
                 entity_poly_dict[chain_id] = entity
 
@@ -106,12 +126,16 @@ class ChMMCIFParser:
             polymer_dict[entity_id] = chain
         return polymer_dict
 
-    def set_chain_attr(self, entity, chain):
+    def _set_chain_attr(self, entity, chain):
+        """Set the info from mmcif as attribute for the chain"""
         for k, v in entity._asdict().items():
             if k != 'id' and k != 'type' and v is not None:
                 setattr(chain, k, v)
 
-    def create_model_template(self, strict_parser = True):
+    def create_model_template(self):
+        """Create an empty template for the chains as a model. The chain types
+        is determined based on the entity type in mmCIF, and a model object 
+        containing the empty chains will be returned."""
         model_temp = Model('template')
 
         poly_dict = self.create_polymer_chain_dict()
@@ -128,11 +152,11 @@ class ChMMCIFParser:
                 cur_chain = Oligosaccharide(entity.id)
             elif entity.type == 'macrolide':
                 cur_chain = Macrolide(entity.id)
-            elif not strict_parser:
+            elif not self.strict_parser:
                 cur_chain = Chain(entity.id)
             else:
                 raise TypeError(f'Unknown Chain Type: {entity.type}')
-            self.set_chain_attr(entity, cur_chain)
+            self._set_chain_attr(entity, cur_chain)
             model_temp.add(cur_chain)
         return model_temp
 
@@ -140,9 +164,10 @@ class ChMMCIFParser:
         """Create an Atom object from the namedtuple of an "atom_site" entry
         from the mmCIF dict
 
-        :param atom_entry: A namedtuple created from mmCIF "atom_site" entries
+        Arguments:
+         :param atom_entry: A namedtuple created from mmCIF "atom_site" entries
                            with field names as attributes in the tuple
-        :type atom_entry: namedtuple
+         :type atom_entry: namedtuple
         """
         coord = numpy.array(
                 [atom_entry.Cartn_x, atom_entry.Cartn_y, atom_entry.Cartn_z]
@@ -212,18 +237,20 @@ class ChMMCIFParser:
         for atom_entry in atom_site:
             model_num = atom_entry.pdbx_PDB_model_num
             if model_num not in model_dict:
+                if self.first_model_only and len(model_dict) > 0:
+                    break
                 model_dict[model_num] = dict()
-                entity_dict = model_dict[model_num]
+            entity_dict = model_dict[model_num]
             entity_id = atom_entry.label_entity_id
             if entity_id not in entity_dict:
                 entity_dict[entity_id] = dict()
-                chain_dict = entity_dict[entity_id]
+            chain_dict = entity_dict[entity_id]
             chain_id = atom_entry.label_asym_id
             if chain_id not in chain_dict:
                 last_auth_seq = None
                 het_chain_resseq = 0
                 chain_dict[chain_id] = dict()
-                res_dict = chain_dict[chain_id]
+            res_dict = chain_dict[chain_id]
 
             resseq = atom_entry.label_seq_id
             auth_seq_id = atom_entry.auth_seq_id
@@ -242,39 +269,78 @@ class ChMMCIFParser:
 
         return model_dict
 
+    def create_assembly_dict(self):
+        """Return a dictionary of chains grouped by mmcif assembly ids under
+        "pdbx_struct_assembly_gen". If no assembly info available, None will be
+        returned.
+        """
+        assemblies = dict()
+        if 'pdbx_struct_assembly_gen' not in self.cifdict:
+            warnings.warn(
+                f"No structure assembly info in {self.cifdict['data']}"
+            )
+            return
+        entries = self.cifdict.create_namedtuples('pdbx_struct_assembly_gen')
+        if self.first_assembly_only:
+            entries = entries[:1]
+        for entry in entries:
+            chain_id_list = entry.asym_id_list.split(',')
+            assemblies[entry.assembly_id] = chain_id_list
 
+        return assemblies
 
     def _build_structure(self, structure_id):
+        """build the structure with structure builder object and mmcif dict"""
         sb = self._structure_builder
         self.model_template = self.create_model_template()
+        
         all_anisou = self.cifdict.create_namedtuples('atom_site_anisotrop')
         if structure_id is None:
             structure_id = self.cifdict['data']
         sb.init_structure(structure_id)
         sb.init_seg(" ")
+        if 'cell' in self.cifdict:
+            cell_info = self.cifdict.create_namedtuples('cell')[0]
+            sb.structure.cell_info = cell_info
+        assembly_dict = self.create_assembly_dict()
+        if assembly_dict is None:
+            selected_chains = None
+        else:
+            sb.structure.assemblies = assembly_dict
+            selected_chains = []
+            for chain_list in assembly_dict.values():
+                selected_chains.extend(chain_list)
 
         atom_site = self.create_atom_site_entry_dict()
-
+        ##TODO: refactor these ugly nested for loops
         for model_id, entity_dict in atom_site.items():
             model = Model(model_id)
             sb.structure.add(model)
             sb.model = model
             for entity_id, chain_dict in entity_dict.items():
-                chain = self.model_template[entity_id].copy()
-                model.add(chain)
-                sb.chain = chain
                 for chain_id, res_dict in chain_dict.items():
+                    if (
+                        selected_chains is not None
+                    ) and (
+                        chain_id not in selected_chains
+                    ):
+                        continue
+                    chain = self.model_template[entity_id].copy()
+                    if not self.include_solvent and isinstance(chain, Solvent):
+                        continue
+                    sb.model.add(chain)
+                    sb.chain = chain
                     # This is the mmCIF label chain id
-                    chain.id = chain_id
+                    sb.chain.id = chain_id
                     for resseq, res_info in res_dict.items():
                         resname = res_info["resname"]
                         res_id = res_info["res_id"]
                         atoms = res_info["atom_list"]
                         sb.init_residue(resname, *res_id)
                         for atom in atoms:
-                            sb.add_atom(atom)
+                            sb.add_atom(atom, sb.residue)
                             if atom.serial_number <= len(all_anisou):
-                                anisou = all_anisou[atom.id-1]
+                                anisou = all_anisou[atom.serial_number-1]
                                 u = (
                                     anisou.U11,
                                     anisou.U12,
@@ -283,7 +349,7 @@ class ChMMCIFParser:
                                     anisou.U23,
                                     anisou.U33,
                                 )
-                                sb.set_anisou(numpy.array(u, "f"))
+                                atom.set_anisou(numpy.array(u, "f"))
                 if isinstance(sb.chain, PolymerChain):
                     sb.chain.reset_disordered_residues()
                     sb.chain.update()

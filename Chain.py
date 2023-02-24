@@ -1,24 +1,24 @@
+import warnings
 from Bio.Seq import Seq, MutableSeq
 from Bio.PDB import PDBIO, PPBuilder
-from Bio.Align import PairwiseAligner
 from Bio.Data.PDBData import protein_letters_3to1_extended
 from Bio.Data.PDBData import nucleic_letters_3to1_extended
 from Bio.Data.PDBData import protein_letters_1to3
 from Bio.PDB.Chain import Chain as _Chain
-from Bio.PDB.PDBExceptions import PDBIOException
-from Residue import DisorderedResidue, Residue
-import warnings
-from ChainExceptions import ChainConstructionException, ChainConstructionWarning
+from Residue import DisorderedResidue
+from ChainExceptions import ChainConstructionWarning
 from NGLVisualization import load_nglview
 from typing import List, Tuple
 
 ## TODO: Get rid of chain_type attr. Use isinstance() instead
 class BaseChain(_Chain):
+    """Base class for Biopython and CHARMM compatible object with nglview visualizations"""
     def __init__(self, chain_id: str):
         super().__init__(chain_id)
         self.chain_type = "Base Chain"
 
     def reset_atom_serial_numbers(self):
+        """Reset all atom serial numbers starting from 1."""
         i = 1
         for atom in self.get_unpacked_atoms():
             atom.serial_number = i
@@ -30,6 +30,8 @@ class BaseChain(_Chain):
                 disordered_residue.disordered_select(resname)
 
     def reset_disordered_residues(self):
+        """Reset the selected child of all disordered residues to the first
+        residue (alt loc A) supplied from PDB."""
         for res in self:
             if isinstance(res, DisorderedResidue):
                 self._disordered_reset(res)
@@ -66,7 +68,12 @@ class BaseChain(_Chain):
             get_child = lambda x: x.get_unpacked_list()
         else:
             get_child = lambda x: x.child_list
-
+        # Since chain_ids are from label_asym_id in mmCIF, and 
+        # for larger structures with mmCIF entity naming scheme,
+        # it would ran out of the alphabet and start using two letter codes.
+        # But here, we are forcing the one character chain_id in order to 
+        # comply with PDB file spec.
+        chain_id = self.get_id()[0]
         for residue in get_child(self):
             hetfield, resseq, icode = residue.id
             resname = residue.resname
@@ -74,7 +81,7 @@ class BaseChain(_Chain):
 
             for atom in get_child(residue):
                 atom_number = atom.serial_number
-                s = io._get_atom_line(
+                atom_line = io._get_atom_line(
                     atom,
                     hetfield,
                     segid,
@@ -82,9 +89,9 @@ class BaseChain(_Chain):
                     resname,
                     resseq,
                     icode,
-                    self.get_id(),
+                    chain_id,
                 )
-                pdb_string += s
+                pdb_string += atom_line
         pdb_string += 'TER\n'
         return pdb_string
 
@@ -108,6 +115,7 @@ class Chain(BaseChain):
     ## Since mmCIF sourced structure has unique resseq and no duplicate exists,
     ## but PDB parser can generate duplicated resseq, and this method will fail.
     def find_het_by_seq(self, resseq):
+        """Return a list of heterogens for a residue seq id."""
         modified_het_ids = []
         for res in self:
             if resseq == res.id[1]:
@@ -360,7 +368,7 @@ class Solvent(BaseChain):
         self.chain_type = 'Solvent'
 
 def convert_chain(chain: _Chain):
-    """Convert a Biopython Chain class to CHARMM Chain"""
+    """Convert a Biopython Chain class to whaler Chain"""
     pchain = Chain(chain.id)
     pchain.set_parent(chain.parent)
     for res in chain:

@@ -32,7 +32,7 @@ class ChMMCIF2Dict(dict):
             if isinstance(v, list):
                 v = [self._reformat_str(x) for x in v]
             if '[' in k:
-                k = ''.join([s.strip(']') for s in k.split('[')])
+                k = ''.join([s.replace(']','') for s in k.split('[')])
             if '-' in k:
                 k = '_'.join([s for s in k.split('-')])
             if '.' not in k:
