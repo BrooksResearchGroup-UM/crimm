@@ -1,5 +1,7 @@
+import warnings
 from Bio.PDB.Atom import Atom as _Atom
 from Bio.PDB.Atom import DisorderedAtom as _DisorderedAtom
+from TopoDefinitions import AtomDefinition
 
 class Atom(_Atom):
     """Atom class derived from Biopython Residue and made compatible with
@@ -29,23 +31,26 @@ class Atom(_Atom):
             pqr_charge=pqr_charge,
             radius=radius,
         )
-        
         # Forcefield Parameters
-        self.atom_group = None
-        self.atom_type = None
-        self.is_donor = None
-        self.is_acceptor = None
-        self.charge = None
+        self._topo_def: AtomDefinition = None
 
-    @staticmethod
-    def _find_parent_model(entity):
-        """Find the Model/Topology this Atom belongs to"""
-        parent = entity.parent
-        if not hasattr(parent, 'level'):
-            return None
-        if parent.level == 'M':
-            return parent
-        return Atom._find_parent_model(parent)
+    @property
+    def topo_definition(self):
+        """Topology related parameters for the atom"""
+        return self._topo_def
+    
+    @topo_definition.setter
+    def ff_params(self, atom_def):
+        if not isinstance(atom_def, AtomDefinition):
+            raise TypeError(
+                'AtomDefinition class is need to set up forcefield paramerers'
+            )
+        if atom_def.name != self.name:
+            warnings.warn(
+                f"Atom Name Mismatch: Definition={atom_def.name} Atom={self.name}"
+            )
+        self._topo_def = atom_def
+        self.id = self._topo_def.name
 
 class DisorderedAtom(_DisorderedAtom):
     """Disoreded Atom class derived from Biopython Disordered Atom and made compatible with

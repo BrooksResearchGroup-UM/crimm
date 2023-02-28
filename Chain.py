@@ -31,7 +31,7 @@ class BaseChain(_Chain):
 
     def reset_disordered_residues(self):
         """Reset the selected child of all disordered residues to the first
-        residue (alt loc A) supplied from PDB."""
+        residue (alt loc A) supplied by PDB."""
         for res in self:
             if isinstance(res, DisorderedResidue):
                 self._disordered_reset(res)
@@ -55,6 +55,12 @@ class BaseChain(_Chain):
             atoms.extend(res.get_unpacked_atoms())
         return atoms
     
+    @staticmethod
+    def _get_child(parent, include_alt):
+        if include_alt:
+            return parent.get_unpacked_list()
+        return parent.child_list
+    
     def get_pdb_str(self, reset_serial = True, include_alt = True):
         """
         Get the PDB format string for all atoms in the chain
@@ -64,22 +70,18 @@ class BaseChain(_Chain):
             self.reset_atom_serial_numbers()
         io = PDBIO()
         pdb_string = ''
-        if include_alt:
-            get_child = lambda x: x.get_unpacked_list()
-        else:
-            get_child = lambda x: x.child_list
         # Since chain_ids are from label_asym_id in mmCIF, and 
         # for larger structures with mmCIF entity naming scheme,
         # it would ran out of the alphabet and start using two letter codes.
         # But here, we are forcing the one character chain_id in order to 
         # comply with PDB file spec.
         chain_id = self.get_id()[0]
-        for residue in get_child(self):
+        for residue in self._get_child(self, include_alt):
             hetfield, resseq, icode = residue.id
             resname = residue.resname
             segid = residue.segid
 
-            for atom in get_child(residue):
+            for atom in self._get_child(residue, include_alt):
                 atom_number = atom.serial_number
                 atom_line = io._get_atom_line(
                     atom,
@@ -130,7 +132,6 @@ class Chain(BaseChain):
         for child_res in res.child_dict.values():
             if child_res.id[0].startswith('H_'):
                 return True
-        
     
     def get_modified_res(self):
         modified_res = []
@@ -237,6 +238,8 @@ class PolymerChain(Chain):
         self.cur_missing_res = reported_res
         self.masked_seq = Seq('-'*len(canon_sequence))
         self.gaps = None
+        self.undefined_res = None
+        self.topo_definitions = None
         if len(self.reported_res) != len(self.can_seq):
             warnings.warn(
                 "Total number of reported residues do not match with the "
@@ -260,7 +263,7 @@ class PolymerChain(Chain):
         self.masked_seq = self.create_missing_seq_mask(self.cur_missing_res)
         self.gaps = self.find_gaps(self.cur_missing_res)
         self.child_list = sorted(self.child_list, key=lambda x: x.id[1:])
-    
+
     # TODO: change to property and setter
     def find_missing_res(self):
         """
@@ -348,6 +351,27 @@ class PolymerChain(Chain):
         sequence_segments = [seq for seq in self.masked_seq.split('-') if len(seq) > 0]
         return len(sequence_segments) == 1
     
+    def load_topo_definition(self, topology_definitions: dict):
+        """Load topology definition for all residues from a dictionary of ResidueDefinition
+        objects. Any residue that does not have a corresponding definition in the dictionary
+        will be placed in `self.undefined_res`."""
+        self.topo_definitions = topology_definitions
+        self.undefined_res = []
+        for residue in self:
+            if (
+                residue.resname not in topology_definitions
+            ) and (
+                residue.topo_definition is None
+            ):
+                self.undefined_res.append(residue)
+                continue
+
+            if residue.topo_definition is not None:
+                warnings.warn(
+                    f"Overwriting residue topology definition: {residue}"
+                )
+            residue.load_topo_definition(topology_definitions[residue.resname])
+
 class Heterogens(BaseChain):
     def __init__(self, chain_id: str):
         super().__init__(chain_id)
@@ -357,6 +381,7 @@ class Macrolide(BaseChain):
     def __init__(self, chain_id: str):
         super().__init__(chain_id)
         self.chain_type = 'Macrolide'
+
 class Oligosaccharide(BaseChain):
     def __init__(self, chain_id: str):
         super().__init__(chain_id)

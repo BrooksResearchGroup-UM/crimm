@@ -37,11 +37,12 @@ class Bond(namedtuple('Bond', ['atom1', 'atom2'])):
     This class extends tuple, and may be interpreted as a 2 element tuple of Atom objects.
     It also has fields that can optionally be used to describe the bond order and type of bond."""
 
-    def __new__(cls, atom1, atom2, type=None, order=None):
+    def __new__(cls, atom1, atom2, type=None, order=None, length=None):
         """Create a new Bond.  You should call addBond() on the Topology instead of calling this directly."""
         bond = super(Bond, cls).__new__(cls, atom1, atom2)
         bond.type = type
         bond.order = order
+        bond.length = length
         return bond
 
     def __getnewargs__(self):
@@ -65,5 +66,7 @@ class Bond(namedtuple('Bond', ['atom1', 'atom2'])):
             s = "%s, type=%s" % (s, self.type)
         if self.order is not None:
             s = "%s, order=%d" % (s, self.order)
+        if self.length is not None:
+            s = "%s, length=%f" % (s, self.length)
         s += ")"
         return s
