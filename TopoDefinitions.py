@@ -1,3 +1,4 @@
+from typing import List, Dict, Tuple
 class AtomDefinition:
     def __init__(
         self, parent_def, name, atom_type, charge, mass,
@@ -19,22 +20,25 @@ class AtomDefinition:
 class ResidueDefinition:
     bond_order_dict = {'single':1, 'double':2, 'triple':3, 'aromatic':2}
 
-    def __init__(self, file_source, resname, res_topo_dict):
+    def __init__(self, file_source : str, resname : str, res_topo_dict: Dict):
         self.file_source = file_source
         self.resname = resname
         self.is_modified = False
-        self.is_patch = None
+        self.is_patch : bool = None
         self.atom_groups = {}
         self.atom_dict = {}
-        self.total_charge = None
-        self.bonds = None
-        self.impropers = None
-        self.cmap = None
+        self.total_charge : float = None
+        self.bonds : List= None
+        self.impropers : List[Tuple] = None
+        self.cmap : List[Tuple] = None
         self.H_donors = []
         self.H_acceptors = []
-        self.desc = None
+        self.desc : str = None
+        self.ic : List[Dict] = None
+        self.atom_lookup_dict : Dict = None
         self.load_topo_dict(res_topo_dict)
         self.assign_donor_acceptor()
+        self.create_atom_lookup_dict()
 
     def __len__(self):
         """Return the number of atom definitions."""
@@ -88,3 +92,11 @@ class ResidueDefinition:
                 acceptor_name = entry[0]
             atom_def = self.atom_dict[acceptor_name]
             atom_def.is_acceptor = True
+
+    def create_atom_lookup_dict(self):
+        self.atom_lookup_dict = {}
+        for i, j, k, l in self.ic.keys():
+            for atom_name in (i, l):
+                if atom_name not in self.atom_lookup_dict:
+                    self.atom_lookup_dict[atom_name] = []
+                self.atom_lookup_dict[atom_name].append((i, j, k, l))

@@ -50,7 +50,7 @@ class Residue(_Residue):
         if reset_serial:
             self.reset_atom_serial_numbers()
         
-        if hasattr(self, "parent"):
+        if self.parent is not None:
             chain = self.get_parent()
             chain_id = chain.get_id()
         else:
