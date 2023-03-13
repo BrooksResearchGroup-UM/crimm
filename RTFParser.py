@@ -176,15 +176,6 @@ class RTFParser:
         self.residue_definitions = self.generate_residue_definitions(
             self.topo_dict, self.rtf_version
         )
-        
-        
-    def get_topo_dict(self):
-        """Return the parsed topology dictionary."""
-        return self.topo_dict
-
-    def get_topo_definitions(self):
-        """Return the dictionary of ResidueDefinitions."""
-        return self.residue_definitions
     
     @staticmethod
     def generate_residue_definitions(topo_dict, rtf_version = None):
@@ -203,8 +194,10 @@ class RTFParser:
         for resname, res_topo in topo_dict.items():
             res_def = ResidueDefinition(rtf_version, resname, res_topo)
             residue_definitions[resname] = res_def
-        # Map all histidines HIS to HSE
-        residue_definitions['HIS'] = residue_definitions['HSE']
+        if 'HIS' not in residue_definitions and 'HSE' in residue_definitions:
+            # Map all histidines HIS to HSE
+            residue_definitions['HIS'] = residue_definitions['HSE']
+        
         return residue_definitions
     
     def _parse_lines(self, lines):

@@ -167,7 +167,7 @@ class ChmStructureBuilder():
 
         res_id = residue.get_id()
         resseq = res_id[1]
-        het_res_ids = chain.find_het_by_seq(resseq)
+        het_res_ids = chain.find_het_by_resseq(resseq)
         if chain.has_id(res_id):
             duplicated_res_id = res_id
         elif len(het_res_ids) > 0:

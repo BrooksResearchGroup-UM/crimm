@@ -211,27 +211,9 @@ class ChainSuperimposer(Superimposer):
 
         return ref_align_atoms, mov_align_atoms
 
-    def set_around_gap(self, ref_chain, mov_chain, start, end, cutoff=10):
-        """
-        Set atoms for superposition around a gap/missing residues on the ref 
-        chain. Start and end residue index needed. Alignment will be performed on
-        backbone atoms.
-        """
-        ## TODO: add options for on_atoms, and find common res list first 
-        ## then run the for-loop on those.
-
-        if hasattr(ref_chain,'can_seq'):
-            ref_len = len(ref_chain.can_seq)
-        else:
-            ref_len = len(ref_chain.child_list)
-
-        if hasattr(mov_chain,'can_seq'):
-            mov_len = len(mov_chain.can_seq)
-        else:
-            mov_len = len(mov_chain.child_list)
-
-        seq_len = min(ref_len, mov_len)
-        res_ids = []
+    @staticmethod
+    def find_valid_residue_range(ids, seq_len, cutoff):
+        start, end = min(ids), max(ids)
         # select the residue ids around the gap by a cutoff
         if start < cutoff and end < (seq_len - 2*cutoff):
             # Case of missing N terminal and the cutoff ends before the 
@@ -246,7 +228,43 @@ class ChainSuperimposer(Superimposer):
             # the cutoff ends before the first and last residue of the chain
             res_ids = list(range(start-cutoff, start))+list(range(end, end+cutoff))
         else:
-            # In other cases, the specified cutoff runs 
+            return None
+        return res_ids
+    
+    def set_around_gap(
+            self, ref_chain, mov_chain, 
+            ref_gap,
+            mov_gap = None,
+            cutoff=10
+        ):
+
+        """
+        Set atoms for superposition around a gap/missing residues on the ref 
+        chain. Start and end residue index needed. Alignment will be performed on
+        backbone atoms. If mov_gap is not specified, identical sequence will be 
+        assumed on both chains, and the reference chain gap locations will be applied
+        on the move chain 
+        """
+        ## TODO: add options for on_atoms, and find common res list first 
+        ## then run the for-loop on those.
+
+        if not (
+            isinstance(ref_chain, PolymerChain) and isinstance(mov_chain, PolymerChain)
+        ):
+            raise NotImplementedError('PolymerChain class is required to use this method')
+        
+        ref_len = len(ref_chain.can_seq)
+        mov_len = len(mov_chain.can_seq)
+        seq_len = min(ref_len, mov_len)
+
+        ref_res_ids = self.find_valid_residue_range(ref_gap, seq_len, cutoff)
+        if mov_gap is None:
+            # Assume identical canonical sequence
+            mov_res_ids = ref_res_ids
+        else:
+            mov_res_ids = self.find_valid_residue_range(mov_gap, seq_len, cutoff)
+
+        if ref_res_ids is None:
             warnings.warn('The cutoff value extends out of the available '
                     'residues in the chain. All backbone atoms on both chains '
                     'are selected for superposition')
@@ -254,19 +272,21 @@ class ChainSuperimposer(Superimposer):
                     self.find_all_common_res(ref_chain, mov_chain)
             ref_atoms, mov_atoms = \
                     self._find_common_backbone_atoms(ref_common, mov_common) 
-            self.set_atoms(ref_atoms, mov_atoms) 
+            self.set_atoms(ref_atoms, mov_atoms)
             return
-
                                    
         ref_atoms = []
         mov_atoms = []
-        for i in res_ids:
-            if i in mov_chain and i in ref_chain:
-                if mov_chain[i].resname == ref_chain[i].resname:
-                    for atom in ['N','CA','C','O']:
-                        if atom in mov_chain[i]:
-                            ref_atoms.append(ref_chain[i][atom])
-                            mov_atoms.append(mov_chain[i][atom])
+        for i, j in zip(mov_res_ids, ref_res_ids):
+            if not (i in mov_chain and j in ref_chain):
+                continue
+            if mov_chain[i].resname != ref_chain[j].resname:
+                continue
+            for atom in ['N','CA','C','O']:
+                if atom not in mov_chain[i]:
+                    continue
+                ref_atoms.append(ref_chain[j][atom])
+                mov_atoms.append(mov_chain[i][atom])
         
         self.set_atoms(ref_atoms, mov_atoms)
     

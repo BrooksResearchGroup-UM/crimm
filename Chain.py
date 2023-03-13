@@ -1,21 +1,25 @@
 import warnings
+from typing import List, Tuple
 from Bio.Seq import Seq, MutableSeq
 from Bio.PDB import PDBIO, PPBuilder
 from Bio.Data.PDBData import protein_letters_3to1_extended
 from Bio.Data.PDBData import nucleic_letters_3to1_extended
-from Bio.Data.PDBData import protein_letters_1to3
 from Bio.PDB.Chain import Chain as _Chain
 from Residue import DisorderedResidue
 from ChainExceptions import ChainConstructionWarning
 from NGLVisualization import load_nglview
-from typing import List, Tuple
 
 ## TODO: Get rid of chain_type attr. Use isinstance() instead
 class BaseChain(_Chain):
     """Base class for Biopython and CHARMM compatible object with nglview visualizations"""
-    def __init__(self, chain_id: str):
+    chain_type = "Base Chain"
+    def __init__(self, chain_id):
         super().__init__(chain_id)
-        self.chain_type = "Base Chain"
+        # the following attributes are used for topology definitions
+        # instantiated but not initiated
+        self.undefined_res = None
+        self.topo_definitions = None
+        self.pdbx_description = None
 
     def reset_atom_serial_numbers(self):
         """Reset all atom serial numbers starting from 1."""
@@ -39,6 +43,8 @@ class BaseChain(_Chain):
     def __repr__(self):
         """Return the peptide chain identifier."""
         repr_str = f"<{self.chain_type} id={self.get_id()} Residues/Molecules={len(self)}>"
+        if (descr := getattr(self, 'pdbx_description', None)) is not None:
+            repr_str += f"\n  Description: {descr}"
         return repr_str
 
     def _repr_html_(self):
@@ -48,6 +54,7 @@ class BaseChain(_Chain):
         from IPython.display import display
         view = load_nglview(self)
         display(view)
+        return
 
     def get_unpacked_atoms(self):
         atoms = []
@@ -97,14 +104,43 @@ class BaseChain(_Chain):
         pdb_string += 'TER\n'
         return pdb_string
 
+    def load_topo_definition(self, topology_definitions: dict):
+        """Load topology definition for all residues from a dictionary of ResidueDefinition
+        objects. Any residue that does not have a corresponding definition in the dictionary
+        will be placed in `self.undefined_res`."""
+        self.topo_definitions = topology_definitions
+        self.undefined_res = []
+        for residue in self:
+            if (
+                residue.resname not in topology_definitions
+            ) and (
+                residue.topo_definition is None
+            ):
+                warnings.warn(
+                    f'No topology definition for {residue.resname}!'
+                )
+                self.undefined_res.append(residue)
+                continue
+
+            if residue.topo_definition is not None:
+                warnings.warn(
+                    f"Overwriting residue topology definition: {residue}"
+                )
+            residue.load_topo_definition(topology_definitions[residue.resname])
+
+    def is_continuous(self):
+        """Not implemented in BaseChain. Implementation varies depending on the
+        child class"""
+        raise NotImplementedError
+
 class Chain(BaseChain):
     """
     General/Unspecified Chain object based on Biopython Chain
     """
+    chain_type = 'Chain'
     ## TODO: Implement hetflag check for florecence proteins (chromophore residues)
     def __init__(self, chain_id: str):
         super().__init__(chain_id)
-        self.chain_type = 'Chain'
         self._ppb = PPBuilder()
         # There is no way to distinguish the type of the chain. Hence, the
         # nucleic letter codes are limited to one letter codes
@@ -112,18 +148,7 @@ class Chain(BaseChain):
             **protein_letters_3to1_extended,
             **{v:v for k, v in nucleic_letters_3to1_extended.items()}
         }
-    
-    ## FIXME: move this to Polymer Chain that is constructed from mmCIF
-    ## Since mmCIF sourced structure has unique resseq and no duplicate exists,
-    ## but PDB parser can generate duplicated resseq, and this method will fail.
-    def find_het_by_seq(self, resseq):
-        """Return a list of heterogens for a residue seq id."""
-        modified_het_ids = []
-        for res in self:
-            if resseq == res.id[1]:
-                modified_het_ids.append(res.id)
-        return modified_het_ids
-    
+
     @staticmethod
     def is_res_modified(res):
         if not isinstance(res, DisorderedResidue):
@@ -205,7 +230,9 @@ class PolymerChain(Chain):
     """
     A derived Chain class for holding only polypeptide or nucleotide residues with 
     sequence id reset to be continuous and start from 1 (MMCIF standard). 
-    Author reported canonical sequence and missing residues are required for init. 
+    Author reported canonical sequence and missing residues are required for its
+    construction.
+    This is the default class for polypeptide and polynucleotide parsed from mmCIF.
     """
     def __init__(
         self,
@@ -234,12 +261,6 @@ class PolymerChain(Chain):
         self.reported_missing_res = reported_missing_res
         self.known_seq = Seq(known_sequence)
         self.can_seq = Seq(canon_sequence)
-        self.seq = Seq('')
-        self.cur_missing_res = reported_res
-        self.masked_seq = Seq('-'*len(canon_sequence))
-        self.gaps = None
-        self.undefined_res = None
-        self.topo_definitions = None
         if len(self.reported_res) != len(self.can_seq):
             warnings.warn(
                 "Total number of reported residues do not match with the "
@@ -254,22 +275,19 @@ class PolymerChain(Chain):
                 **nucleic_letters_3to1_extended
             }
 
-    def update(self):
-        """Update the following attribute based on the current present residues:
-        seq, missing_res, masked_seq, gaps
+    @property
+    def seq(self):
         """
-        self.seq = self.extract_present_seq()
-        self.cur_missing_res = self.find_missing_res()
-        self.masked_seq = self.create_missing_seq_mask(self.cur_missing_res)
-        self.gaps = self.find_gaps(self.cur_missing_res)
-        self.child_list = sorted(self.child_list, key=lambda x: x.id[1:])
-
-    # TODO: change to property and setter
-    def find_missing_res(self):
+        Get the current sequence from the present residues only
         """
-        Find missing residue in the chain.
-        Current sequence will be compared to the reported canonical sequence to 
-        determine the missing residue (any missing C and N termini will be detected). 
+        return self.extract_present_seq()
+    
+    @property
+    def missing_res(self):
+        """
+        Get the current missing residues in the chain.
+        Currently present residues will be compared to the the list of author- 
+        reported residues to determine the missing ones.
         """
         present_res = set()
         for res in self:
@@ -286,54 +304,52 @@ class PolymerChain(Chain):
         for i, reported in self.reported_res:
             if (i, reported) not in present_res:
                 missing_res.append((i, reported))
-        
+
         return missing_res
-    
-    def _check_with_can_seq(self, masked_seq):
-        if len(masked_seq) != len(self.can_seq):
-            warnings.warn(
-                    'Canonical sequence and masked sequence mismatch!'
-            )
-        for masked_char, char in zip(masked_seq, self.can_seq):
-            if masked_char == char or masked_char == '-' or char == 'X':
-                continue
-            warnings.warn(
-                    'Canonical sequence and masked sequence mismatch!'
-            )
-        
-    def create_missing_seq_mask(self, missing_res):
+
+    @property
+    def masked_seq(self):
         """
-        Create a sequence masked with '-' for any residue that is missing C and N
+        Get a sequence masked with '-' for any residue that is missing CA and N
         backbone atoms
         """
-        cur_seq = MutableSeq(self.extract_present_seq()) 
-        start_id = 1 # res seq number is 1-indexed
-        
-        for id, _ in missing_res:
-            cur_seq.insert(id - start_id, '-')
-        self._check_with_can_seq(cur_seq)
-
-        return Seq(cur_seq)
-
-    def find_gaps(self, missing_res):
+        missing_res_ids = list(zip(*self.missing_res))[0]
+        return MaskedSeq(missing_res_ids, self.can_seq)
+    
+    @property
+    def gaps(self):
         """
         Group gap residues into sets for comparison purposes
         """
+        missing_res = self.missing_res
         gaps = []
         if len(missing_res) == 0:
             return gaps
         
-        prev_id = missing_res[0][0]
+        prev_idx = missing_res[0][0]
         cur_set = set()
-        for id, res_name in missing_res[1:]:
-            cur_set.add(prev_id)
-            if id - prev_id > 1:
+        for idx, res_name in missing_res[1:]:
+            cur_set.add(prev_idx)
+            if idx - prev_idx > 1:
                 gaps.append(cur_set)
                 cur_set = set()
-            prev_id = id
-        cur_set.add(prev_id)
+            prev_idx = idx
+        cur_set.add(prev_idx)
         gaps.append(cur_set)
         return gaps
+    
+    def update(self):
+        """Update the ordering of the residues in child list by resseq
+        """
+        self.child_list = sorted(self.child_list, key=lambda x: x.id[1:])
+    
+    def find_het_by_resseq(self, resseq):
+        """Return a list of heterogens for a residue seq id."""
+        modified_het_ids = []
+        for res in self:
+            if resseq == res.id[1]:
+                modified_het_ids.append(res.id)
+        return modified_het_ids
 
     def is_continuous(self):
         """
@@ -345,52 +361,78 @@ class PolymerChain(Chain):
             # If the strucuture's C-N distances are all within the criterion,
             # it is continuous
             return True
-        self.update()
+
         # If not, we also check the sequence here, because after copying gap residues, C-N 
         # distance might be very large before structure minimizations.
-        sequence_segments = [seq for seq in self.masked_seq.split('-') if len(seq) > 0]
+        sequence_segments = [
+            seq for seq in self.masked_seq.split('-') if len(seq) > 0
+        ]
         return len(sequence_segments) == 1
-    
-    def load_topo_definition(self, topology_definitions: dict):
-        """Load topology definition for all residues from a dictionary of ResidueDefinition
-        objects. Any residue that does not have a corresponding definition in the dictionary
-        will be placed in `self.undefined_res`."""
-        self.topo_definitions = topology_definitions
-        self.undefined_res = []
-        for residue in self:
-            if (
-                residue.resname not in topology_definitions
-            ) and (
-                residue.topo_definition is None
-            ):
-                self.undefined_res.append(residue)
-                continue
-
-            if residue.topo_definition is not None:
-                warnings.warn(
-                    f"Overwriting residue topology definition: {residue}"
-                )
-            residue.load_topo_definition(topology_definitions[residue.resname])
 
 class Heterogens(BaseChain):
-    def __init__(self, chain_id: str):
-        super().__init__(chain_id)
-        self.chain_type = 'Heterogens'
+    chain_type = 'Heterogens'
+    def update(self):
+        """Update the pdbx_description if only one heterogen exists.
+        The description will be assigned directly to that molecule"""
+        if len(self) != 1 or self.pdbx_description is None:
+            return
+        self.child_list[0].pdbx_description = self.pdbx_description
 
+    def to_rdkit_mols(self):
+        """Convert all molecules in the heterogen chain to rdkit mols"""
+        return [res.to_rdkit() for res in self]
+            
 class Macrolide(BaseChain):
-    def __init__(self, chain_id: str):
-        super().__init__(chain_id)
-        self.chain_type = 'Macrolide'
-
+    chain_type = 'Macrolide'
+    
 class Oligosaccharide(BaseChain):
-    def __init__(self, chain_id: str):
-        super().__init__(chain_id)
-        self.chain_type = 'Oligosaccharide'
+    chain_type = 'Oligosaccharide'
 
 class Solvent(BaseChain):
-    def __init__(self, chain_id: str):
-        super().__init__(chain_id)
-        self.chain_type = 'Solvent'
+    chain_type = 'Solvent'
+
+class MaskedSeq(Seq):
+    """
+    A sequence masked with '-' for any missing residues. The masked sequence
+    is constructed from a PolymerChain class where missing residues are 
+    reported. The sequence that is missing will be printed in red if the show() 
+    method is called.
+    """
+    RED = '\033[91m'
+    ENDC = '\033[0m'
+
+    def __init__(self, missing_res_ids, can_seq, length=None):
+        self.color_coded_seq = ''
+        masked_seq = ''
+        for i, code in enumerate(can_seq):
+            if i+1 in missing_res_ids:
+                self.color_coded_seq += f"{self.RED}{code}{self.ENDC}"
+                masked_seq += '-'
+            else:
+                self.color_coded_seq += code
+                masked_seq += code
+        super().__init__(masked_seq, length)
+        self.is_matched = self.check_with_can_seq(can_seq)
+
+    def check_with_can_seq(self, can_seq):
+        """Check if the MaskedSequence matches with the canonical sequence for the 
+        present residues. Unidentified residues on canonical sequence will be 
+        skipped for the check."""
+        msg = 'Canonical sequence and masked sequence mismatch!'
+        if len(self) != len(can_seq):
+            warnings.warn(msg)
+            return False
+        for masked_char, char in zip(self, can_seq):
+            if masked_char != char and masked_char != '-' and char != 'X':
+                warnings.warn(msg)
+                return False
+        return True
+
+    def show(self):
+        """Display the entire sequence where the missing residues are colored
+        in red."""
+        print(self.color_coded_seq)
+
 
 def convert_chain(chain: _Chain):
     """Convert a Biopython Chain class to whaler Chain"""

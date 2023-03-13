@@ -1,7 +1,6 @@
 import warnings
 from Bio.PDB.Atom import Atom as _Atom
 from Bio.PDB.Atom import DisorderedAtom as _DisorderedAtom
-from TopoDefinitions import AtomDefinition
 
 class Atom(_Atom):
     """Atom class derived from Biopython Residue and made compatible with
@@ -31,8 +30,8 @@ class Atom(_Atom):
             pqr_charge=pqr_charge,
             radius=radius,
         )
-        # Forcefield Parameters
-        self._topo_def: AtomDefinition = None
+        # Forcefield Parameters and Topology Definitions
+        self._topo_def = None
 
     @property
     def topo_definition(self):
@@ -41,7 +40,7 @@ class Atom(_Atom):
     
     @topo_definition.setter
     def ff_params(self, atom_def):
-        if not isinstance(atom_def, AtomDefinition):
+        if not isinstance(atom_def):
             raise TypeError(
                 'AtomDefinition class is need to set up forcefield paramerers'
             )

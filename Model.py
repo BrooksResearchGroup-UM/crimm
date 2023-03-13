@@ -4,13 +4,12 @@ from NGLVisualization import load_nglview_multiple
 
 
 class Model(_Model):
-    def __init__(self, id, serial_num=None):
-        super().__init__(id, serial_num)
-    
     def __repr__(self):
-        hierarchy_str = f"<Model id={self.get_id()} Chains={len(self)}>\n\t|"
+        hierarchy_str = f"<Model id={self.get_id()} Chains={len(self)}>"
+        branch_symbols = '\n\t│\n\t├───'
         for chain in self:
-            hierarchy_str+='\n\t|---'+chain.__repr__()
+            hierarchy_str += branch_symbols
+            hierarchy_str += "\n\t├──────".join(chain.__repr__().split('\n  '))
         return hierarchy_str
     
     def _repr_html_(self):
@@ -18,7 +17,6 @@ class Model(_Model):
         if len(self) == 0:
             return
         from IPython.display import display
-        self.reset_atom_serial_numbers
         view = load_nglview_multiple(self)
         display(view)
 

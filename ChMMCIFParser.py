@@ -11,7 +11,9 @@ from Bio.PDB.PDBExceptions import PDBConstructionWarning
 from Bio.PDB.Atom import Atom
 from ChMMCIF2Dict import ChMMCIF2Dict
 from ChmStructureBuilder import ChmStructureBuilder
-from Chain import Chain, PolymerChain, Heterogens, Oligosaccharide, Solvent, Macrolide
+from Chain import (
+    Chain, PolymerChain, Heterogens, Oligosaccharide, Solvent, Macrolide
+)
 from Model import Model
 
 class ChMMCIFParser:
@@ -312,7 +314,7 @@ class ChMMCIFParser:
                 selected_chains.extend(chain_list)
 
         atom_site = self.create_atom_site_entry_dict()
-        ##TODO: refactor these ugly nested for loops
+        ##TODO: refactor these nested for loops
         for model_id, entity_dict in atom_site.items():
             model = Model(model_id)
             sb.structure.add(model)
@@ -350,6 +352,8 @@ class ChMMCIFParser:
                                     anisou.U33,
                                 )
                                 atom.set_anisou(numpy.array(u, "f"))
+                if isinstance(sb.chain, Heterogens):
+                    sb.chain.update()
                 if isinstance(sb.chain, PolymerChain):
                     sb.chain.reset_disordered_residues()
                     sb.chain.update()

@@ -5,18 +5,19 @@ from Bio.PDB.Residue import Residue as _Residue
 from Bio.PDB.Entity import Entity
 from Bio.PDB.Residue import DisorderedResidue as _DisorderedResidue
 from Bio.PDB import PDBIO
-from ResidueExceptions import LigandBondOrderException, SmilesQueryException
+from ResidueExceptions import LigandBondOrderWarning, SmilesQueryWarning
 from TopoDefinitions import ResidueDefinition
 from Bond import Bond
 
 class Residue(_Residue):
     """Residue class derived from Biopython Residue and made compatible with
     CHARMM Topology."""
-    def __init__(self, id, resname, segid):
-        super().__init__(id, resname, segid)
+    def __init__(self, res_id, resname, segid):
+        super().__init__(res_id, resname, segid)
         # Forcefield Parameters
         self.topo_definition: ResidueDefinition = None
         self.missing_atoms = None
+        self.missing_hydrogens = None
         self.atom_groups = None
         self.total_charge = None
         self.bonds = None
@@ -92,11 +93,18 @@ class Residue(_Residue):
         self.H_acceptors = self.topo_definition.H_acceptors
         self.param_desc = res_def.desc
 
+    def _bifurcate_missing_atom(self, atom: str):
+        """Separate missing heavy atoms and missing hydrogen atom by atom name"""
+        if atom.startswith('H'):
+            self.missing_hydrogens.append(atom)
+        else:
+            self.missing_atoms.append(atom)
+    
     def _load_atom_topo_definition(self, atom_name_list) -> list:
         cur_group = []
         for atom_name in atom_name_list:
             if atom_name not in self:
-                self.missing_atoms.append(atom_name)
+                self._bifurcate_missing_atom(atom_name)
                 continue
             cur_atom = self[atom_name]
             cur_atom.topo_definition = self.topo_definition[atom_name]
@@ -105,7 +113,7 @@ class Residue(_Residue):
     
     def _load_atom_groups(self):
         self.atom_groups = {} 
-        self.missing_atoms = []
+        self.missing_atoms, self.missing_hydrogens = [],[]
         atom_groups_dict = self.topo_definition.atom_groups
         for group_num, atom_names in atom_groups_dict.items():
             cur_group = self._load_atom_topo_definition(atom_names)
@@ -126,8 +134,6 @@ class Residue(_Residue):
                 )
 
 class DisorderedResidue(_DisorderedResidue):
-    def __init__(self, id):
-        super().__init__(id)
 
     def reset_atom_serial_numbers(self):
         i = 1
@@ -164,9 +170,10 @@ class DisorderedResidue(_DisorderedResidue):
         return pdb_str
 
 class Heterogen(Residue):
-    def __init__(self, id, resname, segid):
-        super().__init__(id, resname, segid)
+    def __init__(self, res_id, resname, segid):
+        super().__init__(res_id, resname, segid)
         self.smiles = None
+        self.pdbx_description = None
 
     def add(self, atom):
         """Special method for Add an Atom object to Heterogen. Any duplicated 
@@ -240,19 +247,25 @@ class Heterogen(Residue):
             self.smiles = smiles
         # We do not allow rdkit mol return if the correct bond orders are not set
         if self.smiles is None:
-            raise SmilesQueryException(
+            msg = (
                 'Fail to set bond orders on the Ligand mol! PDB query on SMILES does not'
                 'return any result.'
             )
+            warnings.warn(msg, SmilesQueryWarning)
+            return
 
         template = AllChem.MolFromSmiles(self.smiles)
         template = Chem.RemoveHs(template)
         try:
             mol = AllChem.AssignBondOrdersFromTemplate(template, mol)
-            return mol 
-        except ValueError as exc:
-            raise LigandBondOrderException(
+            if self.pdbx_description is not None:
+                mol.SetProp('Description', str(self.pdbx_description))
+            return mol
+
+        except ValueError:
+            msg = (
                 'No structure match found! Possibly the SMILES string supplied or reported on PDB '
                 'mismatches the ligand structure.'
-            ) from exc
-
+            )
+            warnings.warn(msg, LigandBondOrderWarning)
+            return
