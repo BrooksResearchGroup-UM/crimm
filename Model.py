@@ -2,7 +2,6 @@ import warnings
 from Bio.PDB.Model import Model as _Model
 from NGLVisualization import load_nglview_multiple
 
-
 class Model(_Model):
     def __repr__(self):
         hierarchy_str = f"<Model id={self.get_id()} Chains={len(self)}>"
@@ -20,6 +19,11 @@ class Model(_Model):
         view = load_nglview_multiple(self)
         display(view)
 
+    def get_top_parent(self):
+        if self.parent is None:
+            return self
+        return self.parent
+    
     def reset_atom_serial_numbers(self):
         i = 1
         for atom in self.get_unpacked_atoms():
@@ -32,13 +36,12 @@ class Model(_Model):
             atoms.extend(chain.get_unpacked_atoms())
         return atoms
 
-    def get_pdb_str(self, reset_serial = True, include_alt = True):
+    def get_pdb_str(self, include_alt = True, reset_serial = True):
         if reset_serial:
             self.reset_atom_serial_numbers()
         pdb_str = ''
         for chain in self:
             pdb_str += chain.get_pdb_str(
-                    reset_serial = False, 
-                    include_alt = include_alt
-                )
+                include_alt = include_alt, reset_serial = False
+            )
         return pdb_str

@@ -9,12 +9,11 @@ except ImportError:
 import warnings
 
 def _load_entity_in_view(
-        entity, 
-        view: nv.NGLWidget, 
-        defaultRepr, 
-        reset_serial
+        entity,
+        view: nv.NGLWidget,
+        defaultRepr,
     ):
-    blob = entity.get_pdb_str(reset_serial = reset_serial, include_alt = True)
+    blob = entity.get_pdb_str(include_alt = True)
     ngl_args = [{'type': 'blob', 'data': blob, 'binary': False}]
     view._ngl_component_names.append(entity.get_id())
     view._remote_call(
@@ -25,22 +24,22 @@ def _load_entity_in_view(
             'defaultRepresentation': defaultRepr}
         )
     
-def load_nglview(entity, defaultRepr = True, reset_serial = True):
+def load_nglview(entity, defaultRepr = True):
     """
     Load pdb string into nglview instance
     """
     view = nv.NGLWidget()
-    _load_entity_in_view(entity, view, defaultRepr, reset_serial)
+    _load_entity_in_view(entity, view, defaultRepr)
     # view.add_licorice('not protein')
     return view
 
-def load_nglview_multiple(entity_list, defaultRepr = True, reset_serial = True):
+def load_nglview_multiple(entity_list, defaultRepr = True):
     """
     Load pdb string into nglview instance
     """
     view = nv.NGLWidget()
     for entity in entity_list:
-        _load_entity_in_view(entity, view, defaultRepr, reset_serial)
+        _load_entity_in_view(entity, view, defaultRepr)
     # view.add_licorice('not protein')
     return view
 
@@ -65,7 +64,7 @@ def highlight_residues(
         raise ValueError('List of Residues or Residue Sequence ID is required')
     
     view = nv.NGLWidget()
-    blob = chain.get_pdb_str(reset_serial = True, include_alt = False)
+    blob = chain.get_pdb_str(include_alt = False)
     ngl_args = [{'type': 'blob', 'data': blob, 'binary': False}]
     view._ngl_component_names.append('Model Chain')
     # Load data, and do not add any representation
@@ -80,8 +79,8 @@ def highlight_residues(
                     target='compList',
                     args=['cartoon'],
                     kwargs={
-                        'sele': 'protein', 
-                        'color': 'grey', 
+                        'sele': 'protein',
+                        'color': 'grey',
                         'component_index': 0
                     }
                     )

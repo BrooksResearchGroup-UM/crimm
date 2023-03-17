@@ -1,6 +1,6 @@
 import warnings
 from typing import List, Tuple
-from Bio.Seq import Seq, MutableSeq
+from Bio.Seq import Seq
 from Bio.PDB import PDBIO, PPBuilder
 from Bio.Data.PDBData import protein_letters_3to1_extended
 from Bio.Data.PDBData import nucleic_letters_3to1_extended
@@ -9,7 +9,6 @@ from Residue import DisorderedResidue
 from ChainExceptions import ChainConstructionWarning
 from NGLVisualization import load_nglview
 
-## TODO: Get rid of chain_type attr. Use isinstance() instead
 class BaseChain(_Chain):
     """Base class for Biopython and CHARMM compatible object with nglview visualizations"""
     chain_type = "Base Chain"
@@ -21,8 +20,18 @@ class BaseChain(_Chain):
         self.topo_definitions = None
         self.pdbx_description = None
 
+    def get_top_parent(self):
+        if self.parent is None:
+            return self
+        return self.parent.get_top_parent()
+
     def reset_atom_serial_numbers(self):
-        """Reset all atom serial numbers starting from 1."""
+        """Reset all atom serial numbers in the entire structure starting from 1."""
+        top_parent = self.get_top_parent()
+        if top_parent is not self:
+            top_parent.reset_atom_serial_numbers()
+            return
+        # no parent, reset the serial number for the entity itself
         i = 1
         for atom in self.get_unpacked_atoms():
             atom.serial_number = i
@@ -63,38 +72,37 @@ class BaseChain(_Chain):
         return atoms
     
     @staticmethod
-    def _get_child(parent, include_alt):
+    def _get_child(entity, include_alt):
         if include_alt:
-            return parent.get_unpacked_list()
-        return parent.child_list
+            return entity.get_unpacked_list()
+        return entity.child_list
     
-    def get_pdb_str(self, reset_serial = True, include_alt = True):
+    def get_pdb_str(self, include_alt = True, reset_serial = True):
         """
         Get the PDB format string for all atoms in the chain
         """
-        # This is copied and modified from Bio.PDB.PDBIO
         if reset_serial:
             self.reset_atom_serial_numbers()
+        # This is copied and modified from Bio.PDB.PDBIO
         io = PDBIO()
         pdb_string = ''
         # Since chain_ids are from label_asym_id in mmCIF, and 
         # for larger structures with mmCIF entity naming scheme,
-        # it would ran out of the alphabet and start using two letter codes.
-        # But here, we are forcing the one character chain_id in order to 
+        # it would ran out of the letters and start using two letter codes.
+        # But here, we are forcing the one character chain_id in order to
         # comply with PDB file spec.
         chain_id = self.get_id()[0]
         for residue in self._get_child(self, include_alt):
             hetfield, resseq, icode = residue.id
             resname = residue.resname
             segid = residue.segid
-
             for atom in self._get_child(residue, include_alt):
-                atom_number = atom.serial_number
+                atom_serial = atom.serial_number
                 atom_line = io._get_atom_line(
                     atom,
                     hetfield,
                     segid,
-                    atom_number,
+                    atom_serial,
                     resname,
                     resseq,
                     icode,
@@ -180,20 +188,6 @@ class Chain(BaseChain):
         # numbering
         return self._ppb.build_peptides(self, aa_only=False)
 
-    def extract_all_seq(self):
-        """
-        Extract sequence from all residues in chain. Even if the residues is empty
-        and contains no atom, it will be included in the sequence.
-        """
-        seq = Seq('')
-        for res in sorted(self, key = lambda x: x.id[1:]):
-            if res.resname not in self.letter_3to1_dict:
-                one_letter_code = 'X'
-            else:
-                one_letter_code = self.letter_3to1_dict[res.resname]
-            seq+=one_letter_code
-        return seq
-
     def extract_segment_seq(self):
         """
         Extract sequence from the residues that are present in chain. Residues that 
@@ -205,6 +199,10 @@ class Chain(BaseChain):
         return seq
     
     def extract_present_seq(self):
+        """
+        Extract sequence from the residues that are present in chain, regardless
+        of any missing atom or even empty residues.
+        """
         seq = Seq('')
         for res in sorted(self, key = lambda x: x.id[1:]):
             if len(res.child_list) == 0:
@@ -393,10 +391,10 @@ class Solvent(BaseChain):
 
 class MaskedSeq(Seq):
     """
-    A sequence masked with '-' for any missing residues. The masked sequence
-    is constructed from a PolymerChain class where missing residues are 
-    reported. The sequence that is missing will be printed in red if the show() 
-    method is called.
+    A sequence masked with '-' for any missing residues for visualization purposes.
+    The masked sequence is constructed from a PolymerChain class where missing 
+    residues are reported. The sequence that is missing will be printed in red 
+    if the show() method is called.
     """
     RED = '\033[91m'
     ENDC = '\033[0m'
@@ -435,7 +433,7 @@ class MaskedSeq(Seq):
 
 
 def convert_chain(chain: _Chain):
-    """Convert a Biopython Chain class to whaler Chain"""
+    """Convert a Biopython Chain class to general Chain"""
     pchain = Chain(chain.id)
     pchain.set_parent(chain.parent)
     for res in chain:

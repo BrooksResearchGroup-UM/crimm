@@ -4,7 +4,6 @@ import numpy as np
 import numpy.linalg as LA
 from scipy.spatial.transform import Rotation as R
 
-
 def sep_by_priorities(atom_list):
     # Create a 2-tier priotity list to separate
     # heavy atoms and hydrogen atom
@@ -59,13 +58,13 @@ def get_coord_from_chain_ic(i_coord, j_coord, k_coord, phi, t_jkl, r_kl):
     
 def get_coord_from_improper_ic(i_coord, j_coord, k_coord, phi, t_jkl, r_kl):
     origin = k_coord
-    a1 = i_coord - origin
-    a2 = j_coord - origin
+    a1 = origin - i_coord
+    a2 = origin - j_coord
     r1 = R.from_rotvec(phi * a2/LA.norm(a2), degrees=True)
     n1 = np.cross(a2, a1)
     n2 = r1.apply(n1)
     m = np.cross(n2, a2)
-    r2 = R.from_rotvec((t_jkl-90) * n2/LA.norm(n2), degrees=True)
+    r2 = R.from_rotvec((t_jkl+90) * n2/LA.norm(n2), degrees=True)
     a3 = r2.apply(m)
     a3 = a3/LA.norm(a3)*r_kl
     
@@ -258,6 +257,7 @@ class ResidueFixer:
         computed_atom_names = find_coords_by_ic(
             build_sequence, self.topo_def.ic, self.coord_dict
         )
+        built_atoms = []
         for atom_name in computed_atom_names:
             missing_atom_name_list.remove(atom_name)
             if atom_name.startswith('+') or atom_name.startswith('-'):
@@ -266,8 +266,9 @@ class ResidueFixer:
             coord = self.coord_dict[atom_name]
             new_atom = self.topo_def[atom_name].create_new_atom(coord)
             self._res.add(new_atom)
-            
-
+            built_atoms.append(new_atom)
+        return built_atoms
+    
     def build_missing_atoms(self):
         """Build missing atoms based on residue topology definition on 
         internal coordinates. If neigbor residue has missing backbone atom that 
@@ -275,7 +276,7 @@ class ResidueFixer:
         atoms will be built first."""
         if len(self.missing_atoms) == 0:
             return
-        self._build_atoms(self.heavy_build_sequence, self.missing_atoms)
+        return self._build_atoms(self.heavy_build_sequence, self.missing_atoms)
 
     def build_hydrogens(self):
         """Build hydrogens atoms based on residue topology definition on 
@@ -286,13 +287,37 @@ class ResidueFixer:
 
         if len(self.missing_hydrogens) == 0:
             return
+        built_atoms = []
         if len(self.missing_atoms) != 0:
             warnings.warn(
                 'Missing heavy atoms are built before '
                 f'building hydrogens: {self.missing_atoms}'
             )
-            self.build_missing_atoms()
+            built_atoms.extend(self.build_missing_atoms())
+        built_atoms.extend(
+            self._build_atoms(
+                self.hydrogen_build_sequence, self.missing_hydrogens
+            )
+        )
+        return built_atoms
+        
 
-        self._build_atoms(self.hydrogen_build_sequence, self.missing_hydrogens)
-
+def build_missing_atoms_for_chain(chain):
+    """Build missing residue for a PolymerChain where topology definitions 
+    have been loaded for each residue. Missing atom will be built based on the IC
+    definitions if the residue is not completely missing (e.g. missing loop on a
+    chain).
     
+    Args:
+        chain: PolymerChain with topology definitions loaded for each residue.
+    """
+    built_atoms = {}
+    res_builder = ResidueFixer()
+    for res in chain:
+        if res.topo_definition is None:
+            warnings.warn(f'No topology definition on {res}! Skipped')
+            continue
+        if res.missing_atoms:
+            res_builder.load_residue(res)
+            built_atoms[(res.id[1], res.resname)] = res_builder.build_missing_atoms()
+    return built_atoms

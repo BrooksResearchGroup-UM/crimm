@@ -20,3 +20,13 @@ class Structure(_Structure):
         if len(self) == 0:
             return
         return self.child_list[0]._repr_html_()
+
+    def get_unpacked_atoms(self):
+        atoms = []
+        for model in self:
+            atoms.extend(model.get_unpacked_atoms())
+        return atoms
+
+    def reset_atom_serial_numbers(self):
+        for model in self:
+            model.reset_atom_serial_numbers()

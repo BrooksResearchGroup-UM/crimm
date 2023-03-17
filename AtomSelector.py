@@ -49,7 +49,7 @@ class AtomSelector:
         self.point_coord = np.asarray(point_coord, dtype=float)
 
         cand_coords = self._get_entity_coords(select_entity)
-        mask = self._select_by_point(self, point_coord, cand_coords, radius)
+        mask = self._select_by_point(point_coord, cand_coords, radius)
         
         return self._get_atoms_from_mask(mask)
 
@@ -73,7 +73,6 @@ class AtomSelector:
         view = load_nglview_multiple(
                 [self.ref_entity, self.select_entity],
                 defaultRepr = False,
-                reset_serial = False
             )
         
         # Set select_entity grey

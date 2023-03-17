@@ -8,6 +8,7 @@ from Bio.PDB import PDBIO
 from ResidueExceptions import LigandBondOrderWarning, SmilesQueryWarning
 from TopoDefinitions import ResidueDefinition
 from Bond import Bond
+from NGLVisualization import load_nglview
 
 class Residue(_Residue):
     """Residue class derived from Biopython Residue and made compatible with
@@ -27,35 +28,50 @@ class Residue(_Residue):
         self.H_acceptors = None
         self.is_patch = None
         self.param_desc = None
-
+ 
     def get_unpacked_atoms(self):
         """Return the list of all atoms where the all altloc of disordered atoms will
         be present."""
         return self.get_unpacked_list()
     
     def reset_atom_serial_numbers(self):
-        """Reset the serial numbers of all present atoms including the disordered atoms.
-        The indices are sequential and start from 1."""
+        """Reset all atom serial numbers in the entire structure starting from 1."""
+        top_parent = self.get_top_parent()
+        if top_parent is not self:
+            top_parent.reset_atom_serial_numbers()
+            return
+        # no parent, reset the serial number for the entity itself
         i = 1
-        for atom in self.get_unpacked_list():
+        for atom in self.get_unpacked_atoms():
             atom.serial_number = i
-            i += 1
+            i+=1
 
+    def _repr_html_(self):
+        """Return the nglview interactive visualization window"""
+        if len(self) == 0:
+            return
+        from IPython.display import display
+        view = load_nglview(self)
+        display(view)
+        return
+    
     @staticmethod
     def _get_child(parent, include_alt):
         if include_alt:
             return parent.get_unpacked_list()
         return parent.child_list
 
-    def get_pdb_str(self, reset_serial = True, include_alt = True):
-        if reset_serial:
-            self.reset_atom_serial_numbers()
-        
+    def get_top_parent(self):
+        if self.parent is None:
+            return self
+        return self.parent.get_top_parent()
+    
+    def get_pdb_str(self, include_alt = True):
         if self.parent is not None:
             chain = self.get_parent()
             chain_id = chain.get_id()
         else:
-            chain_id = 'X'
+            chain_id = '_'
 
         io = PDBIO()
         pdb_string = ''
@@ -63,19 +79,20 @@ class Residue(_Residue):
         resname = self.resname
         segid = self.segid
 
+        atom_serial = 1
         for atom in self._get_child(self, include_alt):
-            atom_number = atom.serial_number
             atom_line = io._get_atom_line(
                 atom,
                 hetfield,
                 segid,
-                atom_number,
+                atom_serial,
                 resname,
                 resseq,
                 icode,
                 chain_id,
             )
             pdb_string += atom_line
+            atom_serial += 1
         return pdb_string
         
     def load_topo_definition(self, res_def: ResidueDefinition):
@@ -128,13 +145,17 @@ class Residue(_Residue):
                 if not (atom_name1 in self and atom_name2 in self):
                     continue
                 atom1, atom2 = self[atom_name1], self[atom_name2]
-                bond_length = (((atom1.coord - atom2.coord)**2).sum())**0.5
                 self.bonds.append(
-                    Bond(atom1, atom2, bond_type, bond_order, bond_length)
+                    Bond(atom1, atom2, bond_type, bond_order)
                 )
 
 class DisorderedResidue(_DisorderedResidue):
 
+    def get_top_parent(self):
+        if self.parent is None:
+            return self
+        return self.parent.get_top_parent()
+    
     def reset_atom_serial_numbers(self):
         i = 1
         for res in self.child_dict.values():

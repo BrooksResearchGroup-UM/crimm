@@ -8,7 +8,7 @@ files from PDB"""
 import warnings
 import numpy
 from Bio.PDB.PDBExceptions import PDBConstructionWarning
-from Bio.PDB.Atom import Atom
+from Atom import Atom
 from ChMMCIF2Dict import ChMMCIF2Dict
 from ChmStructureBuilder import ChmStructureBuilder
 from Chain import (
@@ -341,8 +341,8 @@ class ChMMCIFParser:
                         sb.init_residue(resname, *res_id)
                         for atom in atoms:
                             sb.add_atom(atom, sb.residue)
-                            if atom.serial_number <= len(all_anisou):
-                                anisou = all_anisou[atom.serial_number-1]
+                            if atom.orig_serial_number <= len(all_anisou):
+                                anisou = all_anisou[atom.orig_serial_number-1]
                                 u = (
                                     anisou.U11,
                                     anisou.U12,

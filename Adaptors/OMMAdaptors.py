@@ -8,7 +8,7 @@ except ImportError as exc:
     raise ImportError("OpenMM is required to use the Topology module") from exc
 from Model import Model
 from Structure import Structure
-
+    
 class Topology(OMMTop):
     """Model/Topology class derived from Biopython Model and made compatible with
     OpenMM Topology."""
@@ -16,16 +16,17 @@ class Topology(OMMTop):
         self._bonds = []
         self._periodicBoxVectors = None
         self.model = model
+        self.model.topology = self
         self._assign_periodic_box_vecs()
         self._retype_elements()
         self.createStandardBonds()
-        self.createDisulfideBonds(get_omm_positions(self.model))
+        self.createDisulfideBonds(construct_omm_positions(self.model))
     
     def __repr__(self):
         return self.model.__repr__()
 
-    def _repr_html_(self):
-        return self.model._repr_html_()
+    # def _repr_html_(self):
+    #     return self.model._repr_html_()
 
     def get_residues(self):
         """Get a list of residues from all Chains in the Model/Topology"""
@@ -33,7 +34,7 @@ class Topology(OMMTop):
         for chain in self.model:
             residues.extend(chain.child_list)
         return residues
-
+    
     @property
     def _chains(self):
         """List of Chains in the Model/Topology
@@ -116,9 +117,11 @@ class Topology(OMMTop):
     def _retype_elements(self):
         """Convert all the type of element of Atoms from str to OpenMM elements"""
         for atom in self.atoms():
+            if isinstance(atom.element, element.Element):
+                continue
             atom.element = element.get_by_symbol(atom.element)
 
-def get_omm_positions(entity):
+def construct_omm_positions(entity):
     if isinstance(entity, Structure):
         # take the first model if a structure is supplied
         entity = entity.child_list[0]
