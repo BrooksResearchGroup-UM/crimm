@@ -28,7 +28,9 @@ class ChmStructureBuilder():
     def __init__(self):
         """Initialize the class."""
         self.line_counter = 0
-        self.header = {}
+        self.header = None
+        self.resolution = None
+        self.structure_method = None
         self.structure = None
         self.model = None
         self.chain = None
@@ -46,6 +48,14 @@ class ChmStructureBuilder():
         return 1
 
     # Public methods called by the Parser classes
+    def set_resolution(self, resolution):
+        """Set strucuture resolution."""
+        self.resolution = resolution
+
+    def set_structure_method(self, method):
+        """Set strucuture method."""
+        self.structure_method = method
+
     def set_header(self, header):
         """Set header."""
         self.header = header
@@ -147,7 +157,6 @@ class ChmStructureBuilder():
                 "Blank altlocs in duplicate residue %s ('%s', %i, '%s')"
                 % (resname, field, resseq, icode)
             )
-            return None
 
         chain.detach_child(duplicate_residue.id)
         disordered_residue = DisorderedResidue(duplicate_residue.id)
@@ -340,10 +349,10 @@ class ChmStructureBuilder():
 
     def get_structure(self):
         """Return the structure."""
-        # first sort everything
-        # self.structure.sort()
         # Add the header dict
         self.structure.header = self.header
+        self.structure.resolution = self.resolution
+        self.structure.method = self.structure_method
         return self.structure
 
     def set_symmetry(self, spacegroup, cell):

@@ -10,7 +10,8 @@ from ChainExceptions import ChainConstructionWarning
 from NGLVisualization import load_nglview
 
 class BaseChain(_Chain):
-    """Base class for Biopython and CHARMM compatible object with nglview visualizations"""
+    """Base class derived from and Biopython chain object and compatible with
+    Biopython's functions"""
     chain_type = "Base Chain"
     def __init__(self, chain_id):
         super().__init__(chain_id)
@@ -26,7 +27,8 @@ class BaseChain(_Chain):
         return self.parent.get_top_parent()
 
     def reset_atom_serial_numbers(self):
-        """Reset all atom serial numbers in the entire structure starting from 1."""
+        """Reset all atom serial numbers in the encompassing entity (the parent
+        structure and/or model, if they exist) starting from 1."""
         top_parent = self.get_top_parent()
         if top_parent is not self:
             top_parent.reset_atom_serial_numbers()
@@ -66,6 +68,8 @@ class BaseChain(_Chain):
         return
 
     def get_unpacked_atoms(self):
+        """Return the list of all atoms from this chain where the all altloc of 
+        disordered atoms will be present."""
         atoms = []
         for res in self.get_unpacked_list():
             atoms.extend(res.get_unpacked_atoms())
@@ -311,7 +315,10 @@ class PolymerChain(Chain):
         Get a sequence masked with '-' for any residue that is missing CA and N
         backbone atoms
         """
-        missing_res_ids = list(zip(*self.missing_res))[0]
+        if len(self.missing_res) == 0:
+            missing_res_ids = []
+        else:
+            missing_res_ids = list(zip(*self.missing_res))[0]
         return MaskedSeq(missing_res_ids, self.can_seq)
     
     @property

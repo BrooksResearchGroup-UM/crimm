@@ -1,8 +1,17 @@
+"""The structure class, representing a macromolecular structure."""
+
 from Bio.PDB.Structure import Structure as _Structure
 
 class Structure(_Structure):
+    """The extended Structure class contains a collection of Model instances.
+    Derived from Biopython's Bio.PDB.Model and compatible with Biopython functions
+    """
+
     def __init__(self, id) -> None:
         super().__init__(id)
+        self.header = None
+        self.resolution = None
+        self.method = None
         self.assemblies = None
         self.cell_info = None
 
@@ -22,11 +31,14 @@ class Structure(_Structure):
         return self.child_list[0]._repr_html_()
 
     def get_unpacked_atoms(self):
+        """Return the list of all atoms from this structure where the all altloc of 
+        disordered atoms will be present."""
         atoms = []
         for model in self:
             atoms.extend(model.get_unpacked_atoms())
         return atoms
 
     def reset_atom_serial_numbers(self):
+        """Reset all atom serial numbers in the structure starting from 1."""
         for model in self:
             model.reset_atom_serial_numbers()

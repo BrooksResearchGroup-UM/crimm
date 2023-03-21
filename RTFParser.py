@@ -194,9 +194,9 @@ class RTFParser:
         for resname, res_topo in topo_dict.items():
             res_def = ResidueDefinition(rtf_version, resname, res_topo)
             residue_definitions[resname] = res_def
-        if 'HIS' not in residue_definitions and 'HSE' in residue_definitions:
-            # Map all histidines HIS to HSE
-            residue_definitions['HIS'] = residue_definitions['HSE']
+        if 'HIS' not in residue_definitions and 'HSD' in residue_definitions:
+            # Map all histidines HIS to HSD
+            residue_definitions['HIS'] = residue_definitions['HSD']
         
         return residue_definitions
     

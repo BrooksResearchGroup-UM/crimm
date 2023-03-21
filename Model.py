@@ -1,8 +1,16 @@
-import warnings
+"""Model class, used in Structure objects."""
+
 from Bio.PDB.Model import Model as _Model
 from NGLVisualization import load_nglview_multiple
 
 class Model(_Model):
+    """The extended Model class representing a model in a structure.
+    Derived from Biopython's Bio.PDB.Model and compatible with Biopython functions
+
+    In a structure derived from an X-ray crystallography experiment,
+    only a single model will be present (with some exceptions). NMR
+    structures normally contain many different models.
+    """
     def __repr__(self):
         hierarchy_str = f"<Model id={self.get_id()} Chains={len(self)}>"
         branch_symbols = '\n\t│\n\t├───'
@@ -25,12 +33,16 @@ class Model(_Model):
         return self.parent
     
     def reset_atom_serial_numbers(self):
+        """Reset all atom serial numbers in the encompassing entity (the parent 
+        structure, if it exists) starting from 1."""
         i = 1
         for atom in self.get_unpacked_atoms():
             atom.serial_number = i
             i+=1
 
     def get_unpacked_atoms(self):
+        """Return the list of all atoms from this model where the all altloc of 
+        disordered atoms will be present."""
         atoms = []
         for chain in self:
             atoms.extend(chain.get_unpacked_atoms())

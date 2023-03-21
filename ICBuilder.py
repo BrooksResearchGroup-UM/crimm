@@ -253,6 +253,15 @@ class ResidueFixer:
         """Get the current missing hydrogen atoms"""
         return self._res.missing_hydrogens
 
+    def remove_hydrogens(self):
+        """Remove all hydrogens on the residue"""
+        hydrogens = []
+        for atom in self._res:
+            if atom.element == 'H':
+                hydrogens.append(atom)
+        for hydrogen in hydrogens:
+            self._res.detach_child(hydrogen.id)
+
     def _build_atoms(self, build_sequence, missing_atom_name_list):
         computed_atom_names = find_coords_by_ic(
             build_sequence, self.topo_def.ic, self.coord_dict

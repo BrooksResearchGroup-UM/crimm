@@ -35,7 +35,8 @@ class Residue(_Residue):
         return self.get_unpacked_list()
     
     def reset_atom_serial_numbers(self):
-        """Reset all atom serial numbers in the entire structure starting from 1."""
+        """Reset all atom serial numbers in the encompassing entity (the parent
+        structure, model, and chain, if they exist) starting from 1."""
         top_parent = self.get_top_parent()
         if top_parent is not self:
             top_parent.reset_atom_serial_numbers()
@@ -117,23 +118,30 @@ class Residue(_Residue):
         else:
             self.missing_atoms.append(atom)
     
-    def _load_atom_topo_definition(self, atom_name_list) -> list:
-        cur_group = []
+    def _load_group_atom_topo_definition(self, atom_name_list) -> list:
+        """Load topology definition to each atom in the residue and find any missing 
+        atoms. 
+        Argument:
+            atom_name_list: list of atom names that are in the same group
+        Return:
+            atom_group: the Atom object in the group
+        """
+        atom_group = []
         for atom_name in atom_name_list:
             if atom_name not in self:
                 self._bifurcate_missing_atom(atom_name)
                 continue
             cur_atom = self[atom_name]
             cur_atom.topo_definition = self.topo_definition[atom_name]
-            cur_group.append(cur_atom)
-        return cur_group
+            atom_group.append(cur_atom)
+        return atom_group
     
     def _load_atom_groups(self):
         self.atom_groups = {} 
         self.missing_atoms, self.missing_hydrogens = [],[]
         atom_groups_dict = self.topo_definition.atom_groups
         for group_num, atom_names in atom_groups_dict.items():
-            cur_group = self._load_atom_topo_definition(atom_names)
+            cur_group = self._load_group_atom_topo_definition(atom_names)
             self.atom_groups.update({group_num:cur_group})
     
     def _load_bonds(self):

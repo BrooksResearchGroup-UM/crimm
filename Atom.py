@@ -55,7 +55,7 @@ class Atom(_Atom):
         if top_parent is self:
             self.serial_number = 1
         else:
-            top_parent._reset_atom_serial_numbers()
+            top_parent.reset_atom_serial_numbers()
 
     @property
     def topo_definition(self):
@@ -72,6 +72,7 @@ class Atom(_Atom):
         self.id = self._topo_def.name
 
     def get_top_parent(self):
+        """Get the highest level of encompassing entity"""
         if self.parent is None:
             return self
         return self.parent.get_top_parent()

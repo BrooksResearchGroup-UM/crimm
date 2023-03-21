@@ -23,6 +23,7 @@ class ChMMCIFParser:
             first_model_only = True,
             first_assembly_only = True,
             include_solvent = True,
+            include_hydrogens = False,
             strict_parser = True,
             QUIET = False
         ):
@@ -31,53 +32,62 @@ class ChMMCIFParser:
         self.first_model_only = first_model_only
         self.first_assembly_only = first_assembly_only
         self.include_solvent = include_solvent
+        self.include_hydrogens = include_hydrogens
         self.strict_parser = strict_parser
         self.cifdict = None
-        self.header = None
         self.model_template = None
 
-    def _get_header(self):
+    @staticmethod
+    def _cif_find_resolution(cifdict):
+        """Find structure resolution information from the parsed mmCIF dictionary"""
         resolution_keys = [
             ("refine", "ls_d_res_high"),
             ("refine_hist", "d_res_high"),
             ("em_3d_reconstruction", "resolution"),
         ]
         for key, subkey in resolution_keys:
-            resolution = self.cifdict.level_two_get(key, subkey)
-            if resolution is not None and resolution[0] is not None:
-                break
+            resolution = cifdict.level_two_get(key, subkey)
+            if resolution is not None and (value:=resolution[0]) is not None:
+                return value
 
-        self.header = {
-            "name": self.cifdict.get("data"),
-            "keywords": self.cifdict.retrieve_single_value_dict("struct_keywords"),
-            "citation": self.cifdict.get("citation"),
-            "idcode": self.cifdict.retrieve_single_value_dict('struct'),
-            "deposition_date": self.cifdict.level_two_get(
+    @staticmethod
+    def _cif_get_header(cifdict):
+        """Get header information from the parsed mmCIF dictionary"""
+        header = {
+            "name": cifdict.get("data"),
+            "keywords": cifdict.retrieve_single_value_dict("struct_keywords"),
+            "citation": cifdict.get("citation"),
+            "idcode": cifdict.retrieve_single_value_dict('struct'),
+            "deposition_date": cifdict.level_two_get(
                 "pdbx_database_status", "recvd_initial_deposition_date"
-            )[0],
-            "structure_method": self.cifdict.level_two_get(
-                "exptl", "method"
-            )[0],
-            "resolution": resolution,
+            )[0]
         }
 
-        return self.header
+        return header
 
-    def get_structure(self, filename, structure_id = None):
+    def get_structure(self, filepath, structure_id = None):
         """Return the structure.
 
         Arguments:
          :structure_id: string, the id that will be used for the structure
-         :filename: name of mmCIF file, OR an open text mode file handle
+         :filepath: path to mmCIF file, OR an open text mode file handle
 
         """
         with warnings.catch_warnings():
             if self.QUIET:
                 warnings.filterwarnings("ignore", category=PDBConstructionWarning)
-            self.cifdict = ChMMCIF2Dict(filename)
+            # mmCIF will be parsed into dictionary first and then namedtuples
+            # to gather all the necessary info to construct the structure
+            self.cifdict = ChMMCIF2Dict(filepath)
             self.model_template = self.create_model_template()
             self._build_structure(structure_id)
-            self._structure_builder.set_header(self._get_header())
+            # set additional info on the structure
+            structure_method = self.cifdict.level_two_get("exptl", "method")[0]
+            self._structure_builder.set_structure_method(structure_method)
+            resolution = self._cif_find_resolution(self.cifdict)
+            self._structure_builder.set_resolution(resolution)
+            header = self._cif_get_header(self.cifdict)
+            self._structure_builder.set_header(header)
 
         return self._structure_builder.get_structure()
 
@@ -135,8 +145,8 @@ class ChMMCIFParser:
                 setattr(chain, k, v)
 
     def create_model_template(self):
-        """Create an empty template for the chains as a model. The chain types
-        is determined based on the entity type in mmCIF, and a model object 
+        """Set up empty templates for the chains in a template model. The chain 
+        types are determined based on the entity type in mmCIF, and a model object
         containing the empty chains will be returned."""
         model_temp = Model('template')
 
@@ -237,6 +247,8 @@ class ChMMCIFParser:
         model_dict = dict()
 
         for atom_entry in atom_site:
+            if not self.include_hydrogens and atom_entry.type_symbol == 'H':
+                continue
             model_num = atom_entry.pdbx_PDB_model_num
             if model_num not in model_dict:
                 if self.first_model_only and len(model_dict) > 0:
@@ -273,7 +285,7 @@ class ChMMCIFParser:
 
     def create_assembly_dict(self):
         """Return a dictionary of chains grouped by mmcif assembly ids under
-        "pdbx_struct_assembly_gen". If no assembly info available, None will be
+        "pdbx_struct_assembly_gen". If no assembly info available, None is
         returned.
         """
         assemblies = dict()
