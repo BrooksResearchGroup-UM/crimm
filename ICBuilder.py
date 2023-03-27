@@ -174,13 +174,12 @@ class ResidueFixer:
 
     @property
     def residue(self):
+        """The residue to be fixed."""
         return self._res
     
     @residue.setter
     def residue(self, residue):
-        raise ValueError(
-            "Setting residue directly is not allowed! Use load_residue() instead"
-        )
+        self.load_residue(residue)
 
     @staticmethod
     def _get_neighbor_backbone_coords(residue):
@@ -220,6 +219,7 @@ class ResidueFixer:
         return neighbor_coord_dict
     
     def load_residue(self, residue, topo_definition = None):
+        """Load the residue to be fixed."""
         if topo_definition is not None:
             self.topo_def = topo_definition
         elif residue.topo_definition is not None:
@@ -228,7 +228,8 @@ class ResidueFixer:
             raise ValueError(
                 'No ResidueDefinition provided nor loaded in the residue! '
                 'Residue Topology Definition must be loaded in the residue using '
-                'load_topo_definition() or provided as a parameter.'
+                'load_topo_definition() or provided as a parameter in the '
+                'load_residue() method.'
             )
         self._res = residue
         self.coord_dict = {atom.name:atom.coord for atom in self._res}
@@ -310,6 +311,11 @@ class ResidueFixer:
         )
         return built_atoms
         
+    def remove_undefined_atoms(self):
+        """Remove undefined atoms from the residue"""
+        for atom in self._res.undefined_atoms:
+            self._res.detach_child(atom.id)
+        self._res.undefined_atoms = []
 
 def build_missing_atoms_for_chain(chain):
     """Build missing residue for a PolymerChain where topology definitions 

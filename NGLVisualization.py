@@ -13,7 +13,7 @@ def _load_entity_in_view(
         view: nv.NGLWidget,
         defaultRepr,
     ):
-    blob = entity.get_pdb_str(include_alt = True)
+    blob = entity.get_pdb_str(include_alt = False)
     ngl_args = [{'type': 'blob', 'data': blob, 'binary': False}]
     view._ngl_component_names.append(entity.get_id())
     view._remote_call(

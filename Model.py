@@ -27,16 +27,25 @@ class Model(_Model):
         view = load_nglview_multiple(self)
         display(view)
 
+    @property
+    def chains(self):
+        """Alias for child_list. Returns the list of chains in this model."""
+        return self.child_list
+    
     def get_top_parent(self):
         if self.parent is None:
             return self
         return self.parent
     
-    def reset_atom_serial_numbers(self):
+    def reset_atom_serial_numbers(self, include_alt=True):
         """Reset all atom serial numbers in the encompassing entity (the parent 
         structure, if it exists) starting from 1."""
         i = 1
-        for atom in self.get_unpacked_atoms():
+        if include_alt:
+            all_atoms = self.get_unpacked_atoms()
+        else:
+            all_atoms = self.get_atoms()
+        for atom in all_atoms:
             atom.serial_number = i
             i+=1
 
@@ -47,10 +56,16 @@ class Model(_Model):
         for chain in self:
             atoms.extend(chain.get_unpacked_atoms())
         return atoms
+    
+    def get_atoms(self):
+        atoms = []
+        for chain in self:
+            atoms.extend(chain.get_atoms())
+        return atoms
 
     def get_pdb_str(self, include_alt = True, reset_serial = True):
         if reset_serial:
-            self.reset_atom_serial_numbers()
+            self.reset_atom_serial_numbers(include_alt=include_alt)
         pdb_str = ''
         for chain in self:
             pdb_str += chain.get_pdb_str(

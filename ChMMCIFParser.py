@@ -368,7 +368,7 @@ class ChMMCIFParser:
                     sb.chain.update()
                 if isinstance(sb.chain, PolymerChain):
                     sb.chain.reset_disordered_residues()
-                    sb.chain.update()
+                    sb.chain.sort_residues()
 
         self.add_cell_and_symmetry_info()
         

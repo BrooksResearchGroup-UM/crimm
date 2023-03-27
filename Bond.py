@@ -58,6 +58,8 @@ class Bond(namedtuple('Bond', ['atom1', 'atom2'])):
         """
         return self.__dict__
 
+    ##TODO: implement __hash__ and __eq__ to make Bond hashable and comparable
+    
     def __deepcopy__(self, memo):
         return Bond(self[0], self[1], self.type, self.order)
 

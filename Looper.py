@@ -195,7 +195,7 @@ class ChainLoopBuilder:
         for i, res in zip(gap, residues):
             # i in insert refer to child list index, thus i-1 here
             self.model_chain.insert(i-1, res)
-        self.model_chain.update()
+        self.model_chain.sort_residues()
         self.repaired_gaps.append(tuple(gap))
     
     def get_repair_residues_from_template(

@@ -3,6 +3,7 @@ from typing import List, Tuple
 from Bio.Seq import Seq
 from Bio.PDB import PDBIO, PPBuilder
 from Bio.Data.PDBData import protein_letters_3to1_extended
+from Bio.Data.PDBData import protein_letters_1to3
 from Bio.Data.PDBData import nucleic_letters_3to1_extended
 from Bio.PDB.Chain import Chain as _Chain
 from Residue import DisorderedResidue
@@ -21,21 +22,30 @@ class BaseChain(_Chain):
         self.topo_definitions = None
         self.pdbx_description = None
 
+    @property
+    def residues(self):
+        """Alias for child_list. Returns the list of residues in this chain."""
+        return self.child_list
+    
     def get_top_parent(self):
         if self.parent is None:
             return self
         return self.parent.get_top_parent()
 
-    def reset_atom_serial_numbers(self):
+    def reset_atom_serial_numbers(self, include_alt = True):
         """Reset all atom serial numbers in the encompassing entity (the parent
         structure and/or model, if they exist) starting from 1."""
         top_parent = self.get_top_parent()
         if top_parent is not self:
-            top_parent.reset_atom_serial_numbers()
+            top_parent.reset_atom_serial_numbers(include_alt=include_alt)
             return
         # no parent, reset the serial number for the entity itself
         i = 1
-        for atom in self.get_unpacked_atoms():
+        if include_alt:
+            all_atoms = self.get_unpacked_atoms()
+        else:
+            all_atoms = self.get_atoms()
+        for atom in all_atoms:
             atom.serial_number = i
             i+=1
 
@@ -74,6 +84,14 @@ class BaseChain(_Chain):
         for res in self.get_unpacked_list():
             atoms.extend(res.get_unpacked_atoms())
         return atoms
+
+    def get_atoms(self):
+        """Return the list of all atoms from this chain that only the first altloc of 
+        disordered atoms will be present."""
+        atoms = []
+        for res in self:
+            atoms.extend(res.get_unpacked_atoms())
+        return atoms
     
     @staticmethod
     def _get_child(entity, include_alt):
@@ -86,7 +104,7 @@ class BaseChain(_Chain):
         Get the PDB format string for all atoms in the chain
         """
         if reset_serial:
-            self.reset_atom_serial_numbers()
+            self.reset_atom_serial_numbers(include_alt=include_alt)
         # This is copied and modified from Bio.PDB.PDBIO
         io = PDBIO()
         pdb_string = ''
@@ -116,10 +134,20 @@ class BaseChain(_Chain):
         pdb_string += 'TER\n'
         return pdb_string
 
-    def load_topo_definition(self, topology_definitions: dict):
+    ##TODO: move this to a separate class for structure modeling and preparations
+    def load_topo_definition(self, topology_definitions: dict, coerce: bool = False):
         """Load topology definition for all residues from a dictionary of ResidueDefinition
         objects. Any residue that does not have a corresponding definition in the dictionary
-        will be placed in `self.undefined_res`."""
+        will be placed in `self.undefined_res`.
+        
+        Arguments:
+        
+            topology_definitions: dict
+            A dictionary of ResidueDefinition objects, keyed by residue name.
+            coerce: bool 
+            If True, the residue name will be coerced to the canonical residue name
+            if the residue is a known modified residue.
+        """
         self.topo_definitions = topology_definitions
         self.undefined_res = []
         for residue in self:
@@ -131,13 +159,32 @@ class BaseChain(_Chain):
                 warnings.warn(
                     f'No topology definition for {residue.resname}!'
                 )
-                self.undefined_res.append(residue)
+                
+                if coerce and (
+                    code:=protein_letters_3to1_extended.get(residue.resname)
+                ) is not None:
+                    # if the residue is a known modified residue,
+                    # coerce the residue name to reconstruct it as the
+                    # canonical one
+                    new_resname = protein_letters_1to3[code]
+                    warnings.warn(
+                        f'Coerced Residue {residue.resname} to {new_resname}'
+                    )
+                    residue.resname = new_resname
+                    _, resseq, icode = residue.id
+                    residue.id = (" ", resseq, icode)
+                    if hasattr(self, "reported_res"):
+                        # if the chain has reported_res attribute, update it
+                        # to avoid generating new gaps due to mismatch resnames
+                        self.reported_res[resseq-1] = (resseq, new_resname)
+                    residue.load_topo_definition(
+                        topology_definitions[residue.resname],
+                        QUIET=True
+                    )
+                else:
+                    self.undefined_res.append(residue)
                 continue
-
-            if residue.topo_definition is not None:
-                warnings.warn(
-                    f"Overwriting residue topology definition: {residue}"
-                )
+                
             residue.load_topo_definition(topology_definitions[residue.resname])
 
     def is_continuous(self):
@@ -343,7 +390,7 @@ class PolymerChain(Chain):
         gaps.append(cur_set)
         return gaps
     
-    def update(self):
+    def sort_residues(self):
         """Update the ordering of the residues in child list by resseq
         """
         self.child_list = sorted(self.child_list, key=lambda x: x.id[1:])

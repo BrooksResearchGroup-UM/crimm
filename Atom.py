@@ -17,6 +17,7 @@ class Atom(_Atom):
         element=None,
         pqr_charge=None,
         radius=None,
+        topo_definition = None
     ) -> None:
         self.level = "A"
         # Reference to the residue
@@ -46,8 +47,19 @@ class Atom(_Atom):
 
         # For atom sorting (protein backbone atoms first)
         self._sorting_keys = {"N": 0, "CA": 1, "C": 2, "O": 3}
+        # For atom sorting (nucleic acid backbone atoms first)
+        self._sorting_keys.update(
+              {
+                  "P": 0, "OP1": 1, "OP2": 2, "O5'": 3, 
+                  "C5'": 4, "C4'": 5, "C3'": 6, "O3'": 7
+              }
+        )
+        # For neighbor lookup and graph building
+        self.neighbors = set()
         # Forcefield Parameters and Topology Definitions
         self._topo_def = None
+        if topo_definition is not None:
+            self.topo_definition = topo_definition
         
     def reset_atom_serial_number(self):
         """Reset all atom serial numbers in the entire structure starting from 1."""
@@ -76,7 +88,7 @@ class Atom(_Atom):
         if self.parent is None:
             return self
         return self.parent.get_top_parent()
-    
+
 class DisorderedAtom(_DisorderedAtom):
     """Disoreded Atom class derived from Biopython Disordered Atom and made compatible with
     OpenMM Atom."""
@@ -87,3 +99,14 @@ class DisorderedAtom(_DisorderedAtom):
         if self.parent is None:
             return self
         return self.parent._find_top_parent()
+
+    @property
+    def topo_definition(self):
+        """Topology related parameters for the atom. This returns the selected 
+        child's topology definition"""
+        return self._topo_def
+
+    @topo_definition.setter
+    def topo_definition(self, atom_def):
+        for atom in self.child_dict.values():
+            atom.topo_definition = atom_def

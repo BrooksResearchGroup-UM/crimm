@@ -81,6 +81,7 @@ def quad_parser(line):
             f'Invalid length of topology specification: {line}\n'
             'Multiples  of 4 atoms required'
         )
+    ##TODO: use for loop to combine into list of tuples
     quad = (tuple(fields[:4]), tuple(fields[4:]))
     return quad
 
@@ -121,18 +122,18 @@ def ic_parser(line):
     i, j, k, l, r_ij, t_ijk, phi, t_jkl, r_kl = fields
     if k.startswith('*'):
         is_improper = True
-        sec_field = 'R(I-K)'
-        third_field = 'T(I-K-J)'
+        first_angle = 'R(I-K)'
+        dihe = 'T(I-K-J)'
     else:
         is_improper = False
-        sec_field = 'R(I-J)'
-        third_field = 'T(I-J-K)'
+        first_angle = 'R(I-J)'
+        dihe = 'T(I-J-K)'
 
     return (i, j, k.lstrip('*'), l), {
         'improper': is_improper,
         # 'I': i, 'J': j, 'K': k, 'L': l,
-        sec_field: float(r_ij), 
-        third_field: float(t_ijk),
+        first_angle: float(r_ij), 
+        dihe: float(t_ijk),
         'Phi': float(phi),
         'T(J-K-L)': float(t_jkl),
         'R(K-L)': float(r_kl)
@@ -286,8 +287,9 @@ class RTFParser:
                 cur_res['bonds']['triple'].extend(aromatic_bonds)
             elif l.startswith('IMPR'):
                 # Improper (branching structures)
+                ##TODO: quad_parser is not correct for IMPR
                 impropers = quad_parser(l)
-                cur_res['impropers'].append(impropers)
+                cur_res['impropers'].extend(impropers)
             elif l.startswith('CMAP'):
                 # Dihedral crossterm energy correction map
                 cmap = octa_parser(l)

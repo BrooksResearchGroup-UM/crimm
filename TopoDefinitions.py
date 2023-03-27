@@ -34,14 +34,15 @@ class AtomDefinition:
         will be none if not specified."""
         
         return Atom(
-            name = self.name, 
+            name = self.name,
             coord=coords,
-            bfactor=0.0, 
-            occupancy=1.0, 
+            bfactor=0.0,
+            occupancy=1.0,
             altloc=' ',
             serial_number=serial_number,
             element=self.element,
-            fullname=self.name
+            fullname=self.name,
+            topo_definition=self
         )
 
 ## TODO: separate patch definition from residue definition

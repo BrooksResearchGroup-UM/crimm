@@ -30,6 +30,11 @@ class Structure(_Structure):
             return
         return self.child_list[0]._repr_html_()
 
+    @property
+    def models(self):
+        """Alias for child_list. Returns the list of models in this structure."""
+        return self.child_list
+    
     def get_unpacked_atoms(self):
         """Return the list of all atoms from this structure where the all altloc of 
         disordered atoms will be present."""
@@ -38,7 +43,13 @@ class Structure(_Structure):
             atoms.extend(model.get_unpacked_atoms())
         return atoms
 
-    def reset_atom_serial_numbers(self):
+    def get_atoms(self):
+        atoms = []
+        for model in self:
+            atoms.extend(model.get_atoms())
+        return atoms
+    
+    def reset_atom_serial_numbers(self, include_alt=True):
         """Reset all atom serial numbers in the structure starting from 1."""
         for model in self:
-            model.reset_atom_serial_numbers()
+            model.reset_atom_serial_numbers(include_alt=include_alt)

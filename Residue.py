@@ -7,7 +7,7 @@ from Bio.PDB.Residue import DisorderedResidue as _DisorderedResidue
 from Bio.PDB import PDBIO
 from ResidueExceptions import LigandBondOrderWarning, SmilesQueryWarning
 from TopoDefinitions import ResidueDefinition
-from Bond import Bond
+from TopoElements import Bond
 from NGLVisualization import load_nglview
 
 class Residue(_Residue):
@@ -21,29 +21,42 @@ class Residue(_Residue):
         self.missing_hydrogens = None
         self.atom_groups = None
         self.total_charge = None
-        self.bonds = None
         self.impropers = None
         self.cmap = None
         self.H_donors = None
         self.H_acceptors = None
         self.is_patch = None
         self.param_desc = None
- 
+        self.undefined_atoms = None
+    
+    @property
+    def atoms(self):
+        """Alias for child_list. Return the list of atoms in the residue."""
+        return self.child_list
+    
     def get_unpacked_atoms(self):
         """Return the list of all atoms where the all altloc of disordered atoms will
         be present."""
         return self.get_unpacked_list()
     
-    def reset_atom_serial_numbers(self):
+    def reset_atom_serial_numbers(self, include_alt=True):
         """Reset all atom serial numbers in the encompassing entity (the parent
         structure, model, and chain, if they exist) starting from 1."""
         top_parent = self.get_top_parent()
         if top_parent is not self:
-            top_parent.reset_atom_serial_numbers()
+            top_parent.reset_atom_serial_numbers(include_alt=include_alt)
             return
         # no parent, reset the serial number for the entity itself
         i = 1
-        for atom in self.get_unpacked_atoms():
+        if include_alt:
+            all_atoms = self.get_unpacked_atoms()
+        else:
+            all_atoms = []
+            for atom in self:
+                if atom.disorderd:
+                    atom = atom.selected_child
+                all_atoms.append(atom)
+        for atom in all_atoms:
             atom.serial_number = i
             i+=1
 
@@ -95,21 +108,30 @@ class Residue(_Residue):
             pdb_string += atom_line
             atom_serial += 1
         return pdb_string
-        
-    def load_topo_definition(self, res_def: ResidueDefinition):
+
+    ##TODO: move this to a separate class for structure modeling and preparations
+    def load_topo_definition(self, res_def: ResidueDefinition, QUIET=False):
+        """Load topology definition to the residue and find any missing atoms."""
         if not isinstance(res_def, ResidueDefinition):
             raise TypeError(
                 'ResidueDefinition class is required to set up topology info!'
             )
         self.topo_definition = res_def
         self._load_atom_groups()
-        self._load_bonds()
         self.total_charge = res_def.total_charge
         self.impropers = self.topo_definition.impropers
         self.cmap = self.topo_definition.cmap
         self.H_donors = self.topo_definition.H_donors
         self.H_acceptors = self.topo_definition.H_acceptors
         self.param_desc = res_def.desc
+        self.undefined_atoms = []
+        for atom in self:
+            if atom.name not in self.topo_definition:
+                if not QUIET:
+                    warnings.warn(
+                        f"Atom {atom.name} is not defined in the topology file!"
+                    )
+                self.undefined_atoms.append(atom)
 
     def _bifurcate_missing_atom(self, atom: str):
         """Separate missing heavy atoms and missing hydrogen atom by atom name"""
@@ -135,7 +157,7 @@ class Residue(_Residue):
             cur_atom.topo_definition = self.topo_definition[atom_name]
             atom_group.append(cur_atom)
         return atom_group
-    
+
     def _load_atom_groups(self):
         self.atom_groups = {} 
         self.missing_atoms, self.missing_hydrogens = [],[]
@@ -144,21 +166,28 @@ class Residue(_Residue):
             cur_group = self._load_group_atom_topo_definition(atom_names)
             self.atom_groups.update({group_num:cur_group})
     
-    def _load_bonds(self):
-        self.bonds = []
+    def get_bonds_within_residue(self):
+        """Return a list of bonds within the residue (peptide bonds linking neighbor 
+        residues are excluded). Raise ValueError if the topology definition is 
+        not loaded."""
+        if self.topo_definition is None:
+            raise ValueError(
+                'Topology definition is not loaded for this residue!'
+            )
+        bonds = []
         bond_dict = self.topo_definition.bonds
         for bond_type, bond_list in bond_dict.items():
-            bond_order = ResidueDefinition.bond_order_dict[bond_type]
             for atom_name1, atom_name2 in bond_list:
                 if not (atom_name1 in self and atom_name2 in self):
                     continue
                 atom1, atom2 = self[atom_name1], self[atom_name2]
-                self.bonds.append(
-                    Bond(atom1, atom2, bond_type, bond_order)
+                bonds.append(
+                    Bond(atom1, atom2, bond_type)
                 )
+        return bonds
 
 class DisorderedResidue(_DisorderedResidue):
-
+    
     def get_top_parent(self):
         if self.parent is None:
             return self
@@ -197,6 +226,11 @@ class DisorderedResidue(_DisorderedResidue):
                 )
         
         return pdb_str
+
+    def load_topo_definition(self, res_def: ResidueDefinition, QUIET=False):
+        """Load topology definition to the residue and find any missing atoms."""
+        for res in self.child_dict.values():
+            res.load_topo_definition(res_def, QUIET=QUIET)
 
 class Heterogen(Residue):
     def __init__(self, res_id, resname, segid):
