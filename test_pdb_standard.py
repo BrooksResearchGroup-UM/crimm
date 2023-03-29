@@ -1,6 +1,6 @@
 import os
 from Bio.PDB.MMCIFParser import MMCIFParser
-from PeptideChain import StandardChain as SChain
+from Chain import StandardChain as SChain
 from Bio.PDB.Polypeptide import protein_letters_3to1_extended
 from ChainExceptions import ChainConstructionException
 
