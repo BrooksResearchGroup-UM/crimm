@@ -1,7 +1,7 @@
 """Model class, used in Structure objects."""
 
 from Bio.PDB.Model import Model as _Model
-from NGLVisualization import load_nglview_multiple
+from crimm.Visualization.NGLVisualization import load_nglview_multiple
 
 class Model(_Model):
     """The extended Model class representing a model in a structure.

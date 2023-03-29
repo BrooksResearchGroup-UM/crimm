@@ -1,8 +1,8 @@
-# **whaler**
-**whaler** stands for **whaler** **h**as **al**gorithmns **e**ssentially **r**einvented
+# **CRIMM**
+**CRIMM** stands for **Chemistry with the ReInvented Macromolecular Mechanics**. This project aims to integrate and supplement CHARMM with better object handle and APIs
 
-## *"reinvent the whale"*
-This is a toolkit that is under active development, where many useful macromolecular modeling routines are selected to be reimplemented. This is an attempt to unify many macromolecular preparation/modeling routine under one platform while offering proper object handles and APIs in python. We aim to provide highly usable, integratable, and scriptable python library for simplifying any macromolecular modeling pipelines.
+## Why *"reinvent the wheel"*
+This is a toolkit that is under active development, where many useful macromolecular modeling routines are selected to be reimplemented. This is an attempt to unify many macromolecular preparation/modeling routine under one platform while offering proper object handles and APIs in python. While currently, we aim to integrate with CHARMM and pyCHARMM, the broader goal is to provide highly usable, integratable, and scriptable python library/platform for simplifying any macromolecular modeling pipelines.
 
 ## Base Library and Object Handles
 This library is built upon the excellent Biopython library. The macromolecular entity representations are derived from Biopython's entity classes and follow the same hierarchy. As a result, the entities in this library remain fully compatible with all functions and routines provided in Biopython.

@@ -6,8 +6,8 @@ try:
     from openmm.app.internal.unitcell import computePeriodicBoxVectors
 except ImportError as exc:
     raise ImportError("OpenMM is required to use the Topology module") from exc
-from Model import Model
-from Structure import Structure
+from crimm.StructEntities.Model import Model
+from crimm.StructEntities.Structure import Structure
     
 class Topology(OMMTop):
     """Model/Topology class derived from Biopython Model and made compatible with

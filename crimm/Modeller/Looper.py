@@ -1,13 +1,11 @@
 import json
-from io import StringIO
 import warnings
 import requests
-from Bio.PDB.PDBExceptions import PDBConstructionException
 from Bio.Align import PairwiseAligner
-from test_pdb import fetch_local_cif as fetch_cif
-from Chain import PolymerChain
-from ChainSuperimposer import ChainSuperimposer
-from ChMMCIFParser import ChMMCIFParser
+from crimm.StructEntities.Chain import PolymerChain
+from crimm.Superimpose.ChainSuperimposer import ChainSuperimposer
+from crimm.Parsers.MMCIFParser import MMCIFParser
+from crimm.Utils import find_local_cif_path, get_pdb_entry
 
 def find_gaps_within_range(gaps, segment):
     in_range = []
@@ -377,7 +375,7 @@ class ChainLoopBuilder:
         return view
 
     def show(self):
-        from NGLVisualization import load_nglview_multiple
+        from crimm.Visualization.NGLVisualization import load_nglview_multiple
         return load_nglview_multiple([self.model_chain, self.template_chain])
 
     @staticmethod
@@ -449,18 +447,17 @@ class ChainLoopBuilder:
         return results
 
     @staticmethod
-    def get_templates(query_results: dict):
+    def get_templates(query_results: dict, method, entry_point: str):
         """
         Return a generator of all template chains from the query result dict
         """
-        cif_parser = ChMMCIFParser(
+        cif_parser = MMCIFParser(
             first_assembly_only = False, include_solvent = False, QUIET=True
         )
         for entity_dict in query_results.values():
             for pdbid, chain_ids in entity_dict.items():
-                cif_str = fetch_cif(pdbid)
-                file_handle = StringIO(cif_str)
-                structure = cif_parser.get_structure(file_handle)
+                cif = method(pdbid, entry_point=entry_point)
+                structure = cif_parser.get_structure(cif)
                 first_model = structure.child_list[0]
                 for chain_id in chain_ids:
                     template_chain = first_model[chain_id]
@@ -480,15 +477,23 @@ class ChainLoopBuilder:
             ):  
                 info_dict['PDBID'] = pdbid
                 candidates[gap_key] = info_dict
-            
+
     def auto_rebuild(
             self,
             max_num_match = 10,
             identity_score_cutoff = 0.95,
             rmsd_threshold = None,
             overall_rmsd_threshold = None,
-            include_het = False
+            include_het = False,
+            local_entry_point = None
         ):
+        # if local_entry_point is None, use rcsb.org
+        if local_entry_point is None:
+            entry_point = "https://files.rcsb.org/download/"
+            method = get_pdb_entry
+        else:
+            entry_point = local_entry_point
+            method = find_local_cif_path
 
         if self.model_chain.is_continuous():
             warnings.warn(f"{self.model_chain} does not have any missing residues")
@@ -501,7 +506,9 @@ class ChainLoopBuilder:
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
             # create a generator for all the templates
-            all_templates = self.get_templates(self.query_results)
+            all_templates = self.get_templates(
+                self.query_results, method, entry_point
+            )
 
         repair_candidates = {}
         for pdbid, template in all_templates:

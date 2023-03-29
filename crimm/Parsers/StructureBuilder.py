@@ -9,17 +9,17 @@ This is used by the PDBParser and MMCIFparser classes.
 """
 # SMCRA hierarchy
 import warnings
-from ChainExceptions import (
+from crimm import (
     ChainConstructionWarning,
     AtomAltLocException
 )
-from Structure import Structure
-from Model import Model
-from Chain import Chain, PolymerChain, Heterogens
-from Residue import Residue, DisorderedResidue, Heterogen
-from Atom import Atom, DisorderedAtom
+from crimm.StructEntities.Structure import Structure
+from crimm.StructEntities.Model import Model
+from crimm.StructEntities.Chain import Chain, PolymerChain, Heterogens
+from crimm.StructEntities.Residue import Residue, DisorderedResidue, Heterogen
+from crimm.StructEntities.Atom import Atom, DisorderedAtom
 
-class ChmStructureBuilder():
+class StructureBuilder():
     """Deals with constructing the Structure object.
     The StructureBuilder class is used by the PDBParser classes to
     translate a file to a Structure object.

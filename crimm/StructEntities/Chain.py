@@ -6,9 +6,9 @@ from Bio.Data.PDBData import protein_letters_3to1_extended
 from Bio.Data.PDBData import protein_letters_1to3
 from Bio.Data.PDBData import nucleic_letters_3to1_extended
 from Bio.PDB.Chain import Chain as _Chain
-from Residue import DisorderedResidue
-from ChainExceptions import ChainConstructionWarning
-from NGLVisualization import load_nglview
+from crimm.StructEntities.Residue import DisorderedResidue
+from crimm import ChainConstructionWarning
+from crimm.Visualization.NGLVisualization import load_nglview
 
 class BaseChain(_Chain):
     """Base class derived from and Biopython chain object and compatible with

@@ -5,10 +5,10 @@ from Bio.PDB.Residue import Residue as _Residue
 from Bio.PDB.Entity import Entity
 from Bio.PDB.Residue import DisorderedResidue as _DisorderedResidue
 from Bio.PDB import PDBIO
-from ResidueExceptions import LigandBondOrderWarning, SmilesQueryWarning
-from TopoDefinitions import ResidueDefinition
-from TopoElements import Bond
-from NGLVisualization import load_nglview
+from crimm import LigandBondOrderWarning, SmilesQueryWarning
+from crimm.TopoEntities.TopoDefinitions import ResidueDefinition
+from crimm.TopoEntities.TopoElements import Bond
+from crimm.Visualization.NGLVisualization import load_nglview
 
 class Residue(_Residue):
     """Residue class derived from Biopython Residue and made compatible with

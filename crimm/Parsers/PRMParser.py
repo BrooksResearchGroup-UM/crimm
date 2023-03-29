@@ -1,5 +1,5 @@
 from collections import namedtuple
-from RTFParser import comment_parser, skip_line
+from crimm.Parsers.RTFParser import comment_parser, skip_line
 
 bond_par = namedtuple('bond',['kb', 'b0'])
 angle_par = namedtuple('angle',['ktheta', 'theta0'])

@@ -4,8 +4,8 @@ from collections import OrderedDict
 import numpy as np
 from Bio.Data.PDBData import protein_letters_3to1_extended
 from Bio.Data.PDBData import nucleic_letters_3to1_extended
-from ICBuilder import recur_find_build_seq, find_coords_by_ic
-from Atom import Atom
+from crimm.Modeller.ICBuilder import recur_find_build_seq, find_coords_by_ic
+from crimm.StructEntities.Atom import Atom
 
 aa_3to1 = protein_letters_3to1_extended.copy()
 aa_3to1.update({'HSE':'H', 'HSD':'H', 'HSP':'H'})
@@ -203,7 +203,7 @@ class ResidueDefinition:
                 f'Skipped construction of new residue: {self.resname}'
             )
             return
-        from Residue import Residue
+        from crimm.StructEntities.Residue import Residue
         self._standard_res = Residue((' ', 0, ' '), self.resname, segid = " ")
         for i, (atom_name, coords) in enumerate(self.standard_coord_dict.items()):
             if atom_name.startswith('-') or atom_name.startswith('+'):

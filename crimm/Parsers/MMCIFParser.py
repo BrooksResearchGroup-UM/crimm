@@ -8,15 +8,15 @@ files from PDB"""
 import warnings
 import numpy
 from Bio.PDB.PDBExceptions import PDBConstructionWarning
-from Atom import Atom
-from ChMMCIF2Dict import ChMMCIF2Dict
-from ChmStructureBuilder import ChmStructureBuilder
-from Chain import (
+from crimm.StructEntities.Atom import Atom
+from crimm.Parsers.MMCIF2Dict import MMCIF2Dict
+from crimm.Parsers.StructureBuilder import StructureBuilder
+from crimm.StructEntities.Chain import (
     Chain, PolymerChain, Heterogens, Oligosaccharide, Solvent, Macrolide
 )
-from Model import Model
+from crimm.StructEntities.Model import Model
 
-class ChMMCIFParser:
+class MMCIFParser:
     """Parser class for standard mmCIF files from PDB"""
     def __init__(
             self,
@@ -27,7 +27,7 @@ class ChMMCIFParser:
             strict_parser = True,
             QUIET = False
         ):
-        self._structure_builder = ChmStructureBuilder()
+        self._structure_builder = StructureBuilder()
         self.QUIET = QUIET
         self.first_model_only = first_model_only
         self.first_assembly_only = first_assembly_only
@@ -78,7 +78,7 @@ class ChMMCIFParser:
                 warnings.filterwarnings("ignore", category=PDBConstructionWarning)
             # mmCIF will be parsed into dictionary first and then namedtuples
             # to gather all the necessary info to construct the structure
-            self.cifdict = ChMMCIF2Dict(filepath)
+            self.cifdict = MMCIF2Dict(filepath)
             self.model_template = self.create_model_template()
             self._build_structure(structure_id)
             # set additional info on the structure

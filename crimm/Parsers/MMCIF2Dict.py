@@ -1,11 +1,11 @@
-from Bio.PDB.MMCIF2Dict import MMCIF2Dict
+from Bio.PDB.MMCIF2Dict import MMCIF2Dict as _MMCIF2Dict
 from collections import namedtuple
 import numpy
 
-class ChMMCIF2Dict(dict):
-
+class MMCIF2Dict(dict):
+    """A dictionary-like object that reads a mmCIF file and stores the data in a dictionary."""
     def __init__(self, filename):
-        orig_dict = MMCIF2Dict(filename)
+        orig_dict = _MMCIF2Dict(filename)
         self._organize_mmcif_dict(orig_dict)
 
     def _convert_type(self, entry: str):

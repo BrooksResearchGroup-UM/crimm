@@ -35,6 +35,7 @@ class Atom(_Atom):
         self.anisou_array = None
         self.siguij_array = None
         self.sigatm_array = None
+        # Original serial number
         self.orig_serial_number = serial_number
         self.serial_number = serial_number
         # Dictionary that keeps additional properties
@@ -71,7 +72,7 @@ class Atom(_Atom):
 
     @property
     def topo_definition(self):
-        """Topology related parameters for the atom"""
+        """Topology related definitions and parameters for the atom"""
         return self._topo_def
 
     @topo_definition.setter
@@ -92,8 +93,6 @@ class Atom(_Atom):
 class DisorderedAtom(_DisorderedAtom):
     """Disoreded Atom class derived from Biopython Disordered Atom and made compatible with
     OpenMM Atom."""
-    def __init__(self, id):
-        super().__init__(id)
 
     def _find_top_parent(self):
         if self.parent is None:

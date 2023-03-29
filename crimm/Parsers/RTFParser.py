@@ -1,5 +1,5 @@
 import warnings
-from TopoDefinitions import ResidueDefinition
+from crimm.TopoEntities.TopoDefinitions import ResidueDefinition
 
 def skip_line(x):
     """Return if the line should be skipped (empty lines or comment only)"""
