@@ -1,12 +1,24 @@
-try:
-    import nglview as nv
-except ImportError:
+from importlib.util import find_spec
+if find_spec("nglview") is None:
     raise ImportError(
-        "nglview not found! Install nglview to show\
-        protein structures. \
-        http://nglviewer.org/nglview/latest/index.html#installation"
+        "nglview not found! Install nglview to show protein structures."
+        "http://nglviewer.org/nglview/latest/index.html#installation"
     )
 import warnings
+import nglview as nv
+
+class StructureIO:
+    """
+    Class to handle input and output of Structure objects for visualization
+    """
+    def __init__(self, structure):
+        self.structure = structure
+    
+    def set_structure(self, entity, include_alt = True, reset_serial = True):
+        self.entity = entity.copy()
+        if reset_serial:
+            self.entity.reset_atom_serial_numbers(include_alt=include_alt)
+
 
 def _load_entity_in_view(
         entity,
@@ -89,7 +101,8 @@ def highlight_residues(
     res_atom_selection = []
     for res in residues:
         for res_id in res:
-            atom_ids = [atom.get_serial_number() for atom in chain[res_id]]
+            # nglview uses 0-based index
+            atom_ids = [atom.get_serial_number()-1 for atom in chain[res_id]]
             res_atom_selection.extend(atom_ids)
 
     if len(res_atom_selection) == 0:
@@ -130,8 +143,9 @@ def highlight_atoms(
     if len(atom_list) == 0:
         warnings.warn('No atoms provided for highlighting!')
         return
-
-    atom_ids = [atom.get_serial_number() for atom in atom_list]
+    
+    # nglview uses 0-based index
+    atom_ids = [atom.get_serial_number()-1 for atom in atom_list] 
     # Convert to string array for JS
     sele_str = "@" + ",".join(str(s) for s in atom_ids)
     

@@ -46,7 +46,7 @@ class BaseChain(_Chain):
         else:
             all_atoms = self.get_atoms()
         for atom in all_atoms:
-            atom.serial_number = i
+            atom.set_serial_number(i)
             i+=1
 
     def _disordered_reset(self, disordered_residue):
@@ -90,7 +90,7 @@ class BaseChain(_Chain):
         disordered atoms will be present."""
         atoms = []
         for res in self:
-            atoms.extend(res.get_unpacked_atoms())
+            atoms.extend(res.child_list)
         return atoms
     
     @staticmethod

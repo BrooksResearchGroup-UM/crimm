@@ -46,7 +46,7 @@ class Model(_Model):
         else:
             all_atoms = self.get_atoms()
         for atom in all_atoms:
-            atom.serial_number = i
+            atom.set_serial_number(i)
             i+=1
 
     def get_unpacked_atoms(self):

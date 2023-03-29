@@ -200,7 +200,7 @@ class RTFParser:
             residue_definitions['HIS'] = residue_definitions['HSD']
         
         return residue_definitions
-    
+
     def _parse_lines(self, lines):
         ##TODO: Need to handle keywords DIHE, ANGLE, and PATCH
         self.topo_dict = {}

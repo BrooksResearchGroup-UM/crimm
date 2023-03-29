@@ -1,3 +1,4 @@
+"""This module defines the TopoEntity class and its subclasses Bond, Angle, Dihedral, and Improper."""
 from collections import namedtuple
 
 class TopoEntity:

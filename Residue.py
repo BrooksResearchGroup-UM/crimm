@@ -51,13 +51,9 @@ class Residue(_Residue):
         if include_alt:
             all_atoms = self.get_unpacked_atoms()
         else:
-            all_atoms = []
-            for atom in self:
-                if atom.disorderd:
-                    atom = atom.selected_child
-                all_atoms.append(atom)
+            all_atoms = self.child_list
         for atom in all_atoms:
-            atom.serial_number = i
+            atom.set_serial_number(i)
             i+=1
 
     def _repr_html_(self):
