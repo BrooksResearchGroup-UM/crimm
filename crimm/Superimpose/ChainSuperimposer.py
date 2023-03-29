@@ -1,9 +1,10 @@
 
+import warnings
 from Bio.Align import PairwiseAligner
 from Bio.PDB import Superimposer
 from crimm.StructEntities.Chain import Chain, PolymerChain
 from crimm.Visualization.NGLVisualization import load_nglview_multiple
-import warnings
+
 
 class ChainSuperimposer(Superimposer):
     

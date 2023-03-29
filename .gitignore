@@ -4,3 +4,4 @@ test*/
 .vscode/
 .output/
 notebooks/
+*.egg-info/
