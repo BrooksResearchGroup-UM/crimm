@@ -1,11 +1,9 @@
-try:
-    import openmm.unit as unit
-    from openmm.vec3 import Vec3
-    from openmm.app import element
-    from openmm.app.topology import Topology as OMMTop
-    from openmm.app.internal.unitcell import computePeriodicBoxVectors
-except ImportError as exc:
-    raise ImportError("OpenMM is required to use the Topology module") from exc
+import openmm.unit as unit
+from openmm.vec3 import Vec3
+from openmm.app import element
+from openmm.app.topology import Topology as OMMTop
+from openmm.app.internal.unitcell import computePeriodicBoxVectors
+
 from crimm.StructEntities.Model import Model
 from crimm.StructEntities.Structure import Structure
     

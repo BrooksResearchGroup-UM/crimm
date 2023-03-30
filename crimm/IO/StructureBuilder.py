@@ -5,19 +5,16 @@
 # as part of this package.
 
 """Consumer class that builds a Structure object.
-This is used by the PDBParser and MMCIFparser classes.
+This is used by the MMCIFparser classes.
 """
 # SMCRA hierarchy
 import warnings
-from crimm import (
-    ChainConstructionWarning,
-    AtomAltLocException
-)
-from crimm.StructEntities.Structure import Structure
-from crimm.StructEntities.Model import Model
-from crimm.StructEntities.Chain import Chain, PolymerChain, Heterogens
-from crimm.StructEntities.Residue import Residue, DisorderedResidue, Heterogen
-from crimm.StructEntities.Atom import Atom, DisorderedAtom
+from crimm import ChainConstructionWarning, AtomAltLocException
+from crimm.StructEntities import Structure
+from crimm.StructEntities import Model
+from crimm.StructEntities import Chain, PolymerChain, Heterogens
+from crimm.StructEntities import Residue, DisorderedResidue, Heterogen
+from crimm.StructEntities import Atom, DisorderedAtom
 
 class StructureBuilder():
     """Deals with constructing the Structure object.

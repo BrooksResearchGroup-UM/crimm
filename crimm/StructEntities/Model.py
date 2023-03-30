@@ -1,7 +1,6 @@
 """Model class, used in Structure objects."""
 
 from Bio.PDB.Model import Model as _Model
-from crimm.Visualization.NGLVisualization import load_nglview_multiple
 
 class Model(_Model):
     """The extended Model class representing a model in a structure.
@@ -12,20 +11,24 @@ class Model(_Model):
     structures normally contain many different models.
     """
     def __repr__(self):
-        hierarchy_str = f"<Model id={self.get_id()} Chains={len(self)}>"
+        return f"<Model id={self.get_id()} Chains={len(self)}>" 
+    
+    def expanded_view(self):
+        """Print the hierarchy tree of this model."""
+        hierarchy_str = repr(self)
         branch_symbols = '\n\t│\n\t├───'
         for chain in self:
             hierarchy_str += branch_symbols
-            hierarchy_str += "\n\t├──────".join(chain.__repr__().split('\n  '))
+            hierarchy_str += "\n\t├──────".join(chain.expanded_view().split('\n  '))
         return hierarchy_str
-    
-    def _repr_html_(self):
+
+    def _ipython_display_(self):
         """Return the nglview interactive visualization window"""
         if len(self) == 0:
             return
-        from IPython.display import display
-        view = load_nglview_multiple(self)
-        display(view)
+        from crimm.Visualization import show_nglview_multiple
+        show_nglview_multiple(self.child_list)
+        print(self.expanded_view())
 
     @property
     def chains(self):
@@ -41,34 +44,12 @@ class Model(_Model):
         """Reset all atom serial numbers in the encompassing entity (the parent 
         structure, if it exists) starting from 1."""
         i = 1
-        if include_alt:
-            all_atoms = self.get_unpacked_atoms()
-        else:
-            all_atoms = self.get_atoms()
-        for atom in all_atoms:
+        for atom in self.get_atoms(include_alt=include_alt):
             atom.set_serial_number(i)
             i+=1
-
-    def get_unpacked_atoms(self):
-        """Return the list of all atoms from this model where the all altloc of 
-        disordered atoms will be present."""
-        atoms = []
-        for chain in self:
-            atoms.extend(chain.get_unpacked_atoms())
-        return atoms
     
-    def get_atoms(self):
-        atoms = []
+    def get_atoms(self, include_alt=False):
+        """Return a generator of all atoms from this model. If include_alt is True, the 
+        disordered residues will be expanded and altloc of disordered atoms will be included."""
         for chain in self:
-            atoms.extend(chain.get_atoms())
-        return atoms
-
-    def get_pdb_str(self, include_alt = True, reset_serial = True):
-        if reset_serial:
-            self.reset_atom_serial_numbers(include_alt=include_alt)
-        pdb_str = ''
-        for chain in self:
-            pdb_str += chain.get_pdb_str(
-                include_alt = include_alt, reset_serial = False
-            )
-        return pdb_str
+            yield from chain.get_atoms(include_alt=include_alt)

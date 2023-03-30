@@ -1,7 +1,7 @@
 import os
 import io
 import requests
-from crimm.Parsers.MMCIFParser import MMCIFParser
+from crimm.IO import MMCIFParser
 
 def find_local_cif_path(pdb_id, entry_point):
     """Find the path to a local cif file"""

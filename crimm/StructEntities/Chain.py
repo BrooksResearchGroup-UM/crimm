@@ -1,14 +1,12 @@
 import warnings
 from typing import List, Tuple
 from Bio.Seq import Seq
-from Bio.PDB import PDBIO, PPBuilder
+from Bio.PDB import PPBuilder
 from Bio.Data.PDBData import protein_letters_3to1_extended
-from Bio.Data.PDBData import protein_letters_1to3
 from Bio.Data.PDBData import nucleic_letters_3to1_extended
 from Bio.PDB.Chain import Chain as _Chain
-from crimm.StructEntities.Residue import DisorderedResidue
+import crimm.StructEntities as Entities
 from crimm import ChainConstructionWarning
-from crimm.Visualization.NGLVisualization import load_nglview
 
 class BaseChain(_Chain):
     """Base class derived from and Biopython chain object and compatible with
@@ -41,14 +39,11 @@ class BaseChain(_Chain):
             return
         # no parent, reset the serial number for the entity itself
         i = 1
-        if include_alt:
-            all_atoms = self.get_unpacked_atoms()
-        else:
-            all_atoms = self.get_atoms()
-        for atom in all_atoms:
+        for atom in self.get_atoms(include_alt=include_alt):
             atom.set_serial_number(i)
             i+=1
 
+    ## TODO: move this to the structure builder
     def _disordered_reset(self, disordered_residue):
         for resname, child_residue in disordered_residue.child_dict.items():
             if child_residue.id == disordered_residue.id:
@@ -58,134 +53,37 @@ class BaseChain(_Chain):
         """Reset the selected child of all disordered residues to the first
         residue (alt loc A) supplied by PDB."""
         for res in self:
-            if isinstance(res, DisorderedResidue):
+            if isinstance(res, Entities.DisorderedResidue):
                 self._disordered_reset(res)
 
     def __repr__(self):
-        """Return the peptide chain identifier."""
-        repr_str = f"<{self.chain_type} id={self.get_id()} Residues/Molecules={len(self)}>"
+        """Return the chain identifier."""
+        return f"<{self.chain_type} id={self.get_id()} Residues={len(self)}>"
+        
+    def expanded_view(self):
+        """Print the expanded view of the chain."""
+        repr_str = repr(self)
         if (descr := getattr(self, 'pdbx_description', None)) is not None:
             repr_str += f"\n  Description: {descr}"
         return repr_str
-
-    def _repr_html_(self):
+    
+    def _ipython_display_(self):
         """Return the nglview interactive visualization window"""
         if len(self) == 0:
             return
-        from IPython.display import display
-        view = load_nglview(self)
-        display(view)
-        return
+        from crimm.Visualization import show_nglview
+        show_nglview(self)
+        print(self.expanded_view())
 
-    def get_unpacked_atoms(self):
-        """Return the list of all atoms from this chain where the all altloc of 
-        disordered atoms will be present."""
-        atoms = []
-        for res in self.get_unpacked_list():
-            atoms.extend(res.get_unpacked_atoms())
-        return atoms
-
-    def get_atoms(self):
-        """Return the list of all atoms from this chain that only the first altloc of 
-        disordered atoms will be present."""
-        atoms = []
-        for res in self:
-            atoms.extend(res.child_list)
-        return atoms
-    
-    @staticmethod
-    def _get_child(entity, include_alt):
+    def get_atoms(self, include_alt = False):
+        """Return a generator of all atoms from this chain. If include_alt is True, the 
+        disordered residues will be expanded and altloc of disordered atoms will be included."""
         if include_alt:
-            return entity.get_unpacked_list()
-        return entity.child_list
-    
-    def get_pdb_str(self, include_alt = True, reset_serial = True):
-        """
-        Get the PDB format string for all atoms in the chain
-        """
-        if reset_serial:
-            self.reset_atom_serial_numbers(include_alt=include_alt)
-        # This is copied and modified from Bio.PDB.PDBIO
-        io = PDBIO()
-        pdb_string = ''
-        # Since chain_ids are from label_asym_id in mmCIF, and 
-        # for larger structures with mmCIF entity naming scheme,
-        # it would ran out of the letters and start using two letter codes.
-        # But here, we are forcing the one character chain_id in order to
-        # comply with PDB file spec.
-        chain_id = self.get_id()[0]
-        for residue in self._get_child(self, include_alt):
-            hetfield, resseq, icode = residue.id
-            resname = residue.resname
-            segid = residue.segid
-            for atom in self._get_child(residue, include_alt):
-                atom_serial = atom.serial_number
-                atom_line = io._get_atom_line(
-                    atom,
-                    hetfield,
-                    segid,
-                    atom_serial,
-                    resname,
-                    resseq,
-                    icode,
-                    chain_id,
-                )
-                pdb_string += atom_line
-        pdb_string += 'TER\n'
-        return pdb_string
-
-    ##TODO: move this to a separate class for structure modeling and preparations
-    def load_topo_definition(self, topology_definitions: dict, coerce: bool = False):
-        """Load topology definition for all residues from a dictionary of ResidueDefinition
-        objects. Any residue that does not have a corresponding definition in the dictionary
-        will be placed in `self.undefined_res`.
-        
-        Arguments:
-        
-            topology_definitions: dict
-            A dictionary of ResidueDefinition objects, keyed by residue name.
-            coerce: bool 
-            If True, the residue name will be coerced to the canonical residue name
-            if the residue is a known modified residue.
-        """
-        self.topo_definitions = topology_definitions
-        self.undefined_res = []
-        for residue in self:
-            if (
-                residue.resname not in topology_definitions
-            ) and (
-                residue.topo_definition is None
-            ):
-                warnings.warn(
-                    f'No topology definition for {residue.resname}!'
-                )
-                
-                if coerce and (
-                    code:=protein_letters_3to1_extended.get(residue.resname)
-                ) is not None:
-                    # if the residue is a known modified residue,
-                    # coerce the residue name to reconstruct it as the
-                    # canonical one
-                    new_resname = protein_letters_1to3[code]
-                    warnings.warn(
-                        f'Coerced Residue {residue.resname} to {new_resname}'
-                    )
-                    residue.resname = new_resname
-                    _, resseq, icode = residue.id
-                    residue.id = (" ", resseq, icode)
-                    if hasattr(self, "reported_res"):
-                        # if the chain has reported_res attribute, update it
-                        # to avoid generating new gaps due to mismatch resnames
-                        self.reported_res[resseq-1] = (resseq, new_resname)
-                    residue.load_topo_definition(
-                        topology_definitions[residue.resname],
-                        QUIET=True
-                    )
-                else:
-                    self.undefined_res.append(residue)
-                continue
-                
-            residue.load_topo_definition(topology_definitions[residue.resname])
+            all_res = self.get_unpacked_list()
+        else:
+            all_res = self.child_list
+        for res in all_res:
+            yield from res.get_atoms(include_alt=include_alt)
 
     def is_continuous(self):
         """Not implemented in BaseChain. Implementation varies depending on the
@@ -210,7 +108,7 @@ class Chain(BaseChain):
 
     @staticmethod
     def is_res_modified(res):
-        if not isinstance(res, DisorderedResidue):
+        if not isinstance(res, Entities.DisorderedResidue):
             return res.id[0].startswith('H_')
 
         for child_res in res.child_dict.values():
@@ -227,7 +125,7 @@ class Chain(BaseChain):
     def get_disordered_res(self):
         disordered_res = []
         for res in self:
-            if isinstance(res, DisorderedResidue):
+            if isinstance(res, Entities.DisorderedResidue):
                 disordered_res.append(res)
         return disordered_res
     
@@ -340,7 +238,7 @@ class PolymerChain(Chain):
         """
         present_res = set()
         for res in self:
-            if isinstance(res,DisorderedResidue):
+            if isinstance(res, Entities.DisorderedResidue):
                 # Record both residues as present from the disordered residue
                 for resname, child_res in res.child_dict.items():
                     _, resseq, _ = child_res.get_id()
@@ -368,6 +266,7 @@ class PolymerChain(Chain):
             missing_res_ids = list(zip(*self.missing_res))[0]
         return MaskedSeq(missing_res_ids, self.can_seq)
     
+    ## TODO: move this to loop builder
     @property
     def gaps(self):
         """
@@ -422,6 +321,7 @@ class PolymerChain(Chain):
         return len(sequence_segments) == 1
 
 class Heterogens(BaseChain):
+    """A chain of heterogens."""
     chain_type = 'Heterogens'
     def update(self):
         """Update the pdbx_description if only one heterogen exists.
@@ -430,9 +330,9 @@ class Heterogens(BaseChain):
             return
         self.child_list[0].pdbx_description = self.pdbx_description
 
-    def to_rdkit_mols(self):
-        """Convert all molecules in the heterogen chain to rdkit mols"""
-        return [res.to_rdkit() for res in self]
+    def __repr__(self):
+        """Return the chain identifier."""
+        return f"<{self.chain_type} id={self.get_id()} Molecules={len(self)}>"
             
 class Macrolide(BaseChain):
     chain_type = 'Macrolide'

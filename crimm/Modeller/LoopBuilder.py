@@ -2,10 +2,10 @@ import json
 import warnings
 import requests
 from Bio.Align import PairwiseAligner
-from crimm.StructEntities.Chain import PolymerChain
 from crimm.Superimpose.ChainSuperimposer import ChainSuperimposer
-from crimm.Parsers.MMCIFParser import MMCIFParser
+from crimm.IO.MMCIFParser import MMCIFParser
 from crimm.Utils import find_local_cif_path, get_pdb_entry
+import crimm.StructEntities as Entities
 
 def find_gaps_within_range(gaps, segment):
     in_range = []
@@ -125,7 +125,7 @@ class ChainLoopBuilder:
     loop modeller for PDB protein structures by homology modeling
     """
 
-    def __init__(self, model_chain: PolymerChain, model_can_seq = None):
+    def __init__(self, model_chain: Entities.PolymerChain, model_can_seq = None):
         self.model_chain = model_chain.copy()
         if model_can_seq is not None:
             self.model_can_seq = model_can_seq
@@ -142,7 +142,7 @@ class ChainLoopBuilder:
             raise AttributeError('Canonical sequence is required to repair loops')
 
     def set_template_chain(
-            self, template_chain: PolymerChain, template_can_seq = None
+            self, template_chain: Entities.PolymerChain, template_can_seq = None
         ):
         self.template_chain = template_chain
         if template_can_seq is not None:
@@ -198,7 +198,7 @@ class ChainLoopBuilder:
     
     def get_repair_residues_from_template(
             self,
-            template_chain : PolymerChain = None,
+            template_chain : Entities.PolymerChain = None,
             # keep_template_structure = False,
             rmsd_threshold = None,
             include_het = False
@@ -245,9 +245,6 @@ class ChainLoopBuilder:
                 'rmsd':rmsd
             }
 
-        # self.model_chain.reset_atom_serial_numbers()
-        # self.template_chain.reset_atom_serial_numbers()
-        # self.repaired_gaps.extend(rmsd_qualified)
         return rmsd_qualified
 
     def highlight_repaired_gaps(
@@ -257,7 +254,7 @@ class ChainLoopBuilder:
         Highlight the repaired gaps with red color and show licorice 
         representations
         """
-        ## FIXME: refactor these codes
+        ## FIXME: refactor these codes to a separate function
         if gaps is None:
             gaps = self.repaired_gaps
         if chain is None:

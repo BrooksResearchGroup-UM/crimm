@@ -4,162 +4,218 @@ if find_spec("nglview") is None:
         "nglview not found! Install nglview to show protein structures."
         "http://nglviewer.org/nglview/latest/index.html#installation"
     )
+
 import warnings
+from typing import List
+from IPython.display import display
 import nglview as nv
+from Bio.PDB.Selection import unfold_entities
+from crimm.IO import get_pdb_str
+import crimm.StructEntities as Entities
 
-class StructureIO:
-    """
-    Class to handle input and output of Structure objects for visualization
-    """
-    def __init__(self, structure):
-        self.structure = structure
-    
-    def set_structure(self, entity, include_alt = True, reset_serial = True):
-        self.entity = entity.copy()
-        if reset_serial:
-            self.entity.reset_atom_serial_numbers(include_alt=include_alt)
+class NGLStructure(nv.Structure):
+    """NGLView Structure class for visualizing crimm.Structure.Structure on jupyter notebook"""
+    def __init__(self, entity):
+        super().__init__()
+        self.entity = entity
 
+    def get_structure_string(self):
+        return get_pdb_str(self.entity, include_alt = False)
 
-def _load_entity_in_view(
-        entity,
-        view: nv.NGLWidget,
-        defaultRepr,
-    ):
-    blob = entity.get_pdb_str(include_alt = False)
-    ngl_args = [{'type': 'blob', 'data': blob, 'binary': False}]
-    view._ngl_component_names.append(entity.get_id())
-    view._remote_call(
-            "loadFile",
-            target='Stage',
-            args=ngl_args,
-            kwargs= {'ext':'pdb',
-            'defaultRepresentation': defaultRepr}
-        )
-    
-def load_nglview(entity, defaultRepr = True):
+def show_nglview(entity):
     """
     Load pdb string into nglview instance
     """
     view = nv.NGLWidget()
-    _load_entity_in_view(entity, view, defaultRepr)
-    # view.add_licorice('not protein')
-    return view
+    ngl_structure = NGLStructure(entity)
+    view.add_component(ngl_structure)
+    display(view)
 
-def load_nglview_multiple(entity_list, defaultRepr = True):
+def show_nglview_multiple(entity_list):
     """
     Load pdb string into nglview instance
     """
     view = nv.NGLWidget()
     for entity in entity_list:
-        _load_entity_in_view(entity, view, defaultRepr)
-    # view.add_licorice('not protein')
-    return view
+        ngl_structure = NGLStructure(entity)
+        view.add_component(ngl_structure)
+    display(view)
 
-def highlight_residues(
-        chain, 
-        residues = [], 
-        res_seq_ids = [], 
-        add_licorice = False
-    ):
-    """
-    Highlight the repaired gaps with red color and show licorice 
-    representations
-    """
-    ## FIXME: refactor these codes
-    if len(res_seq_ids) > 0:
-        residues = []
-        for res in chain:
-            if res.id[1] in res_seq_ids:
-                residues.append(res)
-    
-    if len(residues) == 0:
-        raise ValueError('List of Residues or Residue Sequence ID is required')
-    
-    view = nv.NGLWidget()
-    blob = chain.get_pdb_str(include_alt = False)
-    ngl_args = [{'type': 'blob', 'data': blob, 'binary': False}]
-    view._ngl_component_names.append('Model Chain')
-    # Load data, and do not add any representation
-    view._remote_call("loadFile",
-                    target='Stage',
-                    args=ngl_args,
-                    kwargs= {'ext':'pdb',
-                    'defaultRepresentation':False}
-                    )
-    # Add color existing residues grey
-    view._remote_call('addRepresentation',
-                    target='compList',
-                    args=['cartoon'],
-                    kwargs={
-                        'sele': 'protein',
-                        'color': 'grey',
-                        'component_index': 0
-                    }
-                    )
+## TODO: Add feature for add_representation() directly for entity list
+class View(nv.NGLWidget):
+    """Customized NGLView Widget class for visualizing crimm.Structure.Structure on jupyter notebook"""
+    def __init__(self):
+        super().__init__()
+        self.entity_dict = {}
 
-    # Select atoms by atom indices
-    res_atom_selection = []
-    for res in residues:
-        for res_id in res:
+    def _load_entity(self, entity):
+        ngl_structure = NGLStructure(entity)
+        component = self.add_component(ngl_structure)
+        self.entity_dict[entity] = component
+
+    def load_entity(self, entity):
+        """Load entity into NGLView widget. Entity can be a Structure, Model, Chain, Residue, or Atom object."""
+        if entity.level == 'S':
+            entities = entity.models[0].chains
+        elif entity.level == 'M':
+            entities = entity.chains
+        elif entity.level in ('C', 'R', 'A'):
+            entities = [entity]
+        for entity in entities:
+            self._load_entity(entity)
+
+    # def load_entity(self, entity, defaultRepr=True):
+        # self.entity_list.append(entity)
+        # blob = get_pdb_str(entity, include_alt = False)
+        # ngl_args = [{'type': 'blob', 'data': blob, 'binary': False}]
+        # self._ngl_component_names.append(entity.get_id())
+        # self._remote_call(
+        #         "loadFile",
+        #         target='Stage',
+        #         args=ngl_args,
+        #         kwargs= {'ext':'pdb',
+        #         'defaultRepresentation': defaultRepr}
+        #     )
+        # self._ngl_component_ids.append(str(uuid.uuid4()))
+        # self._update_component_auto_completion()
+        # # entity.ngl_component_handle = self[-1]
+
+    def subdue_all_entities(self, color = 'grey'):
+        """subdue the colors for all entities. Deafult color is grey."""
+        for i in range(len(self.entity_dict)):
+            self.update_representation(component=i, color=color)
+
+    def highlight_residues(
+            self,
+            residues: List[Entities.Residue],
+            add_licorice = False,
+            highlight_color = 'red'
+        ):
+        """
+        Highlight the repaired gaps with red color and show licorice 
+        representations
+        """
+        if len(self.entity_dict) == 0:
+            raise ValueError('No entity loaded!')
+        
+        if len(residues) == 0:
+            warnings.warn('No residues provided for highlighting!')
+            return
+        loaded_entities = list(self.entity_dict.keys())
+        entity_chains = set(unfold_entities(loaded_entities, 'C'))
+        residue_chains = set(unfold_entities(residues, 'C'))
+        if not residue_chains.issubset(entity_chains):
+            raise ValueError('Residues are not from the loaded entity!')
+
+        # Select atoms by atom indices
+        atom_id_selection = []
+        for res in residues:
             # nglview uses 0-based index
-            atom_ids = [atom.get_serial_number()-1 for atom in chain[res_id]]
-            res_atom_selection.extend(atom_ids)
+            atom_ids = [atom.get_serial_number()-1 for atom in res]
+            atom_id_selection.extend(atom_ids)
 
-    if len(res_atom_selection) == 0:
-        warnings.warn('No atoms provided for highlighting!')
+        if len(atom_id_selection) == 0:
+            # list of empty residues
+            warnings.warn('No atoms provided for highlighting!')
+            return
+        
+        self.subdue_all_entities()
+        # highlight the residues
+        for chain in residue_chains:
+            component = self.entity_dict[chain]
+            comp_idx = component._index
+            self.clear_representations(component=comp_idx)
+            self.add_representation(
+                'cartoon', component=comp_idx, color='grey'
+            )
+            self.add_representation(
+                'cartoon', selection=atom_id_selection, color=highlight_color
+            )
+        
+        # Convert to string array for JS
+        # sele_str = "@" + ",".join(str(s) for s in atom_id_selection)
+        # Highlight the residues
+        # self._remote_call("removeAllRepresentations",
+        #                   target='compList',
+        #                   kwargs={
+        #                         'component_index': 0,
+        #                         'sele': sele_str
+        #                     })
+        
+        
+        # self._remote_call('addRepresentation',
+        #                 target='compList',
+        #                 args=['cartoon'],
+        #                 kwargs={
+        #                     'sele': sele_str, 
+        #                     'color': color, 
+        #                     'component_index': 0
+        #                 }
+        #                 )
+        if add_licorice:
+            # Add licorice representations
+            self.add_representation(
+                'licorice', selection=atom_id_selection, color=highlight_color
+            )
+            
+            # self._remote_call('addRepresentation',
+            #                 target='compList',
+            #                 args=['licorice'],
+            #                 kwargs={
+            #                     'sele': sele_str,  
+            #                     'component_index': 0
+            #                 }
+            #                 )
 
-    # Convert to string array for JS
-    sele_str = "@" + ",".join(str(s) for s in res_atom_selection)
-    # Highlight the repaired gap atoms with red color
-    view._remote_call('addRepresentation',
-                    target='compList',
-                    args=['cartoon'],
-                    kwargs={
-                        'sele': sele_str, 
-                        'color': 'red', 
-                        'component_index': 0
-                    }
-                    )
-    if add_licorice:
-        # Add licorice representations
-        view._remote_call('addRepresentation',
-                        target='compList',
-                        args=['licorice'],
-                        kwargs={
-                            'sele': sele_str,  
-                            'component_index': 0
-                        }
-                        )
-    view.center()
-    return view
+    def highlight_atoms(
+            self,
+            atoms: List[Entities.Atom],
+            add_licorice = True,
+            highlight_color = 'red'
+        ):
+        """highlight atoms in the loaded structure in Viewer"""
+        if len(atoms) == 0:
+            warnings.warn('No atoms provided for highlighting!')
+            return
+        
+        loaded_entities = list(self.entity_dict.keys())
+        entity_chains = set(unfold_entities(loaded_entities, 'C'))
+        atom_chains = set(unfold_entities(atoms, 'C'))
+        if not atom_chains.issubset(entity_chains):
+            raise ValueError('Residues are not from the loaded entity!')
+        
+        # nglview uses 0-based index
+        atom_ids = [atom.get_serial_number()-1 for atom in atoms]
+        representation = 'licorice' if add_licorice else 'cartoon'
 
-def highlight_atoms(
-        view, 
-        atom_list, 
-        component_idx, 
-        add_licorice = True, 
-        highlight_color = 'red'
-    ):
-    if len(atom_list) == 0:
-        warnings.warn('No atoms provided for highlighting!')
-        return
-    
-    # nglview uses 0-based index
-    atom_ids = [atom.get_serial_number()-1 for atom in atom_list] 
-    # Convert to string array for JS
-    sele_str = "@" + ",".join(str(s) for s in atom_ids)
-    
-    representation = 'licorice' if add_licorice else 'cartoon'
-    # Add the highlighted representation
-    
-    view._remote_call(
-            'addRepresentation',
-            target='compList',
-            args=[representation],
-            kwargs={
-                'sele': sele_str,
-                'color': highlight_color,
-                'component_index': component_idx
-            }
-        )
-    view.center()
+        self.subdue_all_entities()
+        for chain in atom_chains:
+            component = self.entity_dict[chain]
+            comp_idx = component._index
+            self.clear_representations(component=comp_idx)
+            self.add_representation(
+                'cartoon', component=comp_idx, color='grey'
+            )
+            self.add_representation(
+                representation, selection= atom_ids, color=highlight_color
+            )
+
+        
+        # # Convert to string array for JS
+        # sele_str = "@" + ",".join(str(s) for s in atom_ids)
+        
+        
+        # # Add the highlighted representation
+        
+        # self._remote_call(
+        #         'addRepresentation',
+        #         target='compList',
+        #         args=[representation],
+        #         kwargs={
+        #             'sele': sele_str,
+        #             'color': highlight_color,
+        #             'component_index': component_idx
+        #         }
+        #     )
+
+

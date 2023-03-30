@@ -4,8 +4,8 @@ from collections import OrderedDict
 import numpy as np
 from Bio.Data.PDBData import protein_letters_3to1_extended
 from Bio.Data.PDBData import nucleic_letters_3to1_extended
-from crimm.Modeller.ICBuilder import recur_find_build_seq, find_coords_by_ic
-from crimm.StructEntities.Atom import Atom
+from crimm.Modeller.TopoFixer import recur_find_build_seq, find_coords_by_ic
+import crimm.StructEntities as Entities
 
 aa_3to1 = protein_letters_3to1_extended.copy()
 aa_3to1.update({'HSE':'H', 'HSD':'H', 'HSP':'H'})
@@ -33,7 +33,7 @@ class AtomDefinition:
         """Create a new atom instance from the Atom definition. The default coordinates
         will be none if not specified."""
         
-        return Atom(
+        return Entities.Atom(
             name = self.name,
             coord=coords,
             bfactor=0.0,
@@ -160,13 +160,13 @@ class ResidueDefinition:
                 'Nucleic Acids Topology has not been implemented!'
                 'Standard coord build from IC table is skipped.'
             )
-            return 
+            return
         else:
             warnings.warn(
                 f'Unknown Residue Type {self.resname}! '
                 'Standard coord build from IC table is skipped.'
             )
-            return 
+            return
         
         r_CN = base_ic1['R(I-J)']
         t_CNCA = np.deg2rad(base_ic1['T(I-J-K)'])
@@ -203,8 +203,7 @@ class ResidueDefinition:
                 f'Skipped construction of new residue: {self.resname}'
             )
             return
-        from crimm.StructEntities.Residue import Residue
-        self._standard_res = Residue((' ', 0, ' '), self.resname, segid = " ")
+        self._standard_res = Entities.Residue((' ', 0, ' '), self.resname, segid = " ")
         for i, (atom_name, coords) in enumerate(self.standard_coord_dict.items()):
             if atom_name.startswith('-') or atom_name.startswith('+'):
                 continue

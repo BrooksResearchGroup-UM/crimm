@@ -25,30 +25,23 @@ class Structure(_Structure):
             hierarchy_str+=f'\n[{len(self)-1} models truncated ...]'
         return hierarchy_str
     
-    def _repr_html_(self):
+    def _ipython_display_(self):
+        """Return the nglview interactive visualization window"""
         if len(self) == 0:
             return
-        return self.child_list[0]._repr_html_()
+        return self.child_list[0]._ipython_display_()
 
     @property
     def models(self):
         """Alias for child_list. Returns the list of models in this structure."""
         return self.child_list
-    
-    def get_unpacked_atoms(self):
-        """Return the list of all atoms from this structure where the all altloc of 
-        disordered atoms will be present."""
-        atoms = []
-        for model in self:
-            atoms.extend(model.get_unpacked_atoms())
-        return atoms
 
-    def get_atoms(self):
-        atoms = []
+    def get_atoms(self, include_alt=False):
+        """Return a generator of all atoms from this structure. If include_alt is True, the 
+        disordered residues will be expanded and altloc of disordered atoms will be included."""
         for model in self:
-            atoms.extend(model.get_atoms())
-        return atoms
-    
+            yield from model.get_atoms(include_alt=include_alt)
+
     def reset_atom_serial_numbers(self, include_alt=True):
         """Reset all atom serial numbers in the structure starting from 1."""
         for model in self:

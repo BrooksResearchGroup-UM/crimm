@@ -163,7 +163,6 @@ def ab_initio_ic_build(topo_def):
 
     return coord_dict
 
-
 class ResidueFixer:
     def __init__(self):
         self._res = None

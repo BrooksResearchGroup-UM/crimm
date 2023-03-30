@@ -9,8 +9,8 @@ import warnings
 import numpy
 from Bio.PDB.PDBExceptions import PDBConstructionWarning
 from crimm.StructEntities.Atom import Atom
-from crimm.Parsers.MMCIF2Dict import MMCIF2Dict
-from crimm.Parsers.StructureBuilder import StructureBuilder
+from crimm.IO.MMCIF2Dict import MMCIF2Dict
+from crimm.IO.StructureBuilder import StructureBuilder
 from crimm.StructEntities.Chain import (
     Chain, PolymerChain, Heterogens, Oligosaccharide, Solvent, Macrolide
 )

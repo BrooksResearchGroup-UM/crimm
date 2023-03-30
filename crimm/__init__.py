@@ -1,5 +1,3 @@
-from Bio import BiopythonWarning
-
 class ChainConstructionException(Exception):
     """Define class ChainConstructionException."""
     pass
@@ -8,7 +6,7 @@ class AtomAltLocException(Exception):
     """Define class AtomAltLocException."""
     pass
 
-class ChainConstructionWarning(BiopythonWarning):
+class ChainConstructionWarning(Warning):
     """Define class ChainConstructionWarning."""
     pass
 

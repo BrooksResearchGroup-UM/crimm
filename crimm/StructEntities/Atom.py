@@ -62,11 +62,11 @@ class Atom(_Atom):
         if topo_definition is not None:
             self.topo_definition = topo_definition
         
-    def reset_atom_serial_number(self):
+    def reset_atom_serial_numbers(self, include_alt=False):
         """Reset all atom serial numbers in the entire structure starting from 1."""
         top_parent = self.get_top_parent()
         if top_parent is self:
-            self.serial_number = 1
+            self.set_serial_number(1)
         else:
             top_parent.reset_atom_serial_numbers()
 
@@ -89,7 +89,7 @@ class Atom(_Atom):
         if self.parent is None:
             return self
         return self.parent.get_top_parent()
-
+    
 class DisorderedAtom(_DisorderedAtom):
     """Disoreded Atom class derived from Biopython Disordered Atom and made compatible with
     OpenMM Atom."""
