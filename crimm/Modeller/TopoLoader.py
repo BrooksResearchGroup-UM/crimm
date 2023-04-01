@@ -145,7 +145,7 @@ class TopologyLoader:
             is_defined = self.load_residue_topology(residue, coerce=coerce, QUIET=QUIET)
             if not is_defined:
                 chain.undefined_res.append(residue)
-        if not QUIET:
+        if (n_undefined:=len(chain.undefined_res)) >0 and not QUIET:
             warnings.warn(
-                f"{len(chain.undefined_res)} residues are not defined in the chain!"
+                f"{n_undefined} residues are not defined in the chain!"
             )

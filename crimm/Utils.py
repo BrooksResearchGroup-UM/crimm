@@ -27,7 +27,7 @@ def get_pdb_entry(pdb_id, entry_point = "https://files.rcsb.org/download"):
     f_handle.seek(0)
     return f_handle
 
-def get_structure(pdb_id, local_entry = None):
+def fetch(pdb_id, local_entry = None):
     """Get a structure from a pdb id or a local file"""
     if local_entry is not None:
         file = find_local_cif_path(pdb_id, entry_point = local_entry)

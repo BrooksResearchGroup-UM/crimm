@@ -41,7 +41,7 @@ def recur_find_build_seq(
         running_dict, missing_atoms, build_seq, exclude_list
     )
 
-def get_coord_from_chain_ic(i_coord, j_coord, k_coord, phi, t_jkl, r_kl):
+def get_coord_from_dihedral_ic(i_coord, j_coord, k_coord, phi, t_jkl, r_kl):
     origin = j_coord
     a1 = i_coord - origin
     a2 = k_coord - origin
@@ -111,7 +111,7 @@ def find_coords_by_ic(build_sequence, ic_dicts, coord_dict):
             else:
                 bond_len = ic_param_dict['R(I-J)']
                 bond_angle = ic_param_dict['T(I-J-K)']
-                coord = get_coord_from_chain_ic(
+                coord = get_coord_from_dihedral_ic(
                     a1, a2, a3, phi, bond_angle, bond_len
                 )
         else:
@@ -124,7 +124,7 @@ def find_coords_by_ic(build_sequence, ic_dicts, coord_dict):
                     a1, a2, a3, phi, bond_angle, bond_len
                 )
             else:
-                coord = get_coord_from_chain_ic(
+                coord = get_coord_from_dihedral_ic(
                     a1, a2, a3, phi, bond_angle, bond_len
                 )
         computed_coords.append(atom_name)

@@ -32,7 +32,10 @@ class AtomDefinition:
     def create_new_atom(self, coords = None, serial_number = 0):
         """Create a new atom instance from the Atom definition. The default coordinates
         will be none if not specified."""
-        
+        if coords is None:
+            # create a nan array if no coords are given
+            coords = np.empty(3)
+            coords[:] = np.nan
         return Entities.Atom(
             name = self.name,
             coord=coords,
