@@ -11,6 +11,7 @@ nonbond_par = namedtuple('nonbond', ['epsilon', 'rmin_half'])
 nonbond14_par = namedtuple('nonbond14', ['epsilon', 'rmin_half'])
 nbfix_par = namedtuple('nbfix', ['emin','rmin'])
 
+##FIXME: dihedral has multiplicities! need to incorporate that
 def categorize_lines(lines):
     line_dict = {
         'mass': [], 'bonds': [], 'angles': [], 'dihedrals': [],
@@ -147,9 +148,22 @@ def simple_collector(param_line_dict, parser):
     param_dict = {}
     for l in param_line_dict:
         key, val = parser(l)
+        if key in param_dict:
+            continue
         param_dict[key] = val
     return param_dict
-        
+
+def dihedral_collector(param_line_dict, parser):
+    param_dict = {}
+    for l in param_line_dict:
+        key, val = parser(l)
+        if key not in param_dict:
+            param_dict[key] = []
+        param_dict[key].append(val)
+    for value_list in param_dict.values():
+        value_list.sort(key=lambda x: x.n)
+    return param_dict
+
 def extended_collector(param_line_dict, parser):
     param_dict = {}
     extended_param_dict = {}
@@ -166,7 +180,7 @@ def parse_line_dict(line_dict):
     angle_dict, urey_bradley_dict = extended_collector(
         line_dict['angles'], angle_parser
     )
-    dihe_dict = simple_collector(line_dict['dihedrals'], dihedral_parser)
+    dihe_dict = dihedral_collector(line_dict['dihedrals'], dihedral_parser)
     impr_dict = simple_collector(line_dict['improper'], improper_parser)
     
     cmap_lines = {}

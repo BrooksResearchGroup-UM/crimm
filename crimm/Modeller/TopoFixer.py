@@ -72,6 +72,8 @@ def get_coord_from_improper_ic(i_coord, j_coord, k_coord, phi, t_jkl, r_kl):
     return l_coord
     
 def find_build_seq(topo_def, missing_atoms, missing_hydrogens):
+    missing_atoms = list(missing_atoms)
+    missing_hydrogens = list(missing_hydrogens)
     all_missing = missing_atoms + missing_hydrogens
     lookup_dict = topo_def.atom_lookup_dict
     running_dict = OrderedDict({k: lookup_dict[k] for k in all_missing})
@@ -234,7 +236,9 @@ class ResidueFixer:
         self.coord_dict = {atom.name:atom.coord for atom in self._res}
         neighbor_coord_dict = self._get_neighbor_backbone_coords(residue)
         if neighbor_coord_dict is None:
-            residue.missing_atoms += ['-C', '+N', '+CA']
+            # we only need the name of the missing atoms from neighbors, 
+            # not to actually build them
+            residue.missing_atoms.update({'-C':None, '+N':None, '+CA':None})
         else:
             self.coord_dict.update(neighbor_coord_dict)
         self.heavy_build_sequence, self.hydrogen_build_sequence = \
@@ -262,20 +266,20 @@ class ResidueFixer:
         for hydrogen in hydrogens:
             self._res.detach_child(hydrogen.id)
 
-    def _build_atoms(self, build_sequence, missing_atom_name_list):
+    def _build_atoms(self, build_sequence, missing_atoms:dict):
         computed_atom_names = find_coords_by_ic(
             build_sequence, self.topo_def.ic, self.coord_dict
         )
         built_atoms = []
         for atom_name in computed_atom_names:
-            missing_atom_name_list.remove(atom_name)
+            built_atom = missing_atoms.pop(atom_name)
             if atom_name.startswith('+') or atom_name.startswith('-'):
                 # neighbor residues backbone will not be built here
                 continue
             coord = self.coord_dict[atom_name]
-            new_atom = self.topo_def[atom_name].create_new_atom(coord)
-            self._res.add(new_atom)
-            built_atoms.append(new_atom)
+            built_atom.coord = coord
+            self._res.add(built_atom)
+            built_atoms.append(built_atom)
         return built_atoms
     
     def build_missing_atoms(self):
@@ -309,11 +313,14 @@ class ResidueFixer:
             )
         )
         return built_atoms
-        
+
     def remove_undefined_atoms(self):
         """Remove undefined atoms from the residue"""
         for atom in self._res.undefined_atoms:
             self._res.detach_child(atom.id)
+            for atom_group in self._res.atom_groups.values():
+                if atom in atom_group:
+                    atom_group.remove(atom)
         self._res.undefined_atoms = []
 
 def build_missing_atoms_for_chain(chain):

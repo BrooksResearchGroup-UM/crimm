@@ -59,7 +59,7 @@ class ResidueDefinition:
         self.resname = resname
         self.is_modified = False
         self.is_patch : bool = None
-        self.atom_groups = {}
+        self.atom_groups : List = None
         self.atom_dict = {}
         self.total_charge : float = None
         self.bonds : List= None
@@ -120,7 +120,8 @@ class ResidueDefinition:
                 setattr(self, key, val)
 
     def process_atom_groups(self, atom_dict):
-        for i, group_def in atom_dict.items():
+        self.atom_groups = []
+        for group_def in atom_dict.values():
             cur_group = []
             for atom_name, atom_info in group_def.items():
                 atom_def = AtomDefinition(
@@ -128,7 +129,7 @@ class ResidueDefinition:
                 )
                 cur_group.append(atom_name)
                 self.atom_dict[atom_name] = atom_def
-            self.atom_groups[i] = cur_group
+            self.atom_groups.append(tuple(cur_group))
 
     def assign_donor_acceptor(self):
         for hydrogen_name, donor_name in self.H_donors:
@@ -170,7 +171,7 @@ class ResidueDefinition:
                 'Standard coord build from IC table is skipped.'
             )
             return
-        
+
         r_CN = base_ic1['R(I-J)']
         t_CNCA = np.deg2rad(base_ic1['T(I-J-K)'])
         r_NCA = base_ic2['R(I-J)']
@@ -194,9 +195,9 @@ class ResidueDefinition:
             build_seq = [],
             exclude_list = []
         )
-        
+
         find_coords_by_ic(build_seq, self.ic, self.standard_coord_dict)
-        
+
     def _construct_standard_residue_from_ic(self):
         """Create a standard residue from the internal coordinate definitions
         """
@@ -236,3 +237,6 @@ class ResidueDefinition:
         new_res.id = (" ", int(resseq), str(icode))
         new_res.segid = str(segid)
         return new_res
+
+    def patch(self, residue_definition):
+        raise NotImplementedError

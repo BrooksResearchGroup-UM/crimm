@@ -4,6 +4,7 @@ import requests
 from Bio.Align import PairwiseAligner
 from crimm.Superimpose.ChainSuperimposer import ChainSuperimposer
 from crimm.IO.MMCIFParser import MMCIFParser
+from crimm.IO import get_pdb_str
 from crimm.Utils import find_local_cif_path, get_pdb_entry
 import crimm.StructEntities as Entities
 
@@ -268,7 +269,7 @@ class ChainLoopBuilder:
                 "http://nglviewer.org/nglview/latest/index.html#installation"
             ) from exc
         view = nv.NGLWidget()
-        blob = self.model_chain.get_pdb_str()
+        blob = get_pdb_str(self.model_chain)
         ngl_args = [{'type': 'blob', 'data': blob, 'binary': False}]
         view._ngl_component_names.append('Model Chain')
         # Load data, and do not add any representation
@@ -339,15 +340,16 @@ class ChainLoopBuilder:
         Show protein structure and center on the gap
         """
         try:
-            import nglview as nv
+            from crimm.Visualization.NGLVisualization import View
         except ImportError as exc:
             raise ImportError(
                 "WARNING: nglview not found! Install nglview to show"
                 "protein structures."
                 "http://nglviewer.org/nglview/latest/index.html#installation"
             ) from exc
-        view = nv.NGLWidget()
-        self.model_chain.load_nglview(view)
+        view = View()
+
+        view.load_entity(self.model_chain)
         # The selection is the start and end of residue ids in the for 'st-end'
         sele_str = ''
         # Center on the gap by selecting the terminal residues around the gap
@@ -372,8 +374,8 @@ class ChainLoopBuilder:
         return view
 
     def show(self):
-        from crimm.Visualization.NGLVisualization import load_nglview_multiple
-        return load_nglview_multiple([self.model_chain, self.template_chain])
+        from crimm.Visualization.NGLVisualization import show_nglview_multiple
+        return show_nglview_multiple([self.model_chain, self.template_chain])
 
     @staticmethod
     def _build_seq_query(

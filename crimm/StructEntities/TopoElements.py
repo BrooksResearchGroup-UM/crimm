@@ -4,16 +4,13 @@ from collections import namedtuple
 class TopoEntity:
     """A TopoEntity is a base class for Topology entities such as Bonds, Angles, 
     Dihedrals, and Impropers."""
-    @property
-    def full_id(self):
-        return tuple(a.full_id for a in self)
-    
-    @staticmethod
-    def _sort_atoms(atom_names):
-        """Compare the end atoms to decide if the sequence need to be flipped"""
-        if atom_names[0] > atom_names[-1]:
-            atom_names = tuple(reversed(atom_names))
-        return atom_names
+
+    def _create_full_id(self):
+        """Create unique id by comparing the end atoms to decide if the sequence need to be flipped"""
+        atom_ids = tuple(a.full_id for a in self)
+        if atom_ids[0] > atom_ids[-1]:
+            atom_ids = tuple(reversed(atom_ids))
+        return atom_ids
     
     def __getnewargs__(self):
         "Support for pickle protocol 2: http://docs.python.org/2/library/pickle.html#pickling-and-unpickling-normal-class-instances"
@@ -28,12 +25,12 @@ class TopoEntity:
         return self.__dict__
 
     def __hash__(self) -> int:
-        return hash(self._sort_atoms(self.full_id))
+        return hash(self.full_id)
 
     def __eq__(self, other):
         if not isinstance(other, type(self)):
             return False
-        return self._sort_atoms(self.full_id) == self._sort_atoms(other.full_id)
+        return self.full_id == other.full_id
     
     def __deepcopy__(self, memo):
         return type(self)(*self, **self.__dict__)
@@ -52,6 +49,7 @@ class Bond(TopoEntity, BondTuple):
         bond.type = bond_type
         bond.order = cls.bond_order_dict.get(type)
         bond.param = param
+        bond.full_id = bond._create_full_id()
         return bond
 
     def __repr__(self):
@@ -60,7 +58,8 @@ class Bond(TopoEntity, BondTuple):
             s = "%s, type=%s" % (s, self.type)
         if self.order is not None:
             s = "%s, order=%d" % (s, self.order)
-        s = "%s, length=%.2f" % (s, self.length)
+        if self.length is not None:
+            s = "%s, length=%.2f" % (s, self.length)
         s += ")"
         return s
 
@@ -70,6 +69,8 @@ class Bond(TopoEntity, BondTuple):
     @property
     def length(self):
         """return the current bond length"""
+        if self[0].coord is None or self[1].coord is None:
+            return None
         return (((self[0].coord - self[1].coord)**2).sum())**0.5
     
 AngleTuple = namedtuple('Angle', ['atom1', 'atom2', 'atom3'])
@@ -81,9 +82,10 @@ class Angle(TopoEntity, AngleTuple):
     
     def __new__(cls, atom1, atom2, atom3, param=None):
         """Create a new Entity. """
-        entity = super(Angle, cls).__new__(cls, atom1, atom2, atom3)
-        entity.param = param
-        return entity
+        angle = super(Angle, cls).__new__(cls, atom1, atom2, atom3)
+        angle.param = param
+        angle.full_id = angle._create_full_id()
+        return angle
     
     def __repr__(self):
         s = f"Angle({tuple(self)}, angle = {self.angle:.2f})"
@@ -104,10 +106,11 @@ class Dihedral(TopoEntity, DiheTuple):
 
     def __new__(cls, atom_i, atom_j, atom_k, atom_l, param=None):
         """Create a new Entity. """
-        entity = super(Dihedral, cls).__new__(cls, atom_i, atom_j, atom_k, atom_l)
-        entity.param = param
-        return entity
-    
+        dihedral = super(Dihedral, cls).__new__(cls, atom_i, atom_j, atom_k, atom_l)
+        dihedral.param = param
+        dihedral.full_id = dihedral._create_full_id()
+        return dihedral
+
     def __repr__(self):
         s = "Dihedral({}, {}, {}, {}, angle = {:.2f})".format(*self, self.dihe)
         return s
@@ -128,9 +131,10 @@ class Improper(TopoEntity, ImprTuple):
 
     def __new__(cls, atom_i, atom_j, atom_k, atom_l, param=None):
         """Create a new Entity. """
-        entity = super(Improper, cls).__new__(cls, atom_i, atom_j, atom_k, atom_l)
-        entity.param = param
-        return entity
+        improper = super(Improper, cls).__new__(cls, atom_i, atom_j, atom_k, atom_l)
+        improper.param = param
+        improper.full_id = improper._create_full_id()
+        return improper
     
     def __repr__(self):
         s = "Improper({}, {}, {}, {}, angle = {:.2f})".format(*self, self.impr)

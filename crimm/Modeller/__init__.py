@@ -1,2 +1,2 @@
-from .TopoFixer import ResidueFixer
-from .TopoLoader import TopologyLoader
+from crimm.Modeller.TopoFixer import ResidueFixer
+from crimm.Modeller.TopoLoader import TopologyLoader

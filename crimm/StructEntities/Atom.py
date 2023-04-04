@@ -61,7 +61,14 @@ class Atom(_Atom):
         self._topo_def = None
         if topo_definition is not None:
             self.topo_definition = topo_definition
-        
+
+    def __repr__(self):
+        """Print Atom object as <Atom atom_name>. if coord is None, print as
+        <MissingAtom atom_name>"""
+        if self.coord is None:
+            return f"<MissingAtom {self.get_id()}>"
+        return f"<Atom {self.get_id()}>"
+    
     def reset_atom_serial_numbers(self, include_alt=False):
         """Reset all atom serial numbers in the entire structure starting from 1."""
         top_parent = self.get_top_parent()
