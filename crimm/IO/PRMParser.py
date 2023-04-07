@@ -1,17 +1,16 @@
 from collections import namedtuple
 from crimm.IO.RTFParser import comment_parser, skip_line
 
-bond_par = namedtuple('bond',['kb', 'b0'])
-angle_par = namedtuple('angle',['ktheta', 'theta0'])
-ub_par = namedtuple('urey_bradley',['kub', 's0']) # Urey-Bradley
-dihe_par = namedtuple('dihedral',['kchi', 'n', 'delta'])
-impr_par = namedtuple('improper',['kpsi', 'psi0'])
-cmap_par = namedtuple('cmap',['degree', 'values'])
-nonbond_par = namedtuple('nonbond', ['epsilon', 'rmin_half'])
-nonbond14_par = namedtuple('nonbond14', ['epsilon', 'rmin_half'])
-nbfix_par = namedtuple('nbfix', ['emin','rmin'])
+bond_par = namedtuple('bond_param',['kb', 'b0'])
+angle_par = namedtuple('angle_param',['ktheta', 'theta0'])
+ub_par = namedtuple('ub_param',['kub', 's0']) # Urey-Bradley
+dihe_par = namedtuple('dihedral_param',['kchi', 'n', 'delta'])
+impr_par = namedtuple('improper_param',['kpsi', 'psi0'])
+cmap_par = namedtuple('cmap_param',['degree', 'values'])
+nonbond_par = namedtuple('nonbond_param', ['epsilon', 'rmin_half'])
+nonbond14_par = namedtuple('nonbond14_param', ['epsilon', 'rmin_half'])
+nbfix_par = namedtuple('nbfix_param', ['emin','rmin'])
 
-##FIXME: dihedral has multiplicities! need to incorporate that
 def categorize_lines(lines):
     line_dict = {
         'mass': [], 'bonds': [], 'angles': [], 'dihedrals': [],

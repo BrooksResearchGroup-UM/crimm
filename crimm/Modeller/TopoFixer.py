@@ -274,7 +274,7 @@ class ResidueFixer:
         for atom_name in computed_atom_names:
             built_atom = missing_atoms.pop(atom_name)
             if atom_name.startswith('+') or atom_name.startswith('-'):
-                # neighbor residues backbone will not be built here
+                # neighboring residue's backbone atoms will not be built
                 continue
             coord = self.coord_dict[atom_name]
             built_atom.coord = coord
@@ -334,6 +334,7 @@ def build_missing_atoms_for_chain(chain):
     """
     built_atoms = {}
     res_builder = ResidueFixer()
+    chain.sort_residues()
     for res in chain:
         if res.topo_definition is None:
             warnings.warn(f'No topology definition on {res}! Skipped')
@@ -341,4 +342,25 @@ def build_missing_atoms_for_chain(chain):
         if res.missing_atoms:
             res_builder.load_residue(res)
             built_atoms[(res.id[1], res.resname)] = res_builder.build_missing_atoms()
+    return built_atoms
+
+def build_hydrogens_for_chain(chain):
+    """Build missing hydrogens for a PolymerChain where topology definitions 
+    have been loaded for each residue. Missing atom will be built based on the IC
+    definitions if the residue is not completely missing (e.g. missing loop on a
+    chain).
+    
+    Args:
+        chain: PolymerChain with topology definitions loaded for each residue.
+    """
+    built_atoms = {}
+    res_builder = ResidueFixer()
+    chain.sort_residues()
+    for res in chain:
+        if res.topo_definition is None:
+            warnings.warn(f'No topology definition on {res}! Skipped')
+            continue
+        if res.missing_hydrogens:
+            res_builder.load_residue(res)
+            built_atoms[(res.id[1], res.resname)] = res_builder.build_hydrogens()
     return built_atoms

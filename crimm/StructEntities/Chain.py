@@ -18,13 +18,14 @@ class BaseChain(_Chain):
         # instantiated but not initiated
         self.undefined_res = None
         self.topo_definitions = None
+        self.topo_elements = None
         self.pdbx_description = None
 
     @property
     def residues(self):
         """Alias for child_list. Returns the list of residues in this chain."""
         return self.child_list
-    
+
     def get_top_parent(self):
         if self.parent is None:
             return self
@@ -95,7 +96,7 @@ class Chain(BaseChain):
     General/Unspecified Chain object based on Biopython Chain
     """
     chain_type = 'Chain'
-    ## TODO: Implement hetflag check for florecence proteins (chromophore residues)
+    ## TODO: Implement hetflag check for florescence proteins (chromophore residues)
     def __init__(self, chain_id: str):
         super().__init__(chain_id)
         self._ppb = PPBuilder()

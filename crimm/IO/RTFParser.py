@@ -103,7 +103,9 @@ def ic_parser(line):
 
     fields: [key, I,J,K,L, R(I(J/K)), T(I(JK/KJ)), PHI, T(JKL), R(KL)]
     IJKL are atoms, star (*) on atom K indicate that it is an improper structure
-    Strucutres specified for both chain and improper (branch)
+    Strucutres specified for both chain and improper (branch). If any value is
+    zero, it is not specified, and the value should be obtained from the parameter
+    file.
 
         R(I(J/K)): dist of I-J/I-K
         T(I(JK/KJ)): angle of I-J-K/I-K-J
@@ -128,7 +130,8 @@ def ic_parser(line):
         first_angle = 'R(I-J)'
         dihe = 'T(I-J-K)'
 
-    return (i, j, k.lstrip('*'), l), {
+    key =  (i, j, k.lstrip('*'), l)
+    entry = {
         'improper': is_improper,
         # 'I': i, 'J': j, 'K': k, 'L': l,
         first_angle: float(r_ij), 
@@ -137,6 +140,10 @@ def ic_parser(line):
         'T(J-K-L)': float(t_jkl),
         'R(K-L)': float(r_kl)
     }
+    for k, v in entry.items():
+        if k != 'improper' and v == 0:
+            entry[k] = None
+    return key, entry
 
 def delete_parser(line):
     """

@@ -1,9 +1,12 @@
 """This module defines the TopoEntity class and its subclasses Bond, Angle, Dihedral, and Improper."""
 from collections import namedtuple
+import numpy as np
 
 class TopoEntity:
     """A TopoEntity is a base class for Topology entities such as Bonds, Angles, 
     Dihedrals, and Impropers."""
+    RED = '\033[91m'
+    ENDC = '\033[0m'
 
     def _create_full_id(self):
         """Create unique id by comparing the end atoms to decide if the sequence need to be flipped"""
@@ -35,6 +38,17 @@ class TopoEntity:
     def __deepcopy__(self, memo):
         return type(self)(*self, **self.__dict__)
 
+    def get_atom_types(self):
+        """Return the atom types of the atoms in this entity"""
+        return tuple(a.topo_definition.atom_type for a in self)
+    
+    def color_missing(self, atom):
+        """Return a string representation of an atom with missing coordinates colored red"""
+        if atom.coord is None:
+            return f"{self.RED}{atom.name:>4s}{self.ENDC}"
+        else:
+            return f"{atom.name:>4s}"
+        
 BondTuple = namedtuple('Bond', ['atom1', 'atom2'])
 class Bond(TopoEntity, BondTuple):
     """A Bond object represents a bond between two Atoms within a Topology.
@@ -50,17 +64,19 @@ class Bond(TopoEntity, BondTuple):
         bond.order = cls.bond_order_dict.get(type)
         bond.param = param
         bond.full_id = bond._create_full_id()
+        bond.atom_types = bond.get_atom_types()
         return bond
 
     def __repr__(self):
-        s = "Bond(%s, %s" % (self[0], self[1])
+        a, b = (self.color_missing(atom) for atom in self)
+        s = f"<Bond({a}, {b})"
         if self.type is not None:
-            s = "%s, type=%s" % (s, self.type)
+            s += f" type={self.type}"
         if self.order is not None:
-            s = "%s, order=%d" % (s, self.order)
+            s += f" order={self.order:d}"
         if self.length is not None:
-            s = "%s, length=%.2f" % (s, self.length)
-        s += ")"
+            s += f" length={self.length:.2f}"
+        s += ">"
         return s
 
     def __deepcopy__(self, memo):
@@ -73,6 +89,20 @@ class Bond(TopoEntity, BondTuple):
             return None
         return (((self[0].coord - self[1].coord)**2).sum())**0.5
     
+    @property
+    def kb(self):
+        """return the bond force constant"""
+        if self.param is None:
+            return None
+        return self.param.kb
+    
+    @property
+    def b0(self):
+        """return the bond equilibrium length"""
+        if self.param is None:
+            return None
+        return self.param.b0
+
 AngleTuple = namedtuple('Angle', ['atom1', 'atom2', 'atom3'])
 class Angle(TopoEntity, AngleTuple):
     """An Angle object represents an angle between three Atoms within a Topology.
@@ -85,16 +115,42 @@ class Angle(TopoEntity, AngleTuple):
         angle = super(Angle, cls).__new__(cls, atom1, atom2, atom3)
         angle.param = param
         angle.full_id = angle._create_full_id()
+        angle.atom_types = angle.get_atom_types()
         return angle
     
     def __repr__(self):
-        s = f"Angle({tuple(self)}, angle = {self.angle:.2f})"
+        a, b, c = (self.color_missing(atom) for atom in self)
+        s = f"<Angle({a:>4s}, {b:>4s}, {c:>4s})"
+        if self.angle is not None:
+            s += f" angle={self.angle:.2f}"
+        s += ">"
         return s
     
     @property
     def angle(self):
         """return the current angle in degrees"""
-        return 0.000
+        a, b, c = (atom.coord for atom in self)
+        for coord in (a, b, c):
+            if coord is None:
+                return None
+        ba = a - b
+        bc = c - b
+        theta = np.arccos(np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc)))
+        return np.rad2deg(theta)
+    
+    @property
+    def ktheta(self):
+        """return the angle force constant"""
+        if self.param is None:
+            return None
+        return self.param.ktheta
+    
+    @property
+    def theta0(self):
+        """return the equilibrium angle"""
+        if self.param is None:
+            return None
+        return self.param.theta0
     
 DiheTuple = namedtuple('Dihedral', ['i', 'j', 'k', 'l'])
 class Dihedral(TopoEntity, DiheTuple):
@@ -109,17 +165,30 @@ class Dihedral(TopoEntity, DiheTuple):
         dihedral = super(Dihedral, cls).__new__(cls, atom_i, atom_j, atom_k, atom_l)
         dihedral.param = param
         dihedral.full_id = dihedral._create_full_id()
+        dihedral.atom_types = dihedral.get_atom_types()
         return dihedral
 
     def __repr__(self):
-        s = "Dihedral({}, {}, {}, {}, angle = {:.2f})".format(*self, self.dihe)
+        a, b, c, d = (self.color_missing(atom) for atom in self)
+        s = f"<Dihedral({a:>4s}, {b:>4s}, {c:>4s}, {d:>4s})"
+        if self.angle is not None:
+            s += f" angle={self.angle:.2f}"
+        s += ">"
         return s
 
+    ## TODO: implement dihedral angle calculation
     @property
-    def dihe(self):
+    def angle(self):
         """return the current dihedral in degrees"""
-        return 0.000
+        a, b, c, d = (atom.coord for atom in self)
+        for coord in (a, b, c, d):
+            if coord is None:
+                return None
+        # ba = a - b
+        # dc = d - c
         
+        return 0.000
+
 
 ImprTuple = namedtuple('Improper', ['i', 'j', 'k', 'l'])
 class Improper(TopoEntity, ImprTuple):
@@ -134,13 +203,22 @@ class Improper(TopoEntity, ImprTuple):
         improper = super(Improper, cls).__new__(cls, atom_i, atom_j, atom_k, atom_l)
         improper.param = param
         improper.full_id = improper._create_full_id()
+        improper.atom_types = improper.get_atom_types()
         return improper
     
     def __repr__(self):
-        s = "Improper({}, {}, {}, {}, angle = {:.2f})".format(*self, self.impr)
+        a, b, c, d = (self.color_missing(atom) for atom in self)
+        s = f"<Improper({a:>4s}, {b:>4s}, {c:>4s}, {d:>4s})"
+        if self.angle is not None:
+            s += f" angle={self.angle:.2f})"
+        s += ">"
         return s
     
     @property
-    def impr(self):
+    def angle(self):
         """return the current improper in degrees"""
+        a, b, c, d = (atom.coord for atom in self)
+        for coord in (a, b, c, d):
+            if coord is None:
+                return None
         return 0.000
