@@ -4,6 +4,14 @@ from crimm.Modeller.TopoLoader import TopologyElementContainer
 import crimm.StructEntities as Entities
 
 class ParameterLoader:
+    ic_position_dict = {
+        'R(I-J)': (0, 1),
+        'T(I-J-K)': (0, 1, 2),
+        'T(J-K-L)': (1, 2, 3),
+        'R(K-L)': (2, 3),
+        'T(I-K-J)': (0, 2, 1),
+        'R(I-K)': (0, 2),
+    }
     """A dictionary that stores parameters for CHARMM force field."""
     def __init__(self, file_path=None):
         self.param_dict = {}
@@ -125,7 +133,9 @@ class ParameterLoader:
         
         for topo_type, topo_element_list in topo_element_container:
             if topo_element_list is None:
-                warnings.warn(f'No {topo_type} found.')
+                warnings.warn(
+                    f'No {topo_type} found in '
+                    f'{topo_element_container.containing_entity}.')
                 continue
             no_param_list = self._apply_to_element_list(
                 topo_type, topo_element_list
@@ -137,3 +147,32 @@ class ParameterLoader:
                 )
                 missing_param_dict[topo_type] = no_param_list
         topo_element_container.missing_param_dict = missing_param_dict
+
+    def res_def_fill_ic(self, residue_definition, preserve = True):
+        """Fill in the missing parameters for the internal coordinates table
+        of a residue definition."""
+        for atom_key, ic_table in residue_definition.ic.items():
+            atom_key = [atom.lstrip('+').lstrip('-') for atom in atom_key]
+            atom_types = [residue_definition[atom].atom_type for atom in atom_key]
+            for ic_type in ic_table:
+                if ic_type == 'Phi' or ic_type == 'improper':
+                    continue
+                if (ic_table[ic_type] is not None) and preserve:
+                    continue
+                ids = self.ic_position_dict[ic_type]
+                cur_ic_atom_types = tuple(atom_types[i] for i in ids)
+                ic_table[ic_type] = self._find_ic_param(cur_ic_atom_types)
+
+    def _find_ic_param(self, key):
+        if len(key) == 2:
+            bond_param = self.get_bond(key)
+            return bond_param.b0
+        else:
+            angle_param = self.get_angle(key)
+            return angle_param.theta0
+
+    def fill_ic(self, topology_loader, preserve = True):
+        """Fill in the missing parameters for the internal coordinates table
+        of a topology."""
+        for residue_definition in topology_loader.residues:
+            self.res_def_fill_ic(residue_definition, preserve)

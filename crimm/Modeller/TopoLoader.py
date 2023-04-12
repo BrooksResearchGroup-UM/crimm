@@ -1,6 +1,6 @@
 import warnings
-from types import MappingProxyType
 import pickle
+from copy import deepcopy
 from Bio.Data.PDBData import protein_letters_3to1_extended
 from Bio.Data.PDBData import protein_letters_1to3
 from crimm import StructEntities as Entities
@@ -107,9 +107,10 @@ class TopologyLoader:
     """Class for loading topology definition to the residue and find any missing atoms."""
     def __init__(self, file_path=None, data_dict_path=None):
         self.rtf_version = None
-        self.res_defs = None
-        self.residues = None
-        self.patches = None
+        self.res_defs = {}
+        self.residues = []
+        self.patches = []
+
         if data_dict_path is not None:
             with open(data_dict_path, 'rb') as f:
                 data_dict = pickle.load(f)
@@ -122,23 +123,24 @@ class TopologyLoader:
         """Load topology data from a dictionary. The dictionary should be parsed
         from a RTF file."""
         self.rtf_version = rtf_version
-        topo_def_dict = {}
         for resname, res_topo_dict in topo_data_dict.items():
-            topo_def_dict[resname] = Entities.ResidueDefinition(
-                self.rtf_version, resname, res_topo_dict
-            )
+            if res_topo_dict['is_patch']:
+                res_def = Entities.PatchDefinition(
+                    self.rtf_version, resname, res_topo_dict
+                )
+                self.patches.append(res_def)
+            else:
+                res_def = Entities.ResidueDefinition(
+                    self.rtf_version, resname, res_topo_dict
+                )
+                self.residues.append(res_def)
+            self.res_defs[resname] = res_def
 
-        if 'HIS' not in topo_def_dict and 'HSD' in topo_def_dict:
+        if 'HIS' not in self.res_defs and 'HSD' in self.res_defs:
             # Map all histidines HIS to HSD
-            topo_def_dict['HIS'] = topo_def_dict['HSD']
-        
-        self.patches = tuple(
-            res_def for res_def in topo_def_dict.values() if res_def.is_patch
-        )
-        self.residues = tuple(
-            res_def for res_def in topo_def_dict.values() if not res_def.is_patch
-        )
-        self.res_defs = MappingProxyType(topo_def_dict)
+            self.res_defs['HIS'] = self.res_defs['HSD']
+
+         
 
     def __repr__(self):
         return (
@@ -149,6 +151,9 @@ class TopologyLoader:
 
     def __getitem__(self, __key: 'str'):
         return self.res_defs[__key]
+    
+    def __iter__(self):
+        return iter(self.res_defs.values())
     
     def generate_residue_topology(
             self, residue: Entities.Residue, coerce: bool = False, QUIET=False
@@ -295,6 +300,7 @@ class TopologyLoader:
         topo_elements = TopologyElementContainer()
         chain.topo_elements = topo_elements.load_chain(chain)
 
+
 class TopologyElementContainer:
     """A class object that stores topology elements"""
     def __init__(self):
@@ -307,6 +313,7 @@ class TopologyElementContainer:
         self.nonbonded = None
         self.atom_lookup = None
         self.missing_param_dict = None
+        self.containing_entity = None
 
     def __iter__(self):
         topo_attrs = [
@@ -316,7 +323,9 @@ class TopologyElementContainer:
             yield attr, getattr(self, attr)
 
     def __repr__(self) -> str:
-        s = "<TopologyElementContainer "
+        if self.containing_entity is None:
+            return "<EmptyTopologyElementContainer>"
+        s = f"<TopologyElementContainer for {self.containing_entity} with "
         for attr, value in self:
             if value is None:
                 n = 0
@@ -328,6 +337,7 @@ class TopologyElementContainer:
         
     def load_chain(self, chain: Entities.Chain):
         """Find all topology elements from the chain"""
+        self.containing_entity = chain
         self.find_topo_elements(chain)
         self.create_atom_lookup_table()
         return self
@@ -376,3 +386,67 @@ class TopologyElementContainer:
                 atom_lookup[atom]['dihedrals'].append(dihedral)
 
         self.atom_lookup = atom_lookup
+
+class ResiduePatcher:
+    """Class Object for patching a residue with a patch definition"""
+    def __init__(self):
+        self.res = None
+        self.patch = None
+
+    def _remove_atom_from_param(self, param_attr, atom_name:str):
+        """Remove the residue from the parameter attribute of the residue"""
+        for iterable in param_attr:
+            if atom_name in iterable:
+                param_attr.remove(iterable)
+
+    def _delete_atom_params(self):
+        """Delete the parameters of the atoms that are deleted in the patch"""
+        if self.patch.delete is None:
+            return
+        for entity_type, entity_name in self.patch.delete:
+            if entity_type == 'ATOM' and entity_name in self.res:
+                for param_attr in (
+                    self.res.impropers, self.res.cmap, self.res.H_donors, 
+                    self.res.H_acceptors, self.res.atom_groups
+                ):
+                    self._remove_atom_from_param(param_attr, entity_name)
+                remove_keys = []
+                for atom_names in self.res.ic:
+                    if entity_name in atom_names:
+                        remove_keys.append(atom_names)
+        for key in remove_keys:
+            self.res.ic.pop(key)
+                
+    def _apply_patch(self):
+        """Apply the patch on the residue definition"""
+        self.res.atom_dict.update(self.patch.atom_dict)
+        for bond_type in self.res.bonds:
+            self.res.bonds[bond_type].extend(self.patch.bonds[bond_type])
+
+        self.res.total_charge = 0
+        for atom_def in self.res:
+            self.res.total_charge += atom_def.charge
+
+        self._delete_atom_params()
+        new_ic = {**self.res.ic, **self.patch.ic}
+        if ('CY', 'CA', 'N', 'HN') in self.patch.ic:
+            new_ic.pop(('-C', 'CA', 'N', 'HN'))
+        self.res.ic = new_ic.copy()
+
+    def patch_residue_definition(
+            self,
+            residue_definition,
+            patch_definition
+        ):
+        """Patch a residue definition with a patch definition. Return the patched 
+        residue definition
+        """
+        self.res = deepcopy(residue_definition)
+        # remove the standard residue coordinates
+        self.res.standard_coord_dict = None
+        self.res._standard_res = None
+        self.patch = deepcopy(patch_definition)
+        self._apply_patch()
+        self.res.assign_donor_acceptor()
+        self.res.create_atom_lookup_dict()
+        return self.res

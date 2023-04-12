@@ -20,7 +20,7 @@ class NGLStructure(nv.Structure):
         self.entity = entity
 
     def get_structure_string(self):
-        return get_pdb_str(self.entity, include_alt = False)
+        return get_pdb_str(self.entity, include_alt = False, trunc_resname=True)
 
 def show_nglview(entity):
     """

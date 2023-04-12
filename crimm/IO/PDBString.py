@@ -1,7 +1,5 @@
 import warnings
 
-# Exceptions and Warnings
-from Bio import BiopythonWarning
 # Allowed Elements
 from Bio.Data.IUPACData import atom_weights
 from crimm import StructEntities as Entities
@@ -10,7 +8,7 @@ _ATOM_FORMAT_STRING = (
     "%s%5i %-4s%c%3s %c%4i%c   %8.3f%8.3f%8.3f%s%6.2f      %4s%2s%2s\n"
 )
 
-def _get_atom_line_with_parent_info(atom: Entities.Atom):
+def _get_atom_line_with_parent_info(atom: Entities.Atom, trunc_resname=False):
     """Return the parent info of the atom (PRIVATE). Atom must have a parent residue."""
     residue = atom.parent
     resname = residue.resname
@@ -22,10 +20,10 @@ def _get_atom_line_with_parent_info(atom: Entities.Atom):
         chain_id = '_'
     return _get_atom_line(
         atom, hetfield, segid, atom.get_serial_number(),
-        resname, resseq, icode, chain_id
+        resname, resseq, icode, chain_id, trunc_resname=trunc_resname
     )
 
-def _get_orphan_atom_line(atom: Entities.Atom):
+def _get_orphan_atom_line(atom: Entities.Atom, trunc_resname=False):
     """Return the orphan atom line (PRIVATE). Dummy residue and chain info will be filled."""
     resname = 'DUM'
     segid = ' '
@@ -33,7 +31,7 @@ def _get_orphan_atom_line(atom: Entities.Atom):
     chain_id = '_'
     return _get_atom_line(
         atom, hetfield, segid, atom.get_serial_number(),
-        resname, resseq, icode, chain_id
+        resname, resseq, icode, chain_id, trunc_resname=trunc_resname
     )
 
 def _get_atom_line(
@@ -46,6 +44,7 @@ def _get_atom_line(
     icode,
     chain_id,
     charge="  ",
+    trunc_resname=False,
 ):
     """Return an ATOM PDB string (PRIVATE)."""
     if hetfield != " ":
@@ -53,6 +52,10 @@ def _get_atom_line(
     else:
         record_type = "ATOM  "
 
+    if len(resname) > 3 and trunc_resname:
+        # Truncate residue name to 3 characters so it does not mess up
+        # the nglview visualization
+        resname = resname[:3]
     # Atom properties
 
     # Check if the atom serial number is an integer
@@ -103,8 +106,7 @@ def _get_atom_line(
         if atom.occupancy is None:
             occupancy = " " * 6
             warnings.warn(
-                f"Missing occupancy in atom {atom.full_id!r} written as blank",
-                BiopythonWarning,
+                f"Missing occupancy in atom {atom.full_id!r} written as blank"
             )
         else:
             raise ValueError(
@@ -133,17 +135,17 @@ def _get_atom_line(
 
 ##TODO: Add support for TER and END records
 ##TODO: Add support for CONECT records
-def get_pdb_str(entity, reset_serial=True, include_alt=False):
+def get_pdb_str(entity, reset_serial=True, include_alt=False, trunc_resname=False):
     """Return the PDB string of the entity."""
     if reset_serial:
         entity.reset_atom_serial_numbers(include_alt=include_alt)
 
     if entity.level == 'A':
         if entity.parent is None:
-            return _get_orphan_atom_line(entity)
-        return _get_atom_line_with_parent_info(entity)
+            return _get_orphan_atom_line(entity, trunc_resname)
+        return _get_atom_line_with_parent_info(entity, trunc_resname)
 
     pdb_str = ''
     for atom in entity.get_atoms(include_alt=include_alt):
-        pdb_str += _get_atom_line_with_parent_info(atom)
+        pdb_str += _get_atom_line_with_parent_info(atom, trunc_resname)
     return pdb_str

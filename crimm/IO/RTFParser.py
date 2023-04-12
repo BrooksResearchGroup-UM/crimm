@@ -131,6 +131,7 @@ def ic_parser(line):
         dihe = 'T(I-J-K)'
 
     key =  (i, j, k.lstrip('*'), l)
+    key = tuple(s.upper() for s in key)
     entry = {
         'improper': is_improper,
         # 'I': i, 'J': j, 'K': k, 'L': l,
@@ -141,7 +142,7 @@ def ic_parser(line):
         'R(K-L)': float(r_kl)
     }
     for k, v in entry.items():
-        if k != 'improper' and v == 0:
+        if k not in ('improper', 'Phi') and v == 0:
             entry[k] = None
     return key, entry
 

@@ -103,14 +103,15 @@ def find_coords_by_ic(build_sequence, ic_dicts, coord_dict):
         phi = ic_param_dict['Phi']
         if atom_name == i:
             # the atom is i
-            a1, a2, a3 = coord_dict[l], coord_dict[k], coord_dict[j]
             if is_improper:
+                a1, a2, a3 = coord_dict[l], coord_dict[j], coord_dict[k]
                 bond_len = ic_param_dict['R(I-K)']
                 bond_angle = ic_param_dict['T(I-K-J)']
                 coord = get_coord_from_improper_ic(
                     a1, a2, a3, phi, bond_angle, bond_len
                 )
             else:
+                a1, a2, a3 = coord_dict[l], coord_dict[k], coord_dict[j]
                 bond_len = ic_param_dict['R(I-J)']
                 bond_angle = ic_param_dict['T(I-J-K)']
                 coord = get_coord_from_dihedral_ic(
@@ -303,8 +304,8 @@ class ResidueFixer:
         built_atoms = []
         if len(self.missing_atoms) != 0:
             warnings.warn(
-                'Missing heavy atoms are built before '
-                f'building hydrogens: {self.missing_atoms}'
+                f'{len(self.missing_atoms)} Missing heavy atoms are built before '
+                f'building hydrogens: {tuple(self.missing_atoms.keys())}'
             )
             built_atoms.extend(self.build_missing_atoms())
         built_atoms.extend(
