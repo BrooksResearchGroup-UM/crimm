@@ -110,6 +110,7 @@ class TopologyLoader:
         self.res_defs = {}
         self.residues = []
         self.patches = []
+        self.patched_defs = {}
 
         if data_dict_path is not None:
             with open(data_dict_path, 'rb') as f:
@@ -188,6 +189,12 @@ class TopologyLoader:
             warnings.warn("Topology definition already exists! Overwriting...")
         
         res_definition = self.res_defs[residue.resname]
+        self._apply_topo_def_on_residue(residue, res_definition, QUIET=QUIET)
+        return True
+    
+    @staticmethod
+    def _apply_topo_def_on_residue(residue, res_definition, QUIET=False):
+        """Apply the topology definition to the residue"""
         residue.topo_definition = res_definition
         residue.total_charge = res_definition.total_charge
         residue.impropers = res_definition.impropers
@@ -195,17 +202,18 @@ class TopologyLoader:
         residue.H_donors = res_definition.H_donors
         residue.H_acceptors = res_definition.H_acceptors
         residue.param_desc = res_definition.desc
-        self._load_atom_groups(residue)
+        TopologyLoader._load_atom_groups(residue)
         residue.undefined_atoms = []
         for atom in residue:
             if atom.name not in res_definition:
                 residue.undefined_atoms.append(atom)
                 if not QUIET:
+                    parent_id = (atom.parent.id[1], atom.parent.resname)
                     warnings.warn(
-                        f"Atom {atom.name} is not defined in the topology file!"
+                        f"Atom {atom.name} from {parent_id} is not defined in "
+                        "the topology file!"
                     )
-        return True
-    
+
     @staticmethod
     def _create_missing_atom(residue: Entities.Residue, atom_name: str):
         """Create and separate missing heavy atoms and missing hydrogen atom by atom name"""
@@ -215,6 +223,7 @@ class TopologyLoader:
             residue.missing_hydrogens[atom_name] = missing_atom
         else:
             residue.missing_atoms[atom_name] = missing_atom
+        return missing_atom
 
     @staticmethod
     def _load_group_atom_topo_definition(
@@ -230,10 +239,10 @@ class TopologyLoader:
         atom_group = []
         for atom_name in atom_name_list:
             if atom_name not in residue:
-                TopologyLoader._create_missing_atom(residue, atom_name)
-                continue
-            cur_atom = residue[atom_name]
-            cur_atom.topo_definition = residue.topo_definition[atom_name]
+                cur_atom = TopologyLoader._create_missing_atom(residue, atom_name)
+            else:
+                cur_atom = residue[atom_name]
+                cur_atom.topo_definition = residue.topo_definition[atom_name]
             atom_group.append(cur_atom)
         return tuple(atom_group)
 
@@ -279,7 +288,9 @@ class TopologyLoader:
         return True
 
     def generate_chain_topology(
-            self, chain: Entities.Chain, coerce: bool = False, QUIET=False
+            self, chain: Entities.Chain, coerce: bool = False,
+            first_patch: str = None, last_patch: str = None,
+            QUIET=False
         ):
         """Load topology definition into the chain and find any missing atoms.
         Argument:
@@ -293,12 +304,46 @@ class TopologyLoader:
             is_defined = self.generate_residue_topology(residue, coerce=coerce, QUIET=QUIET)
             if not is_defined:
                 chain.undefined_res.append(residue)
-        if (n_undefined:=len(chain.undefined_res)) >0 and not QUIET:
+        if (n_undefined:=len(chain.undefined_res)) > 0 and not QUIET:
             warnings.warn(
                 f"{n_undefined} residues are not defined in the chain!"
             )
+        if first_patch is not None or last_patch is not None:
+            self.patch_termini(chain, first_patch, last_patch, QUIET=QUIET)
         topo_elements = TopologyElementContainer()
         chain.topo_elements = topo_elements.load_chain(chain)
+
+    def patch_termini(self, chain: Entities.Chain, first: str, last: str, QUIET=False):
+        """Patch the termini of the chain"""
+        if chain.chain_type not in ('Polypeptide(L)', 'Polyribonuleotide'):
+            raise NotImplementedError(
+                "Only polypeptide and polynucleotide chains are supported "
+                f"for patching! Got {chain.chain_type}"
+            )
+        chain.sort_residues()
+        if first is not None:
+            self.patch_residue(chain.child_list[0], first, QUIET=QUIET)
+        if last is not None:
+            self.patch_residue(chain.child_list[-1], last, QUIET=QUIET)
+        if chain.topo_elements is not None:
+            # Update topology elements if they are already defined
+            topo_elements = TopologyElementContainer()
+            chain.topo_elements = topo_elements.load_chain(chain)
+
+    def patch_residue(self, residue: Entities.Residue, patch: str, QUIET=False):
+        """Patch the residue with the patch definition"""
+        if residue.topo_definition is None:
+            raise ValueError(
+                f"Cannot patch the first residue {residue.resname} "
+                "because it is undefined (no topology definition exists)!"
+            )
+        patcher = ResiduePatcher()
+        res_def = residue.topo_definition
+        patch_def = self[patch]
+        patched_res_def = patcher.patch_residue_definition(res_def, patch_def)
+        self._apply_topo_def_on_residue(residue, patched_res_def, QUIET=QUIET)
+        patched_def_name = res_def.resname + "_" + patch
+        self.patched_defs[patched_def_name] = patched_res_def
 
 
 class TopologyElementContainer:
@@ -310,14 +355,13 @@ class TopologyElementContainer:
         self.dihedrals = None
         self.impropers = None
         self.cmap = None
-        self.nonbonded = None
         self.atom_lookup = None
         self.missing_param_dict = None
         self.containing_entity = None
 
     def __iter__(self):
         topo_attrs = [
-            'bonds', 'angles', 'dihedrals', 'impropers', 'cmap', 'nonbonded'
+            'bonds', 'angles', 'dihedrals', 'impropers', 'cmap'
         ]
         for attr in topo_attrs:
             yield attr, getattr(self, attr)
@@ -335,14 +379,15 @@ class TopologyElementContainer:
         s = s[:-2] + ">"
         return s
         
-    def load_chain(self, chain: Entities.Chain):
+    def load_chain(
+            self, chain: Entities.Chain):
         """Find all topology elements from the chain"""
         self.containing_entity = chain
         self.find_topo_elements(chain)
         self.create_atom_lookup_table()
         return self
     
-    ## TODO: get Improper, Cmap, and Nonbonded from the topology
+    ## TODO: get Improper and Cmap from the topology
     def find_topo_elements(self, chain: Entities.Chain):
         """Find all topology elements in the chain"""
         if chain.chain_type == 'Polypeptide(L)':
@@ -431,7 +476,14 @@ class ResiduePatcher:
         new_ic = {**self.res.ic, **self.patch.ic}
         if ('CY', 'CA', 'N', 'HN') in self.patch.ic:
             new_ic.pop(('-C', 'CA', 'N', 'HN'))
+        if ('NT', 'CA', 'C', 'O') in self.patch.ic:
+            new_ic.pop(('+N', 'CA', 'C', 'O'))
         self.res.ic = new_ic.copy()
+        self.res.atom_groups.extend(self.patch.atom_groups)
+        self.res.H_donors.extend(self.patch.H_donors)
+        self.res.H_acceptors.extend(self.patch.H_acceptors)
+        self.res.impropers.extend(self.patch.impropers)
+        self.res.cmap.extend(self.patch.cmap)
 
     def patch_residue_definition(
             self,
@@ -449,4 +501,5 @@ class ResiduePatcher:
         self._apply_patch()
         self.res.assign_donor_acceptor()
         self.res.create_atom_lookup_dict()
+        self.res.patch_with = self.patch.resname
         return self.res

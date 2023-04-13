@@ -176,3 +176,6 @@ class ParameterLoader:
         of a topology."""
         for residue_definition in topology_loader.residues:
             self.res_def_fill_ic(residue_definition, preserve)
+        # Also fill in the patched residue definitions
+        for residue_definition in topology_loader.patched_defs.values():
+            self.res_def_fill_ic(residue_definition, preserve)

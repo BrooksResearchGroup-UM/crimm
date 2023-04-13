@@ -45,17 +45,25 @@ class BaseChain(_Chain):
             i+=1
 
     ## TODO: move this to the structure builder
-    def _disordered_reset(self, disordered_residue):
+    def _disordered_reset_residue(self, disordered_residue):
         for resname, child_residue in disordered_residue.child_dict.items():
             if child_residue.id == disordered_residue.id:
                 disordered_residue.disordered_select(resname)
+
+    def _disordered_reset_atom(self, residue):
+        for atom in residue.get_unpacked_list():
+            if atom.is_disordered() == 2:
+                first_alt = sorted(atom.child_dict)[0]
+                atom.disordered_select(first_alt)
 
     def reset_disordered_residues(self):
         """Reset the selected child of all disordered residues to the first
         residue (alt loc A) supplied by PDB."""
         for res in self:
             if isinstance(res, Entities.DisorderedResidue):
-                self._disordered_reset(res)
+                self._disordered_reset_residue(res)
+            elif res.disordered == 1:
+                self._disordered_reset_atom(res)
 
     def __repr__(self):
         """Return the chain identifier."""

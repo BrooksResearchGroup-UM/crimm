@@ -101,18 +101,20 @@ class DisorderedAtom(_DisorderedAtom):
     """Disoreded Atom class derived from Biopython Disordered Atom and made compatible with
     OpenMM Atom."""
 
-    def _find_top_parent(self):
+    def get_top_parent(self):
         if self.parent is None:
             return self
-        return self.parent._find_top_parent()
+        return self.parent.get_top_parent()
 
     @property
     def topo_definition(self):
         """Topology related parameters for the atom. This returns the selected 
         child's topology definition"""
-        return self._topo_def
+        return self.selected_child.topo_definition
 
     @topo_definition.setter
     def topo_definition(self, atom_def):
+        self.selected_child.topo_definition = atom_def
         for atom in self.child_dict.values():
             atom.topo_definition = atom_def
+        

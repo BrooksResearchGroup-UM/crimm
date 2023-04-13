@@ -1,6 +1,7 @@
 """This module defines the TopoEntity class and its subclasses Bond, Angle, Dihedral, and Improper."""
 from collections import namedtuple
 import numpy as np
+from Bio.PDB.Selection import unfold_entities
 
 class TopoEntity:
     """A TopoEntity is a base class for Topology entities such as Bonds, Angles, 
@@ -48,7 +49,12 @@ class TopoEntity:
             return f"{self.RED}{atom.name:>4s}{self.ENDC}"
         else:
             return f"{atom.name:>4s}"
-        
+
+    @property
+    def parent(self):
+        """Return the parent Residue objects in a list"""
+        return tuple(unfold_entities(list(self), 'R'))
+
 BondTuple = namedtuple('Bond', ['atom1', 'atom2'])
 class Bond(TopoEntity, BondTuple):
     """A Bond object represents a bond between two Atoms within a Topology.

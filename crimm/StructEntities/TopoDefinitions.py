@@ -10,6 +10,8 @@ aa_3to1 = protein_letters_3to1_extended.copy()
 aa_3to1.update({'HSE':'H', 'HSD':'H', 'HSP':'H'})
 
 class AtomDefinition:
+    """Atom definition class. This class is used to define the atom type and
+    other properties of an atom. It is also used to create new atom instances."""
     def __init__(
         self, parent_def, name, atom_type, charge, mass,
         desc = None
@@ -43,7 +45,6 @@ class AtomDefinition:
             topo_definition=self
         )
 
-## TODO: separate patch definition from residue definition
 class ResidueDefinition:
     bond_order_dict = {'single':1, 'double':2, 'triple':3, 'aromatic':2}
 
@@ -70,24 +71,24 @@ class ResidueDefinition:
         self.load_topo_dict(res_topo_dict)
         self.assign_donor_acceptor()
         self.create_atom_lookup_dict()
-        self.patch = None
+        self.patch_with = None
 
     def __len__(self):
         """Return the number of atom definitions."""
         return len(self.atom_dict)
 
     def __repr__(self):
-        if self.is_patch:
-            def_type = "Patch"
+        if self.patch_with:
+            patched = f" Patched with {self.patch_with}"
         else:
-            def_type = "Residue"
+            patched = ''
         if (code := aa_3to1.get(self.resname)) is not None:
             code_repr = f"code={code}"
         else:
             code_repr = ''
         return (
-            f"<{def_type} Definition name={self.resname} "
-            f"{code_repr} atoms={len(self)}>"
+            f"<Residue Definition name={self.resname} "
+            f"{code_repr} atoms={len(self)}{patched}>"
         )
 
     def __getitem__(self, id):
@@ -256,7 +257,6 @@ class ResidueDefinition:
         new_res.segid = str(segid)
         return new_res
 
-    
 
 class PatchDefinition(ResidueDefinition):
     """Class Object for patch definition"""
@@ -273,4 +273,9 @@ class PatchDefinition(ResidueDefinition):
     def create_residue(self, resseq = 0, icode = " ", segid = " "):
         raise NotImplementedError
 
+    def __repr__(self):
+        return (
+            f"<Patch Definition name={self.resname} "
+            f"atoms={len(self)}>"
+        )
         

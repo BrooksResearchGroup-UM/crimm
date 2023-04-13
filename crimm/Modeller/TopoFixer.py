@@ -197,10 +197,11 @@ class ResidueFixer:
         resseq = residue.id[1]
         list_idx = chain.child_list.index(residue)
         if list_idx == 0 or list_idx == len(chain.child_list) - 1:
-            warnings.warn(
-                'Missing atoms on terminal residues will be built without patching! '
-                'Terminal patching is recommended before building missing atoms!'
-            )
+            if residue.topo_definition.patch_with is None:
+                warnings.warn(
+                    'Missing atoms on terminal residues will be built without patching! '
+                    'Terminal patching is recommended before building missing atoms!'
+                )
             return
         
         prev_res = chain.child_list[list_idx-1]
@@ -234,7 +235,7 @@ class ResidueFixer:
                 'load_residue() method.'
             )
         self._res = residue
-        self.coord_dict = {atom.name:atom.coord for atom in self._res}
+        self.coord_dict = {atom.name: atom.coord for atom in self._res}
         neighbor_coord_dict = self._get_neighbor_backbone_coords(residue)
         if neighbor_coord_dict is None:
             # we only need the name of the missing atoms from neighbors, 
@@ -246,7 +247,6 @@ class ResidueFixer:
             find_build_seq(
             self.topo_def, self.missing_atoms, self.missing_hydrogens
         )
-        
 
     @property
     def missing_atoms(self):
@@ -303,10 +303,12 @@ class ResidueFixer:
             return
         built_atoms = []
         if len(self.missing_atoms) != 0:
-            warnings.warn(
-                f'{len(self.missing_atoms)} Missing heavy atoms are built before '
-                f'building hydrogens: {tuple(self.missing_atoms.keys())}'
-            )
+            missing_atom_names = tuple(self.missing_atoms.keys())
+            if missing_atom_names != ('-C', '+N', '+CA'):
+                warnings.warn(
+                    f'{len(self.missing_atoms)} Missing heavy atoms are built '
+                    f'before building hydrogens: {missing_atom_names}'
+                )
             built_atoms.extend(self.build_missing_atoms())
         built_atoms.extend(
             self._build_atoms(
@@ -319,7 +321,7 @@ class ResidueFixer:
         """Remove undefined atoms from the residue"""
         for atom in self._res.undefined_atoms:
             self._res.detach_child(atom.id)
-            for atom_group in self._res.atom_groups.values():
+            for atom_group in self._res.atom_groups:
                 if atom in atom_group:
                     atom_group.remove(atom)
         self._res.undefined_atoms = []
@@ -364,4 +366,33 @@ def build_hydrogens_for_chain(chain):
         if res.missing_hydrogens:
             res_builder.load_residue(res)
             built_atoms[(res.id[1], res.resname)] = res_builder.build_hydrogens()
+    return built_atoms
+
+def fix_chain(chain):
+    """Fix a PolymerChain by building missing atoms and hydrogens based on 
+    topology definitions. Missing atom will be built based on the IC definitions 
+    if the residue is not completely missing (e.g. missing loop on a chain). Any 
+    undefined atoms will be removed.
+    
+    Args:
+        chain: PolymerChain with topology definitions loaded for each residue.
+    
+    Returns:
+        A dictionary of built atoms with residue id and residue name as keys.
+    """
+    built_atoms = {}
+    res_builder = ResidueFixer()
+    chain.sort_residues()
+    for res in chain:
+        if res.topo_definition is None:
+            warnings.warn(f'No topology definition on {res}! Skipped')
+            continue
+        if res.missing_atoms or res.missing_hydrogens:
+            res_builder.load_residue(res)
+            cur_built_atoms = built_atoms[(res.id[1], res.resname)] = []
+            if built_heavy_atoms := res_builder.build_missing_atoms():
+                cur_built_atoms.extend(built_heavy_atoms)
+            if built_hydrogens := res_builder.build_hydrogens():
+                cur_built_atoms.extend(built_hydrogens)
+        res_builder.remove_undefined_atoms()
     return built_atoms
