@@ -5,8 +5,10 @@ from Bio.PDB import PPBuilder
 from Bio.Data.PDBData import protein_letters_3to1_extended
 from Bio.Data.PDBData import nucleic_letters_3to1_extended
 from Bio.PDB.Chain import Chain as _Chain
+from Bio.PDB.PDBExceptions import PDBConstructionException
 import crimm.StructEntities as Entities
 from crimm import ChainConstructionWarning
+
 
 class BaseChain(_Chain):
     """Base class derived from and Biopython chain object and compatible with
@@ -20,7 +22,7 @@ class BaseChain(_Chain):
         self.topo_definitions = None
         self.topo_elements = None
         self.pdbx_description = None
-
+    
     @property
     def residues(self):
         """Alias for child_list. Returns the list of residues in this chain."""
@@ -114,22 +116,39 @@ class Chain(BaseChain):
             **protein_letters_3to1_extended,
             **{v:v for k, v in nucleic_letters_3to1_extended.items()}
         }
+        self.het_res = []
+        self.het_resseq_lookup = {}
 
-    @staticmethod
-    def is_res_modified(res):
-        if not isinstance(res, Entities.DisorderedResidue):
-            return res.id[0].startswith('H_')
-
-        for child_res in res.child_dict.values():
-            if child_res.id[0].startswith('H_'):
-                return True
+    def add(self, residue):
+        """Add a child to the Entity. Overwrite the Biopython Chain.add method"""
+        entity_id = residue.get_id()
+        hetflag, resseq, icode = entity_id
+        if self.has_id(entity_id):
+            raise PDBConstructionException(f"{entity_id} defined twice")
+        residue.set_parent(self)
+        self.child_list.append(residue)
+        self.child_dict[entity_id] = residue
+        if hetflag.startswith('H_'):
+            self.het_res.append(residue) 
+            self.het_resseq_lookup[resseq] = entity_id
     
-    def get_modified_res(self):
-        modified_res = []
-        for res in self:
-            if self.is_res_modified(res):
-                modified_res.append(res)
-        return modified_res
+    def _translate_id(self, id):
+        """Translate sequence identifier to tuple form (PRIVATE).
+
+        A residue id is normally a tuple (hetero flag, sequence identifier,
+        insertion code). The _translate_id method first looks up if there is a 
+        heterogen residue with the resseq id, if not, it translates the 
+        sequence identifier to the (" ", sequence identifier, " ") tuple.
+
+        Arguments:
+         - id - int, residue resseq
+
+        """
+        if id in self.het_resseq_lookup:
+            return self.het_resseq_lookup[id]
+        if isinstance(id, int):
+            id = (" ", id, " ")
+        return id
     
     def get_disordered_res(self):
         disordered_res = []

@@ -6,9 +6,6 @@ from Bio.Data.PDBData import protein_letters_3to1_extended
 import crimm.StructEntities as Entities
 from crimm.Modeller.TopoFixer import recur_find_build_seq, find_coords_by_ic
 
-aa_3to1 = protein_letters_3to1_extended.copy()
-aa_3to1.update({'HSE':'H', 'HSD':'H', 'HSP':'H'})
-
 class AtomDefinition:
     """Atom definition class. This class is used to define the atom type and
     other properties of an atom. It is also used to create new atom instances."""
@@ -46,6 +43,11 @@ class AtomDefinition:
         )
 
 class ResidueDefinition:
+    aa_3to1 = protein_letters_3to1_extended.copy()
+    aa_3to1.update({'HSE':'H', 'HSD':'H', 'HSP':'H'})
+    na_3to1 = {
+        'GUA':'G', 'ADE':'A', 'CYT':'C', 'THY':'T', 'URA':'U'
+    }
     bond_order_dict = {'single':1, 'double':2, 'triple':3, 'aromatic':2}
 
     def __init__(
@@ -57,6 +59,7 @@ class ResidueDefinition:
         self.is_patch : bool = None
         self.atom_groups : List = None
         self.atom_dict = {}
+        self.removed_atom_dict = {}
         self.total_charge : float = None
         self.bonds : List= None
         self.impropers : List[Tuple] = None
@@ -82,7 +85,7 @@ class ResidueDefinition:
             patched = f" Patched with {self.patch_with}"
         else:
             patched = ''
-        if (code := aa_3to1.get(self.resname)) is not None:
+        if (code := self.aa_3to1.get(self.resname)) is not None:
             code_repr = f"code={code}"
         else:
             code_repr = ''
@@ -126,6 +129,7 @@ class ResidueDefinition:
             self.atom_groups.append(tuple(cur_group))
 
     def assign_donor_acceptor(self):
+        """Assign donor and acceptor properties to atoms."""
         for hydrogen_name, donor_name in self.H_donors:
             atom_def = self.atom_dict[donor_name]
             atom_def.is_donor = True
@@ -135,43 +139,73 @@ class ResidueDefinition:
                 acceptor_name, neighbor_name = entry
             else:
                 acceptor_name = entry[0]
+            if acceptor_name not in self.atom_dict:
+                if self.is_patch:
+                    continue
+                raise ValueError(
+                    f"Atom {acceptor_name} not found in residue {self.resname}"
+                )
             atom_def = self.atom_dict[acceptor_name]
             atom_def.is_acceptor = True
 
     def create_atom_lookup_dict(self):
+        """Create a dictionary that maps atom names to the corresponding
+        internal coordinates, by which the atom can be built."""
         self.atom_lookup_dict = {}
-        for i, j, k, l in self.ic.keys():
+        atom_lookup_entries = []
+        for (i, j, k, l), ic in self.ic.items():
+            is_improper = int(ic['improper'])
             for atom_name in (i, l):
-                if atom_name not in self.atom_lookup_dict:
-                    self.atom_lookup_dict[atom_name] = []
-                self.atom_lookup_dict[atom_name].append((i, j, k, l))
+                if atom_name == 'BLNK':
+                    continue
+                atom_lookup_entries.append((is_improper, atom_name, (i, j, k, l)))
+        # we need to sort the entries so that the non-improper entries are first
+        for is_improper, atom_name, ic_key in sorted(atom_lookup_entries):
+            if atom_name not in self.atom_lookup_dict:
+                self.atom_lookup_dict[(atom_name)] = []
+            self.atom_lookup_dict[atom_name].append(ic_key)
 
     def _is_ic_defined(self):
-        for value in self.ic.values():
-            if value is None:
-                return False
+        """Check if the parameters for internal coordinates table are defined 
+        for the residue."""
+        if not self.ic:
+            return False
+        for key, ic_entries in self.ic.items():
+            values = list(ic_entries.values())
+            if 'BLNK' in key:
+                if key.index('BLNK') == 0:
+                    values = values[-2:]
+                else:
+                    values = values[:2]
+            for value in values:
+                if value is None:
+                    return False
         return True
     
     def _find_init_atoms(self):
         """Find the atoms that can be used to build the initial coordinates for 
         residue with ic table filled."""
-        base_ic1 = list(self.ic.values())[0]
-        if base_ic1['improper'] is True:
-            a, c, b, d = list(self.ic.keys())[0]
-        else:
-            a, b, c, d = list(self.ic.keys())[0]
+        for (a, b, c, d), base_ic1 in self.ic.items():
+            if not base_ic1['improper']:
+                break
+
         init_atoms = (a, b, c)
-        r_ab = base_ic1.get('R(I-J)') or base_ic1.get('R(I-K)')
-        rad_abc = base_ic1.get('T(I-J-K)') or base_ic1.get('T(I-K-J)')
+        r_ab = base_ic1.get('R(I-J)') #or base_ic1.get('R(I-K)')
+        rad_abc = base_ic1.get('T(I-J-K)') #or base_ic1.get('T(I-K-J)')
         t_abc = np.deg2rad(rad_abc)
+        r_bc = None
         for (i, j, k, l), ic_entry in self.ic.items():
             is_improper = ic_entry['improper']
-            if (i == b and j == c) or (j == b and i == c) and not is_improper:
+            if ((i == b and j == c) or (j == b and i == c)) and not is_improper:
                 r_bc = ic_entry['R(I-J)']
                 break
-            elif (i == b and k == c) or (k == b and i == c) and is_improper:
+            elif ((i == b and k == c) or (k == b and i == c)) and is_improper:
                 r_bc = ic_entry['R(I-K)']
                 break
+        if r_bc is None:
+            raise ValueError(
+                f'Cannot find the bond between {(b,c)} for {self.resname}!'
+            )
         return init_atoms, r_ab, t_abc, r_bc
 
     def build_standard_coord_from_ic_table(self):
@@ -197,6 +231,7 @@ class ResidueDefinition:
         }
 
         lookup_dict = self.atom_lookup_dict
+        
         all_atoms = [k for k in lookup_dict.keys() if k not in init_atoms]
         running_dict = OrderedDict({k: lookup_dict[k] for k in all_atoms})
 
@@ -208,6 +243,7 @@ class ResidueDefinition:
         )
 
         find_coords_by_ic(build_seq, self.ic, self.standard_coord_dict)
+        return build_seq
 
     def _construct_standard_residue_from_ic(self):
         """Create a standard residue from the internal coordinate definitions
@@ -220,7 +256,11 @@ class ResidueDefinition:
                     f'Skipped construction of new residue: {self.resname}'
                 )
                 return
-        self._standard_res = Entities.Residue((' ', 0, ' '), self.resname, segid = " ")
+        if self.resname in self.na_3to1:
+            resname = self.na_3to1[self.resname]
+        else:
+            resname = self.resname
+        self._standard_res = Entities.Residue((' ', 0, ' '), resname, segid = " ")
         for i, (atom_name, coords) in enumerate(self.standard_coord_dict.items()):
             if atom_name.startswith('-') or atom_name.startswith('+'):
                 continue

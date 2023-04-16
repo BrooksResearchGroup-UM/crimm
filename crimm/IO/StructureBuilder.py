@@ -172,20 +172,14 @@ class StructureBuilder():
             return residue
 
         res_id = residue.get_id()
-        resseq = res_id[1]
-        het_res_ids = chain.find_het_by_resseq(resseq)
         if chain.has_id(res_id):
             duplicated_res_id = res_id
-        elif len(het_res_ids) > 0:
-            # This only works on mmCIF for now
-            duplicated_res_id = het_res_ids[0]
         else:
             chain.add(residue)
             return residue
         # The residue id is duplicated
         warnings.warn(
-            "WARNING: Residue ('%s', %i, '%s') redefined at line %i."
-            % (*res_id, self.line_counter),
+            f"WARNING: Residue {res_id} redefined at line {self.line_counter}.",
             ChainConstructionWarning,
         )
         duplicate_residue = chain[duplicated_res_id]

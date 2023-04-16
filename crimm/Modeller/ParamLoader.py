@@ -148,12 +148,34 @@ class ParameterLoader:
                 missing_param_dict[topo_type] = no_param_list
         topo_element_container.missing_param_dict = missing_param_dict
 
+    @staticmethod
+    def _find_atom_type(atom_name_list, residue_definition):
+        """Find the atom type for a given atom name list."""
+        atom_type_list = []
+        for atom in atom_name_list:
+            if atom in residue_definition:
+                atom_type = residue_definition[atom].atom_type
+            elif atom in residue_definition.removed_atom_dict:
+                atom_type = residue_definition.removed_atom_dict[atom].atom_type
+            elif atom == 'BLNK':
+                ## TODO: use logging to log this
+                return None # ic containing BLNK atom should be ignored
+            else:
+                raise ValueError(
+                    f'Atom {atom} not found in residue definition: {residue_definition}'
+                )
+            atom_type_list.append(atom_type)
+        return atom_type_list
+    
     def res_def_fill_ic(self, residue_definition, preserve = True):
         """Fill in the missing parameters for the internal coordinates table
         of a residue definition."""
         for atom_key, ic_table in residue_definition.ic.items():
             atom_key = [atom.lstrip('+').lstrip('-') for atom in atom_key]
-            atom_types = [residue_definition[atom].atom_type for atom in atom_key]
+            atom_types = self._find_atom_type(atom_key, residue_definition)
+            if atom_types is None:
+                # ic containing BLNK atom should be ignored
+                continue
             for ic_type in ic_table:
                 if ic_type == 'Phi' or ic_type == 'improper':
                     continue

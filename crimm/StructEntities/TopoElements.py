@@ -201,7 +201,7 @@ class Improper(TopoEntity, ImprTuple):
     """A Dihedral object represents a dihedral angle between four Atoms within a Topology.
 
     This class extends tuple, and may be interpreted as a 4-element tuple (i, j, k, l) of 
-    Atom objects.
+    Atom objects, where i is the center atom.
     """
 
     def __new__(cls, atom_i, atom_j, atom_k, atom_l, param=None):

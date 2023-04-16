@@ -93,7 +93,7 @@ def find_build_seq(topo_def, missing_atoms, missing_hydrogens):
     )
 
     return heavy_build_seq, hydrogen_build_seq
-    
+
 def find_coords_by_ic(build_sequence, ic_dicts, coord_dict):
     computed_coords = []
     for atom_name, ic_key in build_sequence:
@@ -104,13 +104,15 @@ def find_coords_by_ic(build_sequence, ic_dicts, coord_dict):
         if atom_name == i:
             # the atom is i
             if is_improper:
-                a1, a2, a3 = coord_dict[l], coord_dict[j], coord_dict[k]
+                # i, j, *k, l => l, *k, j, i = a1, a2, a3, cur_atom
+                a1, a2, a3 = coord_dict[j], coord_dict[l], coord_dict[k]
                 bond_len = ic_param_dict['R(I-K)']
                 bond_angle = ic_param_dict['T(I-K-J)']
                 coord = get_coord_from_improper_ic(
                     a1, a2, a3, phi, bond_angle, bond_len
                 )
             else:
+                # i, j, k, l => l, k, j, i = a1, a2, a3, cur_atom
                 a1, a2, a3 = coord_dict[l], coord_dict[k], coord_dict[j]
                 bond_len = ic_param_dict['R(I-J)']
                 bond_angle = ic_param_dict['T(I-J-K)']
@@ -173,6 +175,8 @@ class ResidueFixer:
         self.heavy_build_sequence = None
         self.hydrogen_build_sequence = None
         self.coord_dict = None
+        self.res_type = None
+        self.nei_atom_names = None
 
     @property
     def residue(self):
@@ -183,9 +187,36 @@ class ResidueFixer:
     def residue(self, residue):
         self.load_residue(residue)
 
+    def _create_empty_neighbor_atom_dict_from_ic(self):
+        """Get the names of the neighboring atoms for the loaded residue."""
+        nei_atoms = {}
+        for ic_key in self.topo_def.ic:
+            for atom in ic_key:
+                if atom.startswith('+') or atom.startswith('-'):
+                    nei_atoms[atom] = None
+        return nei_atoms
+    
     @staticmethod
-    def _get_neighbor_backbone_coords(residue):
+    def _get_neighbor_atom_coord(atom_names, prev_nei, next_nei):
+        """Get the coordinates of the neighboring atoms for list of atom names."""
+        coord_dict = {}
+        for atom_name in atom_names:
+            if atom_name.startswith('+'):
+                coord_dict[atom_name] = next_nei[atom_name[1:]].coord
+            elif atom_name.startswith('-'):
+                coord_dict[atom_name] = prev_nei[atom_name[1:]].coord
+            else:
+                raise ValueError(
+                    'Atom name should start with "+" or "-".'
+                )
+        return coord_dict
+    
+    def _get_neighbor_backbone_coords(self):
+        """Get the coordinates of the neighboring backbone atoms for the loaded 
+        residue."""
+        residue = self.residue
         chain = residue.parent
+        
         if chain is None:
             warnings.warn(
                 'Residue does not belong to a polymer chain, and no neighboring '
@@ -193,10 +224,13 @@ class ResidueFixer:
                 'residues will be calculated as place holders.'
             )
             return
-        
+
         resseq = residue.id[1]
         list_idx = chain.child_list.index(residue)
-        if list_idx == 0 or list_idx == len(chain.child_list) - 1:
+        if (
+            (list_idx == 0) or
+            (list_idx == len(chain.child_list) - 1)
+        ):
             if residue.topo_definition.patch_with is None:
                 warnings.warn(
                     'Missing atoms on terminal residues will be built without patching! '
@@ -214,11 +248,9 @@ class ResidueFixer:
             )
             return
         
-        neighbor_coord_dict ={
-            '-C':prev_res['C'].coord,
-            '+N':next_res['N'].coord,
-            '+CA':next_res['CA'].coord
-        }
+        neighbor_coord_dict = self._get_neighbor_atom_coord(
+            self.nei_atom_names, prev_res, next_res
+        )
         return neighbor_coord_dict
     
     def load_residue(self, residue, topo_definition = None):
@@ -235,12 +267,24 @@ class ResidueFixer:
                 'load_residue() method.'
             )
         self._res = residue
+        if residue.resname in self.topo_def.aa_3to1:
+            self.res_type = 'aa'
+            self.nei_atom_names = ('-C', '+N', '+CA')
+        elif residue.resname in ('A', 'G', 'C', 'U', 'T'):
+            self.res_type = 'nuc'
+            self.nei_atom_names = ("-O3'", "+P", "+O5'")
+        else:
+            raise ValueError(
+                f'Residue {residue} has no neighbor backbone atoms to '
+                'build! Due to unkown residue type'
+                )
         self.coord_dict = {atom.name: atom.coord for atom in self._res}
-        neighbor_coord_dict = self._get_neighbor_backbone_coords(residue)
+        neighbor_coord_dict = self._get_neighbor_backbone_coords()
         if neighbor_coord_dict is None:
             # we only need the name of the missing atoms from neighbors, 
             # not to actually build them
-            residue.missing_atoms.update({'-C':None, '+N':None, '+CA':None})
+            nei_atom_dict = self._create_empty_neighbor_atom_dict_from_ic()
+            residue.missing_atoms.update(nei_atom_dict)
         else:
             self.coord_dict.update(neighbor_coord_dict)
         self.heavy_build_sequence, self.hydrogen_build_sequence = \
@@ -304,7 +348,7 @@ class ResidueFixer:
         built_atoms = []
         if len(self.missing_atoms) != 0:
             missing_atom_names = tuple(self.missing_atoms.keys())
-            if missing_atom_names != ('-C', '+N', '+CA'):
+            if missing_atom_names != ('-C', '+N', '+CA') or missing_atom_names != ("-O3'", "+P", "+O5'"):
                 warnings.warn(
                     f'{len(self.missing_atoms)} Missing heavy atoms are built '
                     f'before building hydrogens: {missing_atom_names}'
@@ -394,5 +438,7 @@ def fix_chain(chain):
                 cur_built_atoms.extend(built_heavy_atoms)
             if built_hydrogens := res_builder.build_hydrogens():
                 cur_built_atoms.extend(built_hydrogens)
-        res_builder.remove_undefined_atoms()
+        if res.undefined_atoms:
+            res_builder.load_residue(res)
+            res_builder.remove_undefined_atoms()
     return built_atoms
