@@ -1,7 +1,21 @@
+import os
 import warnings
-from crimm.IO.PRMParser import categorize_lines, parse_line_dict
+from crimm.IO.PRMParser import categorize_lines, parse_line_dict, skip_line
 from crimm.Modeller.TopoLoader import TopologyElementContainer
 import crimm.StructEntities as Entities
+
+toppar_dir = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), '../Data/toppar')
+)
+prm_path_dict = {
+    "protein": os.path.join(toppar_dir, 'prot.prm'),
+    "nucleic": os.path.join(toppar_dir, 'na.prm'),
+    "lipid": os.path.join(toppar_dir, 'lipid.prm'),
+    "carb": os.path.join(toppar_dir, 'carb.prm'),
+    "ethers": os.path.join(toppar_dir, 'ethers.prm'),
+    "cgenff": os.path.join(toppar_dir, 'cgenff.prm')
+}
+
 
 class ParameterLoader:
     ic_position_dict = {
@@ -15,15 +29,24 @@ class ParameterLoader:
     """A dictionary that stores parameters for CHARMM force field."""
     def __init__(self, file_path=None):
         self.param_dict = {}
+        self._raw_data_strings = []
         if file_path is not None:
-            self.load_from_file(file_path)
+            self.load_type(file_path)
 
-    def load_from_file(self, filename):
+    def load_type(self, entity_type:str):
         """Load parameters from a CHARMM prm file."""
+        entity_type = entity_type.lower()
+        if entity_type not in prm_path_dict:
+            raise ValueError(f'No parameter file for {entity_type}')
+        filename = prm_path_dict[entity_type]
         with open(filename, 'r', encoding='utf-8') as f:
-            param_line_dict = categorize_lines(f.readlines())
+
+            self._raw_data_strings = [
+                l.rstrip() for l in f.readlines() #if not skip_line(l)
+            ]
+            param_line_dict = categorize_lines(self._raw_data_strings)
         self.param_dict.update(parse_line_dict(param_line_dict))
-    
+
     def __repr__(self):
         n_bonds = len(self.param_dict['bonds'])
         n_angles = len(self.param_dict['angles'])

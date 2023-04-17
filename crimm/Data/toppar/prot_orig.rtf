@@ -4,13 +4,8 @@
 * All comments to the CHARMM web site: www.charmm.org
 *             parameter set discussion forum
 *
-36  2
+36  1
 
-!Note
-!Changes are made to this version is specific for the python rtf parser 
-!and the Biopython compatible toolkits. Specifically, atom name CD in ILE 
-!has been changed to CD1 to match PDB standard.
-!
 !references 
 !
 !Robert B. Best, R.B., Xiao Zhu, X., Shim, J., Lopes, P.
@@ -627,7 +622,7 @@ ATOM CA   CT1     0.07  !     |     CG2--HG23
 ATOM HA   HB1     0.09  !     |    /
 GROUP                   !  HA-CA--CB-HB    HD1
 ATOM CB   CT1    -0.09  !     |    \       /
-ATOM HB   HA1     0.09  !     |     CG1--CD1--HD2
+ATOM HB   HA1     0.09  !     |     CG1--CD--HD2
 GROUP                   !   O=C    / \     \	 
 ATOM CG2  CT3    -0.27  !     | HG11 HG12  HD3
 ATOM HG21 HA3     0.09
@@ -638,17 +633,17 @@ ATOM CG1  CT2    -0.18
 ATOM HG11 HA2     0.09
 ATOM HG12 HA2     0.09
 GROUP   
-ATOM CD1  CT3    -0.27
+ATOM CD   CT3    -0.27
 ATOM HD1  HA3     0.09
 ATOM HD2  HA3     0.09
 ATOM HD3  HA3     0.09
 GROUP   
 ATOM C    C       0.51
 ATOM O    O      -0.51
-BOND CB  CA   CG1 CB   CG2 CB   CD1 CG1   
+BOND CB  CA   CG1 CB   CG2 CB   CD  CG1   
 BOND N   HN   N   CA    C   CA   C   +N   
 BOND CA  HA   CB  HB   CG1 HG11 CG1 HG12 CG2 HG21   
-BOND CG2 HG22 CG2 HG23 CD1 HD1  CD1 HD2  CD1 HD3 
+BOND CG2 HG22 CG2 HG23 CD  HD1  CD  HD2  CD  HD3 
 DOUBLE  O   C
 IMPR N -C CA HN  C CA +N O   
 CMAP -C  N  CA  C   N  CA  C  +N
@@ -667,12 +662,12 @@ IC CG1  CA   *CB  CG2   1.5498 113.6300 -130.0400 113.9300  1.5452
 IC CA   CB   CG2  HG21  1.5681 113.9300 -171.3000 110.6100  1.1100
 IC HG21 CB   *CG2 HG22  1.1100 110.6100  119.3500 110.9000  1.1102
 IC HG21 CB   *CG2 HG23  1.1100 110.6100 -120.0900 110.9700  1.1105
-IC CA   CB   CG1  CD1   1.5681 113.6300  180.0000 114.0900  1.5381
-IC CD1  CB   *CG1 HG11  1.5381 114.0900  122.3600 109.7800  1.1130
-IC CD1  CB   *CG1 HG12  1.5381 114.0900 -120.5900 108.8900  1.1141
-IC CB   CG1  CD1  HD1   1.5498 114.0900 -176.7800 110.3100  1.1115
-IC HD1  CG1  *CD1 HD2   1.1115 110.3100  119.7500 110.6500  1.1113
-IC HD1  CG1  *CD1 HD3   1.1115 110.3100 -119.7000 111.0200  1.1103
+IC CA   CB   CG1  CD    1.5681 113.6300  180.0000 114.0900  1.5381
+IC CD   CB   *CG1 HG11  1.5381 114.0900  122.3600 109.7800  1.1130
+IC CD   CB   *CG1 HG12  1.5381 114.0900 -120.5900 108.8900  1.1141
+IC CB   CG1  CD   HD1   1.5498 114.0900 -176.7800 110.3100  1.1115
+IC HD1  CG1  *CD  HD2   1.1115 110.3100  119.7500 110.6500  1.1113
+IC HD1  CG1  *CD  HD3   1.1115 110.3100 -119.7000 111.0200  1.1103
 
 RESI LEU          0.00
 GROUP   
@@ -936,7 +931,7 @@ IC -C   N    CA   C     1.3366 122.9400  -76.1200 110.8600  1.5399
 IC N    CA   C    +N    1.4585 110.8600  180.0000 114.7500  1.3569
 IC +N   CA   *C   O     1.3569 114.7500  177.1500 120.4600  1.2316
 IC CA   C    +N   +CA   1.5399 116.1200  180.0000 124.8900  1.4517
-IC N    C    *CA  CB    1.4585 110.8600  113.7400 111.7400  1.5399 
+IC N    C    *CA  CB    1.4585 110.8600  113.7400 111.7400  1.5399
 IC N    C    *CA  HA    1.4585 110.8600 -122.4000 109.0900  1.0837
 IC N    CA   CB   CG    1.4585 102.5600   31.6100 104.3900  1.5322
 IC CA   CB   CG   CD    1.5399 104.3900  -34.5900 103.2100  1.5317

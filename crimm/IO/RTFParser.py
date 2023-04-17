@@ -1,8 +1,9 @@
 import warnings
 
-def skip_line(x):
+def skip_line(l):
     """Return if the line should be skipped (empty lines or comment only)"""
-    return (x.startswith('!') or x.startswith('*') or x.strip() == '')
+    x = l.strip()
+    return (x.startswith('!') or x.startswith('*') or x == '')
 
 def comment_parser(line):
     """Parse and separate data fields and comments"""
@@ -11,7 +12,7 @@ def comment_parser(line):
         return line, None
     # return fields string, comments
     line, desc = line.split('!', maxsplit = 1)[:2]
-    return line, desc.strip()
+    return line, desc.strip().lower()
 
 def mass_parser(line):
     """Parse lines with keyword MASS"""
@@ -178,33 +179,34 @@ class RTFParser:
         self.default_autogen = None
         self.unparsed_lines = []
         with open(file_path, 'r', encoding='utf-8') as f:
-            lines = [l.strip() for l in f.readlines() if not skip_line(l.strip())]
-        self._parse_lines(lines)
+            self.lines = [l.strip() for l in f.readlines() if not skip_line(l)]
+        self._parse_lines()
         n_unparsed = len(self.unparsed_lines)
         if n_unparsed > 0:
             warnings.warn(
                 f"Failed to parse {n_unparsed} lines from {file_path}"
             )
 
-    def _parse_lines(self, lines):
+    def _parse_lines(self):
         ##TODO: Need to handle keywords DIHE, ANGLE, and PATCH
-        self.rtf_version = '.'.join(lines[0].strip().split())
+        self.rtf_version = '.'.join(self.lines[0].strip().split())
         self.topo_dict = {}
         mass_dict = {}
-        for l in lines[1:]:
-            if l.startswith('MASS') or l.startswith('mass'):
+        for l in self.lines[1:]:
+            l = l.upper()
+            if l.startswith('MASS'):
                 symbol, mass, desc = mass_parser(l)
                 mass_dict.update({symbol: (float(mass), desc)})
-            elif l.startswith('DECL') or l.startswith('decl'):
+            elif l.startswith('DECL'):
                 atom = decl_parser(l)
                 self.decl_peptide_atoms.append(atom)
-            elif l.startswith('DEFA') or l.startswith('defa'):
+            elif l.startswith('DEFA'):
                 first_patch, last_patch = defa_parser(l)
                 self.default_patchs['FIRST'] = first_patch
                 self.default_patchs['LAST'] = last_patch
-            elif l.startswith('AUTO') or l.startswith('auto'):
+            elif l.startswith('AUTO'):
                 self.default_autogen = auto_parser(l)
-            elif l.startswith('RESI') or l.startswith('PRES') or l.startswith('Resi'):
+            elif l.startswith('RESI') or l.startswith('PRES'):
                 res_name, total_charge, desc = resi_parser(l)
                 if res_name not in self.topo_dict:
                     # index first group
@@ -226,12 +228,12 @@ class RTFParser:
                         'is_patch': l.startswith('PRES')
                     }
                 self.topo_dict.update({res_name: cur_res})
-            elif l.startswith('GROU') or l.startswith('grou') or l.startswith('Group'):
+            elif l.startswith('GROU'):
                 # Update group number
                 cur_group_i += 1
                 cur_atom_group = {cur_group_i: {}}
                 cur_res['atoms'].update(cur_atom_group)
-            elif l.startswith('ATOM') or l.startswith('atom') or l.startswith('Atom'):
+            elif l.startswith('ATOM'):
                 if cur_group_i == -1:
                     # if no GROUP keyword exist for patch, create a single group
                     cur_group_i = 0
@@ -248,56 +250,55 @@ class RTFParser:
                     }
                 }
                 cur_atom_group[cur_group_i].update(cur_atom_dict)
-            elif l.startswith('DONO') or l.startswith('dono'):
+            elif l.startswith('DONO'):
                 if 'H_donors' not in cur_res:
                     cur_res['H_donors'] = []
                 donors = tuple(l.split()[1:])
                 cur_res['H_donors'].append(donors)
-            elif l.startswith('ACCE') or l.startswith('acce'):
+            elif l.startswith('ACCE'):
                 if 'H_acceptors' not in cur_res:
                     cur_res['H_acceptors'] = []
                 acceptors = tuple(l.split()[1:])
                 cur_res['H_acceptors'].append(acceptors)
-            elif l.startswith('BOND') or l.startswith('bond') or l.startswith('Bond'):
+            elif l.startswith('BOND'):
                 single_bonds = pairwise_parser(l)
                 cur_res['bonds']['single'].extend(single_bonds)
-            elif l.startswith('DOUB') or l.startswith('doub'):
+            elif l.startswith('DOUB'):
                 double_bonds = pairwise_parser(l)
                 cur_res['bonds']['double'].extend(double_bonds)
-            elif l.startswith('TRIP') or l.startswith('trip'):
+            elif l.startswith('TRIP'):
                 triple_bonds = pairwise_parser(l)
                 cur_res['bonds']['triple'].extend(triple_bonds)
-            elif l.startswith('AROM') or l.startswith('arom'):
+            elif l.startswith('AROM'):
                 aromatic_bonds = pairwise_parser(l)
                 cur_res['bonds']['triple'].extend(aromatic_bonds)
-            elif l.startswith('IMPR') or l.startswith('impr'):
+            elif l.startswith('IMPR'):
                 # Improper (branching structures)
                 ##TODO: quad_parser is not correct for IMPR
                 impropers = quad_parser(l)
                 cur_res['impropers'].extend(impropers)
-            elif l.startswith('CMAP') or l.startswith('cmap'):
+            elif l.startswith('CMAP'):
                 # Dihedral crossterm energy correction map
                 cmap = octa_parser(l)
                 cur_res['cmap'].append(cmap)
             elif (
-                l.startswith('IC') or l.startswith('ic')
-                or l.startswith('BILD') or l.startswith('bild')
+                l.startswith('IC') or l.startswith('BILD')
             ):
                 # Internal Coordinates
                 ic_key, ic_param_dict = ic_parser(l)
                 cur_res['ic'][ic_key] = ic_param_dict
-            elif l.startswith('dele') or l.startswith('DELE'):
+            elif l.startswith('DELE'):
                 if 'delete' not in cur_res:
                     cur_res['delete'] = []
                 delete_entry = delete_parser(l)
                 cur_res['delete'].append(delete_entry)
-            elif l.startswith('DIHE') or l.startswith('dihe'):
+            elif l.startswith('DIHE'):
                 pass
-            elif l.startswith('ANGL') or l.startswith('angl'):
+            elif l.startswith('ANGL'):
                 pass
-            elif l.startswith('patc') or l.startswith('PATC'):
+            elif l.startswith('PATC'):
                 pass
-            elif l.startswith('END') or l.startswith('end'):
+            elif l.startswith('END'):
                 break
             else:
                 self.unparsed_lines.append(l)

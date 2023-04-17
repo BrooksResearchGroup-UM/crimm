@@ -52,7 +52,8 @@ class View(nv.NGLWidget):
         ngl_structure = NGLStructure(entity)
         component = self.add_component(ngl_structure)
         self.entity_dict[entity] = component
-
+        return component
+    
     def load_entity(self, entity):
         """Load entity into NGLView widget. Entity can be a Structure, Model, Chain, Residue, or Atom object."""
         if entity.level == 'S':
@@ -61,8 +62,10 @@ class View(nv.NGLWidget):
             entities = entity.chains
         elif entity.level in ('C', 'R', 'A'):
             entities = [entity]
+        components = []
         for entity in entities:
-            self._load_entity(entity)
+            components.append(self._load_entity(entity))
+        return components
 
     # def load_entity(self, entity, defaultRepr=True):
         # self.entity_list.append(entity)
@@ -83,7 +86,7 @@ class View(nv.NGLWidget):
     def subdue_all_entities(self, color = 'grey'):
         """subdue the colors for all entities. Deafult color is grey."""
         for i in range(len(self.entity_dict)):
-            self.update_representation(component=i, color=color)
+            self.update_representation(component=i, color=color, opacity=0.5)
 
     def highlight_residues(
             self,
@@ -126,22 +129,25 @@ class View(nv.NGLWidget):
             comp_idx = component._index
             self.clear_representations(component=comp_idx)
             self.add_representation(
-                'cartoon', component=comp_idx, color='grey'
+                'cartoon', component=comp_idx, color='grey', opacity=0.5
             )
+            # TODO: Find API for changing color of specific residues
+            # since add cartoon representation will not render 
             self.add_representation(
                 'cartoon', selection=atom_id_selection, color=highlight_color
             )
         
         # Convert to string array for JS
         # sele_str = "@" + ",".join(str(s) for s in atom_id_selection)
-        # Highlight the residues
-        # self._remote_call("removeAllRepresentations",
+        # # Highlight the residues (does not work)
+        # self._remote_call("updateRepresentations",
         #                   target='compList',
         #                   kwargs={
         #                         'component_index': 0,
-        #                         'sele': sele_str
+        #                         'sele': sele_str,
+        #                         'color': highlight_color
         #                     })
-        
+
         
         # self._remote_call('addRepresentation',
         #                 target='compList',

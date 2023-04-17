@@ -133,11 +133,15 @@ class ChainLoopBuilder:
         else:
             self.model_can_seq = model_chain.can_seq
         self.repaired_gaps = []
+        self.repaired_residues = []
         self.imposer =  ChainSuperimposer()
         self.template_chain = None
         self.template_can_seq = None
         self.repairable = None
         self.query_results = None
+        self.pdbid = None
+        if model_chain.get_top_parent().level == 'S':
+            self.pdbid = model_chain.get_top_parent().id
 
         if self.model_can_seq is None:
             raise AttributeError('Canonical sequence is required to repair loops')
@@ -248,97 +252,38 @@ class ChainLoopBuilder:
 
         return rmsd_qualified
 
-    def highlight_repaired_gaps(
-            self, gaps = None, chain = None, add_licorice = False
-        ):
+    def highlight_repaired_gaps(self, color = 'green', add_licorice = False):
         """
-        Highlight the repaired gaps with red color and show licorice 
-        representations
+        Highlight the repaired gaps with color (default: cyan)
         """
-        ## FIXME: refactor these codes to a separate function
-        if gaps is None:
-            gaps = self.repaired_gaps
-        if chain is None:
-            chain = self.model_chain
         try:
-            import nglview as nv
+            from crimm.Visualization.NGLVisualization import View
         except ImportError as exc:
             raise ImportError(
                 "WARNING: nglview not found! Install nglview to show"
                 "protein structures."
                 "http://nglviewer.org/nglview/latest/index.html#installation"
             ) from exc
-        view = nv.NGLWidget()
-        blob = get_pdb_str(self.model_chain)
-        ngl_args = [{'type': 'blob', 'data': blob, 'binary': False}]
-        view._ngl_component_names.append('Model Chain')
-        # Load data, and do not add any representation
-        view._remote_call(
-            "loadFile",
-            target='Stage',
-            args=ngl_args,
-            kwargs= {'ext':'pdb',
-            'defaultRepresentation':False}
-        )
-        # Add color existing residues grey
-        view._remote_call(
-            'addRepresentation',
-            target='compList',
-            args=['cartoon'],
-            kwargs={
-                'sele': 'protein', 
-                'color': 'grey', 
-                'component_index': 0
-            }
+        fixed_res = []
+        for res_list in self.repaired_gaps:
+            for res_seq in res_list:
+                fixed_res.append(self.model_chain[res_seq])
+        if len(fixed_res) < 5:
+            add_licorice = True # cartoon will not render if there are too few residues
+        view = View()
+        view.load_entity(self.model_chain)
+        view.highlight_residues(
+            fixed_res, highlight_color=color, add_licorice=add_licorice
         )
 
-        # Select atoms by atom indices
-        gap_atom_selection = []
-        for gap in gaps:
-            for resseq in gap:
-                if resseq in chain:
-                    res = self.model_chain[resseq]
-                elif (het_ids := self.model_chain.find_het_by_resseq(resseq)):
-                    res = self.model_chain[het_ids[0]]
-                else:
-                    continue
-                atom_ids = [atom.get_serial_number() for atom in res]
-                gap_atom_selection.extend(atom_ids)
-
-        if len(gap_atom_selection) == 0:
-            warnings.warn('No repaired gap exists/provided for highlighting!')
-
-        # Convert to string array for JS
-        sele_str = "@" + ",".join(str(s) for s in gap_atom_selection)
-        # Highlight the repaired gap atoms with red color
-        view._remote_call(
-            'addRepresentation',
-            target='compList',
-            args=['cartoon'],
-            kwargs={
-                'sele': sele_str, 
-                'color': 'red', 
-                'component_index': 0
-            }
-        )
-        if add_licorice:
-            # Add licorice representations
-            view._remote_call(
-                'addRepresentation',
-                target='compList',
-                args=['licorice'],
-                kwargs={
-                    'sele': sele_str,  
-                    'component_index': 0
-                }
-            )
-        view.center()
         return view
 
-    def show_gap(self, gap):
+    def show_gaps(self):
         """
-        Show protein structure and center on the gap
+        Highlight the residues on the gap edges with color (default: red)
         """
+        if len(self.model_chain.gaps) == 0:
+            warnings.warn(f"No gap found in {self.model_chain}!")
         try:
             from crimm.Visualization.NGLVisualization import View
         except ImportError as exc:
@@ -350,27 +295,22 @@ class ChainLoopBuilder:
         view = View()
 
         view.load_entity(self.model_chain)
-        # The selection is the start and end of residue ids in the for 'st-end'
-        sele_str = ''
-        # Center on the gap by selecting the terminal residues around the gap
-        if min(gap)-1 in self.model_chain:
-            st = str(min(gap)-1)
-        else:
-            st = ''
-        if max(gap)+1 in self.model_chain:
-            end = str(max(gap)+1)
-        else:
-            end = ''
+        view.subdue_all_entities()
+        rgb_red = [1,0,0]
+        line_width = 0.5
+        for gap in self.model_chain.gaps:
+            # Center on the gap by selecting the terminal residues around the gap
+            if (
+                (st:=min(gap)-1) in self.model_chain and 
+                (end:=max(gap)+1) in self.model_chain
+            ):
+                st_coord = self.model_chain[st]['CA'].coord
+                end_coord = self.model_chain[end]['CA'].coord
+                arrow_name = f'gap:{st+1}-{end-1}'
+                view.shape.add_arrow(
+                    st_coord, end_coord, rgb_red, line_width, arrow_name
+                )
 
-        sele_str = '-'.join([st,end]).strip('-')
-        if sele_str == '':
-            raise ValueError('Invalid selection of gap: {}'.format(gap))
-        view._remote_call(
-            'autoView',
-            target='compList',
-            args=[sele_str, 0],
-            kwargs={'component_index': 0},
-        )
         return view
 
     def show(self):
@@ -411,8 +351,7 @@ class ChainLoopBuilder:
         
         return query_dict
 
-    @staticmethod
-    def query_seq_match(sequence, max_num_match, identity_score_cutoff):
+    def query_seq_match(self, max_num_match, identity_score_cutoff):
         '''
         Make RCSB PDB query for protein sequence
         
@@ -421,7 +360,7 @@ class ChainLoopBuilder:
         :param identity_score_cutoff: lowest identity score accepted
         :rtype retults : dict consists (sequence_matching_score, PDB_ID, entity_ID)
         '''
-        seq_string = str(sequence)
+        seq_string = str(self.model_can_seq)
         json_q = ChainLoopBuilder._build_seq_query(seq_string, 
             max_num_match, identity_score_cutoff)
         # entry point of rcsb.org for advancced search
@@ -435,11 +374,13 @@ class ChainLoopBuilder:
                 f'the requested information. {r}'
             )
 
-        results = dict()
+        results = {}
         for entry in r_dict['result_set']:
             pdb_id, chain_id = entry['identifier'].split('.')
+            if pdb_id == self.pdbid:
+                continue
             if entry['score'] not in results:
-                results[entry['score']] = dict()
+                results[entry['score']] = {}
             if pdb_id not in results[entry['score']]:
                 results[entry['score']][pdb_id] = []
             results[entry['score']][pdb_id].append(chain_id)
@@ -499,8 +440,12 @@ class ChainLoopBuilder:
             return
 
         self.query_results = self.query_seq_match(
-            self.model_chain.can_seq, max_num_match, identity_score_cutoff
+            max_num_match, identity_score_cutoff
         )
+
+        if not self.query_results:
+            warnings.warn(f"No template found for {self.model_chain} from sequence search")
+            return
 
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
@@ -528,8 +473,9 @@ class ChainLoopBuilder:
                 keep = False
             )
         self.model_chain.reset_atom_serial_numbers()
+        self.repaired_residues = repair_candidates
 
-        return repair_candidates
+        return self.model_chain.is_continuous()
     
     def get_chain(self):
         """Get the chain that is being modelled on"""

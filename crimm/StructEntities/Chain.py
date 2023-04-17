@@ -293,8 +293,7 @@ class PolymerChain(Chain):
         else:
             missing_res_ids = list(zip(*self.missing_res))[0]
         return MaskedSeq(missing_res_ids, self.can_seq)
-    
-    ## TODO: move this to loop builder
+
     @property
     def gaps(self):
         """

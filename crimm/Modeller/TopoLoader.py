@@ -1,3 +1,4 @@
+import os
 import warnings
 import pickle
 from copy import deepcopy
@@ -5,6 +6,19 @@ from Bio.Data.PDBData import protein_letters_3to1_extended
 from Bio.Data.PDBData import protein_letters_1to3
 from crimm import StructEntities as Entities
 from crimm.IO.RTFParser import RTFParser
+
+toppar_dir = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), '../Data/toppar')
+)
+rtf_path_dict = {
+    "protein": os.path.join(toppar_dir, 'prot.rtf'),
+    "nucleic": os.path.join(toppar_dir, 'na.rtf'),
+    "lipid": os.path.join(toppar_dir, 'lipid.rtf'),
+    "carb": os.path.join(toppar_dir, 'carb.rtf'),
+    "ethers": os.path.join(toppar_dir, 'ethers.rtf'),
+    "cgenff": os.path.join(toppar_dir, 'cgenff.rtf')
+}
+
 
 def _find_atom_in_residue(residue, atom_name):
     if atom_name.startswith('+') or atom_name.startswith('-'):
@@ -176,19 +190,25 @@ def get_impropers(chain):
 ##TODO: separate this class into two classes: TopologyLoader and TopologyGenerator
 class TopologyLoader:
     """Class for loading topology definition to the residue and find any missing atoms."""
-    def __init__(self, file_path=None, data_dict_path=None):
+    def __init__(self, entity_type=None, data_dict_path=None):
         self.rtf_version = None
         self.res_defs = {}
         self.residues = []
         self.patches = []
         self.patched_defs = {}
+        self._raw_data_strings = []
 
         if data_dict_path is not None:
             with open(data_dict_path, 'rb') as f:
                 data_dict = pickle.load(f)
                 self.load_data_dict(data_dict)
-        elif file_path is not None:
-            rtf = RTFParser(file_path=file_path)
+
+        elif entity_type is not None:
+            entity_type = entity_type.lower()
+            if entity_type not in rtf_path_dict:
+                raise ValueError(f'Unknown entity type: {entity_type}')
+            rtf = RTFParser(file_path=rtf_path_dict[entity_type])
+            self._raw_data_strings = rtf.lines
             self.load_data_dict(rtf.topo_dict, rtf.rtf_version)
 
     def load_data_dict(self, topo_data_dict, rtf_version=None):
