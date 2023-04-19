@@ -5,7 +5,7 @@ setup(
     version='0.0.1',
     install_requires=[
         'biopython',
-        'nglview'
+        'nglview',
     ],
     packages=find_packages(
         # All keyword arguments below are optional:

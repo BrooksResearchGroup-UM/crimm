@@ -15,7 +15,7 @@ def _get_atom_line_with_parent_info(atom: Entities.Atom, trunc_resname=False):
     segid = residue.segid
     hetfield, resseq, icode = residue.id
     if (chain:=residue.parent) is not None:
-        chain_id = chain.get_id()
+        chain_id = chain.get_id()[0]
     else:
         chain_id = '_'
     return _get_atom_line(
@@ -137,7 +137,7 @@ def _get_atom_line(
 ##TODO: Add support for CONECT records
 def get_pdb_str(entity, reset_serial=True, include_alt=False, trunc_resname=False):
     """Return the PDB string of the entity."""
-    if reset_serial:
+    if reset_serial and hasattr(entity, 'reset_atom_serial_numbers'):
         entity.reset_atom_serial_numbers(include_alt=include_alt)
 
     if entity.level == 'A':

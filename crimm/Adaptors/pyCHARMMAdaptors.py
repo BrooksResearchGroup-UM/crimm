@@ -2,6 +2,8 @@ import os
 import tempfile
 import pycharmm as chm
 from pycharmm import read, write, psf, coor
+from pycharmm.psf import delete_atoms
+from pycharmm.select_atoms import SelectAtoms
 from pycharmm import generate
 from pycharmm import ic, cons_harm
 from pycharmm import minimize as _minimize

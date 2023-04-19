@@ -1,172 +1,88 @@
 
 import warnings
+import numpy as np
 from Bio.Align import PairwiseAligner
 from Bio.PDB import Superimposer
-from crimm.StructEntities.Chain import Chain, PolymerChain
+from crimm.StructEntities.Chain import PolymerChain
 from crimm.Visualization.NGLVisualization import show_nglview_multiple
 
-
+##TODO: Refactor this!!
 class ChainSuperimposer(Superimposer):
-    
     def __init__(self) -> None:
         super().__init__()
+        self.ref_chain: PolymerChain = None
+        self.mov_chain: PolymerChain = None
+        self.aligner = PairwiseAligner()
+        # We don't want highly fragmented alignments
+        self.aligner.target_internal_open_gap_score = -100
+        self.aligner.query_internal_open_gap_score = -100
+        self.alignments = None
+        self.ref_ranges, self.mov_ranges = None, None
 
-    def find_all_common_res(self, 
-        ref_chain: Chain | PolymerChain, 
-        mov_chain: Chain | PolymerChain):
-        """ Find all common residues from two chains """
-
-        # if any of the chains is not Chain class, convert them
-        is_ref_polymer = isinstance(ref_chain, PolymerChain)
-        is_mov_polymer = isinstance(mov_chain, PolymerChain)
-
-        if is_ref_polymer and is_mov_polymer:
-            ref_aligned, mov_aligned = \
-                self._find_common_res_for_polymer_chain(ref_chain, mov_chain)
-        else:
-            ref_aligned, mov_aligned = \
-                self._find_common_res_for_simple_chain(ref_chain, mov_chain)       
-
-        assert len(ref_aligned) == len(mov_aligned)
-
-        return ref_aligned, mov_aligned
-         
-    def _find_common_res_for_polymer_chain(
-            self, ref_chain: PolymerChain, mov_chain: PolymerChain
-        ):
-        if ref_chain.can_seq == mov_chain.can_seq:
-            # If canonical sequences are present and identical
+    def get_matching_res(self):
+        """ Find all aligned residues that exist in both chains """
+        if self.ref_chain.can_seq == self.mov_chain.can_seq:
+            # If canonical sequences are identical
             # Use all present residues from both chains
-            r_present = self._get_present_res_ids_from_sele(ref_chain)
-            m_present = self._get_present_res_ids_from_sele(mov_chain)
-            # Get the lists of residues handles that are present in both chains
-            # for superposition
-            ref_aligned, mov_aligned = self._get_common_res(
-                ref_chain, mov_chain, r_present, m_present
-            )
+            self.alignments = "identical sequences"
+            complete_range = range(1, len(self.ref_chain.can_seq)+1)
+            id_pairs = zip(complete_range, complete_range)
+
         else:
-            ## TODO: TEST THIS!!
-            # Canonical sequence is present for both but they are not identical
+            # Canonical sequences are not identical
             # Align them first to find the common segments
-            ref_range, mov_range = self._get_aligned_ranges(
-                ref_chain.can_seq, mov_chain.can_seq
+            self.alignments = self.aligner.align(
+                self.ref_chain.can_seq, self.mov_chain.can_seq
             )
-            # Create a set of the common residue ids from alignment
-            r_sele_res = self._get_aligned_res_ids(1, ref_range)
-            # Get residues ids that are present in these common residues
-            r_present = self._get_present_res_ids_from_sele(ref_chain, r_sele_res)
-            m_sele_res = self._get_aligned_res_ids(1, mov_range)
-            m_present = self._get_present_res_ids_from_sele(mov_chain, m_sele_res)
-            # Get the lists of residue handles that are present in both chains 
-            # for superposition
-            ref_aligned, mov_aligned = self._get_common_res(
-                ref_chain, mov_chain, r_present, m_present
-            )
-        return ref_aligned, mov_aligned
+            top_alignment = self.alignments[0]
+            self.ref_ranges, self.mov_ranges = top_alignment.aligned
+            res_ids = top_alignment.indices+1 # residue seq ids start from 1
+            aligned_ids = np.logical_and(res_ids[0], res_ids[1])
+            id_pairs = res_ids.T[aligned_ids]
 
-    def _find_common_res_for_simple_chain(
-            self, ref_chain: Chain, mov_chain: Chain
-        ):
-        ref_seq = ref_chain.extract_all_seq()
-        mov_seq = mov_chain.extract_all_seq()
-        if ref_seq != mov_seq:
-            # No canonical sequence. Fall back to present sequence.
-            # Align to find the common residue first
-            ref_range, mov_range = self._get_aligned_ranges(ref_seq, mov_seq)
-            # Since no canonical sequence exists, the aligned residues
-            # are used as common residues for superposition
-            ref_aligned = self._get_aligned_res(ref_chain, ref_range)
-            mov_aligned = self._get_aligned_res(mov_chain, mov_range) 
-        else:
-            # If the sequences are identical, no alignment will be performed,
-            # and superposition will be attempted on all residues
-            ref_aligned = ref_chain.child_list
-            mov_aligned = mov_chain.child_list
-        return ref_aligned, mov_aligned
+        r_res, m_res = self._get_aligned_res(id_pairs)
+        return r_res, m_res
 
-    def _get_aligned_res_ids(self, start_id, ranges):
+    def _get_aligned_res(self, id_pairs):
         """
         Get a set of residue ids from the aligned ranges
         """
-        aligned_res = []
-        for start, end in ranges:
-            # Res ids starts at different location than the aligned range ids
-            # no hetflags included
-            cur_id_range = [
-                (' ', i, ' ') for i in range(start+start_id,end+start_id)
-            ]
-            aligned_res.extend(cur_id_range)
-        return set(aligned_res)
+        ref_aligned_res = []
+        mov_aligned_res = []
+        for ref_id, mov_id in id_pairs:
+            # needs to be converted to int because the ids are numpy.int64
+            ref_id, mov_id = int(ref_id), int(mov_id)
+            if ref_id in self.ref_chain and mov_id in self.mov_chain:
+                ref_aligned_res.append(self.ref_chain[ref_id])
+                mov_aligned_res.append(self.mov_chain[mov_id])
 
-    def _get_present_res_ids_from_sele(
-            self, chain: Chain, selected_res_id: set = set()
-        ):
-        """
-        Get a set of residue ids present in chain from a set of 
-        selected res ids. Default to select all present residues
-        """
-        present = set(chain.child_dict.keys())
-        if selected_res_id:
-            # TODO: hetflag not included now, include the ones with hetflags
-            return selected_res_id.intersection(present)
-        return present
+        return ref_aligned_res, mov_aligned_res
 
-    def _get_common_res(
-            self, ref_chain, mov_chain, ref_present: set, mov_present: set
-        ):
-
-        common = sorted(ref_present.intersection(mov_present))
-        ref_common = []
-        mov_common = []
-        for i in common:
-            # i here corresponds to residue id now
-            ref_common.append(ref_chain[i])
-            mov_common.append(mov_chain[i])
-        return ref_common, mov_common
-
-    def _get_aligned_ranges(self, ref_seq, mov_seq):
-        aligner = PairwiseAligner()
-        alignments = aligner.align(ref_seq, mov_seq)
-        top_alignment = alignments[0]
-        ref_algn_ranges, mov_algn_ranges = top_alignment.aligned
-        return ref_algn_ranges, mov_algn_ranges
-
-    def _get_aligned_res(self, chain, ranges):
-        aligned_res = []
-        for start, end in ranges:
-            for i in range(start, end):
-                aligned_res.append(chain.child_list[i])
-        return aligned_res
-    
-    def check_chain_type(self, chain):
-        if (
-            isinstance(chain, Chain) or \
-            isinstance(chain, PolymerChain)
-        ):
-            return chain
-        elif isinstance(chain, Chain):
-            return Chain(chain)
-        else:
-            raise TypeError(
-                'Chain or PolymerChain class is required to use'
-                'ChainImposer for superposition.'
-            )
-        
     def set_chains(self, ref_chain, mov_chain, on_atoms = 'CA'):
-        
-        ref_chain = self.check_chain_type(ref_chain)
-        mov_chain = self.check_chain_type(mov_chain)
-        ref_common, mov_common = self.find_all_common_res(ref_chain, mov_chain)
+        """Set the chains to be superimposed. mov_chain will be moved to
+        ref_chain."""
+        # if any of the chains is not Chain class, convert them
+        if not (
+                isinstance(ref_chain, PolymerChain) and
+                isinstance(mov_chain, PolymerChain)
+            ):
+            raise TypeError(
+                "ChainSuperimposer only works with PolymerChain class"
+            )
+        self.ref_chain = ref_chain
+        self.mov_chain = mov_chain
+
+        ref_res, mov_res = self.get_matching_res()
 
         if on_atoms == 'CA':
             ref_align_atoms, mov_align_atoms = \
-                    self._find_common_CA_atoms(ref_common, mov_common)
+                    self._find_common_CA_atoms(ref_res, mov_res)
         elif on_atoms == 'backbone':
             ref_align_atoms, mov_align_atoms = \
-                    self._find_common_backbone_atoms(ref_common, mov_common)
+                    self._find_common_backbone_atoms(ref_res, mov_res)
         elif on_atoms == 'all':
             ref_align_atoms, mov_align_atoms = \
-                    self._find_all_common_atoms(ref_common, mov_common)
+                    self._find_all_common_atoms(ref_res, mov_res)
         else:
             raise ValueError('on_atoms has to be selected from '
                 '{"backbone", "all", "CA"}') 
@@ -197,7 +113,7 @@ class ChainSuperimposer(Superimposer):
                 mov_align_atoms.append(mov_res['CA'])
 
         return ref_align_atoms, mov_align_atoms
-    
+
     def _find_common_backbone_atoms(self, ref_res_list, mov_res_list):
         ref_align_atoms = []
         mov_align_atoms = []
@@ -232,9 +148,9 @@ class ChainSuperimposer(Superimposer):
         return res_ids
     
     def set_around_gap(
-            self, ref_chain, mov_chain, 
+            self, ref_chain, mov_chain,
             ref_gap,
-            mov_gap = None,
+            mov_gap=None,
             cutoff=10
         ):
 
@@ -252,7 +168,8 @@ class ChainSuperimposer(Superimposer):
             isinstance(ref_chain, PolymerChain) and isinstance(mov_chain, PolymerChain)
         ):
             raise NotImplementedError('PolymerChain class is required to use this method')
-        
+        self.ref_chain = ref_chain
+        self.mov_chain = mov_chain
         ref_len = len(ref_chain.can_seq)
         mov_len = len(mov_chain.can_seq)
         seq_len = min(ref_len, mov_len)
@@ -268,13 +185,12 @@ class ChainSuperimposer(Superimposer):
             warnings.warn('The cutoff value extends out of the available '
                     'residues in the chain. All backbone atoms on both chains '
                     'are selected for superposition')
-            ref_common, mov_common = \
-                    self.find_all_common_res(ref_chain, mov_chain)
+            ref_common, mov_common = self.get_matching_res()
             ref_atoms, mov_atoms = \
                     self._find_common_backbone_atoms(ref_common, mov_common) 
             self.set_atoms(ref_atoms, mov_atoms)
             return
-                                   
+   
         ref_atoms = []
         mov_atoms = []
         for i, j in zip(mov_res_ids, ref_res_ids):
@@ -290,16 +206,10 @@ class ChainSuperimposer(Superimposer):
         
         self.set_atoms(ref_atoms, mov_atoms)
     
-    def apply_transform(self, chain: Chain):
-        self.apply(chain.get_atoms())
+    def apply_transform(self, entity: PolymerChain=None):
+        if entity is None:
+            entity = self.mov_chain
+        self.apply(entity.get_atoms())
 
-    def show(self, ref_chain, mov_chain):
-        from IPython.display import display
-        # if any of the chains is not Chain class, convert them
-        if not isinstance(ref_chain, Chain):
-            ref_chain = Chain(ref_chain)
-        if not isinstance(mov_chain, Chain):
-            mov_chain = Chain(mov_chain)
-
-        view = load_nglview_multiple([ref_chain, mov_chain])
-        display(view)
+    def show(self):
+        show_nglview_multiple([self.ref_chain, self.mov_chain])

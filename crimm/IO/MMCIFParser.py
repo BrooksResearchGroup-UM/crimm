@@ -82,7 +82,11 @@ class MMCIFParser:
             self.model_template = self.create_model_template()
             self._build_structure(structure_id)
             # set additional info on the structure
-            structure_method = self.cifdict.level_two_get("exptl", "method")[0]
+            structure_method = None
+            struct_method_list = self.cifdict.level_two_get("exptl", "method")
+            if struct_method_list is not None:
+                structure_method = struct_method_list[0]
+                
             self._structure_builder.set_structure_method(structure_method)
             resolution = self._cif_find_resolution(self.cifdict)
             self._structure_builder.set_resolution(resolution)
@@ -289,9 +293,14 @@ class MMCIFParser:
         returned.
         """
         assemblies = dict()
+        structure_id = self.cifdict['data']
+        if structure_id.startswith('AF-'):
+            # AF-xxxxx is AlphaFold Structure, which does not have assembly
+            return
+
         if 'pdbx_struct_assembly_gen' not in self.cifdict:
             warnings.warn(
-                f"No structure assembly info in {self.cifdict['data']}"
+                f"No structure assembly info in {structure_id}"
             )
             return
         entries = self.cifdict.create_namedtuples('pdbx_struct_assembly_gen')
