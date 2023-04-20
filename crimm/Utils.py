@@ -56,13 +56,7 @@ def get_alphafold_entry(uniprot_id):
     alphafold_cif_url = response.json()[0]['cifUrl']
     return cif_from_url(alphafold_cif_url)
 
-def fetch_alphafold(
-        pdb_id, 
-        entity_id,
-        first_model_only = True,
-        include_solvent = True,
-        include_hydrogens = False,
-    ):
+def fetch_alphafold(pdb_id, entity_id):
     """Get a structure from the alphafold database for a given PDB id and entity id"""
     uniprot_id = uniprot_id_query(pdb_id, entity_id)
     msg = f"AlphaFold DB failed find structure for {pdb_id}-{entity_id}"
@@ -76,10 +70,12 @@ def fetch_alphafold(
         warnings.warn(msg)
         return
     parser = MMCIFParser(
-        first_model_only = first_model_only,
-        first_assembly_only = False, # AlphaFold does not have multiple assemblies
-        include_hydrogens = include_hydrogens,
-        include_solvent=include_solvent
+        # AlphaFold only has one model and does not have multiple 
+        # assemblies, solvent, or hydrogens
+        first_model_only = True,
+        first_assembly_only = False, 
+        include_hydrogens = False,
+        include_solvent = False
     )
     structure = parser.get_structure(file)
     return structure
@@ -114,7 +110,7 @@ def fetch(
     structure = parser.get_structure(file)
     return structure
 
-def find_alphafold_from_chain(chain):
+def fetch_alphafold_from_chain(chain):
     """Find the alphafold structure for a given chain. The chain must have a parent 
     structure with a valid PDB ID. The chain must also have an entity id assigned 
     from mmCIF.
@@ -129,9 +125,10 @@ def find_alphafold_from_chain(chain):
     entity_id = chain.entity_id
     af_struct =  fetch_alphafold(pdb_id, entity_id)
     if af_struct is None:
-        raise ValueError(
+        warnings.warn(
             f"Could not find AlphaFold structure for {pdb_id}-{entity_id}"
         )
+        return
     af_chain = af_struct.models[0].chains[0]
     imposer = ChainSuperimposer()
     imposer.set_chains(chain, af_chain)

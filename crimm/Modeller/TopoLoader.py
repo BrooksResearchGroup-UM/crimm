@@ -416,7 +416,7 @@ class TopologyLoader:
         chain.topo_elements = topo_elements.load_chain(chain)
 
     def patch_termini(self, chain: Entities.Chain, first: str, last: str, QUIET=False):
-        """Patch the termini of the chain"""
+        """Patch the terminal residues of the chain"""
         if chain.chain_type not in ('Polypeptide(L)', 'Polyribonucleotide'):
             raise NotImplementedError(
                 "Only polypeptide and polynucleotide chains are supported "

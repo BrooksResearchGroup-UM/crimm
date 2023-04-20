@@ -3,9 +3,7 @@ import warnings
 import requests
 from Bio.Align import PairwiseAligner
 from crimm.Superimpose.ChainSuperimposer import ChainSuperimposer
-from crimm.IO.MMCIFParser import MMCIFParser
-from crimm.IO import get_pdb_str
-from crimm.Utils import find_local_cif_path, get_pdb_entry
+from crimm.Utils import fetch, fetch_alphafold
 import crimm.StructEntities as Entities
 
 def find_gaps_within_range(gaps, segment):
@@ -24,6 +22,8 @@ def find_gaps_range_overlap(gaps, segment):
 
 def find_segment_offsets(chainA_seq, chainB_seq):
     aligner = PairwiseAligner()
+    aligner.target_internal_open_gap_score = -100
+    aligner.query_internal_open_gap_score = -100
     align = aligner.align(chainA_seq, chainB_seq)[0]
     chainA_aligned, chainB_aligned = align.aligned+1 # resseq is 1-indexed
     offsets = (chainB_aligned - chainA_aligned)[:,0]
@@ -48,28 +48,30 @@ def find_gap_offsets(gaps, segment_offset_dict):
             break
     return gap_offset_dict
 
-def find_repairable_gaps(chainA, chainB):
+def translate_gap_ids(chainA, chainB):
+    """Translate gap ids from chainA to chainB based on their canonical sequences 
+    alignment"""
     if chainA.can_seq == chainB.can_seq:
-        rp_gap = find_repairable_gaps_with_identical_seqs(chainA, chainB)
-        repairables = {
+        rp_gap = translate_gaps_with_identical_seqs(chainA, chainB)
+        translated = {
             tuple(sorted(gap)):tuple(sorted(gap)) for gap in rp_gap
         }
-        return repairables
-    
+        return translated
+
     segment_offsets = find_segment_offsets(chainA.can_seq, chainB.can_seq)
     gap_offsets = find_gap_offsets(chainA.gaps, segment_offsets)
-    repairables = {}
+    translated = {}
     for gap_A, offset in gap_offsets.items():
         translated_gap_A = {resseq+offset for resseq in gap_A}
         if find_gaps_range_overlap(chainB.gaps, translated_gap_A):
             continue
-        repairables[tuple(sorted(gap_A))] = tuple(sorted(translated_gap_A))
-    return repairables
+        translated[tuple(sorted(gap_A))] = tuple(sorted(translated_gap_A))
+    return translated
 
-def find_repairable_gaps_with_identical_seqs(chainA, chainB):
+def translate_gaps_with_identical_seqs(chainA, chainB):
     model_chain_gaps = chainA.gaps
     template_chain_gaps = chainB.gaps
-    repairables = []
+    translated = []
     i, j = 0, 0
 
     while i<len(model_chain_gaps) and j<len(template_chain_gaps):
@@ -101,63 +103,64 @@ def find_repairable_gaps_with_identical_seqs(chainA, chainB):
         # Otherwise, current model_gap can be fixed by the template_chain,
         # and move on to the next m_gap (e.g. 4)
         else:
-            repairables.append(m_gap)
+            translated.append(m_gap)
             i += 1
 
     # If there are left-over gaps from receiving chain after going over 
     # the last gap of providing chain, these gaps can all be repaired.
     if i < len(model_chain_gaps):
-        repairables.extend(model_chain_gaps[i:])
-    return repairables
-
-def get_available_residues(chain, res_seq_ids, include_het):
-    available_residues = []
-    for i in res_seq_ids:
-        if i in chain:
-            available_residues.append(chain[i])
-        elif include_het and (het_ids := chain.find_het_by_resseq(i)):
-            available_residues.append(chain[het_ids[0]])
-        else:
-            return None
-    return available_residues
+        translated.extend(model_chain_gaps[i:])
+    return translated
 
 class ChainLoopBuilder:
     """
     loop modeller for PDB protein structures by homology modeling
     """
 
-    def __init__(self, model_chain: Entities.PolymerChain, model_can_seq = None):
+    def __init__(
+            self, model_chain: Entities.PolymerChain, 
+            model_can_seq = None,
+            pdbid = None
+        ):
         self.model_chain = model_chain.copy()
         if model_can_seq is not None:
             self.model_can_seq = model_can_seq
         else:
             self.model_can_seq = model_chain.can_seq
         self.repaired_gaps = []
-        self.repaired_residues = []
+        self.repaired_residues = {}
         self.imposer =  ChainSuperimposer()
         self.template_chain = None
         self.template_can_seq = None
-        self.repairable = None
+        self.translated_ids = None
         self.query_results = None
-        self.pdbid = None
-        if model_chain.get_top_parent().level == 'S':
-            self.pdbid = model_chain.get_top_parent().id
+        self.pdbid = pdbid
+        if self.pdbid is None:
+            if model_chain.get_top_parent().level == 'S':
+                self.pdbid = model_chain.get_top_parent().id
+            else:
+                warnings.warn(
+                    f'PDB ID not set for {model_chain}! '
+                    'Make sure the chain is loaded from a MMCIF file or from fetch() '
+                    'to have the PDB ID correctly parsed, or set the PDB ID manually.'
+                )
 
         if self.model_can_seq is None:
             raise AttributeError('Canonical sequence is required to repair loops')
 
     def set_template_chain(
-            self, template_chain: Entities.PolymerChain, template_can_seq = None
+            self, template_chain: Entities.PolymerChain
         ):
         self.template_chain = template_chain
-        if template_can_seq is not None:
-            self.template_can_seq = template_can_seq
-        else:
-            self.template_can_seq = template_chain.can_seq
+        self.template_can_seq = template_chain.can_seq
         if self.template_can_seq is None:
-            raise AttributeError('Canonical sequence is required to repair loops')
+            raise AttributeError(
+                f'Canonical sequence does not exist for {template_chain}! '
+                'Make sure the chain is loaded from a MMCIF file or from fetch() '
+                'to have the canonical sequence correctly parsed.'
+            )
 
-        self.repairable = find_repairable_gaps(
+        self.translated_ids = translate_gap_ids(
             self.model_chain, self.template_chain
         )
 
@@ -178,41 +181,29 @@ class ChainLoopBuilder:
         self.imposer.apply_transform(self.template_chain)
         return self.imposer.rms
 
-    def _copy_gap_residues(self, gap, residues, keep = False):
+    def _copy_gap_residues(self, gap, residues):
         # gap is a set and has to be sorted before calculated the idx for 
         # insertion. Otherwise, it would mess up the residue sequence in
         # the structure
 
-        if keep:
-            # The residues from the template, template_chain, will get 
-            # recursively copied, and template_chain will remain intact.
-            residues = [res.copy() for res in residues]
-        # By default, we are not using copy() 
-        # This results the gap residues being directly transfered 
-        # from the template structure to the model structure.
-        # That is, model_chain will get fixed, but the resulting structure 
-        # of template_chain will have the gaps.
         residues = sorted(residues, key=lambda x: x.id[1])
         gap = sorted(gap)
 
         for i, res in zip(gap, residues):
-            # i in insert refer to child list index, thus i-1 here
-            self.model_chain.insert(i-1, res)
+            hetflag = res.id[0]
+            res.id = (hetflag, i, ' ')
+            # i in insert refer to child list index, thus use i-1 here
+            self.model_chain.add(res)
         self.model_chain.sort_residues()
         self.repaired_gaps.append(tuple(gap))
-    
+
     def get_repair_residues_from_template(
             self,
-            template_chain : Entities.PolymerChain = None,
-            # keep_template_structure = False,
             rmsd_threshold = None,
-            include_het = False
         ):
         """
         Find repairable residue for model_chain from template_chain gaps.
         """
-        if template_chain:
-            self.set_template_chain(template_chain=template_chain)
         if not hasattr(self, 'template_chain'):
             raise AttributeError(
                 'Template chain not set!' 
@@ -220,10 +211,9 @@ class ChainLoopBuilder:
             )
 
         rmsd_qualified = {}
-        for gap, translated_resseq in self.repairable.items():
+        for gap, template_resseqs in self.translated_ids.items():
             self.imposer.set_around_gap(
-                self.model_chain, self.template_chain, 
-                gap, translated_resseq, cutoff=5
+                self.model_chain, self.template_chain, gap, cutoff=5
             )
             self.imposer.apply_transform(self.template_chain)
             rmsd = self.imposer.rms
@@ -235,18 +225,18 @@ class ChainLoopBuilder:
                 )
                 continue
 
-            repairable_residues = get_available_residues(
-                    self.template_chain, translated_resseq, 
-                    include_het=include_het
-                )
-            if repairable_residues is None:
+            available_residues = []
+            for i in template_resseqs:
+                resseq = int(i)
+                if resseq not in self.template_chain:
+                    break
+                available_residues.append(self.template_chain[resseq].copy())
+
+            if len(available_residues) != len(template_resseqs):
                 continue
 
-            repairables_residues = [
-                res.copy() for res in repairable_residues
-            ]
             rmsd_qualified[gap] = {
-                "residues":repairables_residues,
+                "residues":available_residues,
                 'rmsd':rmsd
             }
 
@@ -361,17 +351,18 @@ class ChainLoopBuilder:
         :rtype retults : dict consists (sequence_matching_score, PDB_ID, entity_ID)
         '''
         seq_string = str(self.model_can_seq)
-        json_q = ChainLoopBuilder._build_seq_query(seq_string, 
-            max_num_match, identity_score_cutoff)
+        json_q = ChainLoopBuilder._build_seq_query(
+            seq_string, max_num_match, identity_score_cutoff
+        )
         # entry point of rcsb.org for advancced search
         url = "https://search.rcsb.org/rcsbsearch/v2/query?"
-        r = requests.post(url, json=json_q, timeout=500)
-        r_dict = json.loads(r.text)
+        response = requests.post(url, json=json_q, timeout=500)
+        r_dict = json.loads(response.text)
 
         if 'result_set' not in r_dict:
             raise ValueError(
                 'Query on the sequence did not return '
-                f'the requested information. {r}'
+                f'the requested information. {response}'
             )
 
         results = {}
@@ -387,17 +378,16 @@ class ChainLoopBuilder:
         return results
 
     @staticmethod
-    def get_templates(query_results: dict, method, entry_point: str):
+    def get_templates(query_results: dict, local_entry_point: str):
         """
         Return a generator of all template chains from the query result dict
         """
-        cif_parser = MMCIFParser(
-            first_assembly_only = False, include_solvent = False, QUIET=True
-        )
         for entity_dict in query_results.values():
             for pdbid, chain_ids in entity_dict.items():
-                cif = method(pdbid, entry_point=entry_point)
-                structure = cif_parser.get_structure(cif)
+                structure = fetch(
+                    pdbid, first_assembly_only = False,
+                    include_solvent = False, local_entry=local_entry_point
+                )
                 first_model = structure.child_list[0]
                 for chain_id in chain_ids:
                     template_chain = first_model[chain_id]
@@ -415,28 +405,25 @@ class ChainLoopBuilder:
             if gap_key not in candidates or (
                 candidates[gap_key]['rmsd'] > info_dict['rmsd']
             ):  
-                info_dict['PDBID'] = pdbid
+                info_dict['structure_id'] = pdbid
                 candidates[gap_key] = info_dict
 
-    def auto_rebuild(
+    def build_from_homology(
             self,
             max_num_match = 10,
             identity_score_cutoff = 0.95,
             rmsd_threshold = None,
             overall_rmsd_threshold = None,
-            include_het = False,
             local_entry_point = None
         ):
-        # if local_entry_point is None, use rcsb.org
-        if local_entry_point is None:
-            entry_point = "https://files.rcsb.org/download/"
-            method = get_pdb_entry
-        else:
-            entry_point = local_entry_point
-            method = find_local_cif_path
-
+        """Build the missing loops of the model chain from homology models from
+        PDB. Seqeunce search query is performed first to find the closest homology
+        models based on sequence identity scores."""
+        # if local_entry_point is None, rcsb.org will be used
         if self.model_chain.is_continuous():
-            warnings.warn(f"{self.model_chain} does not have any missing residues")
+            warnings.warn(
+                f"{self.model_chain} does not have any missing loops"
+            )
             return
 
         self.query_results = self.query_seq_match(
@@ -444,14 +431,17 @@ class ChainLoopBuilder:
         )
 
         if not self.query_results:
-            warnings.warn(f"No template found for {self.model_chain} from sequence search")
+            warnings.warn(
+                f"No homology model found for {self.pdbid}-{self.model_chain.id} "
+                "from sequence search!"
+            )
             return
 
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
             # create a generator for all the templates
             all_templates = self.get_templates(
-                self.query_results, method, entry_point
+                self.query_results, local_entry_point
             )
 
         repair_candidates = {}
@@ -460,8 +450,7 @@ class ChainLoopBuilder:
             if self._reject_by_rmsd(overall_rmsd_threshold):
                 continue
             if cur_repairables := self.get_repair_residues_from_template(
-                    rmsd_threshold = rmsd_threshold,
-                    include_het=include_het
+                    rmsd_threshold = rmsd_threshold
                 ):
                 self._update_candidates(cur_repairables, repair_candidates, pdbid)
 
@@ -470,13 +459,69 @@ class ChainLoopBuilder:
             self._copy_gap_residues(
                 gap = gap,
                 residues = copy_residues,
-                keep = False
             )
         self.model_chain.reset_atom_serial_numbers()
-        self.repaired_residues = repair_candidates
-
-        return self.model_chain.is_continuous()
+        self.repaired_residues.update(repair_candidates)
     
+    def build_from_alphafold(self, include_terminal = False):
+        """Build the missing loops of the model chain from AlphaFold models. 
+        The AlphaFold models are downloaded from the AlphaFold database. If 
+        include_terminal is True, the missing terminal residues will be copied
+        from the AlphaFold model."""
+        
+        if len(self.model_chain.missing_res) == 0:
+            warnings.warn(
+                f"{self.model_chain} does not have any missing residues"
+            )
+            return
+
+        if self.pdbid is None:
+            warnings.warn(
+                "Missing looper not built due to no PDB ID provided "
+                f"for {self.model_chain}."
+            )
+            return
+
+        af_struct = fetch_alphafold(self.pdbid, self.model_chain.entity_id)
+        if af_struct is None:
+            warnings.warn(
+                "Missing looper not built due to no AlphaFold structure avaible "
+                f"for {self.model_chain}."
+            )
+            return
+        
+        af_chain = af_struct.child_list[0].child_list[0]
+        self.set_template_chain(af_chain)
+        repairables = self.get_repair_residues_from_template(
+            rmsd_threshold = None
+        )
+
+        if len(repairables) == 0:
+            warnings.warn(
+                f"No repairable residues found for {self.model_chain} "
+                f"from AlphaFold model {af_struct.id}."
+            )
+            return
+
+        if not include_terminal:
+            missing_terminals = []
+            for gap in repairables:
+                if 1 in gap or len(self.model_chain.can_seq) in gap:
+                    missing_terminals.append(gap)
+            # remove alphafold terminal residues from repairables
+            for gap in missing_terminals:
+                repairables.pop(gap)
+
+        for gap_ids, repairable_info_dict in repairables.items():
+            repairable_info_dict['structure_id'] = af_struct.id
+            copy_residues = repairable_info_dict['residues']
+            self._copy_gap_residues(
+                gap = gap_ids,
+                residues = copy_residues,
+            )
+        self.model_chain.reset_atom_serial_numbers()
+        self.repaired_residues.update(repairables)
+
     def get_chain(self):
         """Get the chain that is being modelled on"""
         return self.model_chain

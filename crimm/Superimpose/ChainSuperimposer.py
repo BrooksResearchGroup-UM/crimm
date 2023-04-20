@@ -19,8 +19,16 @@ class ChainSuperimposer(Superimposer):
         self.alignments = None
         self.ref_ranges, self.mov_ranges = None, None
 
-    def get_matching_res(self):
+    def _check_chain_type(self, chain):
+        if not isinstance(chain, PolymerChain):
+            raise TypeError(
+                "ChainSuperimposer only works with PolymerChain class"
+            )
+        
+    def get_matching_res(self, ref_chain, mov_chain):
         """ Find all aligned residues that exist in both chains """
+        self.ref_chain = ref_chain
+        self.mov_chain = mov_chain
         if self.ref_chain.can_seq == self.mov_chain.can_seq:
             # If canonical sequences are identical
             # Use all present residues from both chains
@@ -53,26 +61,28 @@ class ChainSuperimposer(Superimposer):
             # needs to be converted to int because the ids are numpy.int64
             ref_id, mov_id = int(ref_id), int(mov_id)
             if ref_id in self.ref_chain and mov_id in self.mov_chain:
-                ref_aligned_res.append(self.ref_chain[ref_id])
-                mov_aligned_res.append(self.mov_chain[mov_id])
+                ref_res = self.ref_chain[ref_id]
+                mov_res = self.mov_chain[mov_id]
+                if ref_res.resname != mov_res.resname:
+                    warnings.warn(
+                        "Residue are not identical at "
+                        f"model chain: {ref_res.resname}-{ref_res.id[1]} and "
+                        f"template chain: {mov_res.resname}-{mov_res.id[1]}"
+                    )
+                    continue
+                ref_aligned_res.append(ref_res)
+                mov_aligned_res.append(mov_res)
 
         return ref_aligned_res, mov_aligned_res
 
     def set_chains(self, ref_chain, mov_chain, on_atoms = 'CA'):
         """Set the chains to be superimposed. mov_chain will be moved to
         ref_chain."""
-        # if any of the chains is not Chain class, convert them
-        if not (
-                isinstance(ref_chain, PolymerChain) and
-                isinstance(mov_chain, PolymerChain)
-            ):
-            raise TypeError(
-                "ChainSuperimposer only works with PolymerChain class"
-            )
-        self.ref_chain = ref_chain
-        self.mov_chain = mov_chain
 
-        ref_res, mov_res = self.get_matching_res()
+        self._check_chain_type(ref_chain)
+        self._check_chain_type(mov_chain)
+
+        ref_res, mov_res = self.get_matching_res(ref_chain, mov_chain)
 
         if on_atoms == 'CA':
             ref_align_atoms, mov_align_atoms = \
@@ -127,30 +137,34 @@ class ChainSuperimposer(Superimposer):
 
         return ref_align_atoms, mov_align_atoms
 
+    def find_valid_edge_ids(self, gap_ids, avail_res, cutoff):
+        """Find the residue id range that is present around the gap."""
+        avail_ids = [res.id[1] for res in avail_res]
+        left, right = min(gap_ids), max(gap_ids)
+        res_ids = []
+        self._recur_find_ids(avail_ids, cutoff, left, res_ids, -1)
+        self._recur_find_ids(avail_ids, cutoff, right, res_ids, 1)
+        return sorted(res_ids)
+
     @staticmethod
-    def find_valid_residue_range(ids, seq_len, cutoff):
-        start, end = min(ids), max(ids)
-        # select the residue ids around the gap by a cutoff
-        if start < cutoff and end < (seq_len - 2*cutoff):
-            # Case of missing N terminal and the cutoff ends before the 
-            # last residue of the chain
-            res_ids = list(range(end, end+2*cutoff))
-        elif end > seq_len - cutoff and start > 2*cutoff:
-            # Case of missing C terminal and the cutoff ends before the
-            # first residue of the chain
-            res_ids = list(range(start-2*cutoff))
-        elif start > cutoff and end < (seq_len - cutoff):
-            # The case of an actual gap in the chain and
-            # the cutoff ends before the first and last residue of the chain
-            res_ids = list(range(start-cutoff, start))+list(range(end, end+cutoff))
-        else:
-            return None
-        return res_ids
-    
+    def _recur_find_ids(avail_ids, remainder, cur_id, valid_ids, direction):
+        for i in range(1, remainder+1):
+            # forward_direction == 1, backward == -1
+            cur_id += 1*direction
+            if cur_id < 1 or cur_id > max(avail_ids):
+                # inclusive on both edges: 1 to max(avail_ids)
+                return
+            if cur_id in avail_ids:
+                valid_ids.append(cur_id)
+            else:
+                ChainSuperimposer._recur_find_ids(
+                    avail_ids, remainder+1-i, cur_id, valid_ids, direction
+                )
+                return
+
     def set_around_gap(
             self, ref_chain, mov_chain,
             ref_gap,
-            mov_gap=None,
             cutoff=10
         ):
 
@@ -161,49 +175,31 @@ class ChainSuperimposer(Superimposer):
         assumed on both chains, and the reference chain gap locations will be applied
         on the move chain 
         """
-        ## TODO: add options for on_atoms, and find common res list first 
-        ## then run the for-loop on those.
+        ## TODO: add options for on_atoms
 
-        if not (
-            isinstance(ref_chain, PolymerChain) and isinstance(mov_chain, PolymerChain)
-        ):
-            raise NotImplementedError('PolymerChain class is required to use this method')
-        self.ref_chain = ref_chain
-        self.mov_chain = mov_chain
-        ref_len = len(ref_chain.can_seq)
-        mov_len = len(mov_chain.can_seq)
-        seq_len = min(ref_len, mov_len)
+        self._check_chain_type(ref_chain)
+        self._check_chain_type(mov_chain)
+        # Get all matched residues from alignment
+        all_ref_res, all_mov_res = self.get_matching_res(ref_chain, mov_chain)
+        # Find the existing residue ids that are within the cutoff range
+        ref_res_ids = self.find_valid_edge_ids(ref_gap, all_ref_res, cutoff)
 
-        ref_res_ids = self.find_valid_residue_range(ref_gap, seq_len, cutoff)
-        if mov_gap is None:
-            # Assume identical canonical sequence
-            mov_res_ids = ref_res_ids
-        else:
-            mov_res_ids = self.find_valid_residue_range(mov_gap, seq_len, cutoff)
+        ref_edge_res = []
+        mov_edge_res = []
+        for ref_res, mov_res in zip(all_ref_res, all_mov_res):
+            if ref_res.id[1] in ref_res_ids:
+                ref_edge_res.append(ref_res)
+                mov_edge_res.append(mov_res)
 
-        if ref_res_ids is None:
+        if ref_edge_res is None:
             warnings.warn('The cutoff value extends out of the available '
                     'residues in the chain. All backbone atoms on both chains '
                     'are selected for superposition')
-            ref_common, mov_common = self.get_matching_res()
-            ref_atoms, mov_atoms = \
-                    self._find_common_backbone_atoms(ref_common, mov_common) 
-            self.set_atoms(ref_atoms, mov_atoms)
-            return
-   
-        ref_atoms = []
-        mov_atoms = []
-        for i, j in zip(mov_res_ids, ref_res_ids):
-            if not (i in mov_chain and j in ref_chain):
-                continue
-            if mov_chain[i].resname != ref_chain[j].resname:
-                continue
-            for atom in ['N','CA','C','O']:
-                if atom not in mov_chain[i]:
-                    continue
-                ref_atoms.append(ref_chain[j][atom])
-                mov_atoms.append(mov_chain[i][atom])
-        
+            ref_edge_res, mov_edge_res = all_ref_res, all_mov_res
+
+        ref_atoms, mov_atoms = self._find_common_backbone_atoms(
+            ref_edge_res, mov_edge_res
+        )
         self.set_atoms(ref_atoms, mov_atoms)
     
     def apply_transform(self, entity: PolymerChain=None):
