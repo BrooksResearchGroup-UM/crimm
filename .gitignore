@@ -3,3 +3,5 @@ __pycache__/
 test*/
 .vscode/
 .output/
+notebooks/
+*.egg-info/
