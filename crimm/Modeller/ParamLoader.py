@@ -64,9 +64,12 @@ class ParameterLoader:
             f'Nonbond: {n_nonbonds}, Nonbond14: {n_nonbond14s}, '
             f'NBfix: {n_nbfixes}>'
         )
-    
+
     def __str__(self):
         return self.__repr__()
+
+    def __getitem__(self, key):
+        return self.param_dict[key]
 
     def _get_param(self, param_dict: dict, key):
         return (
@@ -77,17 +80,17 @@ class ParameterLoader:
         for choice in matching_orders:
             if value := self._get_param(param_dict, choice):
                 return value
-            
+
     def get_bond(self, key):
         """Get bond parameters for a given bond instance."""
         bond_dict = self.param_dict['bonds']
         return self._get_param(bond_dict, key)
-    
+
     def get_angle(self, key):
         """Get angle parameters for a given angle instance."""
         angle_dict = self.param_dict['angles']
         return self._get_param(angle_dict, key)
-    
+
     def get_dihedral(self, key):
         """Get dihedral parameters for a given dihedral instance."""
         A, B, C, D = key
@@ -110,6 +113,11 @@ class ParameterLoader:
         )
         improper_dict = self.param_dict['improper']
         return self._get_from_choices(improper_dict, matching_orders)
+
+    def get_nonbonded(self, key):
+        """Get nonbonded parameters for a given atom type."""
+        nonbonded_param = self.param_dict['nonbonded'][key]
+        return nonbonded_param
 
     def get_from_topo_element(self, topo_element):
         """Get the parameter for a given topology element"""

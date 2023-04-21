@@ -3,9 +3,19 @@ import json
 import requests
 from rdkit import Chem
 from rdkit.Chem import AllChem
-from crimm import SmilesQueryWarning, LigandBondOrderWarning
 from crimm.IO import get_pdb_str
 
+class LigandBondOrderException(Exception):
+    """Define class LigandBondOrderException."""
+
+class SmilesQueryException(Exception):
+    """Define class SmilesQueryException."""
+
+class LigandBondOrderWarning(Warning):
+    """Define class LigandBondOrderException."""
+
+class SmilesQueryWarning(Warning):
+    """Define class SmilesQueryException."""
 
 def _build_smiles_query(resname):
     query = '''

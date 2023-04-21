@@ -9,12 +9,22 @@ This is used by the MMCIFparser classes.
 """
 # SMCRA hierarchy
 import warnings
-from crimm import ChainConstructionWarning, AtomAltLocException
+
 from crimm.StructEntities import Structure
 from crimm.StructEntities import Model
 from crimm.StructEntities import Chain, PolymerChain, Heterogens
 from crimm.StructEntities import Residue, DisorderedResidue, Heterogen
 from crimm.StructEntities import Atom, DisorderedAtom
+
+class ChainConstructionWarning(Warning):
+    """Define class ChainConstructionWarning."""
+
+class ChainConstructionException(Exception):
+    """Define class ChainConstructionException."""
+
+class AtomAltLocException(Exception):
+    """Define class AtomAltLocException."""
+
 
 class StructureBuilder():
     """Deals with constructing the Structure object.

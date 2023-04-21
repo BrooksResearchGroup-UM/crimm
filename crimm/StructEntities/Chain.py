@@ -7,8 +7,6 @@ from Bio.Data.PDBData import nucleic_letters_3to1_extended
 from Bio.PDB.Chain import Chain as _Chain
 from Bio.PDB.PDBExceptions import PDBConstructionException
 import crimm.StructEntities as Entities
-from crimm import ChainConstructionWarning
-
 
 class BaseChain(_Chain):
     """Base class derived from and Biopython chain object and compatible with
@@ -239,8 +237,7 @@ class PolymerChain(Chain):
         if len(self.reported_res) != len(self.can_seq):
             warnings.warn(
                 "Total number of reported residues do not match with the "
-                "length of reported canonical sequence.",
-                ChainConstructionWarning
+                "length of reported canonical sequence."
             )
         if self.chain_type == 'Polypeptide(L)':
             self.letter_3to1_dict = protein_letters_3to1_extended

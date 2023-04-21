@@ -6,6 +6,7 @@ from Bio.Data.PDBData import protein_letters_3to1_extended
 from Bio.Data.PDBData import protein_letters_1to3
 from crimm import StructEntities as Entities
 from crimm.IO.RTFParser import RTFParser
+from crimm.Modeller import ResidueFixer
 
 toppar_dir = os.path.abspath(
     os.path.join(os.path.dirname(__file__), '../Data/toppar')
@@ -20,7 +21,9 @@ rtf_path_dict = {
 }
 
 
-def _find_atom_in_residue(residue, atom_name):
+def _find_atom_in_residue(
+        residue: Entities.Residue, atom_name: str
+    )->Entities.Atom | None:
     if atom_name.startswith('+') or atom_name.startswith('-'):
         return None
     if atom_name in residue:
@@ -29,7 +32,9 @@ def _find_atom_in_residue(residue, atom_name):
         return residue.missing_hydrogens[atom_name]
     return residue.missing_atoms[atom_name]
 
-def _find_atom_from_neighbor(cur_residue, atom_name):
+def _find_atom_from_neighbor(
+        cur_residue: Entities.Residue, atom_name: str
+    )->Entities.Atom | None:
     """Get atom from neighbor residue. (Private function)"""
     resseq = cur_residue.id[1]
     chain = cur_residue.parent
@@ -43,7 +48,7 @@ def _find_atom_from_neighbor(cur_residue, atom_name):
         return _find_atom_in_residue(neighbor_residue, atom_name)
     return None
 
-def get_bonds_within_residue(residue):
+def get_bonds_within_residue(residue: Entities.Residue)->list[Entities.Bond]:
     """Return a list of bonds within the residue (peptide bonds linking neighbor 
     residues are excluded). Raise ValueError if the topology definition is 
     not loaded."""
@@ -65,12 +70,12 @@ def get_bonds_within_residue(residue):
             )
     return bonds
 
-def atom_add_neighbors(atom1, atom2):
+def atom_add_neighbors(atom1: Entities.Atom, atom2: Entities.Atom):
     """Add atom2 to atom1's neighbors and vice versa"""
     atom1.neighbors.add(atom2)
     atom2.neighbors.add(atom1)
 
-def residue_trace_atom_neigbors(residue):
+def residue_trace_atom_neigbors(residue: Entities.Residue)->list[Entities.Bond]:
     """Trace all bonds within the residue and add the atoms to each other's
     neighbors list. Return a list of bonds within the residue."""
     bonds = get_bonds_within_residue(residue)
@@ -79,13 +84,23 @@ def residue_trace_atom_neigbors(residue):
         atom_add_neighbors(a1, a2)
     return bonds
 
-def chain_trace_atom_neighbors(chain, inter_res_bonding_atoms, bond_type='single'):
+def chain_clear_atom_neighbors(chain: Entities.PolymerChain):
+    """Clear all neighbors of atoms in the chain"""
+    for atom in chain.get_atoms():
+        atom.neighbors = set()
+
+def chain_trace_atom_neighbors(
+        chain: Entities.PolymerChain, inter_res_bonding_atoms: tuple[str],
+        bond_type='single'
+    )->list[Entities.Bond]:
     """Trace all bonds within the chain and add the atoms to each other's
     neighbors list. Return a list of bonds within the chain."""
     end_atom, start_atom = inter_res_bonding_atoms
-    # e.g. this would be C-N for peptide, 
+    # e.g. this would be C-N for peptide,
     # thus end_atom is C and start_atom is N
     chain.sort_residues()
+    # Clearing neighbors is needed for patching and regenerating topology
+    chain_clear_atom_neighbors(chain)
     all_bonds = []
     for i, cur_res in enumerate(chain.residues[:-1]):
         next_res = chain.residues[i+1]
@@ -132,7 +147,9 @@ def traverse_graph(cur_atom, angle_set, dihedral_set, visited_set):
             continue
         traverse_graph(nei_atom, angle_set, dihedral_set, visited_set)
 
-def _get_improper_from_atom_names(residue, atom_names):
+def _get_improper_from_atom_names(
+        residue: Entities.Residue, atom_names: tuple[str]
+    )->Entities.Improper | None:
     """Get improper from atom names. (Private function)"""
     atoms = []
     for atom_name in atom_names:
@@ -152,15 +169,16 @@ def _get_improper_from_atom_names(residue, atom_names):
             )
     return Entities.Improper(a1, a2, a3, a4)
 
-def _is_terminal_or_orphan_residue(residue):
-    """Check if the residue is a terminal residue. (Private function)"""
-    chain = residue.parent
+def _is_terminal_or_orphan_residue(residue: Entities.Residue)->bool:
+    """Check if the residue is a terminal residue or does not belong to a chain. 
+    (Private function)"""
+    chain: Entities.PolymerChain = residue.parent
     if chain is None:
         # orphan residue
         return True
     return residue in (chain.residues[0], chain.residues[-1])
 
-def residue_get_impropers(residue):
+def residue_get_impropers(residue: Entities.Residue)->list[Entities.Improper]:
     """Return a list of improper angles within the residue. Raise ValueError if the 
     topology definition is not loaded."""
     if residue.topo_definition is None:
@@ -179,13 +197,14 @@ def residue_get_impropers(residue):
         impropers.append(improper)
     return impropers
 
-def get_impropers(chain):
+def get_impropers(chain: Entities.PolymerChain)->list[Entities.Improper]:
     """Return a list of improper angles within the chain. Raise ValueError if the 
     topology definition is not loaded."""
     impropers = []
     for res in chain.residues:
         impropers.extend(residue_get_impropers(res))
     return impropers
+
 
 ##TODO: separate this class into two classes: TopologyLoader and TopologyGenerator
 class TopologyLoader:
@@ -211,14 +230,14 @@ class TopologyLoader:
             self._raw_data_strings = rtf.lines
             self.load_data_dict(rtf.topo_dict, rtf.rtf_version)
 
-    def load_data_dict(self, topo_data_dict, rtf_version=None):
+    def load_data_dict(self, topo_data_dict: dict, rtf_version:str=None):
         """Load topology data from a dictionary. The dictionary should be parsed
         from a RTF file."""
         self.rtf_version = rtf_version
         for resname, res_topo_dict in topo_data_dict.items():
             if resname in Entities.ResidueDefinition.na_3to1:
-                # Map 3-letter residue name to 1-letter residue name for nucleic acids
-                # since biopython uses 1-letter residue name for nucleic acids
+                # Map 3-letter residue name to 1-letter residue name for nucleic
+                # acids, since biopython uses 1-letter residue name for them.
                 resname = Entities.ResidueDefinition.na_3to1[resname]
 
             if res_topo_dict['is_patch']:
@@ -231,13 +250,13 @@ class TopologyLoader:
                     self.rtf_version, resname, res_topo_dict
                 )
                 self.residues.append(res_def)
-            
+
             self.res_defs[resname] = res_def
 
         if 'HIS' not in self.res_defs and 'HSD' in self.res_defs:
             # Map all histidines HIS to HSD
             self.res_defs['HIS'] = self.res_defs['HSD']
-         
+
     def __repr__(self):
         return (
             f'<TopologyLoader Ver={self.rtf_version} '
@@ -252,7 +271,7 @@ class TopologyLoader:
         return iter(self.res_defs.values())
     
     def generate_residue_topology(
-            self, residue: Entities.Residue, coerce: bool = False, QUIET=False
+            self, residue: Entities.Residue, coerce = False, QUIET = False
         ):
         """Load topology definition into the residue and find any missing atoms.
         Argument:
@@ -263,7 +282,7 @@ class TopologyLoader:
 
         Return:
             True if the residue is defined, False otherwise"""
-        
+
         if isinstance(residue, Entities.DisorderedResidue):
             return self.generate_residue_topology(
                 residue.selected_child, coerce=coerce, QUIET=QUIET
@@ -288,9 +307,13 @@ class TopologyLoader:
         res_definition = self.res_defs[residue.resname]
         self._apply_topo_def_on_residue(residue, res_definition, QUIET=QUIET)
         return True
-    
+
     @staticmethod
-    def _apply_topo_def_on_residue(residue, res_definition, QUIET=False):
+    def _apply_topo_def_on_residue(
+            residue: Entities.Residue,
+            res_definition: Entities.ResidueDefinition,
+            QUIET = False
+        ):
         """Apply the topology definition to the residue"""
         residue.topo_definition = res_definition
         residue.total_charge = res_definition.total_charge
@@ -312,9 +335,9 @@ class TopologyLoader:
                     )
 
     @staticmethod
-    def _create_missing_atom(residue: Entities.Residue, atom_name: str):
+    def _create_missing_atom(residue: Entities.Residue, atom_name: str)-> list:
         """Create and separate missing heavy atoms and missing hydrogen atom by atom name"""
-        missing_atom = residue.topo_definition[atom_name].create_new_atom()
+        missing_atom : Entities.Atom = residue.topo_definition[atom_name].create_new_atom()
         missing_atom.set_parent(residue)
         if atom_name.startswith('H'):
             residue.missing_hydrogens[atom_name] = missing_atom
@@ -324,7 +347,7 @@ class TopologyLoader:
 
     @staticmethod
     def _load_group_atom_topo_definition(
-            residue: Entities.Residue, atom_name_list
+            residue: Entities.Residue, atom_name_list: list
         ) -> tuple:
         """Load topology definition to each atom in the residue and find any missing 
         atoms. 
@@ -354,7 +377,7 @@ class TopologyLoader:
             )
             residue.atom_groups.append(cur_group)
 
-    def coerce_resname(self, residue: Entities.Residue, QUIET=False):
+    def coerce_resname(self, residue: Entities.Residue, QUIET = False)->bool:
         """Coerce the name of modified residue to reconstruct it as the canonical 
         one that it is based on. 
 
@@ -392,7 +415,7 @@ class TopologyLoader:
     def generate_chain_topology(
             self, chain: Entities.Chain, coerce: bool = False,
             first_patch: str = None, last_patch: str = None,
-            QUIET=False
+            QUIET = False
         ):
         """Load topology definition into the chain and find any missing atoms.
         Argument:
@@ -403,19 +426,25 @@ class TopologyLoader:
         """
         chain.undefined_res = []
         for residue in chain:
-            is_defined = self.generate_residue_topology(residue, coerce=coerce, QUIET=QUIET)
+            is_defined = self.generate_residue_topology(
+                residue, coerce=coerce, QUIET=QUIET
+            )
             if not is_defined:
                 chain.undefined_res.append(residue)
         if (n_undefined:=len(chain.undefined_res)) > 0 and not QUIET:
             warnings.warn(
-                f"{n_undefined} residues are not defined in the chain!"
+                f"{n_undefined} residue(s) not defined in the chain!"
             )
         if first_patch is not None or last_patch is not None:
-            self.patch_termini(chain, first_patch, last_patch, QUIET=QUIET)
+            self.patch_termini(chain, first_patch, last_patch, QUIET=True)
+
         topo_elements = TopologyElementContainer()
         chain.topo_elements = topo_elements.load_chain(chain)
 
-    def patch_termini(self, chain: Entities.Chain, first: str, last: str, QUIET=False):
+    def patch_termini(
+            self, chain: Entities.PolymerChain,
+            first: str, last: str, QUIET=False
+        ):
         """Patch the terminal residues of the chain"""
         if chain.chain_type not in ('Polypeptide(L)', 'Polyribonucleotide'):
             raise NotImplementedError(
@@ -428,13 +457,13 @@ class TopologyLoader:
         if last is not None:
             self.patch_residue(chain.child_list[-1], last, "CTER", QUIET=QUIET)
         if chain.topo_elements is not None:
-            # Update topology elements if they are already defined
+            # Update topology elements if they are already definedß
             topo_elements = TopologyElementContainer()
             chain.topo_elements = topo_elements.load_chain(chain)
 
     def patch_residue(
-            self, residue: Entities.Residue, patch: str, 
-            patch_loc='MIDCHAIN', QUIET=False
+            self, residue: Entities.Residue, patch: str,
+            patch_loc = 'MIDCHAIN', QUIET = False
         ):
         """Patch the residue with the patch definition"""
         if residue.topo_definition is None:
@@ -442,15 +471,22 @@ class TopologyLoader:
                 f"Cannot patch the first residue {residue.resname} "
                 "because it is undefined (no topology definition exists)!"
             )
-        patcher = ResiduePatcher()
         res_def = residue.topo_definition
-        patch_def = self[patch]
-        patched_res_def = patcher.patch_residue_definition(
-            res_def, patch_def, patch_loc=patch_loc
-        )
-        self._apply_topo_def_on_residue(residue, patched_res_def, QUIET=QUIET)
         patched_def_name = res_def.resname + "_" + patch
-        self.patched_defs[patched_def_name] = patched_res_def
+        if patched_def_name in self.patched_defs:
+            patched_res_def = self.patched_defs[patched_def_name]
+        else:
+            patcher = ResiduePatcher()
+            patch_def = self[patch]
+            patched_res_def = patcher.patch_residue_definition(
+                res_def, patch_def, patch_loc=patch_loc
+            )
+            self.patched_defs[patched_def_name] = patched_res_def
+
+        self._apply_topo_def_on_residue(residue, patched_res_def, QUIET=QUIET)
+        fixer = ResidueFixer()
+        fixer.load_residue(residue)
+        fixer.remove_undefined_atoms()
 
 
 class TopologyElementContainer:
@@ -485,9 +521,8 @@ class TopologyElementContainer:
             s += f"{attr}={n}, "
         s = s[:-2] + ">"
         return s
-        
-    def load_chain(
-            self, chain: Entities.Chain):
+
+    def load_chain(self, chain: Entities.PolymerChain):
         """Find all topology elements from the chain"""
         self.containing_entity = chain
         self.find_topo_elements(chain)
@@ -501,7 +536,7 @@ class TopologyElementContainer:
             if len(atom.neighbors) > 0:
                 return atom
 
-    ## TODO: get Cmap from the topology
+    ## TODO: get Cmap from the topology rtf file
     def find_topo_elements(self, chain: Entities.Chain):
         """Find all topology elements in the chain"""
         if chain.chain_type == 'Polypeptide(L)':
@@ -522,10 +557,11 @@ class TopologyElementContainer:
 
         if not chain.is_continuous():
             raise ValueError(
-                "Cannot find topology elements for a chain with discontinuous residues! "
-                f"Discontinuous residues: {tuple(chain.gaps)}. Use loop modeling "
-                "tool to construct the missing residues first."
+                "Cannot find topology elements for a chain with discontinuous "
+                f"backbone! Missing residues: {chain.gaps}. Use "
+                "loop modeling tool to construct the missing residues first."
             )
+
         self.bonds = chain_trace_atom_neighbors(chain, inter_res_bond)
         visited_atoms = set()
         angles = set()
@@ -570,9 +606,11 @@ class TopologyElementContainer:
 class ResiduePatcher:
     """Class Object for patching a residue with a patch definition"""
     def __init__(self):
-        self.res = None
-        self.patch = None
-        self.remove_nei_ic_prefix = None
+        self.res: Entities.ResidueDefinition = None
+        self.patch: Entities.PatchDefinition = None
+        # for marking the ic entry to be removed from terminal residue during 
+        # patching, either '+' or '-' depending on the patch location
+        self.remove_nei_ic_prefix: str = None
 
     def _remove_atom_from_bonds(self, atom_name:str):
         """Remove the atom from the bonds"""
@@ -638,10 +676,6 @@ class ResiduePatcher:
             self.res.total_charge += atom_def.charge
 
         new_ic = {**self.res.ic, **self.patch.ic}
-        # if ('CY', 'CA', 'N', 'HN') in self.patch.ic:
-        #     new_ic.pop(('-C', 'CA', 'N', 'HN'))
-        # if ('NT', 'CA', 'C', 'O') in self.patch.ic:
-        #     new_ic.pop(('+N', 'CA', 'C', 'O'))
         if self.remove_nei_ic_prefix is not None:
             self._remove_neighbor_atom_from_ic(new_ic)
 
@@ -655,20 +689,22 @@ class ResiduePatcher:
 
     def patch_residue_definition(
             self,
-            residue_definition,
-            patch_definition,
-            patch_loc:str = "MIDCHAIN",
-        ):
-        """Patch a residue definition with a patch definition. Return the patched 
-        residue definition
+            residue_definition: Entities.ResidueDefinition,
+            patch_definition: Entities.PatchDefinition,
+            patch_loc: str = "MIDCHAIN",
+        ) -> Entities.ResidueDefinition:
+        """Patch a residue definition with a patch definition. Return the patched residue definition
         """
+        patch_loc = patch_loc.upper()
         if patch_loc not in ("MIDCHAIN", "NTER", "CTER"):
-            raise ValueError("Patch type must be PROTONATION, NTER or CTER")
+            raise ValueError("Patch type must be 'MIDCHAIN', 'NTER' or 'CTER'")
         if patch_loc == "NTER":
             self.remove_nei_ic_prefix = '-'
         elif patch_loc == "CTER":
             self.remove_nei_ic_prefix = '+'
 
+        # need to make a copy of the patch definition
+        # to avoid modifying the original patch definition
         self.res = deepcopy(residue_definition)
         # remove the standard residue coordinates
         self.res.standard_coord_dict = None
