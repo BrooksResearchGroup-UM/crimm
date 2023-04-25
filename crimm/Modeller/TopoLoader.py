@@ -205,6 +205,29 @@ def get_impropers(chain: Entities.PolymerChain)->list[Entities.Improper]:
         impropers.extend(residue_get_impropers(res))
     return impropers
 
+def _get_cmap_from_atom_names(res, cmap_atom_names):
+    """Get cmap from atom names. (Private function)"""
+    raise NotImplementedError
+
+def get_cmap(chain: Entities.PolymerChain)->list[Entities.CMap]:
+    """Return a list of CMap terms within the chain. Raise ValueError if the 
+    topology definition is not loaded."""
+    cmaps = []
+    for res in chain.residues:
+        if res.topo_definition is None:
+            raise ValueError(
+                'Topology definition is not loaded for this residue!'
+            )
+        for cmap_atom_names in res.topo_definition.cmaps:
+            cmap = _get_cmap_from_atom_names(res, cmap_atom_names)
+            if cmap is None:
+                if not _is_terminal_or_orphan_residue(res):
+                    warnings.warn(
+                        f'Cannot find cmap {cmap_atom_names} in residue {res}'
+                    )
+                continue
+            cmaps.append(cmap)
+    return cmaps
 
 ##TODO: separate this class into two classes: TopologyLoader and TopologyGenerator
 class TopologyLoader:
@@ -305,11 +328,11 @@ class TopologyLoader:
             warnings.warn("Topology definition already exists! Overwriting...")
 
         res_definition = self.res_defs[residue.resname]
-        self._apply_topo_def_on_residue(residue, res_definition, QUIET=QUIET)
+        self.apply_topo_def_on_residue(residue, res_definition, QUIET=QUIET)
         return True
 
     @staticmethod
-    def _apply_topo_def_on_residue(
+    def apply_topo_def_on_residue(
             residue: Entities.Residue,
             res_definition: Entities.ResidueDefinition,
             QUIET = False
@@ -483,7 +506,7 @@ class TopologyLoader:
             )
             self.patched_defs[patched_def_name] = patched_res_def
 
-        self._apply_topo_def_on_residue(residue, patched_res_def, QUIET=QUIET)
+        self.apply_topo_def_on_residue(residue, patched_res_def, QUIET=QUIET)
         fixer = ResidueFixer()
         fixer.load_residue(residue)
         fixer.remove_undefined_atoms()
@@ -603,6 +626,8 @@ class TopologyElementContainer:
 
         self.atom_lookup = atom_lookup
 
+##TODO: Rewrite TopoDef and this class to use the TopologyElementContainer instead
+## of removing entries one by one here
 class ResiduePatcher:
     """Class Object for patching a residue with a patch definition"""
     def __init__(self):
@@ -622,15 +647,36 @@ class ResiduePatcher:
             for bond in remove_list:
                 bonds.remove(bond)
         
-    def _remove_neighbor_atom_from_ic(self, ic:dict):
+    def _remove_neighbor_atom_from_ic(self):
         remove_keys = set()
-        for ic_key in ic:
+        for ic_key in self.res.ic:
             for atom in ic_key:
                 if atom.startswith(self.remove_nei_ic_prefix):
                     remove_keys.add(ic_key)
         for ic_key in remove_keys:
-            ic.pop(ic_key)
-        
+            self.res.ic.pop(ic_key)
+
+    def _remove_neighbor_atom_from_cmap(self):
+        remove_keys = set()
+        for cmap in self.res.cmap:
+            for dihe in cmap:
+                for atom in dihe:
+                    if atom.startswith(self.remove_nei_ic_prefix):
+                        remove_keys.add(cmap)
+
+        for cmap in remove_keys:
+            self.res.cmap.remove(cmap)
+
+    def _remove_neighbor_atom_from_improper(self):
+        remove_keys = set()
+        for improper in self.res.impropers:
+            for atom in improper:
+                if atom.startswith(self.remove_nei_ic_prefix):
+                    remove_keys.add(improper)
+
+        for improper in remove_keys:
+            self.res.impropers.remove(improper)
+
     def _remove_atom_from_ic(self, atom_name:str):
         """Remove the atom from the ic table dictionary"""
         remove_keys = []
@@ -642,9 +688,24 @@ class ResiduePatcher:
 
     def _remove_atom_from_param(self, param_attr, atom_name:str):
         """Remove the residue from the parameter attribute of the residue"""
+        remove_keys = set()
         for iterable in param_attr:
             if atom_name in iterable:
-                param_attr.remove(iterable)
+                remove_keys.add(iterable)
+        
+        for iterable in remove_keys:
+            param_attr.remove(iterable)
+
+    def _remove_atom_from_cmap(self, cmaps, atom_name:str):
+        """Remove the residue from the parameter attribute of the residue"""
+        remove_keys = set()
+        for cmap in cmaps:
+            for dihe in cmap:
+                if atom_name in dihe:
+                    remove_keys.add(cmap)
+
+        for cmap in remove_keys:
+            cmaps.remove(cmap)
 
     def _delete_atom_params(self):
         """Delete the parameters of the atoms that are deleted in the patch"""
@@ -659,10 +720,11 @@ class ResiduePatcher:
             self._remove_atom_from_bonds(atom_name)
             self._remove_atom_from_ic(atom_name)
             for param_attr in (
-                self.res.impropers, self.res.cmap, self.res.H_donors, 
+                self.res.impropers, self.res.H_donors,
                 self.res.H_acceptors, self.res.atom_groups
             ):
                 self._remove_atom_from_param(param_attr, atom_name)
+            self._remove_atom_from_cmap(self.res.cmap, atom_name)
 
     def _apply_patch(self):
         """Apply the patch on the residue definition"""
@@ -674,17 +736,18 @@ class ResiduePatcher:
         self.res.total_charge = 0
         for atom_def in self.res:
             self.res.total_charge += atom_def.charge
-
-        new_ic = {**self.res.ic, **self.patch.ic}
-        if self.remove_nei_ic_prefix is not None:
-            self._remove_neighbor_atom_from_ic(new_ic)
-
-        self.res.ic = new_ic.copy()
         self.res.atom_groups.extend(self.patch.atom_groups)
         self.res.H_donors.extend(self.patch.H_donors)
         self.res.H_acceptors.extend(self.patch.H_acceptors)
         self.res.impropers.extend(self.patch.impropers)
         self.res.cmap.extend(self.patch.cmap)
+
+        self.res.ic = {**self.res.ic, **self.patch.ic}
+        if self.remove_nei_ic_prefix is not None:
+            self._remove_neighbor_atom_from_ic()
+            self._remove_neighbor_atom_from_improper()
+            self._remove_neighbor_atom_from_cmap()
+
         self.res.is_modified = True
 
     def patch_residue_definition(

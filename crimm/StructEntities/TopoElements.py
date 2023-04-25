@@ -228,3 +228,37 @@ class Improper(TopoEntity, ImprTuple):
             if coord is None:
                 return None
         return 0.000
+
+CmapTuple = namedtuple('CMap', ['dihe1', 'dihe2'])
+class CMap(TopoEntity, CmapTuple):
+
+    def __new__(cls, dihe1, dihe2, param=None):
+        """Create a new Entity. """
+        cmap = super(CMap, cls).__new__(cls, dihe1, dihe2)
+        cmap.param = param
+        cmap.full_id = sorted((dihe1.full_id, dihe2.full_id))
+        return cmap
+    
+    def __repr__(self):
+        dihe1, dihe2 = self
+        s = f"<Cross-Term({repr(dihe1)}, {repr(dihe2)})"
+        if self.angle is not None:
+            s += f" angle={self.angle:.2f})"
+        s += ">"
+        return s
+    
+    def get_atom_types(self):
+        """Return the atom types of the atoms in this entity"""
+        dihe1, dihe2 = self
+        atom_types1 = dihe1.get_atom_types()
+        atom_types2 = dihe2.get_atom_types()
+        return tuple(sorted((atom_types1, atom_types2)))
+    
+    @property
+    def angle(self):
+        """return the current improper in degrees"""
+        a, b, c, d = (atom.coord for atom in self)
+        for coord in (a, b, c, d):
+            if coord is None:
+                return None
+        return 0.000

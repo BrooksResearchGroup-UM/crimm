@@ -4,11 +4,10 @@ setup(
     name='crimm',
     version='0.0.1',
     install_requires=[
-        'biopython',
+        'biopython>=1.80', # Folks, we need to get past ver 1.79!
         'nglview',
     ],
     packages=find_packages(
-        # All keyword arguments below are optional:
         where='crimm',
         include=['crimm*']
     ),

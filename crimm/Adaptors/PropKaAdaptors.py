@@ -1,6 +1,6 @@
 """Derived Propka Atom class to facilitate atom class conversion for pKa calculation"""
 import os
-from collections import namedtuple
+from typing import Optional, Tuple
 from propka.input import read_parameter_file
 from propka.parameters import Parameters
 from propka.version import VersionA
@@ -9,36 +9,10 @@ from propka.molecular_container import MolecularContainer as _MolContnr
 from propka.conformation_container import ConformationContainer
 from propka.hydrogens import setup_bonding_and_protonation
 from propka.atom import Atom as _ppAtom
-# from ..Atom import Atom as _ourAtom
+from crimm.Modeller import TopologyLoader, ParameterLoader
+from crimm.Modeller.TopoFixer import ResidueFixer
 
-# Get the default options instantiated here directly so it doesn't
-# need to be instantiated in any other places and get passed around
-# TODO: make these options actual arguments for the main function
-default_options = {
-    'reference': 'neutral',
-    'titrate_only': None,
-    'thermophiles': None,
-    'alignment': None,
-    'mutations': None,
-    'parameters': 'propka.cfg',
-    'log_level': 'INFO',
-    'pH': 7.0,
-    'window': (0.0, 14.0, 1.0),
-    'grid': (0.0, 14.0, 0.1),
-    'mutator': None,
-    'mutator_options': None,
-    'display_coupled_residues': False,
-    'reuse_ligand_mol2_file': False,
-    'keep_protons': False,
-    'protonate_all': False
-}
-_options = namedtuple("_options", default_options)
-cur_options = _options(**default_options)
-# Do the same thing for the parameters and version
 dir_path = os.path.dirname(os.path.realpath(__file__))
-cfg_path = os.path.join(dir_path, 'propka.cfg')
-cur_parameters = read_parameter_file(cfg_path, Parameters())
-cur_version = VersionA(cur_parameters)
 
 class ProPkaAtom(_ppAtom):
     """PropKa Atom class - contains all atom information found in the PDB file
@@ -121,67 +95,191 @@ class ProPkaAtom(_ppAtom):
 class MolecularContainer(_MolContnr):
     """A derived class from MolecularContainer where the container is initiated
     with default options"""
-    def __init__(self):
+    def __init__(self, protonator):
         """Initialize the container. This method overwrite the default
         init method from the super class"""
         self.conformation_names = []
         self.conformations = {}
-        self.options = cur_options # get it directly from this script
+        self.options = protonator # get from Protonator Class
         self.name = None
-        self.version = cur_version # same here
+        self.version = protonator.version # same here
 
-def add_chain_to_conf_container(chain, conf_container):
-    """Add all atoms from a chain to the ConformationContainer. Terminal atom
-    will be labeled accordingly."""
-    pka_atoms = []
-    for atom in chain.get_atoms():
-        # We will check the options here (hardcoded for now)
-        if not cur_options.keep_protons and atom.element == 'H':
-            continue
-        pka_atoms.append(ProPkaAtom(atom))
-    # label NTER and CTER
-    if pka_atoms[0].element == 'N':
-        pka_atoms[0].terminal = 'N+'
-    if pka_atoms[-1].element == 'O':
-        pka_atoms[-1].terminal = 'C-'
-    for pka_atom in pka_atoms:
-        conf_container.add_atom(pka_atom)
 
-def convert_chains_to_mol_container(chains):
-    """Load a list of PolymerChains to propKa MolecularContainer for pKa 
-    calculations. Only one conformations will be used for calculation, i.e. only 
-    one altloc in the Disordered atom (the selected child) will be loaded.
+def _is_protonated(ph, pka):
+    return pka>ph
 
-    Args:
-        chains: list of biopython chains
+def _is_deprotonated(ph, pka):
+    return pka<ph
 
-    Return:
-        MolecularContainer with chain atoms loaded
-    """
-    mol_container = MolecularContainer()
-    conformation_name = '1A'
-    conf_container = ConformationContainer(
-        name=conformation_name,
-        parameters=cur_parameters,
-        molecular_container=mol_container
-    )
-    mol_container.conformations = {conformation_name: conf_container}
-    mol_container.conformation_names = [conformation_name]
-    for chain in chains:
-        add_chain_to_conf_container(chain, conf_container)
-    
-    mol_container.top_up_conformations()
-    # make a structure precheck
-    protein_precheck(
-        mol_container.conformations, mol_container.conformation_names
-    )
-    # set up atom bonding and protonation
-    setup_bonding_and_protonation(mol_container)
-    # Extract groups
-    mol_container.extract_groups()
-    # sort atoms
-    conf_container.sort_atoms()
-    # find coupled groups
-    mol_container.find_covalently_coupled_groups()
-    mol_container.calculate_pka()
-    return mol_container
+class PropKaProtonator:
+    """PropKaProtonator class - contains all the information needed to run
+    propka calculations on a protein."""
+
+    protonation_dict = {
+        'HIS': (_is_protonated, 'HSP'),
+        'ASP': (_is_protonated,'ASPP'),
+        'LYS': (_is_deprotonated, 'LSN'),
+        'GLU': (_is_protonated, 'GLUP')
+    }
+    def __init__(
+            self,
+            topology_loader: TopologyLoader,
+            parameter_loader: ParameterLoader,
+            pH: float = 7.0,
+            reference: str = 'neutral',
+            titrate_only: Optional[str] = None,
+            thermophiles: Optional[str] = None,
+            alignment: Optional[str] = None,
+            mutations: Optional[str] = None,
+            parameter_filename: str = 'propka.cfg',
+            log_level: str = 'INFO',
+            window: Tuple[float, float, float] = (0.0, 14.0, 1.0),
+            grid: Tuple[float, float, float] = (0.0, 14.0, 0.1),
+            mutator: Optional[str] = None,
+            mutator_options: Optional[str] = None,
+            display_coupled_residues: bool = False,
+            reuse_ligand_mol2_file: bool = False,
+            keep_protons: bool = False,
+            protonate_all: bool = False,
+        ) -> None:
+        """Initialize the PropKaProtonator object."""
+        self.pH = pH
+        self.reference = reference
+        self.titrate_only = titrate_only
+        self.thermophiles = thermophiles
+        self.alignment = alignment
+        self.mutations = mutations
+        self.parameter_file = parameter_filename
+        self.log_level = log_level
+        self.window = window
+        self.grid = grid
+        self.mutator = mutator
+        self.mutator_options = mutator_options
+        self.display_coupled_residues = display_coupled_residues
+        self.reuse_ligand_mol2_file = reuse_ligand_mol2_file
+        self.keep_protons = keep_protons
+        self.protonate_all = protonate_all
+
+        cfg_path = os.path.join(dir_path, self.parameter_file)
+        self.parameters = read_parameter_file(cfg_path, Parameters())
+        self.version = VersionA(self.parameters)
+        self.mol_container = None
+        self.patches = None
+        self.model = None
+        self.conf_container = None
+        self.reportable_groups = None
+        self.topo = topology_loader
+        self.param = parameter_loader
+
+    def load_model(self, model):
+        """Load a list of PolymerChains to propKa MolecularContainer for pKa 
+        calculations. Only one conformations will be used for calculation, i.e. only 
+        one altloc in the Disordered atom (the selected child) will be loaded.
+
+        Args:
+            chains: list of biopython chains
+
+        Return:
+            MolecularContainer with chain atoms loaded
+        """
+        self.model = model
+        chains = [chain for chain in model if chain.chain_type == 'Polypeptide(L)']
+        self.mol_container = MolecularContainer(self)
+        conformation_name = '1A'
+        self.conf_container = ConformationContainer(
+            name=conformation_name,
+            parameters=self.parameters,
+            molecular_container=self.mol_container
+        )
+        self.mol_container.conformations = {conformation_name: self.conf_container}
+        self.mol_container.conformation_names = [conformation_name]
+        for chain in chains:
+            chain.sort_residues()
+            self.add_chain_to_conf_container(chain)
+        
+        self.mol_container.top_up_conformations()
+        # make a structure precheck
+        protein_precheck(
+            self.mol_container.conformations, 
+            self.mol_container.conformation_names
+        )
+        # set up atom bonding and protonation
+        setup_bonding_and_protonation(self.mol_container)
+        # Extract groups
+        self.mol_container.extract_groups()
+        # sort atoms
+        self.conf_container.sort_atoms()
+        # find coupled groups
+        self.mol_container.find_covalently_coupled_groups()
+        self.mol_container.calculate_pka()
+        self._get_patch_name()
+
+    def add_chain_to_conf_container(self, chain):
+        """Add all atoms from a chain to the ConformationContainer. Terminal atom
+        will be labeled accordingly."""
+        pka_atoms = []
+        for atom in chain.get_atoms():
+            if not self.keep_protons and atom.element == 'H':
+                continue
+            pka_atoms.append(ProPkaAtom(atom))
+        # label NTER and CTER
+        if pka_atoms[0].element == 'N':
+            pka_atoms[0].terminal = 'N+'
+        if pka_atoms[-1].element == 'O':
+            pka_atoms[-1].terminal = 'C-'
+        for pka_atom in pka_atoms:
+            self.conf_container.add_atom(pka_atom)
+
+    def _get_patch_name(self):
+        self.patches = {}
+        self.reportable_groups = {}
+        for g in self.conf_container.groups:
+            resname, _, chain_id = g.label.split()
+            resseq = g.atom.res_num
+            if chain_id not in self.patches:
+                self.patches[chain_id] = {}
+                self.reportable_groups[chain_id] = {}
+            if g.pka_value == 0.0:
+                continue
+            self.reportable_groups[chain_id][resseq] = g
+            if resname not in self.protonation_dict:
+                continue
+            eval_function, patch_name = self.protonation_dict[resname]
+            if eval_function(self.pH, g.pka_value):
+                self.patches[chain_id][resseq] = patch_name
+
+    def _patch_residue(self, residue, patch_name:str):
+        fixer = ResidueFixer()
+        topo_def = self.topo[patch_name]
+        if topo_def.is_patch:
+            self.topo.patch_residue(residue, patch_name)
+        else:
+            self.topo.apply_topo_def_on_residue(residue, topo_def)
+        self.param.res_def_fill_ic(residue.topo_definition)
+        fixer.load_residue(residue)
+        fixer.build_missing_atoms()
+        fixer.build_hydrogens()
+        fixer.remove_undefined_atoms()
+
+    def apply_patches(self):
+        """Apply patches to the model."""
+        if len(self.patches) == 0:
+            return
+        for chain_id, patches in self.patches.items():
+            for resseq, patch_name in patches.items():
+                residue = self.model[chain_id][resseq]
+                self._patch_residue(residue, patch_name)
+
+    def report(self):
+        fmt = (
+            "{chain_id:2s} {i:3d} {resname:3s} pKa={pka:>5.2f} "
+            "model_pKa={model_pka:>4.1f} buriedness={buried:5.3f}"
+        )
+        for chain_id, groups in self.reportable_groups.items():
+            for i, g in groups.items():
+                out_str = fmt.format(
+                    chain_id = chain_id, i=i, resname=g.atom.res_name, 
+                    pka=g.pka_value, model_pka = g.model_pka,
+                    buried = g.buried
+                )
+                print(out_str)
