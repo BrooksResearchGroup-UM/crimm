@@ -1,6 +1,7 @@
 import os
 import warnings
 import pickle
+from typing import List, Tuple
 from copy import deepcopy
 from Bio.Data.PDBData import protein_letters_3to1_extended
 from Bio.Data.PDBData import protein_letters_1to3
@@ -23,7 +24,7 @@ rtf_path_dict = {
 
 def _find_atom_in_residue(
         residue: Entities.Residue, atom_name: str
-    )->Entities.Atom | None:
+    )->Entities.Atom:
     if atom_name.startswith('+') or atom_name.startswith('-'):
         return None
     if atom_name in residue:
@@ -34,7 +35,7 @@ def _find_atom_in_residue(
 
 def _find_atom_from_neighbor(
         cur_residue: Entities.Residue, atom_name: str
-    )->Entities.Atom | None:
+    )->Entities.Atom:
     """Get atom from neighbor residue. (Private function)"""
     resseq = cur_residue.id[1]
     chain = cur_residue.parent
@@ -48,7 +49,7 @@ def _find_atom_from_neighbor(
         return _find_atom_in_residue(neighbor_residue, atom_name)
     return None
 
-def get_bonds_within_residue(residue: Entities.Residue)->list[Entities.Bond]:
+def get_bonds_within_residue(residue: Entities.Residue)->List[Entities.Bond]:
     """Return a list of bonds within the residue (peptide bonds linking neighbor 
     residues are excluded). Raise ValueError if the topology definition is 
     not loaded."""
@@ -75,7 +76,7 @@ def atom_add_neighbors(atom1: Entities.Atom, atom2: Entities.Atom):
     atom1.neighbors.add(atom2)
     atom2.neighbors.add(atom1)
 
-def residue_trace_atom_neigbors(residue: Entities.Residue)->list[Entities.Bond]:
+def residue_trace_atom_neigbors(residue: Entities.Residue)->List[Entities.Bond]:
     """Trace all bonds within the residue and add the atoms to each other's
     neighbors list. Return a list of bonds within the residue."""
     bonds = get_bonds_within_residue(residue)
@@ -90,9 +91,9 @@ def chain_clear_atom_neighbors(chain: Entities.PolymerChain):
         atom.neighbors = set()
 
 def chain_trace_atom_neighbors(
-        chain: Entities.PolymerChain, inter_res_bonding_atoms: tuple[str],
+        chain: Entities.PolymerChain, inter_res_bonding_atoms: Tuple[str],
         bond_type='single'
-    )->list[Entities.Bond]:
+    )->List[Entities.Bond]:
     """Trace all bonds within the chain and add the atoms to each other's
     neighbors list. Return a list of bonds within the chain."""
     end_atom, start_atom = inter_res_bonding_atoms
@@ -148,8 +149,8 @@ def traverse_graph(cur_atom, angle_set, dihedral_set, visited_set):
         traverse_graph(nei_atom, angle_set, dihedral_set, visited_set)
 
 def _get_improper_from_atom_names(
-        residue: Entities.Residue, atom_names: tuple[str]
-    )->Entities.Improper | None:
+        residue: Entities.Residue, atom_names: Tuple[str]
+    )->Entities.Improper:
     """Get improper from atom names. (Private function)"""
     atoms = []
     for atom_name in atom_names:
@@ -178,7 +179,7 @@ def _is_terminal_or_orphan_residue(residue: Entities.Residue)->bool:
         return True
     return residue in (chain.residues[0], chain.residues[-1])
 
-def residue_get_impropers(residue: Entities.Residue)->list[Entities.Improper]:
+def residue_get_impropers(residue: Entities.Residue)->List[Entities.Improper]:
     """Return a list of improper angles within the residue. Raise ValueError if the 
     topology definition is not loaded."""
     if residue.topo_definition is None:
@@ -197,7 +198,7 @@ def residue_get_impropers(residue: Entities.Residue)->list[Entities.Improper]:
         impropers.append(improper)
     return impropers
 
-def get_impropers(chain: Entities.PolymerChain)->list[Entities.Improper]:
+def get_impropers(chain: Entities.PolymerChain)->List[Entities.Improper]:
     """Return a list of improper angles within the chain. Raise ValueError if the 
     topology definition is not loaded."""
     impropers = []
@@ -209,7 +210,7 @@ def _get_cmap_from_atom_names(res, cmap_atom_names):
     """Get cmap from atom names. (Private function)"""
     raise NotImplementedError
 
-def get_cmap(chain: Entities.PolymerChain)->list[Entities.CMap]:
+def get_cmap(chain: Entities.PolymerChain)->List[Entities.CMap]:
     """Return a list of CMap terms within the chain. Raise ValueError if the 
     topology definition is not loaded."""
     cmaps = []
@@ -580,8 +581,8 @@ class TopologyElementContainer:
 
         if not chain.is_continuous():
             raise ValueError(
-                "Cannot find topology elements for a chain with discontinuous "
-                f"backbone! Missing residues: {chain.gaps}. Use "
+                "Cannot generate topology elements for a chain with "
+                f"discontinuous backbone! Missing residues: {chain.gaps}. Use "
                 "loop modeling tool to construct the missing residues first."
             )
 

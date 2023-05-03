@@ -11,7 +11,7 @@ class TopoEntity:
 
     def _create_full_id(self):
         """Create unique id by comparing the end atoms to decide if the sequence need to be flipped"""
-        atom_ids = tuple(a.full_id for a in self)
+        atom_ids = tuple(a.get_full_id() for a in self)
         if atom_ids[0] > atom_ids[-1]:
             atom_ids = tuple(reversed(atom_ids))
         return atom_ids

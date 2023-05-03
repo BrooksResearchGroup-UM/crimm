@@ -5,7 +5,9 @@ setup(
     version='0.0.1',
     install_requires=[
         'biopython>=1.80', # Folks, we need to get past ver 1.79!
-        'nglview',
+        'ipywidgets<=8',
+        'nglview>=3.0.3',
+        'requests',
     ],
     packages=find_packages(
         where='crimm',

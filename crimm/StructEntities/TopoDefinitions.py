@@ -256,18 +256,43 @@ class ResidueDefinition:
                     f'Skipped construction of new residue: {self.resname}'
                 )
                 return
+ 
+        self._standard_res = self.create_residue_from_coord_dict(
+            self.standard_coord_dict
+        )
+
+    def create_residue_from_coord_dict(
+            self, coord_dict, resseq = 0, icode = " ", segid = " "
+        ):
+        """Create a new residue from the atom coordinate dictionary.
+        
+        Args:
+            coord_dict: dict, atom name: coordinates
+            resseq: int, residue sequence number for the new residue. Default to 0
+            icode: str, insertion code
+            segid: str, segment id the new residue belongs to. Default to " " (empty)
+            
+        Return:
+            Residue object with atoms whose names and coordinates are filled
+        """
         if self.resname in self.na_3to1:
             resname = self.na_3to1[self.resname]
         else:
             resname = self.resname
-        self._standard_res = Entities.Residue((' ', 0, ' '), resname, segid = " ")
-        for i, (atom_name, coords) in enumerate(self.standard_coord_dict.items()):
+        new_res = Entities.Residue(
+            (' ', int(resseq), str(icode)),
+            resname,
+            segid = segid
+        )
+        for i, (atom_name, coords) in enumerate(coord_dict.items()):
             if atom_name.startswith('-') or atom_name.startswith('+'):
                 continue
             new_atom = self[atom_name].create_new_atom(
                 coords=coords, serial_number=i+1
             )
-            self._standard_res.add(new_atom)
+            new_res.add(new_atom)
+
+        return new_res
     
     def create_residue(self, resseq = 0, icode = " ", segid = " "):
         """Create a new residue from the internal coordinate definitions
