@@ -3,7 +3,7 @@ import warnings
 import requests
 from Bio.Align import PairwiseAligner
 from crimm.Superimpose.ChainSuperimposer import ChainSuperimposer
-from crimm.Utils import fetch, fetch_alphafold
+from crimm.Fetchers import fetch_rcsb, fetch_alphafold, uniprot_id_query
 import crimm.StructEntities as Entities
 
 def find_gaps_within_range(gaps, segment):
@@ -384,7 +384,7 @@ class ChainLoopBuilder:
         """
         for entity_dict in query_results.values():
             for pdbid, chain_ids in entity_dict.items():
-                structure = fetch(
+                structure = fetch_rcsb(
                     pdbid, first_assembly_only = False,
                     include_solvent = False, local_entry=local_entry_point
                 )
@@ -481,8 +481,8 @@ class ChainLoopBuilder:
                 f"for {self.model_chain}."
             )
             return
-
-        af_struct = fetch_alphafold(self.pdbid, self.model_chain.entity_id)
+        uniprot_id = uniprot_id_query(self.pdbid, self.model_chain.entity_id)
+        af_struct = fetch_alphafold(uniprot_id)
         if af_struct is None:
             warnings.warn(
                 "Missing looper not built due to no AlphaFold structure avaible "

@@ -1,6 +1,7 @@
 import os
 import warnings
 import pickle
+from typing import List, Tuple
 from copy import deepcopy
 from Bio.Data.PDBData import protein_letters_3to1_extended
 from Bio.Data.PDBData import protein_letters_1to3
@@ -23,7 +24,7 @@ rtf_path_dict = {
 
 def _find_atom_in_residue(
         residue: Entities.Residue, atom_name: str
-    )->Entities.Atom | None:
+    )->Entities.Atom:
     if atom_name.startswith('+') or atom_name.startswith('-'):
         return None
     if atom_name in residue:
@@ -34,7 +35,7 @@ def _find_atom_in_residue(
 
 def _find_atom_from_neighbor(
         cur_residue: Entities.Residue, atom_name: str
-    )->Entities.Atom | None:
+    )->Entities.Atom:
     """Get atom from neighbor residue. (Private function)"""
     resseq = cur_residue.id[1]
     chain = cur_residue.parent
@@ -48,7 +49,7 @@ def _find_atom_from_neighbor(
         return _find_atom_in_residue(neighbor_residue, atom_name)
     return None
 
-def get_bonds_within_residue(residue: Entities.Residue)->list[Entities.Bond]:
+def get_bonds_within_residue(residue: Entities.Residue)->List[Entities.Bond]:
     """Return a list of bonds within the residue (peptide bonds linking neighbor 
     residues are excluded). Raise ValueError if the topology definition is 
     not loaded."""
@@ -75,7 +76,7 @@ def atom_add_neighbors(atom1: Entities.Atom, atom2: Entities.Atom):
     atom1.neighbors.add(atom2)
     atom2.neighbors.add(atom1)
 
-def residue_trace_atom_neigbors(residue: Entities.Residue)->list[Entities.Bond]:
+def residue_trace_atom_neigbors(residue: Entities.Residue)->List[Entities.Bond]:
     """Trace all bonds within the residue and add the atoms to each other's
     neighbors list. Return a list of bonds within the residue."""
     bonds = get_bonds_within_residue(residue)
@@ -90,9 +91,9 @@ def chain_clear_atom_neighbors(chain: Entities.PolymerChain):
         atom.neighbors = set()
 
 def chain_trace_atom_neighbors(
-        chain: Entities.PolymerChain, inter_res_bonding_atoms: tuple[str],
+        chain: Entities.PolymerChain, inter_res_bonding_atoms: Tuple[str],
         bond_type='single'
-    )->list[Entities.Bond]:
+    )->List[Entities.Bond]:
     """Trace all bonds within the chain and add the atoms to each other's
     neighbors list. Return a list of bonds within the chain."""
     end_atom, start_atom = inter_res_bonding_atoms
@@ -148,8 +149,8 @@ def traverse_graph(cur_atom, angle_set, dihedral_set, visited_set):
         traverse_graph(nei_atom, angle_set, dihedral_set, visited_set)
 
 def _get_improper_from_atom_names(
-        residue: Entities.Residue, atom_names: tuple[str]
-    )->Entities.Improper | None:
+        residue: Entities.Residue, atom_names: Tuple[str]
+    )->Entities.Improper:
     """Get improper from atom names. (Private function)"""
     atoms = []
     for atom_name in atom_names:
@@ -178,7 +179,7 @@ def _is_terminal_or_orphan_residue(residue: Entities.Residue)->bool:
         return True
     return residue in (chain.residues[0], chain.residues[-1])
 
-def residue_get_impropers(residue: Entities.Residue)->list[Entities.Improper]:
+def residue_get_impropers(residue: Entities.Residue)->List[Entities.Improper]:
     """Return a list of improper angles within the residue. Raise ValueError if the 
     topology definition is not loaded."""
     if residue.topo_definition is None:
@@ -197,7 +198,7 @@ def residue_get_impropers(residue: Entities.Residue)->list[Entities.Improper]:
         impropers.append(improper)
     return impropers
 
-def get_impropers(chain: Entities.PolymerChain)->list[Entities.Improper]:
+def get_impropers(chain: Entities.PolymerChain)->List[Entities.Improper]:
     """Return a list of improper angles within the chain. Raise ValueError if the 
     topology definition is not loaded."""
     impropers = []
@@ -205,6 +206,29 @@ def get_impropers(chain: Entities.PolymerChain)->list[Entities.Improper]:
         impropers.extend(residue_get_impropers(res))
     return impropers
 
+def _get_cmap_from_atom_names(res, cmap_atom_names):
+    """Get cmap from atom names. (Private function)"""
+    raise NotImplementedError
+
+def get_cmap(chain: Entities.PolymerChain)->List[Entities.CMap]:
+    """Return a list of CMap terms within the chain. Raise ValueError if the 
+    topology definition is not loaded."""
+    cmaps = []
+    for res in chain.residues:
+        if res.topo_definition is None:
+            raise ValueError(
+                'Topology definition is not loaded for this residue!'
+            )
+        for cmap_atom_names in res.topo_definition.cmaps:
+            cmap = _get_cmap_from_atom_names(res, cmap_atom_names)
+            if cmap is None:
+                if not _is_terminal_or_orphan_residue(res):
+                    warnings.warn(
+                        f'Cannot find cmap {cmap_atom_names} in residue {res}'
+                    )
+                continue
+            cmaps.append(cmap)
+    return cmaps
 
 ##TODO: separate this class into two classes: TopologyLoader and TopologyGenerator
 class TopologyLoader:
@@ -305,11 +329,11 @@ class TopologyLoader:
             warnings.warn("Topology definition already exists! Overwriting...")
 
         res_definition = self.res_defs[residue.resname]
-        self._apply_topo_def_on_residue(residue, res_definition, QUIET=QUIET)
+        self.apply_topo_def_on_residue(residue, res_definition, QUIET=QUIET)
         return True
 
     @staticmethod
-    def _apply_topo_def_on_residue(
+    def apply_topo_def_on_residue(
             residue: Entities.Residue,
             res_definition: Entities.ResidueDefinition,
             QUIET = False
@@ -483,7 +507,7 @@ class TopologyLoader:
             )
             self.patched_defs[patched_def_name] = patched_res_def
 
-        self._apply_topo_def_on_residue(residue, patched_res_def, QUIET=QUIET)
+        self.apply_topo_def_on_residue(residue, patched_res_def, QUIET=QUIET)
         fixer = ResidueFixer()
         fixer.load_residue(residue)
         fixer.remove_undefined_atoms()
@@ -557,8 +581,8 @@ class TopologyElementContainer:
 
         if not chain.is_continuous():
             raise ValueError(
-                "Cannot find topology elements for a chain with discontinuous "
-                f"backbone! Missing residues: {chain.gaps}. Use "
+                "Cannot generate topology elements for a chain with "
+                f"discontinuous backbone! Missing residues: {chain.gaps}. Use "
                 "loop modeling tool to construct the missing residues first."
             )
 
@@ -603,6 +627,8 @@ class TopologyElementContainer:
 
         self.atom_lookup = atom_lookup
 
+##TODO: Rewrite TopoDef and this class to use the TopologyElementContainer instead
+## of removing entries one by one here
 class ResiduePatcher:
     """Class Object for patching a residue with a patch definition"""
     def __init__(self):
@@ -622,15 +648,36 @@ class ResiduePatcher:
             for bond in remove_list:
                 bonds.remove(bond)
         
-    def _remove_neighbor_atom_from_ic(self, ic:dict):
+    def _remove_neighbor_atom_from_ic(self):
         remove_keys = set()
-        for ic_key in ic:
+        for ic_key in self.res.ic:
             for atom in ic_key:
                 if atom.startswith(self.remove_nei_ic_prefix):
                     remove_keys.add(ic_key)
         for ic_key in remove_keys:
-            ic.pop(ic_key)
-        
+            self.res.ic.pop(ic_key)
+
+    def _remove_neighbor_atom_from_cmap(self):
+        remove_keys = set()
+        for cmap in self.res.cmap:
+            for dihe in cmap:
+                for atom in dihe:
+                    if atom.startswith(self.remove_nei_ic_prefix):
+                        remove_keys.add(cmap)
+
+        for cmap in remove_keys:
+            self.res.cmap.remove(cmap)
+
+    def _remove_neighbor_atom_from_improper(self):
+        remove_keys = set()
+        for improper in self.res.impropers:
+            for atom in improper:
+                if atom.startswith(self.remove_nei_ic_prefix):
+                    remove_keys.add(improper)
+
+        for improper in remove_keys:
+            self.res.impropers.remove(improper)
+
     def _remove_atom_from_ic(self, atom_name:str):
         """Remove the atom from the ic table dictionary"""
         remove_keys = []
@@ -642,9 +689,24 @@ class ResiduePatcher:
 
     def _remove_atom_from_param(self, param_attr, atom_name:str):
         """Remove the residue from the parameter attribute of the residue"""
+        remove_keys = set()
         for iterable in param_attr:
             if atom_name in iterable:
-                param_attr.remove(iterable)
+                remove_keys.add(iterable)
+        
+        for iterable in remove_keys:
+            param_attr.remove(iterable)
+
+    def _remove_atom_from_cmap(self, cmaps, atom_name:str):
+        """Remove the residue from the parameter attribute of the residue"""
+        remove_keys = set()
+        for cmap in cmaps:
+            for dihe in cmap:
+                if atom_name in dihe:
+                    remove_keys.add(cmap)
+
+        for cmap in remove_keys:
+            cmaps.remove(cmap)
 
     def _delete_atom_params(self):
         """Delete the parameters of the atoms that are deleted in the patch"""
@@ -659,10 +721,11 @@ class ResiduePatcher:
             self._remove_atom_from_bonds(atom_name)
             self._remove_atom_from_ic(atom_name)
             for param_attr in (
-                self.res.impropers, self.res.cmap, self.res.H_donors, 
+                self.res.impropers, self.res.H_donors,
                 self.res.H_acceptors, self.res.atom_groups
             ):
                 self._remove_atom_from_param(param_attr, atom_name)
+            self._remove_atom_from_cmap(self.res.cmap, atom_name)
 
     def _apply_patch(self):
         """Apply the patch on the residue definition"""
@@ -674,17 +737,18 @@ class ResiduePatcher:
         self.res.total_charge = 0
         for atom_def in self.res:
             self.res.total_charge += atom_def.charge
-
-        new_ic = {**self.res.ic, **self.patch.ic}
-        if self.remove_nei_ic_prefix is not None:
-            self._remove_neighbor_atom_from_ic(new_ic)
-
-        self.res.ic = new_ic.copy()
         self.res.atom_groups.extend(self.patch.atom_groups)
         self.res.H_donors.extend(self.patch.H_donors)
         self.res.H_acceptors.extend(self.patch.H_acceptors)
         self.res.impropers.extend(self.patch.impropers)
         self.res.cmap.extend(self.patch.cmap)
+
+        self.res.ic = {**self.res.ic, **self.patch.ic}
+        if self.remove_nei_ic_prefix is not None:
+            self._remove_neighbor_atom_from_ic()
+            self._remove_neighbor_atom_from_improper()
+            self._remove_neighbor_atom_from_cmap()
+
         self.res.is_modified = True
 
     def patch_residue_definition(

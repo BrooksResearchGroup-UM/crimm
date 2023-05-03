@@ -16,11 +16,15 @@ class Structure(_Structure):
         self.cell_info = None
 
     def __repr__(self):
-        hierarchy_str = f"<Structure id={self.get_id()} Models={len(self)}>"
+        return f"<Structure id={self.get_id()} Models={len(self)}>"
+    
+    def expanded_view(self):
+        """Print the hierarchy tree of this model."""
+        hierarchy_str = repr(self)
         if len(self) == 0:
             return hierarchy_str
         first_model = self.child_list[0]
-        hierarchy_str+='\n│\n├───'+first_model.__repr__()
+        hierarchy_str+='\n│\n├───'+first_model.expanded_view()
         if len(self) > 1:
             hierarchy_str+=f'\n[{len(self)-1} models truncated ...]'
         return hierarchy_str
@@ -29,7 +33,9 @@ class Structure(_Structure):
         """Return the nglview interactive visualization window"""
         if len(self) == 0:
             return
-        return self.child_list[0]._ipython_display_()
+        from crimm.Visualization import show_nglview_multiple
+        show_nglview_multiple(self.child_list)
+        print(self.expanded_view())
 
     @property
     def models(self):
