@@ -356,6 +356,11 @@ class StructureBuilder():
         self.structure.method = self.structure_method
         return self.structure
 
+    def set_connect(self, connect_dict):
+        """Set the connect information (disulfide bonds, etc) for atoms in each model."""
+        for model in self.structure:
+            model.set_connect(connect_dict)
+
     def set_symmetry(self, spacegroup, cell):
         """Set symmetry."""
         pass

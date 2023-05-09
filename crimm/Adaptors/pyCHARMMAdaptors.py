@@ -9,6 +9,10 @@ from pycharmm import ic, cons_harm
 from pycharmm import minimize as _minimize
 from crimm.IO import get_pdb_str
 
+nucleic_letters_1to3 = {
+    'A': 'ADE', 'C': 'CYT', 'G': 'GUA', 'T': 'THY', 'U': 'URA',
+}
+
 def load_topology(topo_loader, append = False):
     with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
         tf.write('*RTF Loaded from crimm\n')
@@ -42,7 +46,7 @@ def load_chain(chain, hbuild = False, report = False):
     if (patch_name:=last_res.topo_definition.patch_with) is not None:
         last_patch = patch_name
     else:
-        first_patch = ''
+        last_patch = ''
         
     with tempfile.NamedTemporaryFile('w') as tf:
         tf.write(get_pdb_str(m_chain))
@@ -55,11 +59,17 @@ def load_chain(chain, hbuild = False, report = False):
         
 def _get_charmm_named_chain(chain, segid):
     m_chain = chain.copy()
-    for res in m_chain:
-        res.segid = segid
-        if res.resname == 'HIS':
-            res.resname = 'HSD'
+    if chain.chain_type == 'Polypeptide(L)':
+        for res in m_chain:
+            res.segid = segid
+            if res.resname == 'HIS':
+                res.resname = 'HSD'
+    elif chain.chain_type == 'Polyribonucleotide':
+        for res in m_chain:
+            res.segid = segid
+            res.resname = nucleic_letters_1to3[res.resname]
     return m_chain
+
 
 def _load_chain(
         pdb_filepath, segnames, hbuild = True, report = False,

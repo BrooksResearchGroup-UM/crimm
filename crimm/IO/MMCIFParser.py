@@ -380,6 +380,7 @@ class MMCIFParser:
                     sb.chain.sort_residues()
 
         self.add_cell_and_symmetry_info()
+        self.add_connect_record()
         
     def add_cell_and_symmetry_info(self):
         cell = self.cifdict.create_namedtuples('cell', single_value=True)
@@ -399,3 +400,29 @@ class MMCIFParser:
         cell_data = numpy.array((a, b, c, alpha, beta, gamma), "f")
         spacegroup = symmetry.space_group_name_H_M #Hermann-Mauguin space-group symbol
         self._structure_builder.set_symmetry(spacegroup, cell_data)
+
+    def add_connect_record(self):
+        if 'struct_conn' not in self.cifdict:
+            return
+        struct_conn = self.cifdict.create_namedtuples('struct_conn')
+        label_dict = {
+            'chain': 'ptnr{}_label_asym_id',
+            'resname': 'ptnr{}_label_comp_id',
+            'resseq': 'ptnr{}_label_seq_id',
+            'atom_id': 'ptnr{}_label_atom_id',
+            'altloc': 'pdbx_ptnr{}_label_alt_id'
+        }
+
+        conn_dict = {}
+        for connect in struct_conn:
+            conn_type = connect.conn_type_id
+            if conn_type not in conn_dict:
+                conn_dict[conn_type] = []
+            cur_connect = []
+            for i in (1,2):
+                cur_label_dict = {k: v.format(i) for k, v in label_dict.items()}
+                cur_connect.append({
+                    k: getattr(connect, v) for k, v in cur_label_dict.items()
+                })
+            conn_dict[conn_type].append(tuple(cur_connect))
+        self._structure_builder.set_connect(conn_dict)

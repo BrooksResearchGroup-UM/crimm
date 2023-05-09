@@ -7,6 +7,9 @@ from crimm import StructEntities as Entities
 _ATOM_FORMAT_STRING = (
     "%s%5i %-4s%c%3s %c%4i%c   %8.3f%8.3f%8.3f%s%6.2f      %4s%2s%2s\n"
 )
+_TER_FORMAT_STRING = (
+    "TER   %5i      %3s %c%4i%c                                                      \n"
+)
 
 def _get_atom_line_with_parent_info(atom: Entities.Atom, trunc_resname=False):
     """Return the parent info of the atom (PRIVATE). Atom must have a parent residue."""
@@ -22,6 +25,25 @@ def _get_atom_line_with_parent_info(atom: Entities.Atom, trunc_resname=False):
         atom, hetfield, segid, atom.get_serial_number(),
         resname, resseq, icode, chain_id, trunc_resname=trunc_resname
     )
+
+def _get_ter_line(atom: Entities.Atom, trunc_resname=False):
+    """Return the parent info of the atom (PRIVATE). Atom must have a parent residue."""
+    residue = atom.parent
+    resname = residue.resname
+    hetfield, resseq, icode = residue.id
+    if (chain:=residue.parent) is not None:
+        chain_id = chain.get_id()[0]
+    else:
+        # no chain info, no standard TER line
+        return 'TER\n'
+    
+    if len(resname) > 3 and trunc_resname:
+        # Truncate residue name to 3 characters so it does not mess up
+        # the nglview visualization
+        resname = resname[:3]
+
+    args = (atom.get_serial_number(), resname, chain_id, resseq, icode)
+    return _TER_FORMAT_STRING % args
 
 def _get_orphan_atom_line(atom: Entities.Atom, trunc_resname=False):
     """Return the orphan atom line (PRIVATE). Dummy residue and chain info will be filled."""
@@ -133,7 +155,6 @@ def _get_atom_line(
     )
     return _ATOM_FORMAT_STRING % args
 
-##TODO: Add support for TER and END records
 ##TODO: Add support for CONECT records
 def get_pdb_str(entity, reset_serial=True, include_alt=False, trunc_resname=False):
     """Return the PDB string of the entity."""
@@ -145,7 +166,21 @@ def get_pdb_str(entity, reset_serial=True, include_alt=False, trunc_resname=Fals
             return _get_orphan_atom_line(entity, trunc_resname)
         return _get_atom_line_with_parent_info(entity, trunc_resname)
 
+    chains = None
+    if entity.level in ('C', 'R', 'A'):
+        chains = [entity]
+    elif entity.level == 'M':
+        chains = entity.child_list
+    elif entity.level == 'S':
+        chains = entity.child_list[0].child_list
+    
     pdb_str = ''
-    for atom in entity.get_atoms(include_alt=include_alt):
-        pdb_str += _get_atom_line_with_parent_info(atom, trunc_resname)
+    for chain in chains:
+        atoms = list(chain.get_atoms(include_alt=include_alt))
+        if len(atoms) == 0:
+            continue
+        for atom in atoms:
+            pdb_str += _get_atom_line_with_parent_info(atom, trunc_resname)
+        pdb_str += _get_ter_line(atoms[-1], trunc_resname)
+    pdb_str += 'END\n'
     return pdb_str

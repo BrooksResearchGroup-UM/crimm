@@ -34,7 +34,8 @@ class Structure(_Structure):
         if len(self) == 0:
             return
         from crimm.Visualization import show_nglview_multiple
-        show_nglview_multiple(self.child_list)
+        # Only show the first model for now
+        show_nglview_multiple(self.child_list[0].child_list)
         print(self.expanded_view())
 
     @property
