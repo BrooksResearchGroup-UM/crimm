@@ -137,7 +137,7 @@ class PDBParser(_PDBParser):
             if not self.include_solvent:
                 new_chains = [c for c in new_chains if c.chain_type != 'Solvent']
             for chain in new_chains:
-                chain.parent = model
+                chain.set_parent(model)
             model.child_list = new_chains
             model.child_dict = {c.id: c for c in new_chains}
         return structure

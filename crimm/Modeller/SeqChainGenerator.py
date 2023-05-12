@@ -60,7 +60,7 @@ class SeqChainGenerator:
         self.sequence = Seq(sequence)
         self._create_reported_residues()
 
-    def set_three_letters_sequence(self, sequence3: str, chain_type: str):
+    def set_three_letter_sequence(self, sequence3: str, chain_type: str):
         self.set_chain_type(chain_type)
         self.resnames = sequence3.split()
         sequence = ''
