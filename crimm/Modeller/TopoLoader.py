@@ -259,10 +259,10 @@ class TopologyLoader:
         from a RTF file."""
         self.rtf_version = rtf_version
         for resname, res_topo_dict in topo_data_dict.items():
-            if resname in Entities.ResidueDefinition.na_3to1:
-                # Map 3-letter residue name to 1-letter residue name for nucleic
-                # acids, since biopython uses 1-letter residue name for them.
-                resname = Entities.ResidueDefinition.na_3to1[resname]
+            # if resname in Entities.ResidueDefinition.na_3to1:
+            #     # Map 3-letter residue name to 1-letter residue name for nucleic
+            #     # acids, since biopython uses 1-letter residue name for them.
+            #     resname = Entities.ResidueDefinition.na_3to1[resname]
 
             if res_topo_dict['is_patch']:
                 res_def = Entities.PatchDefinition(
@@ -289,7 +289,14 @@ class TopologyLoader:
         )
 
     def __getitem__(self, __key: 'str'):
+        if __key in Entities.ResidueDefinition.na_1to3:
+            __key = Entities.ResidueDefinition.na_1to3[__key]
         return self.res_defs[__key]
+    
+    def __contains__(self, __key: 'str'):
+        if __key in Entities.ResidueDefinition.na_1to3:
+            __key = Entities.ResidueDefinition.na_1to3[__key]
+        return __key in self.res_defs
     
     def __iter__(self):
         return iter(self.res_defs.values())
@@ -312,7 +319,7 @@ class TopologyLoader:
                 residue.selected_child, coerce=coerce, QUIET=QUIET
             )
 
-        if residue.resname not in self.res_defs:
+        if residue.resname not in self:
             if not QUIET:
                 warnings.warn(
                     f"Residue {residue.resname} is not defined in the topology file!"
@@ -328,7 +335,7 @@ class TopologyLoader:
         if residue.topo_definition is not None and not QUIET:
             warnings.warn("Topology definition already exists! Overwriting...")
 
-        res_definition = self.res_defs[residue.resname]
+        res_definition = self[residue.resname]
         self.apply_topo_def_on_residue(residue, res_definition, QUIET=QUIET)
         return True
 

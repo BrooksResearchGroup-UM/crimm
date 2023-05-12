@@ -8,6 +8,7 @@ from crimm.Visualization.NGLVisualization import show_nglview_multiple
 
 ##TODO: Refactor this!!
 class ChainSuperimposer(Superimposer):
+    """Superimpose two chains using their canonical sequences if available"""
     def __init__(self) -> None:
         super().__init__()
         self.ref_chain: PolymerChain = None
@@ -32,7 +33,7 @@ class ChainSuperimposer(Superimposer):
         if self.ref_chain.can_seq == self.mov_chain.can_seq:
             # If canonical sequences are identical
             # Use all present residues from both chains
-            self.alignments = "identical sequences"
+            self.alignments = ["identical sequences"]
             complete_range = range(1, len(self.ref_chain.can_seq)+1)
             id_pairs = zip(complete_range, complete_range)
 
@@ -65,7 +66,7 @@ class ChainSuperimposer(Superimposer):
                 mov_res = self.mov_chain[mov_id]
                 if ref_res.resname != mov_res.resname:
                     warnings.warn(
-                        "Residue are not identical at "
+                        "Residues are not identical at "
                         f"model chain: {ref_res.resname}-{ref_res.id[1]} and "
                         f"template chain: {mov_res.resname}-{mov_res.id[1]}"
                     )
@@ -81,6 +82,13 @@ class ChainSuperimposer(Superimposer):
 
         self._check_chain_type(ref_chain)
         self._check_chain_type(mov_chain)
+
+        seq_len = len(ref_chain.can_seq)
+        # We don't want highly fragmented alignments. Gap opening is only allowed 
+        # in the middle of the sequence when 20% or more of the sequence length 
+        # is aligned as a result of that
+        self.aligner.target_internal_open_gap_score = -(seq_len // 5)
+        self.aligner.query_internal_open_gap_score = -(seq_len // 5)
 
         ref_res, mov_res = self.get_matching_res(ref_chain, mov_chain)
 

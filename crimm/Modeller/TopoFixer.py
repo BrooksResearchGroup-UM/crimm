@@ -310,6 +310,15 @@ class ResidueFixer:
                 hydrogens.append(atom)
         for hydrogen in hydrogens:
             self._res.detach_child(hydrogen.id)
+        # update missing hydrogens from the residue topology definition
+        self._res.missing_hydrogens = {}
+        for atom_def in self._res.topo_definition:
+            if atom_def.element == 'H':
+                self._res.missing_hydrogens[atom_def.name] = atom_def.create_new_atom()
+        self.heavy_build_sequence, self.hydrogen_build_sequence = \
+            find_build_seq(
+            self.topo_def, self.missing_atoms, self.missing_hydrogens
+        )
 
     def _build_atoms(self, build_sequence, missing_atoms:dict):
         computed_atom_names = find_coords_by_ic(
@@ -348,7 +357,10 @@ class ResidueFixer:
         built_atoms = []
         if len(self.missing_atoms) != 0:
             missing_atom_names = tuple(self.missing_atoms.keys())
-            if missing_atom_names != ('-C', '+N', '+CA') or missing_atom_names != ("-O3'", "+P", "+O5'"):
+            if (
+                missing_atom_names != ('-C', '+N', '+CA') or 
+                missing_atom_names != ("-O3'", "+P", "+O5'")
+            ):
                 warnings.warn(
                     f'{len(self.missing_atoms)} Missing heavy atoms are built '
                     f'before building hydrogens: {missing_atom_names}'
@@ -369,6 +381,12 @@ class ResidueFixer:
                 if atom in atom_group:
                     atom_group.remove(atom)
         self._res.undefined_atoms = []
+
+    def rebuild_hydrogens(self):
+        """Rebuild hydrogens on the residue"""
+        self.remove_hydrogens()
+        built_hydrogens = self.build_hydrogens()
+        return built_hydrogens
 
 def build_missing_atoms_for_chain(chain):
     """Build missing residue for a PolymerChain where topology definitions 
@@ -391,7 +409,7 @@ def build_missing_atoms_for_chain(chain):
             built_atoms[(res.id[1], res.resname)] = res_builder.build_missing_atoms()
     return built_atoms
 
-def build_hydrogens_for_chain(chain):
+def build_hydrogens_for_chain(chain, rebuild=False):
     """Build missing hydrogens for a PolymerChain where topology definitions 
     have been loaded for each residue. Missing atom will be built based on the IC
     definitions if the residue is not completely missing (e.g. missing loop on a
@@ -399,6 +417,8 @@ def build_hydrogens_for_chain(chain):
     
     Args:
         chain: PolymerChain with topology definitions loaded for each residue.
+        rebuild: If True, remove all hydrogens and rebuild them. If False, only
+            build missing hydrogens.
     """
     built_atoms = {}
     res_builder = ResidueFixer()
@@ -407,9 +427,12 @@ def build_hydrogens_for_chain(chain):
         if res.topo_definition is None:
             warnings.warn(f'No topology definition on {res}! Skipped')
             continue
-        if res.missing_hydrogens:
-            res_builder.load_residue(res)
-            built_atoms[(res.id[1], res.resname)] = res_builder.build_hydrogens()
+        if not res.missing_hydrogens and not rebuild:
+            continue
+        res_builder.load_residue(res)
+        if rebuild:
+            res_builder.remove_hydrogens()
+        built_atoms[(res.id[1], res.resname)] = res_builder.build_hydrogens()
     return built_atoms
 
 def fix_chain(chain):
@@ -436,8 +459,9 @@ def fix_chain(chain):
             cur_built_atoms = built_atoms[(res.id[1], res.resname)] = []
             if built_heavy_atoms := res_builder.build_missing_atoms():
                 cur_built_atoms.extend(built_heavy_atoms)
-            if built_hydrogens := res_builder.build_hydrogens():
-                cur_built_atoms.extend(built_hydrogens)
+            # we force rebuild hydrogens if there are missing heavy atoms
+            built_hydrogens = res_builder.rebuild_hydrogens()
+            cur_built_atoms.extend(built_hydrogens)
         if res.undefined_atoms:
             res_builder.load_residue(res)
             res_builder.remove_undefined_atoms()

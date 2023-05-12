@@ -1,13 +1,26 @@
 from string import ascii_uppercase
+import warnings
 import pathlib
 from Bio.PDB.PDBParser import PDBParser as _PDBParser
-from Bio.Data.PDBData import protein_letters_3to1, nucleic_letters_3to1
+from Bio.Data.PDBData import (
+    protein_letters_3to1, protein_letters_3to1_extended,
+    nucleic_letters_3to1, nucleic_letters_3to1_extended
+)
 from crimm.IO.StructureBuilder import StructureBuilder
-from crimm.StructEntities.Chain import Solvent, Heterogens, PolymerChain
+from crimm.StructEntities.Chain import Solvent, Heterogens, PolymerChain, Chain
 
-def check_chain_type(residues, resname_lookup):
+protein_letters_3to1.update({'HSD': 'H', 'HSE': 'H', 'HSP': 'H'})
+def check_chain_type(residues, resname_lookup, extended_lookup=None):
     for res in residues:
         if res.resname not in resname_lookup:
+            # Check if the residue is a heterogen and if it is in the extended
+            # lookup table, heterogen flag will be changed to 'H_{resname}'
+            if extended_lookup and (res.resname in extended_lookup):
+                hetflag, resseq, icode = res.get_id()
+                hetflag = f'H_{res.resname}'
+                res.id = (hetflag, resseq, icode)
+                warnings.warn(f"Heterogen flag for {res.get_id()} corrected.")
+                continue
             return False
     return True
 
@@ -31,14 +44,19 @@ def find_chain_type(chain):
         else:
             het_residues.append(res)
     if residues:
-        if check_chain_type(residues, protein_letters_3to1):
+        if check_chain_type(
+            residues, protein_letters_3to1, protein_letters_3to1_extended
+        ):
             return [('Polypeptide(L)', chain.id, residues)]
-        elif check_chain_type(residues, nucleic_letters_3to1):
+        elif check_chain_type(
+            residues, nucleic_letters_3to1, nucleic_letters_3to1_extended
+        ):
             return [('Polyribonucleotide', chain.id, residues)]
         else:
-            raise TypeError(
+            warnings.warn(
                 f'Chain type cannot be determined for {chain.get_full_id()}'
             )
+            return [('Chain', chain.id, residues)]
     else:
         het, water = separate_solvent(het_residues)
         return [('Heterogens', chain.id, het), ('Solvent', chain.id, water)]
@@ -51,8 +69,9 @@ def convert_chains(chains):
     chain_sort_dict = {
         'Polypeptide(L)': 0,
         'Polyribonucleotide': 1,
-        'Heterogens': 2,
-        'Solvent': 3
+        'Chain': 2, # 'Chain' is a catch-all for 'unknown
+        'Heterogens': 3,
+        'Solvent': 4
     }
 
     new_chains = []
@@ -72,6 +91,10 @@ def convert_chains(chains):
                 canon_sequence = '',
                 reported_res = [],
                 reported_missing_res = []
+            )
+        elif chain_type == 'Chain':
+            new_chain = Chain(
+                chain_id = new_chain_id,
             )
         elif chain_type == 'Heterogens':
             new_chain = Heterogens(new_chain_id)
@@ -114,7 +137,7 @@ class PDBParser(_PDBParser):
             if not self.include_solvent:
                 new_chains = [c for c in new_chains if c.chain_type != 'Solvent']
             for chain in new_chains:
-                chain.parent = model
+                chain.set_parent(model)
             model.child_list = new_chains
             model.child_dict = {c.id: c for c in new_chains}
         return structure
