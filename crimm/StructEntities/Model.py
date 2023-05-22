@@ -80,7 +80,7 @@ class Model(_Model):
         for atom_info in record:
             chain_id = atom_info['chain']
             resseq = atom_info['resseq']
-            resname = atom_info['resname']
+            resname = str(atom_info['resname'])
             altloc = atom_info['altloc']
             atom_id = atom_info['atom_id']
             if chain_id not in self:
@@ -89,12 +89,25 @@ class Model(_Model):
                 )
                 continue
             chain = self[chain_id]
-            if resseq not in chain:
+            if chain.chain_type == 'Heterogens':
+                for het_res in chain:
+                    if het_res.resname == resname:
+                        residue = het_res
+                        break
+            elif chain.chain_type == 'Solvent':
+                # We simply cannot find which atom the record is referring to
+                warnings.warn(
+                    f"Chain {chain_id} is a solvent chain, connect atom "
+                    "assignment skipped!"
+                )
+                continue
+            elif resseq not in chain:
                 warnings.warn(
                     f"Residue {resseq} not found in chain {chain_id}"
                 )
                 continue
-            residue = chain[resseq]
+            else:
+                residue = chain[resseq]
             if residue.resname != resname:
                 warnings.warn(
                     f"Residue {resseq} in chain {chain_id} has name "
