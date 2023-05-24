@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=59.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "crimm"
+version = "2023.5a3"
+authors = [
+  { name="Truman Xu", email="ziqiaoxu@umich.edu" },
+]
+description = "Chemistry with the ReInvented Macromolecular"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "biopython >= 1.80",
+    "ipywidgets<=8",
+    "nglview>=3.0.3",
+    "scipy>=1.7.1",
+    "requests>=2.26.0",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+    "Development Status :: 2 - Pre-Alpha",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/Truman-Xu/crimm"
+"Bug Tracker" = "https://github.com/Truman-Xu/crimm/issues"
+
+[tool.setuptools.packages.find]
+where = ["./"]
+exclude = [
+    "src", 
+    "__pycache__", 
+    ".ipynb_checkpoints", 
+    "*.egg-info", 
+    "tests"
+]
+namespaces = false
