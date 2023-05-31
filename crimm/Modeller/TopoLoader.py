@@ -488,9 +488,8 @@ class TopologyLoader:
         if last is not None:
             self.patch_residue(chain.child_list[-1], last, "CTER", QUIET=QUIET)
         if chain.topo_elements is not None:
-            # Update topology elements if they are already definedß
-            topo_elements = TopologyElementContainer()
-            chain.topo_elements = topo_elements.load_chain(chain)
+            # Update topology elements if they are already defined
+            chain.topo_elements.update()
 
     def patch_residue(
             self, residue: Entities.Residue, patch: str,
@@ -534,11 +533,11 @@ class TopologyElementContainer:
         self.containing_entity = None
 
     def __iter__(self):
-        topo_attrs = [
+        topo_types = [
             'bonds', 'angles', 'dihedrals', 'impropers', 'cmap'
         ]
-        for attr in topo_attrs:
-            yield attr, getattr(self, attr)
+        for topo_type_name in topo_types:
+            yield topo_type_name, getattr(self, topo_type_name)
 
     def __repr__(self) -> str:
         if self.containing_entity is None:
@@ -559,7 +558,25 @@ class TopologyElementContainer:
         self.find_topo_elements(chain)
         self.create_atom_lookup_table()
         return self
-    
+
+    def update(self):
+        """Update the topology elements"""
+        self.find_topo_elements(self.containing_entity)
+        self.create_atom_lookup_table()
+        
+    ## Maybe make this a private method?
+    def delete_atom_related_elements(self, atom: Entities.Atom):
+        """Delete all topology elements related to the atom"""
+        for topo_type_name, topo_list in self:
+            if topo_list is None:
+                continue
+            remove_list = []
+            for topo in topo_list:
+                if atom in topo:
+                    remove_list.append(topo)
+            for topo in remove_list:
+                topo_list.remove(topo)
+
     @staticmethod
     def _find_seeding_atom(chain):
         """Find the first atom to start the search"""
