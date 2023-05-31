@@ -2,8 +2,6 @@ import os
 import tempfile
 import pycharmm as chm
 from pycharmm import read, write, psf, coor
-from pycharmm.psf import delete_atoms
-from pycharmm.select_atoms import SelectAtoms
 from pycharmm import generate
 from pycharmm import ic, cons_harm
 from pycharmm import minimize as _minimize
@@ -63,7 +61,7 @@ def _get_charmm_named_chain(chain, segid):
         for res in m_chain:
             res.segid = segid
             if res.resname == 'HIS':
-                res.resname = 'HSD'
+                res.resname = res.topo_definition.resname
     elif chain.chain_type == 'Polyribonucleotide':
         for res in m_chain:
             res.segid = segid
@@ -141,7 +139,3 @@ def sync_coords(chain):
             if atom_name in cur_res:
                 cur_res[atom_name].coord = coordinate
     print(f'Synchronized: {chain}')
-    
-def remove_all_atoms():
-    all_atoms = SelectAtoms(select_all=True)
-    delete_atoms(selection=all_atoms)

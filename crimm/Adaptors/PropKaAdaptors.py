@@ -1,5 +1,6 @@
 """Derived Propka Atom class to facilitate atom class conversion for pKa calculation"""
 import os
+import warnings
 from typing import Optional, Tuple
 from propka.input import read_parameter_file
 from propka.parameters import Parameters
@@ -264,11 +265,16 @@ class PropKaProtonator:
     def apply_patches(self):
         """Apply patches to the model."""
         if len(self.patches) == 0:
+            warnings.warn("No patches to apply.")
             return
         for chain_id, patches in self.patches.items():
             for resseq, patch_name in patches.items():
                 residue = self.model[chain_id][resseq]
                 self._patch_residue(residue, patch_name)
+            chain = self.model[chain_id]
+            if chain.topo_elements is not None:
+                # Update topology elements if they are already defined
+                chain.topo_elements.update()
 
     def report(self):
         fmt = (
@@ -283,3 +289,28 @@ class PropKaProtonator:
                     buried = g.buried
                 )
                 print(out_str)
+
+    def to_dict(self):
+        """Return a dictionary with pKa values."""
+        data = {}
+        for chain_id, groups in self.reportable_groups.items():
+            data[chain_id] = {}
+            for i, g in groups.items():
+                data[chain_id][i] = {
+                    'resname': g.atom.res_name, 'pka': g.pka_value, 
+                    'model_pka': g.model_pka, 'buriedness': g.buried
+                }
+        return data
+    
+    def to_dataframe(self):
+        """Return a pandas dataframe with pKa values."""
+        data = []
+        for chain_id, groups in self.reportable_groups.items():
+            for i, g in groups.items():
+                data.append({
+                    'chain_id': chain_id, 'resseq': i, 'resname': g.atom.res_name, 
+                    'pka': g.pka_value, 'model_pka': g.model_pka,
+                    'buriedness': g.buried
+                })
+        import pandas as pd
+        return pd.DataFrame(data)
