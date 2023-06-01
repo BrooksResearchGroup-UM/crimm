@@ -15,7 +15,7 @@ from crimm.Modeller.TopoFixer import ResidueFixer
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
-class ProPkaAtom(_ppAtom):
+class PropKaAtom(_ppAtom):
     """PropKa Atom class - contains all atom information found in the PDB file
 
 
@@ -105,7 +105,6 @@ class MolecularContainer(_MolContnr):
         self.name = None
         self.version = protonator.version # same here
 
-
 def _is_protonated(ph, pka):
     return pka>ph
 
@@ -120,7 +119,9 @@ class PropKaProtonator:
         'HIS': (_is_protonated, 'HSP'),
         'ASP': (_is_protonated,'ASPP'),
         'LYS': (_is_deprotonated, 'LSN'),
-        'GLU': (_is_protonated, 'GLUP')
+        'GLU': (_is_protonated, 'GLUP'),
+        'CYS': (_is_deprotonated, 'CYSD'),
+        'SER': (_is_deprotonated, 'SERD'),
     }
     def __init__(
             self,
@@ -222,7 +223,7 @@ class PropKaProtonator:
         for atom in chain.get_atoms():
             if not self.keep_protons and atom.element == 'H':
                 continue
-            pka_atoms.append(ProPkaAtom(atom))
+            pka_atoms.append(PropKaAtom(atom))
         # label NTER and CTER
         if pka_atoms[0].element == 'N':
             pka_atoms[0].terminal = 'N+'
