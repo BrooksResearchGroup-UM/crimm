@@ -68,8 +68,18 @@ class Atom(_Atom):
         if self.coord is None:
             return f"<MissingAtom {self.get_id()}>"
         return f"<Atom {self.get_id()}>"
-    
-    def reset_atom_serial_numbers(self, include_alt=False):
+
+    def __getstate__(self):
+        """Return state of the atom object for pickling, excluding neighbors 
+        to avoid infinite recursion errors"""
+        state = {k: v for k, v in self.__dict__.items() if k != "neighbors"}
+        return state
+
+    def __setstate__(self, state):
+        """Set state of the atom object for pickling"""
+        self.__dict__.update(state)
+
+    def reset_atom_serial_numbers(self):
         """Reset all atom serial numbers in the entire structure starting from 1."""
         top_parent = self.get_top_parent()
         if top_parent is self:
@@ -105,6 +115,16 @@ class DisorderedAtom(_DisorderedAtom):
         if self.parent is None:
             return self
         return self.parent.get_top_parent()
+
+    def __getstate__(self):
+        """Return state of the atom object for pickling, excluding neighbors 
+        to avoid infinite recursion errors"""
+        state = {k: v for k, v in self.__dict__.items() if k != "neighbors"}
+        return state
+
+    def __setstate__(self, state):
+        """Set state of the atom object for pickling"""
+        self.__dict__.update(state)
 
     @property
     def topo_definition(self):

@@ -103,12 +103,12 @@ class Topology(OMMTop):
 
         cell = self.model.parent.cell_info
         periodic_box_vectors = computePeriodicBoxVectors(
-            cell.length_a,
-            cell.length_b,
-            cell.length_c,
-            cell.angle_alpha,
-            cell.angle_beta,
-            cell.angle_gamma
+            cell["length_a"],
+            cell["length_b"],
+            cell["length_c"],
+            cell["angle_alpha"],
+            cell["angle_beta"],
+            cell["angle_gamma"]
         )
         self.setPeriodicBoxVectors(periodic_box_vectors)
 

@@ -15,10 +15,10 @@ class TopoEntity:
         if atom_ids[0] > atom_ids[-1]:
             atom_ids = tuple(reversed(atom_ids))
         return atom_ids
-    
+
     def __getnewargs__(self):
         "Support for pickle protocol 2: http://docs.python.org/2/library/pickle.html#pickling-and-unpickling-normal-class-instances"
-        return *self, *self.__dict__.values()
+        return *self, self.param
 
     def __getstate__(self):
         """
@@ -35,14 +35,14 @@ class TopoEntity:
         if not isinstance(other, type(self)):
             return False
         return self.full_id == other.full_id
-    
+ 
     def __deepcopy__(self, memo):
         return type(self)(*self, **self.__dict__)
 
     def get_atom_types(self):
         """Return the atom types of the atoms in this entity"""
         return tuple(a.topo_definition.atom_type for a in self)
-    
+
     def color_missing(self, atom):
         """Return a string representation of an atom with missing coordinates colored red"""
         if atom.coord is None:
@@ -73,6 +73,10 @@ class Bond(TopoEntity, BondTuple):
         bond.atom_types = bond.get_atom_types()
         return bond
 
+    def __getnewargs__(self):
+        "Support for pickle protocol 2: http://docs.python.org/2/library/pickle.html#pickling-and-unpickling-normal-class-instances"
+        return *self, self.type, self.param
+    
     def __repr__(self):
         a, b = (self.color_missing(atom) for atom in self)
         s = f"<Bond({a}, {b})"

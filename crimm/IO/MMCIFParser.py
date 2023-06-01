@@ -324,7 +324,7 @@ class MMCIFParser:
         sb.init_seg(" ")
         if 'cell' in self.cifdict:
             cell_info = self.cifdict.create_namedtuples('cell')[0]
-            sb.structure.cell_info = cell_info
+            sb.structure.cell_info = cell_info._asdict()
         assembly_dict = self.create_assembly_dict()
         if assembly_dict is None:
             selected_chains = None

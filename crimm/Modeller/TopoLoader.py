@@ -85,9 +85,16 @@ def residue_trace_atom_neigbors(residue: Entities.Residue)->List[Entities.Bond]:
         atom_add_neighbors(a1, a2)
     return bonds
 
-def chain_clear_atom_neighbors(chain: Entities.PolymerChain):
-    """Clear all neighbors of atoms in the chain"""
-    for atom in chain.get_atoms():
+def clear_atom_neighbors(entity):
+    """Clear all neighbors of atoms in an entity"""
+    if isinstance(entity, Entities.Atom):
+        entity.neighbors = set()
+        return
+    elif not hasattr(entity, 'get_atoms'):
+        raise ValueError(
+            'Entity does not have get_atoms method, cannot clear neighbors.'
+        )
+    for atom in entity.get_atoms():
         atom.neighbors = set()
 
 def chain_trace_atom_neighbors(
@@ -101,7 +108,7 @@ def chain_trace_atom_neighbors(
     # thus end_atom is C and start_atom is N
     chain.sort_residues()
     # Clearing neighbors is needed for patching and regenerating topology
-    chain_clear_atom_neighbors(chain)
+    clear_atom_neighbors(chain)
     all_bonds = []
     for i, cur_res in enumerate(chain.residues[:-1]):
         next_res = chain.residues[i+1]

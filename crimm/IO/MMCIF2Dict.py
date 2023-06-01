@@ -1,13 +1,13 @@
-from Bio.PDB.MMCIF2Dict import MMCIF2Dict as _MMCIF2Dict
 from collections import namedtuple
 import numpy
+from Bio.PDB.MMCIF2Dict import MMCIF2Dict as _MMCIF2Dict
 
 class MMCIF2Dict(dict):
     """A dictionary-like object that reads a mmCIF file and stores the data in a dictionary."""
     def __init__(self, filename):
         orig_dict = _MMCIF2Dict(filename)
         self._organize_mmcif_dict(orig_dict)
-
+ 
     def _convert_type(self, entry: str):
         sign = -1 if entry[0] == '-' else 1
         entry = entry.lstrip('-')
