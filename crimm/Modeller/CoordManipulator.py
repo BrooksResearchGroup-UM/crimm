@@ -14,8 +14,7 @@ class CoordManipulator:
         self.coords = None
         self.dist_matrix = None
         self.end_i, self.end_j = None, None
-        self.end_ai, self.end_aj = None, None
-        self.m_translation, self.m_rotation = None, None
+        self.op_mat = None
 
     def load_entity(self, entity):
         """Load a structure entity to find translation and rotation operations to
@@ -26,8 +25,6 @@ class CoordManipulator:
         self.dist_matrix = squareform(pdist(self.coords))
         # pair of indices of the farthest atoms in the structure
         self.end_i, self.end_j = self._find_farthest_atom_indices()
-        # atom handles of the farthest atoms in the structure
-        self.end_ai, self.end_aj = self._atoms[self.end_i], self._atoms[self.end_j]
         self.m_translation, self.m_rotation = None, None
 
     def _extract_atoms_and_coords(self, entity) -> Tuple[List[Atom], np.array]:
@@ -45,21 +42,22 @@ class CoordManipulator:
         )
         return idx_pair
 
-    def get_transformation_matrices(self) -> Tuple[np.array, np.array]:
-        """Return the translation and rotation operators as numpy arrays."""
-        if self.m_translation is None:
-            self._find_transformation_operators()
-        return self.m_translation, self.m_rotation
+    def get_transformation_matrix(self) -> Tuple[np.array, np.array]:
+        """Return the 4x4 transformation matrix as numpy arrays."""
+        if self.op_mat is None:
+            self.op_mat = self._find_transformation_operators()
+        return self.op_mat
 
     def _find_transformation_operators(self) -> None:
         a1, a2 = self.end_i, self.end_j
         # coordinates of the farthest atom pair
-        c1, c2 = self.coords[a1], self.coords[a2]
+        o1, o2 = self.coords[a1], self.coords[a2]
         # Translation operator move the center of structure to the origin
         # the center is defined by the midpoint of the major axis 
         # (the line between farthest atoms)
-        translation = -(c1 + c2)/2
-        major_axis = c1 - c2
+        translation = -(o1 + o2)/2
+        major_axis = o1 - o2
+        # Translate the structure to the origin
         temp_coords = self.coords + translation
         # coordinates of the farthest atom pair after translation
         c1, c2 = temp_coords[a1], temp_coords[a2]
@@ -70,9 +68,12 @@ class CoordManipulator:
         # coordinates of the third atom after translation but before rotation
         a3 = dist_yz.argmax()
         c3 = temp_coords[a3]
+
         # coordinates of the third atom after rotation
         c3_y = dist_yz.max()
-        c3_x = np.sqrt(norm(c3)**2 - c3_y**2)
+        # Find the sign of the x-coordinate of the third atom
+        sign = np.sign(norm(c3-c1)-norm(c3-c2))
+        c3_x = sign*np.sqrt(np.sum(c3**2) - c3_y**2)
 
         vec_translated = np.vstack([c1, c2, c3])
         vec_rotated = np.array([
@@ -83,24 +84,44 @@ class CoordManipulator:
         # Estimate the rotation by Kabsch algorithm implemented in scipy
         rot_obj, rssd = R.align_vectors(vec_rotated, vec_translated)
         # Get the rotation operator as a numpy array
-        rotation = rot_obj.as_matrix().T
-        # Test if the translation and rotation operators can
-        # transform a2 to the final coord within error
-        test_vecs = np.array([
-            self.coords[a1], self.coords[a2], self.coords[a3]
-        ])
-        assert np.allclose(
-            (test_vecs + translation) @ rotation,
-            vec_rotated
-        )
-        self.m_translation, self.m_rotation = translation, rotation
+        rotation = rot_obj.as_matrix()
+        # Test if the rotation operators can be applied to the translated vectors
+        assert np.allclose(vec_translated @ rotation.T, vec_rotated)
+        # combine the translation and rotation operators
+        combined = np.eye(4)
+        # since we translate first, the rotation needs to be applied to the translation vector too
+        combined[:3, 3] = translation @ rotation.T
+        combined[:3, :3] = rotation
+
+        # find the final translation to recenter the structure
+        temp_coords = temp_coords @ rotation.T
+        recenter = -(temp_coords.max(0) + temp_coords.min(0))/2
+        combined[:3, 3] += recenter
+
+        return combined
+
+    @property
+    def coord_center(self):
+        """Return the center of the coordinates (N, 3). The center is defined as
+        the midpoint of the maximum and minimum coordinates of each dimension. 
+        Should be (0, 0, 0) after the transformation by `orient_coords`.
+        """
+        return (self.coords.max(0) + self.coords.min(0))/2
+
+    @property
+    def box_dim(self):
+        """Return the dimensions of the bounding box of the coordinates (N, 3).
+        The three sides of the box are parallel to the x, y, and z axes.
+        """
+        return self.coords.ptp(0)
 
     def apply_coords(self, coords) -> np.array:
         """Apply the transformation to the coordinates (N, 3). Specifically, the 
         transformation is applied as `(coords + translation) @ rotation`, where
         the results are rounded to 4 decimal places."""
-        translation, rotation = self.get_transformation_matrices()
-        new_coords = (coords + translation) @ rotation
+        operator = self.get_transformation_matrix()
+        homo_coords = np.column_stack((coords, np.ones(len(coords))))
+        new_coords = (homo_coords @ operator.T)[:, :3]
         # round the coordinates to 4 decimal places
         new_coords = np.around(new_coords, decimals=4, out=None)
         return new_coords
