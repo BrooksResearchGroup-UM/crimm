@@ -6,7 +6,6 @@ from numpy.linalg import norm
 from scipy.spatial.transform import Rotation as R
 from scipy.spatial.distance import pdist, squareform
 
-
 class CoordManipulator:
     def __init__(self) -> None:
         self.entity = None
@@ -15,6 +14,7 @@ class CoordManipulator:
         self.dist_matrix = None
         self.end_i, self.end_j = None, None
         self.op_mat = None
+        self._convex_hull = None
 
     def load_entity(self, entity):
         """Load a structure entity to find translation and rotation operations to
@@ -152,8 +152,8 @@ class CoordManipulator:
             self._apply_to_loaded_entity()
         elif self.entity.parent is not None:
             self.apply_entity(self.entity.parent)
+            # update the coordinates and atoms
+            self._atoms, self.coords = self._extract_atoms_and_coords(self.entity)
         else:
             self._apply_to_loaded_entity()
             warnings.warn('No parent structure entity exists!')
-
-
