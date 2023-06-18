@@ -1,6 +1,7 @@
 import numpy as np
 from numpy.linalg import norm
 from scipy.spatial import ConvexHull, Delaunay
+from crimm.Visualization import View
 
 class GridCoordGenerator:
     def __init__(self) -> None:
@@ -8,25 +9,39 @@ class GridCoordGenerator:
         self.coords = None
         self.resolution = None
         self.paddings = None
-        self._convex_hull = None
+        self._convex_hull = None # ConvexHull (scipy.Qhull) object
+        self._enlarged_hull_vertices = None
+        # grid ids of the enlarged convex hull within the bounding box grid
+        self._enlarged_hull_grid_ids = None
         self._delaunay_on_convex_hull = None
         self._bounding_box_grid = None
-        self._convex_hull_grid = None
+        self._convex_hull_grid = None # enlarged convex hull grid
+        self._hull_surf_coords = None # coordinates of the enlarged convex hull surface
         self._cubic_grid = None
         self._truncated_sphere_grid = None
+        self._truc_sphere_shell = None
+        self._simplices_normals = None
+        self._verts_i = None
 
     def load_entity(self, entity, grid_resolution, padding):
+        """Load entity and set grid resolution and paddings."""
         self.entity = entity
         self.coords = self._extract_coords(self.entity)
         self.resolution = grid_resolution
         self.paddings = padding
         # remove all grid attributes if existing
         self._convex_hull = None
+        self._enlarged_hull_vertices = None
+        self._enlarged_hull_grid_ids = None
         self._delaunay_on_convex_hull = None
         self._bounding_box_grid = None
         self._convex_hull_grid = None
+        self._hull_surf_coords = None
         self._cubic_grid = None
         self._truncated_sphere_grid = None
+        self._truc_sphere_shell = None
+        self._simplices_normals = None
+        self._verts_i = None
 
     def _extract_coords(self, entity) -> np.array:
         coords = []
@@ -65,7 +80,14 @@ class GridCoordGenerator:
         return self._truncated_sphere_grid
 
     @property
-    def convex_hull_grid(self):
+    def truncated_sphere_shell(self):
+        """Return the coordinate (N, 3) of the shell truncated sphere with paddings."""
+        if self._truc_sphere_shell is None:
+            self.get_truncated_sphere_grid()
+        return self._truc_sphere_shell
+
+    @property
+    def enlarged_convex_hull_grid(self):
         """Return a grid of points (N, 3) that covers the convex hull of the coordinates."""
         if self._convex_hull_grid is None:
             return self.get_enlarged_convex_hull_grid()
@@ -122,30 +144,36 @@ class GridCoordGenerator:
     def get_truncated_sphere_grid(self):
         """Return a grid of points (N, 3) that covers the truncated sphere of
         the coordinates with paddings."""
+        tolerance = self.resolution*1e-2
         bounding_box_grid = self.bounding_box_grid
-        radius = np.ceil(self.box_dim[0]/2)+self.paddings
+        radius = np.ceil(max(self.box_dim)/2)+self.paddings
         # Euclidean distance normalized by semi-axes
         distances = np.linalg.norm(
             (bounding_box_grid-self.coord_center) / radius, axis=1
         )
         self._truncated_sphere_grid = bounding_box_grid[distances <= 1]
-        # points_shell = bounding_box_grid[np.abs(distances - 1) <= 1e-3]
+        self._truc_sphere_shell = bounding_box_grid[
+            np.abs(distances - 1) <= tolerance
+        ]
         return self._truncated_sphere_grid
 
     def get_enlarged_convex_hull_grid(self):
         """Return a grid of points (N, 3) that covers the an enlarged convex hull.
         The enlarged convex hull is defined as the convex hull of the coordinates
         with paddings."""
-
-        hull = self._enlarged_convex_hull()
-        bounding_box_grid = self.bounding_box_grid
+        if self._enlarged_hull_vertices is None:
+            self._enlarged_convex_hull()
+        hull = self._enlarged_hull_vertices
         # Find the Delaunay triangulation of the convex hull
         if self._delaunay_on_convex_hull is None:
             self._delaunay_on_convex_hull = Delaunay(hull)
         hull_grid_ids = np.argwhere(
-            self._delaunay_on_convex_hull.find_simplex(bounding_box_grid) >= 0
+            self._delaunay_on_convex_hull.find_simplex(
+                self.bounding_box_grid
+            ) >= 0
         ).reshape(-1)
-        self._convex_hull_grid = bounding_box_grid[hull_grid_ids]
+        self._convex_hull_grid = self.bounding_box_grid[hull_grid_ids]
+        self._enlarged_hull_grid_ids = hull_grid_ids
         return self._convex_hull_grid
 
     def _enlarged_convex_hull(self):
@@ -162,40 +190,84 @@ class GridCoordGenerator:
         # Compute the displacement vector for each vertex
         displacement = normalized_vectors * self.paddings
         # Enlarge the convex hull by adding the displacement vector to each vertex
-        enlarged_hull = self.coords[hull.vertices] + displacement
-        return enlarged_hull
+        self._enlarged_hull_vertices = self.coords[hull.vertices] + displacement
+        return self._enlarged_hull_vertices
 
-    def find_hull_simplex_normals(self, hull):
+    def _find_hull_simplex_normals(self):
+        hull = self.convex_hull
         simplices_coords = hull.points[hull.simplices]
         normals = np.cross(
             simplices_coords[:, 0]-simplices_coords[:, 2],
             simplices_coords[:, 1]-simplices_coords[:, 2],
             axis=1
         )
-        # normalize the vector normals
+        # convert to unit normals
         normals = (normals.T/norm(normals, axis=1)).T
+        self._simplices_normals = normals
+        self._verts_i = simplices_coords[:, 0]
+
         return normals
 
-    def find_vec_coords_to_simplices(self, vert_coords, coords):
-        n_verts = vert_coords.shape[0]
+    def find_coords_to_simplices_dists(self, coords):
+        if self._simplices_normals is None:
+            self._find_hull_simplex_normals()
+        n_verts = self._verts_i.shape[0]
         n_coords = coords.shape[0]
         verts_expanded = np.repeat(
-            vert_coords, n_coords, axis=1
-        ).reshape(*vert_coords.shape, n_coords)
+            self._verts_i, n_coords, axis=1
+        ).reshape(*self._verts_i.shape, n_coords)
 
         coords_expanded = np.repeat(
             coords, n_verts, axis=1
         ).reshape(*coords.shape, n_verts).T
 
-        coords_to_simplices = coords_expanded - verts_expanded
-        coords_to_simplices = np.einsum('ijk->ikj', coords_to_simplices)
-        return coords_to_simplices
+        coords_to_verts_i = coords_expanded - verts_expanded
+        coords_to_verts_i = np.einsum('ijk->ikj', coords_to_verts_i)
+        # dot_product has the shape (N_simplex, N_coords)
+        dist_coords_to_simplices = np.einsum(
+            'ik,ijk->ij', self._simplices_normals, coords_to_verts_i
+        )
 
-class _Grid:
-    def __init__(self) -> None:
-        self.grid_type = None
-        self.coords = None
-        self.surf_coords = None
-        self.surf_normals = None
-        self.surf_ids = None
+        return dist_coords_to_simplices
 
+    def get_hull_surface_coords(self):
+        if self._hull_surf_coords is not None:
+            return self._hull_surf_coords
+
+        tolerance = self.resolution*1e-2
+        hull_grid = self.enlarged_convex_hull_grid
+        dists = self.find_coords_to_simplices_dists(hull_grid)
+        surf_ids = np.argwhere(
+            np.any(np.abs(dists)<tolerance, axis=0)
+        ).reshape(-1)
+        self._hull_surf_coords = hull_grid[surf_ids]
+        return self._hull_surf_coords
+
+    def show_hull_surface(self, show_licorice=False, show_enlarged_hull=False):
+        """Show the surface of the convex hull."""
+        hull = self.convex_hull
+        if show_enlarged_hull:
+            if self._enlarged_hull_vertices is None:
+                self._enlarged_convex_hull()
+            idx_dict = {x: idx for idx, x in enumerate(hull.vertices)}
+            enlarged_simplex_ids = np.vectorize(idx_dict.get)(hull.simplices)
+            flattened_array = (
+                self._enlarged_hull_vertices[enlarged_simplex_ids].reshape(-1)
+            )
+        else:
+            flattened_array = hull.points[hull.simplices].reshape(-1)
+        view = View()
+        view.load_entity(self.entity)
+        if show_licorice:
+            view.clear_representations()
+            view.add_representation('licorice', selection='protein')
+
+        hull_shape = view.shape.add(
+            'mesh',
+            flattened_array,
+            np.ones_like(flattened_array)*0.7,
+        )
+
+        hull_shape.add_surface(opacity=0.2)
+
+        return view
