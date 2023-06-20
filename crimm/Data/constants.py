@@ -1,0 +1,1 @@
+cc_elec_charmm = 332.0716

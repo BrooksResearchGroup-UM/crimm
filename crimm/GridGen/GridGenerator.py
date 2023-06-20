@@ -2,7 +2,11 @@ import numpy as np
 from numpy.linalg import norm
 from scipy.spatial import ConvexHull, Delaunay
 from crimm.Visualization import View
-
+from crimm.Modeller import ParameterLoader
+from crimm.Data.constants import cc_elec_charmm as cc_elec
+from crimm.GridGen._grid_gen_wrappers import (
+    cdist_wrapper, gen_elec_grid_wrapper, gen_vdw_grid_wrapper
+)
 class GridCoordGenerator:
     def __init__(self) -> None:
         self.entity = None
@@ -22,6 +26,7 @@ class GridCoordGenerator:
         self._truc_sphere_shell = None
         self._simplices_normals = None
         self._verts_i = None
+        self._n_points_per_dim = None # maximum number of the grid points in each dimension
 
     def load_entity(self, entity, grid_resolution, padding):
         """Load entity and set grid resolution and paddings."""
@@ -42,6 +47,7 @@ class GridCoordGenerator:
         self._truc_sphere_shell = None
         self._simplices_normals = None
         self._verts_i = None
+        self._n_points_per_dim = None
 
     def _extract_coords(self, entity) -> np.array:
         coords = []
@@ -111,7 +117,7 @@ class GridCoordGenerator:
         """Return a grid of points (N, 3) that covers the bounding cube of the 
         coordinates with paddings."""
         grid_half_widths = (np.ceil(self.box_dim[0]/2)+self.paddings)*np.ones(3)
-        self._cubic_grid = self._get_box_grid(
+        self._n_points_per_dim, self._cubic_grid = self._get_box_grid(
             self.coord_center, grid_half_widths, self.resolution
         )
         return self._bounding_box_grid
@@ -120,7 +126,7 @@ class GridCoordGenerator:
         """Return a grid of points (N, 3) that covers the bounding box of the 
         coordinates with paddings."""
         grid_half_widths = np.ceil(self.box_dim/2)+self.paddings
-        self._bounding_box_grid = self._get_box_grid(
+        self._n_points_per_dim, self._bounding_box_grid = self._get_box_grid(
             self.coord_center, grid_half_widths, self.resolution
         )
         return self._bounding_box_grid
@@ -139,7 +145,9 @@ class GridCoordGenerator:
                 )
             )
         grid_pos = np.array(np.meshgrid(*dims, indexing='ij')).reshape(3,-1).T
-        return grid_pos
+        x_pos, y_pos, z_pos = dims
+        dim_sizes = np.array([x_pos.size, y_pos.size, z_pos.size])
+        return dim_sizes, grid_pos
 
     def get_truncated_sphere_grid(self):
         """Return a grid of points (N, 3) that covers the truncated sphere of
@@ -271,3 +279,164 @@ class GridCoordGenerator:
         hull_shape.add_surface(opacity=0.2)
 
         return view
+    
+class EnerGridGenerator(GridCoordGenerator):
+    grid_shape_dict = {
+        'cubic': 'cubic_grid',
+        'bounding_box': 'bounding_box_grid',
+        'truncated_sphere': 'truncated_sphere_grid',
+        'convex_hull' : 'enlarged_convex_hull_grid'
+    }
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._grid_coords = None
+        self._elec_grid = None
+        self._vdw_grid = None
+        self._dists = None
+        self._param_loader = None
+        self._charges = None
+        self._epsilons = None
+        self._vdw_rs = None
+        self._min_coords = None
+        self._grid_shape = None
+
+    def load_entity(
+            self, entity, grid_resolution, padding, 
+            grid_shape = 'convex_hull'
+        ):
+        """Load an entity and generate the grid coordinates and energy potentials
+        associated with each grid point in space.
+        
+        Parameters
+        ----------
+        entity : :obj:`crimm.StructEntity.Chain` 
+        The entity to be loaded.
+        grid_resolution : float
+        The resolution of the grid in Angstroms.
+        padding : float
+        The padding to be added to the grid dimensions (in Angstroms).
+        grid_shape : str, optional
+        The geometric shape of the grid. Must be one of 'cubic', 'bounding_box', 
+        'truncated_sphere', or 'convex_hull'. Default is 'convex_hull'.
+        """
+
+        if grid_shape not in self.grid_shape_dict:
+            raise ValueError(
+                f'grid_type must be one of {list(self.grid_shape_dict.keys())}'
+            )
+        #TODO: add support for multiple chains
+        if entity.level != 'C':
+            raise ValueError(
+                f'entity must be a chain, got {entity.level}'
+            )
+        if entity.chain_type == "Polypeptide(L)":
+            self._param_loader = ParameterLoader('protein')
+        elif entity.chain_type == "Polyribonucleotide":
+            self._param_loader = ParameterLoader('nucleic')
+        else:
+            raise ValueError(
+                f'entity must be a protein or an RNA, got {self.entity.chain_type}'
+            )
+
+        super().load_entity(entity, grid_resolution, padding)
+        self._grid_shape = grid_shape
+        self._grid_coords = getattr(self, self.grid_shape_dict[grid_shape])
+        if grid_shape in ('convex_hull', 'truncate_sphere'):
+            self._min_coords = np.min(self.bounding_box_grid, axis=0)
+        else:
+            self._min_coords = np.min(self._grid_coords, axis=0)
+        self._collect_params()
+        # clear the pairwise dists and grids
+        self._dists = None
+        self._elec_grid = None
+        self._vdw_grid = None
+
+    def _collect_params(self):
+        charges = []
+        vdw_rs = []
+        epsilons = []
+        for atom in self.entity.get_atoms():
+            atom_type = atom._topo_def.atom_type
+            charges.append(atom._topo_def.charge)
+            nb_param = self._param_loader['nonbonded'][atom_type]
+            vdw_rs. append(nb_param.rmin_half)
+            epsilons.append(nb_param.epsilon)
+
+        self._charges = np.array(charges)
+        self._vdw_rs = np.array(vdw_rs)
+        self._epsilons = np.array(epsilons)
+
+    def get_pairwise_dists(self):
+        if self._dists is None:
+            self._dists = cdist_wrapper(self._grid_coords, self.coords)
+        return self._dists
+ 
+    def get_vdw_grid(self, probe_radius, vwd_softcore_max):
+        """Get the van der Waals energy grid."""
+        pairwise_dists = self.get_pairwise_dists()
+        if self._vdw_grid is None:
+            self._vdw_grid = gen_vdw_grid_wrapper(
+                pairwise_dists, self._epsilons, self._vdw_rs, 
+                probe_radius, vwd_softcore_max
+            )
+        return self._vdw_grid
+
+    def get_elec_grid(self, rad_dielec_const, elec_rep_max, elec_attr_max):
+        """Get the electrostatic energy grid."""
+        pairwise_dists = self.get_pairwise_dists()
+        if self._elec_grid is None:
+            self._elec_grid = gen_elec_grid_wrapper(
+                pairwise_dists, self._charges, cc_elec, rad_dielec_const,
+                elec_rep_max, elec_attr_max
+            )
+        return self._elec_grid
+
+    def _place_grid_back_in_box(self, grid):
+        boxed_grid = np.zeros(self.bounding_box_grid.shape[0])
+        if self._enlarged_hull_grid_ids is None:
+            self.get_enlarged_convex_hull_grid()
+        filled_ids = self._enlarged_hull_grid_ids
+        boxed_grid[filled_ids] = grid
+        return boxed_grid
+    
+    def save_dx(self, filename, grid):
+        """Save a grid to a .dx file."""
+        if self._grid_shape in ('convex_hull', 'truncated_sphere'):
+            boxed_grid = self._place_grid_back_in_box(grid)
+        else:
+            boxed_grid = grid
+        
+        values_str = ''
+        counter = 0
+        for value in boxed_grid:
+            counter += 1
+            values_str += f'{value:e} ' 
+            if counter % 6 == 0:
+                values_str += '\n'
+
+        dx_str = self._fill_dx(boxed_grid, values_str)
+        with open(filename, 'w') as f:
+            f.write(dx_str)
+
+    def _fill_dx(self, grid, values_str):
+        xd, yd, zd = self._n_points_per_dim
+        min_x, min_y, min_z = self._min_coords
+        spacing = self.resolution
+        dx_template = (
+            f'''#Generated dx file for fftgrid
+object 1 class gridpositions counts {xd} {yd} {zd}
+origin {min_x:e} {min_y:e} {min_z:e}
+delta {spacing:e} 0.000000e+000 0.000000e+000
+delta 0.000000e+000 {spacing:e} 0.000000e+000
+delta 0.000000e+000 0.000000e+000 {spacing:e}
+object 2 class gridconnections counts {xd} {yd} {zd}
+object 3 class array type double rank 0 items {grid.size} data follows
+{values_str}
+attribute "dep" string "positions"
+object "regular positions regular connections" class field
+component "positions" value 1
+component "connections" value 2
+component "data" value 3'''
+        )
+        return dx_template

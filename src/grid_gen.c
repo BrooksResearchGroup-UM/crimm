@@ -2,10 +2,9 @@
 #include <stdlib.h>
 #include <math.h>
 
-double* calc_pairwise_dist(
-    double* grid_pos, double* coords, int N_COORDS, int N_GRID_POINTS
+void calc_pairwise_dist(
+    double* grid_pos, double* coords, int N_COORDS, int N_GRID_POINTS, double* dists
 ){
-    double* dists = malloc(N_COORDS * N_GRID_POINTS * sizeof(double));
     double dx, dy, dz;
     for (int i = 0; i < N_GRID_POINTS; i++) {
         for (int j = 0; j < N_COORDS; j++) {
@@ -16,7 +15,6 @@ double* calc_pairwise_dist(
             dists[i * N_COORDS + j] = sqrt(dx * dx + dy * dy + dz * dz);
         }
     }
-    return dists;
 }
 
 double calc_point_elec_potential(
@@ -42,19 +40,17 @@ double calc_point_elec_potential(
     return cur_potential;
 }
 
-double* gen_elec_grid(
+void gen_elec_grid(
     double* dists, double* charges, double cc_elec,
     double rad_dielec_const, double elec_rep_max, double elec_attr_max,
-    int N_COORDS, int N_GRID_POINTS
+    int N_COORDS, int N_GRID_POINTS, double* electrostat_grid
 ) { 
     double* elec_consts = malloc(N_COORDS * sizeof(double));
     double* rc = malloc(N_COORDS * sizeof(double));
     double* alpha = malloc(N_COORDS * sizeof(double));
-    double* electrostat_grid = malloc(N_GRID_POINTS * sizeof(double));
 
     double emax_tmp;
-    double dx, dy, dz;
-    double dist, cur_potential;
+    double dist, cur_potential, cur_grid_val;
 
     for (int i = 0; i < N_COORDS; i++) {
         // calculate electrostatic constants
@@ -66,14 +62,14 @@ double* gen_elec_grid(
             // attractive
             emax_tmp = elec_attr_max;
         }
-        alpha[i] = fabs(emax_tmp / (2.0 * rc[i] * rc[i]));
         // cutoff distance
         rc[i] = sqrt(2.0 * fabs(elec_consts[i] / emax_tmp));
+        alpha[i] = fabs(emax_tmp / (2.0 * rc[i] * rc[i]));
     }
 
     // calculate electrostatic grid values
     for (int i = 0; i < N_GRID_POINTS; i++) {
-        electrostat_grid[i] = 0.0;
+        cur_grid_val = 0.0;
         for (int j = 0; j < N_COORDS; j++) {
             dist = dists[i * N_COORDS + j];
             // calculate electrostatic potential
@@ -81,21 +77,19 @@ double* gen_elec_grid(
                 dist, elec_consts[j], charges[j], rc[j], alpha[j],
                 elec_rep_max, elec_attr_max
             );
-            electrostat_grid[i] += cur_potential;
+            cur_grid_val += cur_potential;
         }
+        electrostat_grid[i] = cur_grid_val;
     }
     free(elec_consts);
     free(rc);
     free(alpha);
-
-    return electrostat_grid;
 }
 
-double* gen_vdw_grid(
+void gen_vdw_grid(
     double* dists, double* epsilons, double* vdw_rs, double probe_radius, 
-    double vwd_softcore_max, int N_COORDS, int N_GRID_POINTS
+    double vwd_softcore_max, int N_COORDS, int N_GRID_POINTS, double* vdw_grid
 ) {
-    double* vdw_grid = malloc(N_GRID_POINTS * sizeof(double));
     double* r_mins = malloc(N_COORDS * sizeof(double));
     double* eps_sqrt = malloc(N_COORDS * sizeof(double));
     double* rc_vdw = malloc(N_COORDS * sizeof(double));
@@ -103,7 +97,7 @@ double* gen_vdw_grid(
 
     double r_min, r_min_over_dist;
     double cur_eps_sqrt, vdwconst;
-    double dist;
+    double dist, cur_grid_val;
 
     // calculate vdw constants
     for (int i = 0; i < N_COORDS; i++) {
@@ -119,30 +113,29 @@ double* gen_vdw_grid(
     }
 
     for (int i = 0; i < N_GRID_POINTS; i++) {
-        vdw_grid[i] = 0.0;
+        cur_grid_val = 0.0;
         for (int j = 0; j < N_COORDS; j++) {
             dist = dists[i * N_COORDS + j];
             r_min_over_dist = r_mins[j]/dist;
             // beyond cutoff
             if (dist > rc_vdw[j]) {
-                vdw_grid[i] += (
+                cur_grid_val += (
                     eps_sqrt[j] * pow(r_min_over_dist, 12.0) -
                     2.0 * pow(r_min_over_dist, 6.0)
                 );
             // within cutoff
             } else {
-                vdw_grid[i] += (
+                cur_grid_val += (
                     vwd_softcore_max * (
                         1.0 - 0.5 * pow((dist / rc_vdw[j]), beta[j])
                     )
                 );
             }
         }
+        vdw_grid[i] = cur_grid_val;
     }
     free(r_mins);
     free(eps_sqrt);
     free(rc_vdw);
     free(beta);
-
-    return vdw_grid;
 }
