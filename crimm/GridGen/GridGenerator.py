@@ -3,51 +3,46 @@ from numpy.linalg import norm
 from scipy.spatial import ConvexHull, Delaunay
 from crimm.Visualization import View
 from crimm.Modeller import ParameterLoader
-from crimm.Data.constants import cc_elec_charmm as cc_elec
-from crimm.GridGen._grid_gen_wrappers import (
-    cdist_wrapper, gen_elec_grid_wrapper, gen_vdw_grid_wrapper
-)
+from crimm.GridGen._grid_gen_wrappers import GridCompEngine
+
 class GridCoordGenerator:
     def __init__(self) -> None:
         self.entity = None
         self.coords = None
-        self.resolution = None
+        self.spacing = None
         self.paddings = None
-        self._convex_hull = None # ConvexHull (scipy.Qhull) object
+        # ConvexHull (scipy.Qhull) object
+        self._convex_hull = None
         self._enlarged_hull_vertices = None
         # grid ids of the enlarged convex hull within the bounding box grid
         self._enlarged_hull_grid_ids = None
         self._delaunay_on_convex_hull = None
         self._bounding_box_grid = None
-        self._convex_hull_grid = None # enlarged convex hull grid
-        self._hull_surf_coords = None # coordinates of the enlarged convex hull surface
-        self._cubic_grid = None
-        self._truncated_sphere_grid = None
-        self._truc_sphere_shell = None
-        self._simplices_normals = None
-        self._verts_i = None
-        self._n_points_per_dim = None # maximum number of the grid points in each dimension
-
-    def load_entity(self, entity, grid_resolution, padding):
-        """Load entity and set grid resolution and paddings."""
-        self.entity = entity
-        self.coords = self._extract_coords(self.entity)
-        self.resolution = grid_resolution
-        self.paddings = padding
-        # remove all grid attributes if existing
-        self._convex_hull = None
-        self._enlarged_hull_vertices = None
-        self._enlarged_hull_grid_ids = None
-        self._delaunay_on_convex_hull = None
-        self._bounding_box_grid = None
+        # enlarged convex hull grid
         self._convex_hull_grid = None
+        # coordinates of the enlarged convex hull surface
         self._hull_surf_coords = None
         self._cubic_grid = None
         self._truncated_sphere_grid = None
         self._truc_sphere_shell = None
         self._simplices_normals = None
         self._verts_i = None
+        # maximum number of the grid points in each dimension
         self._n_points_per_dim = None
+
+    def _reinitialize(self):
+        for attribute in self.__dict__:
+            if attribute.startswith('_') and not attribute.startswith('__'):
+                setattr(self, attribute, None)
+
+    def load_entity(self, entity, grid_spacing, padding):
+        """Load entity and set grid spacing and paddings."""
+        self.entity = entity
+        self.coords = self._extract_coords(self.entity)
+        self.spacing = grid_spacing
+        self.paddings = padding
+        # remove all grid attributes if existing
+        self._reinitialize()
 
     def _extract_coords(self, entity) -> np.array:
         coords = []
@@ -118,7 +113,7 @@ class GridCoordGenerator:
         coordinates with paddings."""
         grid_half_widths = (np.ceil(self.box_dim[0]/2)+self.paddings)*np.ones(3)
         self._n_points_per_dim, self._cubic_grid = self._get_box_grid(
-            self.coord_center, grid_half_widths, self.resolution
+            self.coord_center, grid_half_widths, self.spacing
         )
         return self._bounding_box_grid
 
@@ -127,12 +122,12 @@ class GridCoordGenerator:
         coordinates with paddings."""
         grid_half_widths = np.ceil(self.box_dim/2)+self.paddings
         self._n_points_per_dim, self._bounding_box_grid = self._get_box_grid(
-            self.coord_center, grid_half_widths, self.resolution
+            self.coord_center, grid_half_widths, self.spacing
         )
         return self._bounding_box_grid
 
     @staticmethod
-    def _get_box_grid(center, grid_half_widths, resolution):
+    def _get_box_grid(center, grid_half_widths, spacing):
         """Return a grid of points (N, 3) defined by a center (x, y, z) and the
         grid box's half widths (x_len/2, y_len/2, z_len/2)."""
         dims = []
@@ -140,8 +135,8 @@ class GridCoordGenerator:
             dims.append(
                 np.arange(
                     mid_point-half_width,
-                    mid_point+half_width+resolution,
-                    resolution
+                    mid_point+half_width+spacing,
+                    spacing
                 )
             )
         grid_pos = np.array(np.meshgrid(*dims, indexing='ij')).reshape(3,-1).T
@@ -152,7 +147,7 @@ class GridCoordGenerator:
     def get_truncated_sphere_grid(self):
         """Return a grid of points (N, 3) that covers the truncated sphere of
         the coordinates with paddings."""
-        tolerance = self.resolution*1e-2
+        tolerance = self.spacing*1e-2
         bounding_box_grid = self.bounding_box_grid
         radius = np.ceil(max(self.box_dim)/2)+self.paddings
         # Euclidean distance normalized by semi-axes
@@ -242,7 +237,7 @@ class GridCoordGenerator:
         if self._hull_surf_coords is not None:
             return self._hull_surf_coords
 
-        tolerance = self.resolution*1e-2
+        tolerance = self.spacing*1e-2
         hull_grid = self.enlarged_convex_hull_grid
         dists = self.find_coords_to_simplices_dists(hull_grid)
         surf_ids = np.argwhere(
@@ -281,6 +276,7 @@ class GridCoordGenerator:
         return view
     
 class EnerGridGenerator(GridCoordGenerator):
+    _allowed_backend = ['cpu', 'cuda']
     grid_shape_dict = {
         'cubic': 'cubic_grid',
         'bounding_box': 'bounding_box_grid',
@@ -294,15 +290,24 @@ class EnerGridGenerator(GridCoordGenerator):
         self._elec_grid = None
         self._vdw_grid = None
         self._dists = None
-        self._param_loader = None
         self._charges = None
         self._epsilons = None
         self._vdw_rs = None
         self._min_coords = None
         self._grid_shape = None
+        self.param_loader = None
+        self.comp_engine = GridCompEngine()
+
+    @property
+    def backend(self):
+        return self.comp_engine.backend
+    
+    @backend.setter
+    def backend(self, backend):
+        return self.comp_engine.set_backend(backend)
 
     def load_entity(
-            self, entity, grid_resolution, padding, 
+            self, entity, grid_spacing, padding, 
             grid_shape = 'convex_hull'
         ):
         """Load an entity and generate the grid coordinates and energy potentials
@@ -312,8 +317,8 @@ class EnerGridGenerator(GridCoordGenerator):
         ----------
         entity : :obj:`crimm.StructEntity.Chain` 
         The entity to be loaded.
-        grid_resolution : float
-        The resolution of the grid in Angstroms.
+        grid_spacing : float
+        The spacing of the grid in Angstroms.
         padding : float
         The padding to be added to the grid dimensions (in Angstroms).
         grid_shape : str, optional
@@ -331,15 +336,14 @@ class EnerGridGenerator(GridCoordGenerator):
                 f'entity must be a chain, got {entity.level}'
             )
         if entity.chain_type == "Polypeptide(L)":
-            self._param_loader = ParameterLoader('protein')
+            self.param_loader = ParameterLoader('protein')
         elif entity.chain_type == "Polyribonucleotide":
-            self._param_loader = ParameterLoader('nucleic')
+            self.param_loader = ParameterLoader('nucleic')
         else:
             raise ValueError(
                 f'entity must be a protein or an RNA, got {self.entity.chain_type}'
             )
-
-        super().load_entity(entity, grid_resolution, padding)
+        super().load_entity(entity, grid_spacing, padding)
         self._grid_shape = grid_shape
         self._grid_coords = getattr(self, self.grid_shape_dict[grid_shape])
         if grid_shape in ('convex_hull', 'truncate_sphere'):
@@ -359,7 +363,7 @@ class EnerGridGenerator(GridCoordGenerator):
         for atom in self.entity.get_atoms():
             atom_type = atom._topo_def.atom_type
             charges.append(atom._topo_def.charge)
-            nb_param = self._param_loader['nonbonded'][atom_type]
+            nb_param = self.param_loader['nonbonded'][atom_type]
             vdw_rs. append(nb_param.rmin_half)
             epsilons.append(nb_param.epsilon)
 
@@ -369,14 +373,16 @@ class EnerGridGenerator(GridCoordGenerator):
 
     def get_pairwise_dists(self):
         if self._dists is None:
-            self._dists = cdist_wrapper(self._grid_coords, self.coords)
+            self._dists = self.comp_engine.cdist(
+                self._grid_coords, self.coords
+            )
         return self._dists
  
     def get_vdw_grid(self, probe_radius, vwd_softcore_max):
         """Get the van der Waals energy grid."""
         pairwise_dists = self.get_pairwise_dists()
         if self._vdw_grid is None:
-            self._vdw_grid = gen_vdw_grid_wrapper(
+            self._vdw_grid = self.comp_engine.gen_vdw_grid(
                 pairwise_dists, self._epsilons, self._vdw_rs, 
                 probe_radius, vwd_softcore_max
             )
@@ -386,8 +392,8 @@ class EnerGridGenerator(GridCoordGenerator):
         """Get the electrostatic energy grid."""
         pairwise_dists = self.get_pairwise_dists()
         if self._elec_grid is None:
-            self._elec_grid = gen_elec_grid_wrapper(
-                pairwise_dists, self._charges, cc_elec, rad_dielec_const,
+            self._elec_grid = self.comp_engine.gen_elec_grid(
+                pairwise_dists, self._charges, rad_dielec_const,
                 elec_rep_max, elec_attr_max
             )
         return self._elec_grid
@@ -422,7 +428,7 @@ class EnerGridGenerator(GridCoordGenerator):
     def _fill_dx(self, grid, values_str):
         xd, yd, zd = self._n_points_per_dim
         min_x, min_y, min_z = self._min_coords
-        spacing = self.resolution
+        spacing = self.spacing
         dx_template = (
             f'''#Generated dx file for fftgrid
 object 1 class gridpositions counts {xd} {yd} {zd}

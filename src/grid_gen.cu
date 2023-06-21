@@ -194,12 +194,14 @@ void gen_elec_grid(
     cudaMemcpy(device_charges, host_charges, N_COORDS * sizeof(double), cudaMemcpyHostToDevice);
 
     // Run the kernel
-    dim3 dimBlock(32, 32);
-    dim3 dimGrid(
-        (N_GRID_POINTS + dimBlock.x - 1) / dimBlock.x
-        // (N_COORDS + dimBlock.y - 1) / dimBlock.y
-    );
-    gen_elec_grid_kernel<<<dimGrid, dimBlock>>>(
+    // dim3 dimBlock(32, 32);
+    // dim3 dimGrid(
+    //     (N_GRID_POINTS + dimBlock.x - 1) / dimBlock.x
+    //     // (N_COORDS + dimBlock.y - 1) / dimBlock.y
+    // );
+    int block_size = 1024;
+    int grid_size = (N_GRID_POINTS + block_size - 1) / block_size;
+    gen_elec_grid_kernel<<<grid_size, block_size>>>(
         device_dists, device_charges, cc_elec, 
         rad_dielec_const, elec_rep_max, elec_attr_max, 
         N_GRID_POINTS, N_COORDS, device_electrostat_grid
@@ -240,12 +242,14 @@ void gen_vdw_grid(
     cudaMemcpy(device_vdw_rs, host_vdw_rs, N_COORDS * sizeof(double), cudaMemcpyHostToDevice);
 
     // Run the kernel
-    dim3 dimBlock(32, 32);
-    dim3 dimGrid(
-        (N_GRID_POINTS + dimBlock.x - 1) / dimBlock.x 
-        // (N_COORDS + dimBlock.y - 1) / dimBlock.y
-    );
-    gen_vdw_grid_kernel<<<dimGrid, dimBlock>>>(
+    // dim3 dimBlock(32, 32);
+    // dim3 dimGrid(
+    //     (N_GRID_POINTS + dimBlock.x - 1) / dimBlock.x 
+    //     // (N_COORDS + dimBlock.y - 1) / dimBlock.y
+    // );
+    int block_size = 1024;
+    int grid_size = (N_GRID_POINTS + block_size - 1) / block_size;
+    gen_vdw_grid_kernel<<<grid_size, block_size>>>(
         device_dists, device_epsilons, device_vdw_rs, 
         probe_radius, vwd_softcore_max, 
         N_GRID_POINTS, N_COORDS, device_vdw_grid

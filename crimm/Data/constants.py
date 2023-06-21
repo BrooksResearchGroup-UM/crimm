@@ -1,1 +1,2 @@
-cc_elec_charmm = 332.0716
+# Description: Constants used in the crimm package
+CC_ELEC_CHARMM = 332.0716
