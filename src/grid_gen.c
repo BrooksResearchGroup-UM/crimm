@@ -3,12 +3,14 @@
 #include <math.h>
 
 void calc_pairwise_dist(
-    double* grid_pos, double* coords, int N_COORDS, int N_GRID_POINTS, double* dists
+    double* grid_pos, double* coords, int N_COORDS, 
+    int N_GRID_POINTS, double* dists
 ){
     double dx, dy, dz;
     for (int i = 0; i < N_GRID_POINTS; i++) {
         for (int j = 0; j < N_COORDS; j++) {
-            // pairwise distances between the receptor atom coords and the grid points
+            // pairwise distances between the receptor atom coords 
+            // and the grid points
             dx = grid_pos[i * 3] - coords[j * 3];
             dy = grid_pos[i * 3 + 1] - coords[j * 3 + 1];
             dz = grid_pos[i * 3 + 2] - coords[j * 3 + 2];
@@ -35,7 +37,8 @@ double calc_point_elec_potential(
         } else {
             cur_potential = elec_attr_max + alpha_tmp;
         }
-        // zero charge is very unlikely and will turn out to be zero potential in the end
+        // zero charge is very unlikely and will 
+        // turn out to be zero potential in the end
     }
     return cur_potential;
 }
@@ -105,11 +108,13 @@ void gen_vdw_grid(
         r_mins[i] = r_min;
         cur_eps_sqrt = sqrt(fabs(epsilons[i]));
         eps_sqrt[i] = cur_eps_sqrt;
-        vdwconst = 1.0 + sqrt(1.0 + 0.5 * fabs(vwd_softcore_max) / eps_sqrt[i]);
+        vdwconst = 1.0 + sqrt(
+            1.0 + 0.5 * fabs(vwd_softcore_max) / cur_eps_sqrt
+        );
         // cutoff distance
         rc_vdw[i] = r_min * pow(vdwconst, -1.0 / 6.0);
         beta[i] = 24.0 * cur_eps_sqrt /
-        vwd_softcore_max * (pow(vdwconst, 2.0) - vdwconst);
+        vwd_softcore_max * (vdwconst * vdwconst - vdwconst);
     }
 
     for (int i = 0; i < N_GRID_POINTS; i++) {
@@ -119,17 +124,12 @@ void gen_vdw_grid(
             r_min_over_dist = r_mins[j]/dist;
             // beyond cutoff
             if (dist > rc_vdw[j]) {
-                cur_grid_val += (
-                    eps_sqrt[j] * pow(r_min_over_dist, 12.0) -
-                    2.0 * pow(r_min_over_dist, 6.0)
-                );
+                cur_grid_val += eps_sqrt[j] * pow(r_min_over_dist, 12.0) -
+                2.0 * pow(r_min_over_dist, 6.0);
             // within cutoff
             } else {
-                cur_grid_val += (
-                    vwd_softcore_max * (
-                        1.0 - 0.5 * pow((dist / rc_vdw[j]), beta[j])
-                    )
-                );
+                cur_grid_val += vwd_softcore_max * 
+                (1.0 - 0.5 * pow((dist / rc_vdw[j]), beta[j]));
             }
         }
         vdw_grid[i] = cur_grid_val;

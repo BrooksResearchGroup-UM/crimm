@@ -22,11 +22,11 @@ __global__ void calc_pairwise_dist_kernel(
   
     if (i < N_GRID_POINTS && j < N_COORDS) {
         double dx, dy, dz;
-        
+
         dx = grid_pos[i * 3] - coords[j * 3];
         dy = grid_pos[i * 3 + 1] - coords[j * 3 + 1];
         dz = grid_pos[i * 3 + 2] - coords[j * 3 + 2];
-        
+
         dists[i * N_COORDS + j] = sqrt(dx * dx + dy * dy + dz * dz);
     }
 }
@@ -87,16 +87,22 @@ __global__ void gen_elec_grid_kernel(
 }
 
 __device__ double calc_point_vdw_potential(
-    double dist, double epsilon, double r_min, double probe_radius, 
+    double dist, double eps_sqrt, double r_min, double probe_radius, 
     double vwd_softcore_max, double rc_vdw, double beta
 ) {
     double cur_potential;
 
     double r_min_over_dist = r_min / dist;
     if (dist > rc_vdw) {
-        cur_potential = epsilon * (pow(r_min_over_dist, 12.0) - 2.0 * pow(r_min_over_dist, 6.0));
+        cur_potential = (
+            eps_sqrt * (
+                pow(r_min_over_dist, 12.0) - 2.0 * pow(r_min_over_dist, 6.0)
+            )
+        );
     } else {
-        cur_potential = vwd_softcore_max * (1.0 - 0.5 * pow((dist / rc_vdw), beta));
+        cur_potential = (
+            vwd_softcore_max * (1.0 - 0.5 * pow((dist / rc_vdw), beta))
+        );
     }
 
     return cur_potential;
@@ -109,20 +115,20 @@ __global__ void gen_vdw_grid_kernel(
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     
     if (i < N_GRID_POINTS) {
-        double r_mins, eps_sqrt, rc_vdw, beta;
+        double r_mins, eps_sqrt, vdwconst, rc_vdw, beta;
         double cur_grid_val = 0.0;
         for (int j = 0; j < N_COORDS; j++) {
             double dist = dists[i * N_COORDS + j];
 
             r_mins = vdw_rs[j] + probe_radius;
             eps_sqrt = sqrt(fabs(epsilons[j]));
-            rc_vdw = r_mins * pow(1.0 + sqrt(1.0 + 0.5 * fabs(vwd_softcore_max) / eps_sqrt), -1.0 / 6.0);
-            beta = 24.0 * eps_sqrt / vwd_softcore_max * \
-            (pow(1.0 + sqrt(1.0 + 0.5 * fabs(vwd_softcore_max) / eps_sqrt), 2.0)\
-             - 1.0 - sqrt(1.0 + 0.5 * fabs(vwd_softcore_max) / eps_sqrt));
+            vdwconst = 1.0 + sqrt(1.0 + 0.5 * fabs(vwd_softcore_max) / eps_sqrt);
+            rc_vdw = r_mins * pow(vdwconst, -1.0 / 6.0);
+            beta = 24.0 * eps_sqrt / 
+            vwd_softcore_max * (vdwconst * vdwconst - vdwconst);
 
             double cur_potential = calc_point_vdw_potential(
-                dist, epsilons[j], r_mins, probe_radius, 
+                dist, eps_sqrt, r_mins, probe_radius, 
                 vwd_softcore_max, rc_vdw, beta
             );
             cur_grid_val += cur_potential;
@@ -146,8 +152,16 @@ void calc_pairwise_dist(
     cudaMalloc((void**)&device_dists, N_GRID_POINTS * N_COORDS * sizeof(double));
 
     // Copy data to the device
-    cudaMemcpy(device_grid_pos, host_grid_pos, N_GRID_POINTS * 3 * sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(device_coords, host_coords, N_COORDS * 3 * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMemcpy(
+        device_grid_pos, host_grid_pos, 
+        N_GRID_POINTS * 3 * sizeof(double), 
+        cudaMemcpyHostToDevice
+    );
+    cudaMemcpy(
+        device_coords, host_coords, 
+        N_COORDS * 3 * sizeof(double), 
+        cudaMemcpyHostToDevice
+    );
 
     // Run the kernel
     dim3 dimBlock(32, 32);
@@ -190,8 +204,16 @@ void gen_elec_grid(
     cudaMalloc((void**)&device_electrostat_grid, N_GRID_POINTS * sizeof(double));
 
     // Copy data to the device
-    cudaMemcpy(device_dists, host_dists, N_GRID_POINTS * N_COORDS * sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(device_charges, host_charges, N_COORDS * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMemcpy(
+        device_dists, host_dists, 
+        N_GRID_POINTS * N_COORDS * sizeof(double), 
+        cudaMemcpyHostToDevice
+    );
+    cudaMemcpy(
+        device_charges, host_charges, 
+        N_COORDS * sizeof(double), 
+        cudaMemcpyHostToDevice
+    );
 
     // Run the kernel
     // dim3 dimBlock(32, 32);
@@ -210,7 +232,8 @@ void gen_elec_grid(
     // Copy data back to the host
     cudaMemcpy(
         host_electrostat_grid, device_electrostat_grid, 
-        N_GRID_POINTS * sizeof(double), cudaMemcpyDeviceToHost
+        N_GRID_POINTS * sizeof(double), 
+        cudaMemcpyDeviceToHost
     );
 
     // Free memory on the device
@@ -237,9 +260,21 @@ void gen_vdw_grid(
     cudaMalloc((void**)&device_vdw_grid, N_GRID_POINTS * sizeof(double));
 
     // Copy data to the device
-    cudaMemcpy(device_dists, host_dists, N_GRID_POINTS * N_COORDS * sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(device_epsilons, host_epsilons, N_COORDS * sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(device_vdw_rs, host_vdw_rs, N_COORDS * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMemcpy(
+        device_dists, host_dists, 
+        N_GRID_POINTS * N_COORDS * sizeof(double), 
+        cudaMemcpyHostToDevice
+    );
+    cudaMemcpy(
+        device_epsilons, host_epsilons, 
+        N_COORDS * sizeof(double), 
+        cudaMemcpyHostToDevice
+    );
+    cudaMemcpy(
+        device_vdw_rs, host_vdw_rs, 
+        N_COORDS * sizeof(double), 
+        cudaMemcpyHostToDevice
+    );
 
     // Run the kernel
     // dim3 dimBlock(32, 32);
@@ -258,7 +293,8 @@ void gen_vdw_grid(
     // Copy data back to the host
     cudaMemcpy(
         host_vdw_grid, device_vdw_grid, 
-        N_GRID_POINTS * sizeof(double), cudaMemcpyDeviceToHost
+        N_GRID_POINTS * sizeof(double), 
+        cudaMemcpyDeviceToHost
     );
 
     // Free memory on the device
