@@ -115,7 +115,7 @@ class GridCoordGenerator:
         self._n_points_per_dim, self._cubic_grid = self._get_box_grid(
             self.coord_center, grid_half_widths, self.spacing
         )
-        return self._bounding_box_grid
+        return self._cubic_grid
 
     def get_bounding_box_grid(self):
         """Return a grid of points (N, 3) that covers the bounding box of the 
@@ -139,7 +139,9 @@ class GridCoordGenerator:
                     spacing
                 )
             )
-        grid_pos = np.array(np.meshgrid(*dims, indexing='ij')).reshape(3,-1).T
+        grid_pos = np.array(
+            np.meshgrid(*dims, indexing='ij')
+        ).reshape(3,-1).T
         x_pos, y_pos, z_pos = dims
         dim_sizes = np.array([x_pos.size, y_pos.size, z_pos.size])
         return dim_sizes, grid_pos
@@ -397,6 +399,18 @@ class EnerGridGenerator(GridCoordGenerator):
                 elec_rep_max, elec_attr_max
             )
         return self._elec_grid
+
+    def gen_all_grids(
+            self, rad_dielec_const, elec_rep_max, elec_attr_max, probe_radius,
+            vwd_softcore_max
+        ):
+        """Generate all grids"""
+        self._dists, self._elec_grid, self._vdw_grid = \
+            self.comp_engine.gen_all_grids(
+                self._grid_coords, self.coords, self._charges, self._epsilons,
+                self._vdw_rs, rad_dielec_const, elec_rep_max, elec_attr_max,
+                probe_radius, vwd_softcore_max
+            )
 
     def _place_grid_back_in_box(self, grid):
         boxed_grid = np.zeros(self.bounding_box_grid.shape[0])
