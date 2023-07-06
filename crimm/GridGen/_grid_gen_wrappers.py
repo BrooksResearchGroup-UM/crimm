@@ -10,7 +10,7 @@ nd_float_ptr_type = ndpointer(ctypes.c_double, flags="C_CONTIGUOUS")
 
 class GridCompEngine:
     """Wrapper for the C++ grid generation library."""
-    def __init__(self, backend='cuda'):
+    def __init__(self, backend='cpu'):
         self.lib = None
         self._allowed_backends = ['cpu', 'cuda']
         self._backend = None

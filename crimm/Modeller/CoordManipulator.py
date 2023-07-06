@@ -30,7 +30,7 @@ class CoordManipulator:
     def _extract_atoms_and_coords(self, entity) -> Tuple[List[Atom], np.array]:
         coords = []
         atoms = []
-        for atom in entity.get_atoms():
+        for atom in entity.get_atoms(include_alt=True):
             coords.append(atom.coord)
             atoms.append(atom)
         return atoms, np.asarray(coords)
