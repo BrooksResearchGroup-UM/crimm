@@ -38,7 +38,7 @@ double calc_point_elec_potential(
         } else {
             cur_potential = elec_attr_max + alpha_tmp;
         }
-        // zero charge is very unlikely and will 
+        // zero charge is very unlikely and will
         // turn out to be zero potential in the end
     }
     return cur_potential;

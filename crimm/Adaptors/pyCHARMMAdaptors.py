@@ -32,6 +32,7 @@ def load_parameters(param_loader, append = False):
 def load_chain(chain, hbuild = False, report = False):
     if not chain.is_continuous():
         raise ValueError("Chain is not continuous! Fix the chain first!")
+    ##TODO: change seg id based on chain type (use NUC for nucleic)
     segid = f'PRO{chain.id[0]}'
     m_chain = _get_charmm_named_chain(chain, segid)
     first_res = m_chain.child_list[0]

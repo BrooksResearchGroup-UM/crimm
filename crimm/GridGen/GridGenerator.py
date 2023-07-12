@@ -49,7 +49,7 @@ class GridCoordGenerator:
         """
         if self.coords is not None:
             return self.coords.ptp(0)
-    
+
     @property
     def cubic_grid(self):
         """Return a grid of points (N, 3) that covers the bounding cube of the coordinates."""
@@ -82,22 +82,23 @@ class GridCoordGenerator:
         """Return a grid of points (N, 3) that covers the convex hull of the coordinates."""
         if self._enlarged_convex_hull_grid is None:
             self._enlarged_convex_hull_grid = ConvexHullGrid(
-                self.max_dims, self.coords, self.coord_center, self.spacing, self.paddings
+                self.coords, self.max_dims,
+                self.coord_center, self.spacing, self.paddings
             )
         return self._enlarged_convex_hull_grid
 
     def show_hull_surface(self, show_licorice=False, show_enlarged_hull=False):
         """Show the surface of the convex hull."""
-        hull = self.convex_hull_grid.Qhull
+        q_hull = self.convex_hull_grid.Qhull
         if show_enlarged_hull:
-            vertices = hull.points[hull.vertices]
-            idx_dict = {x: idx for idx, x in enumerate(vertices)}
-            enlarged_simplex_ids = np.vectorize(idx_dict.get)(hull.simplices)
+            vertices = self.convex_hull_grid.enlarged_hull_vertices
+            idx_dict = {x: idx for idx, x in enumerate(q_hull.vertices)}
+            enlarged_simplex_ids = np.vectorize(idx_dict.get)(q_hull.simplices)
             flattened_array = (
                 vertices[enlarged_simplex_ids].reshape(-1)
             )
         else:
-            flattened_array = hull.points[hull.simplices].reshape(-1)
+            flattened_array = q_hull.points[q_hull.simplices].reshape(-1)
         view = View()
         view.load_entity(self.entity)
         if show_licorice:
@@ -211,9 +212,9 @@ class ConvexHullGrid(BoundingBoxGrid):
         super().__init__(dims, coord_center, spacing, padding)
         self.bounding_box_coords = self._coords
         self.Qhull = ConvexHull(entity_coords)
-        self._enlarged_hull_vertices = self._enlarge_convex_hull(entity_coords)
+        self.enlarged_hull_vertices = self._enlarge_convex_hull(entity_coords)
         # Find the Delaunay triangulation of the convex hull
-        self.delaunay = Delaunay(self._enlarged_hull_vertices)
+        self.delaunay = Delaunay(self.enlarged_hull_vertices)
         # the indices of the grid points within the convex hull
         self.grid_ids_in_box = np.argwhere(
             self.delaunay.find_simplex(self.bounding_box_coords) >= 0
@@ -229,7 +230,7 @@ class ConvexHullGrid(BoundingBoxGrid):
         # Compute the convex hull if not already computed
         hull = self.Qhull
         # Find the centroid of the convex hull
-        centroid = np.mean(self.coords[hull.vertices], axis=0)
+        centroid = np.mean(entity_coords[hull.vertices], axis=0)
         # Compute the vectors from the centroid to each vertex
         vectors = entity_coords[hull.vertices] - centroid
         # Normalize the vectors to unit length
@@ -238,7 +239,7 @@ class ConvexHullGrid(BoundingBoxGrid):
         # Compute the displacement vector for each vertex
         displacement = normalized_vectors * self._padding
         # Enlarge the convex hull by adding the displacement vector to each vertex
-        enlarged_hull_vertices = self.coords[hull.vertices] + displacement
+        enlarged_hull_vertices = entity_coords[hull.vertices] + displacement
         return enlarged_hull_vertices
 
     def _find_hull_simplex_normals(self):
@@ -297,7 +298,7 @@ class EnerGridGenerator(GridCoordGenerator):
         'cubic': 'cubic_grid',
         'bounding_box': 'bounding_box_grid',
         'truncated_sphere': 'truncated_sphere_grid',
-        'convex_hull' : 'enlarged_convex_hull_grid'
+        'convex_hull' : 'convex_hull_grid'
     }
     comp_engine = GridCompEngine()
 
@@ -316,7 +317,7 @@ class EnerGridGenerator(GridCoordGenerator):
     @property
     def backend(self):
         return self.comp_engine.backend
-    
+
     @backend.setter
     def backend(self, backend):
         return self.comp_engine.set_backend(backend)
@@ -397,7 +398,7 @@ class EnerGridGenerator(GridCoordGenerator):
                 grid.coords, self.coords
             )
         return self._dists
- 
+
     def get_vdw_grid(self, probe_radius, vwd_softcore_max):
         """Get the van der Waals energy grid."""
         pairwise_dists = self.get_pairwise_dists()
@@ -429,13 +430,13 @@ class EnerGridGenerator(GridCoordGenerator):
                 self._vdw_rs, rad_dielec_const, elec_rep_max, elec_attr_max,
                 probe_radius, vwd_softcore_max
             )
-    
+
     def convert_to_boxed_grid(self, grid):
         """Convert a 1D grid to a 3D grid."""
         if self._grid_shape in ('convex_hull', 'truncated_sphere'):
             # Place the grid values back in the correct positions in the 
             # bounding box grid
-            boxed_grid = np.zeros(self.coord_grid.points_per_dim)
+            boxed_grid = np.zeros(self.bounding_box_grid.coords.shape[0])
             fill_ids = self.coord_grid.grid_ids_in_box
             boxed_grid[fill_ids] = grid
         else:
@@ -496,7 +497,7 @@ class ProbeGridGenerator(EnerGridGenerator):
         super().__init__(grid_spacing, padding)
         self._grid_shape = "bounding_box"
         self.param_loader = ParameterLoader('cgenff')
-        
+
     def load_entity(self, probe):
         """Load a probe and generate the grid coordinates and energy potentials
         associated with each grid point in space.
@@ -568,7 +569,7 @@ class ProbeGridGenerator(EnerGridGenerator):
             charge_grid[indices] += cur_charges
         self._elec_grid = charge_grid
         return self._elec_grid
-    
+
     def get_vdw_grid(self):
         raise NotImplementedError(
             'van der Waals grid is not implemented for small molecules yet.'
