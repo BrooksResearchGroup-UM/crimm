@@ -12,8 +12,9 @@ from propka.hydrogens import setup_bonding_and_protonation
 from propka.atom import Atom as _ppAtom
 from crimm.Modeller import TopologyLoader, ParameterLoader
 from crimm.Modeller.TopoFixer import ResidueFixer
+from crimm import Data
 
-dir_path = os.path.dirname(os.path.realpath(__file__))
+dir_path = os.path.dirname(os.path.realpath(Data.__file__))
 
 class PropKaAtom(_ppAtom):
     """PropKa Atom class - contains all atom information found in the PDB file
