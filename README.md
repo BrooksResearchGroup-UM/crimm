@@ -8,7 +8,16 @@ This is a toolkit that is under active development, where many useful macromolec
 ## Installations
 crimm can be installed by `pip install crimm`
 
-crimm requires `python>=3.10`. The main dependencies are biopython, nglview, scipy, and requests. To use the adaptors, the respective packages need to be installed separately (e.g. pyCHARMM, rdkit, etc.)
+crimm requires `python>=3.8`. The main dependencies are biopython, nglview, scipy, and requests. To use the adaptors, the respective packages need to be installed separately (e.g. pyCHARMM, rdkit, etc.)
+
+If you are installing crimm on a fresh enviroment, it is recommended to use the `env.yaml` file. 
+
+```conda env create -f env.yaml```
+
+**Note**
+1. `OpenMM` and `pyCHARMM` still need to be installed separately in this environment if you require these in your pipeline.
+
+2. If you are using a centralized `Jupyterlab` installation and install the ipython kernel to it, the `nglview` version should match in both environment (`crimm` env and `jupyterlab` env). Otherwise the ipywidget for `nglview` could break. The required `nglview` version is currently 3.0.6
 
 -----------------
 ## Base Library and Object Handles
