@@ -98,7 +98,8 @@ class View(nv.NGLWidget):
             self,
             residues: List[Entities.Residue],
             add_licorice = False,
-            highlight_color = 'red'
+            color = 'red',
+            **kwargs
         ):
         """
         Highlight the repaired gaps with red color and show licorice 
@@ -124,8 +125,10 @@ class View(nv.NGLWidget):
             return
 
         atom_id_dict = self._create_selected_atom_id_lookup(atoms)
-
         self.subdue_all_entities()
+
+        if 'colorScheme' not in kwargs:
+            kwargs['color'] = color
         # highlight the residues
         for chain in residue_chains:
             component = self.entity_dict[chain]
@@ -138,22 +141,25 @@ class View(nv.NGLWidget):
             # TODO: Find API for changing color of specific residues
             # since add cartoon representation will not render 
             self.add_representation(
-                'cartoon', selection=atom_id_selection, color=highlight_color,
-                component=comp_idx
+                'cartoon', selection=atom_id_selection, 
+                component=comp_idx, 
+                **kwargs
             )
 
             if add_licorice:
                 # Add licorice representations
                 self.add_representation(
                     'licorice', selection=atom_id_selection, 
-                    color=highlight_color, component=comp_idx
+                    component=comp_idx,
+                    **kwargs
                 )
 
     def highlight_atoms(
             self,
             atoms: List[Entities.Atom],
             add_licorice = True,
-            highlight_color = 'red'
+            color = 'red',
+            **kwargs
         ):
         """highlight atoms in the loaded structure in Viewer"""
         if len(atoms) == 0:
@@ -171,6 +177,8 @@ class View(nv.NGLWidget):
         representation = 'licorice' if add_licorice else 'cartoon'
 
         self.subdue_all_entities()
+        if 'colorScheme' not in kwargs:
+            kwargs['color'] = color
         for chain in atom_chains:
             component = self.entity_dict[chain]
             comp_idx = component._index
@@ -181,11 +189,13 @@ class View(nv.NGLWidget):
                 'cartoon', component=comp_idx, color='grey', opacity=0.5
             )
             self.add_representation(
-                representation, selection=atom_ids, color=highlight_color,
-                component=comp_idx
+                representation, selection=atom_ids, 
+                component=comp_idx, **kwargs
             )
 
-    def highlight_chains(self, chains, highlight_color = 'red'):
+    def highlight_chains(
+            self, chains, color = 'red', **kwargs
+        ):
         """highlight chains in the loaded structure in Viewer"""
         if len(chains) == 0:
             warnings.warn('No chains provided for highlighting!')
@@ -197,10 +207,12 @@ class View(nv.NGLWidget):
             raise ValueError('Residues are not from the loaded entity!')
         
         self.subdue_all_entities()
+        if 'colorScheme' not in kwargs:
+            kwargs['color'] = color
         for chain in chains:
             component = self.entity_dict[chain]
             comp_idx = component._index
             self.clear_representations(component=comp_idx)
             self.add_representation(
-                'cartoon', component=comp_idx, color=highlight_color
+                'cartoon', component=comp_idx, **kwargs
             )
