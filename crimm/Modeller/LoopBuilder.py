@@ -263,7 +263,7 @@ class ChainLoopBuilder:
         view = View()
         view.load_entity(self.model_chain)
         view.highlight_residues(
-            fixed_res, highlight_color=color, add_licorice=add_licorice
+            fixed_res, color=color, add_licorice=add_licorice
         )
 
         return view
