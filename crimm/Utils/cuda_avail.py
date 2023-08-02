@@ -9,12 +9,14 @@ from C to Python with ctypes, so it can run without compiling anything. Note
 that this is a direct translation with no attempt to make the code Pythonic.
 It's meant as a general demonstration on how to obtain CUDA device information
 from Python without resorting to nvidia-smi or a compiled Python extension.
-Author: Jan Schlüter
+Author: Jan Schlüter, Ziqiao "Truman" Xu (徐梓乔)
 License: MIT (https://gist.github.com/f0k/63a664160d016a491b2cbea15913d549#gistcomment-3870498)
 """
 
 import sys
 import ctypes
+import warnings
+from dataclasses import dataclass
 
 # Some constants taken from cuda.h
 CUDA_SUCCESS = 0
@@ -22,36 +24,42 @@ CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT = 16
 CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_MULTIPROCESSOR = 39
 CU_DEVICE_ATTRIBUTE_CLOCK_RATE = 13
 CU_DEVICE_ATTRIBUTE_MEMORY_CLOCK_RATE = 36
-
+# Table to convert CUDA architectural version number into core count per SM,
+# data from https://github.com/NVIDIA/cuda-samples/blob/master/Common/helper_cuda.h
+CUDA_CORE_TABLE = {
+    # (major, minor): cores
+    (1, 0): 8,    # Tesla
+    (1, 1): 8,
+    (1, 2): 8,
+    (1, 3): 8,
+    (2, 0): 32,   # Fermi
+    (2, 1): 48,
+    (3, 0): 192,  # Kepler
+    (3, 2): 192,
+    (3, 5): 192,
+    (3, 7): 192,
+    (5, 0): 128,  # Maxwell
+    (5, 2): 128,
+    (5, 3): 128,
+    (6, 0): 64,   # Pascal
+    (6, 1): 128,
+    (6, 2): 128,
+    (7, 0): 64,   # Volta
+    (7, 2): 64,   # Xavier
+    (7, 5): 64,   # Turing
+    (8, 0): 64,   # Ampere
+    (8, 6): 128,
+    (8, 7): 128,
+    (8, 9): 128,   # Ada
+    (9, 0): 128,   # Hopper
+}
 
 def ConvertSMVer2Cores(major, minor):
     # Returns the number of CUDA cores per multiprocessor for a given
     # Compute Capability version. There is no way to retrieve that via
     # the API, so it needs to be hard-coded.
     # See _ConvertSMVer2Cores in helper_cuda.h in NVIDIA's CUDA Samples.
-    return {(1, 0): 8,    # Tesla
-            (1, 1): 8,
-            (1, 2): 8,
-            (1, 3): 8,
-            (2, 0): 32,   # Fermi
-            (2, 1): 48,
-            (3, 0): 192,  # Kepler
-            (3, 2): 192,
-            (3, 5): 192,
-            (3, 7): 192,
-            (5, 0): 128,  # Maxwell
-            (5, 2): 128,
-            (5, 3): 128,
-            (6, 0): 64,   # Pascal
-            (6, 1): 128,
-            (6, 2): 128,
-            (7, 0): 64,   # Volta
-            (7, 2): 64,
-            (7, 5): 64,   # Turing
-            (8, 0): 64,   # Ampere
-            (8, 6): 64,
-            }.get((major, minor), 0)
-
+    return CUDA_CORE_TABLE.get((major, minor), 0)
 
 def is_cuda_available():
     libnames = ('libcuda.so', 'libcuda.dylib', 'cuda.dll')
@@ -72,6 +80,80 @@ def is_cuda_available():
 
     return False
 
+@dataclass
+class CUDADeviceProp:
+    # class to contain cudaDeviceProp struct
+    # https://docs.nvidia.com/cuda/cuda-runtime-api/structcudaDeviceProp.html
+    device_id: int
+    name: str
+    cc_major: int
+    cc_minor: int
+    cores: int
+    threads_per_core: int
+    clockrate: int
+    freeMem: int
+    totalMem: int
+
+    def __str__(self) -> str:
+        return f"Device {self.device_id}: {self.name}"
+    
+class CUDAInfo:
+    # possible CUDA driver API library names
+    # for linux, it's usually located in /usr/lib64/libcuda.so 
+    libnames = ('libcuda.so', 'libcuda.dylib', 'cuda.dll')
+    def __init__(self) -> None:
+        self.cuda_api = self._find_cuda_api_lib()
+        init_result = ctypes.c_int()
+        init_result = self.cuda_api.cuInit(0)
+        if init_result != CUDA_SUCCESS:
+            error_str = ctypes.c_char_p()
+            self.cuda_api.cuGetErrorString(init_result, ctypes.byref(error_str))
+            raise OSError(
+                "cuInit failed with error code "
+                f"{init_result}: {error_str.value.decode()}"
+            )
+
+        self._nGpus = ctypes.c_int()
+        self.devices = []
+
+    @property
+    def nGpus(self):
+        return self._nGpus.value
+    
+    def _find_cuda_api_lib(self):
+        for libname in self.libnames:
+            try:
+                return ctypes.CDLL(libname)
+            except OSError:
+                continue
+            else:
+                break
+        else:
+            raise OSError(
+                "Could not find CUDA driver."
+                "Failed to load any of: " + ' '.join(self.libnames)
+            )
+
+    def _get_num_gpus(self):
+        result = ctypes.c_int()
+        result = self.cuda_api.cuDeviceGetCount(ctypes.byref(self._nGpus))
+        if result == CUDA_SUCCESS:
+            return
+        error_str = ctypes.c_char_p()
+        self.cuda_api.cuGetErrorString(result, ctypes.byref(error_str))
+        raise OSError(
+            "cuDeviceGetCount failed with error code "
+            f"{result}: {error_str.value.decode()}"
+        )
+
+    def _populate_device_prop(self):
+        result = ctypes.c_int()
+        for i in range(self.nGpus):
+            result = self.cuda_api.cuDeviceGet(ctypes.byref(device), i)
+            if result != CUDA_SUCCESS:
+                self.cuda_api.cuGetErrorString(result, ctypes.byref(error_str))
+                print("cuDeviceGet failed with error code %d: %s" % (result, error_str.value.decode()))
+        
 def report_cuda_devices():
     libnames = ('libcuda.so', 'libcuda.dylib', 'cuda.dll')
     for libname in libnames:
