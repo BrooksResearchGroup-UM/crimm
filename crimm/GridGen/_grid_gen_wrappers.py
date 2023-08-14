@@ -4,7 +4,7 @@ import ctypes
 import numpy as np
 from numpy.ctypeslib import ndpointer
 from crimm.Data.constants import CC_ELEC_CHARMM as CC_ELEC
-from crimm.Utils.cuda_avail import is_cuda_available
+from crimm.Utils.cuda_info import is_cuda_available
 
 nd_float_ptr_type = ndpointer(ctypes.c_double, flags="C_CONTIGUOUS")
 
