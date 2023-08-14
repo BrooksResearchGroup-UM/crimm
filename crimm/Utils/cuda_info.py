@@ -263,6 +263,7 @@ class CUDAInfo:
     # for linux, it's usually located in /usr/lib64/libcuda.so 
     libnames = ('libcuda.so', 'libcuda.dylib', 'cuda.dll')
     def __init__(self) -> None:
+        self.devices = []
         self.cuda_api = self._find_cuda_api_lib()
         init_result = ctypes.c_int()
         init_result = self.cuda_api.cuInit(0)
@@ -275,7 +276,7 @@ class CUDAInfo:
             )
 
         self.n_gpus = self._get_num_gpus()
-        self.devices = self._enumerate_devices()
+        self._enumerate_devices()
 
     def _find_cuda_api_lib(self):
         for libname in self.libnames:
@@ -305,11 +306,9 @@ class CUDAInfo:
         )
 
     def _enumerate_devices(self):
-        devices = []
         for i in range(self.n_gpus):
             device = CUDADeviceProp(i, self.cuda_api)
-            devices.append(device)
-        return devices
+            self.devices.append(device)
 
     def __str__(self) -> str:
         return f"<CUDAInfo: {self.n_gpus} GPUs>"
