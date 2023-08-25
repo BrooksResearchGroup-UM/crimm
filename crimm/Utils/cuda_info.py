@@ -81,7 +81,35 @@ def is_cuda_available():
 
 
 class CUDADeviceProp:
-    """Class to contain property information about a single CUDA device"""
+    """Class to contain property information about a single CUDA device.
+    Should not be instantiated directly, but rather through the CUDAInfo class
+    
+    Attributes
+    ----------
+    device_id : int
+        The device ID of the device
+    name : str
+        The name of the device
+    cc_major : int
+        The major compute capability version of the device
+    cc_minor : int
+        The minor compute capability version of the device
+    compute_capability : str
+        The compute capability version of the device
+    cores : int
+        The number of cores on the device
+    threads_per_core : int
+        The number of threads per core on the device
+    clockrate : float
+        The clockrate of the device in MHz
+    mem_clockrate : float
+        The memory clockrate of the device in MHz
+    free_mem : float
+        The current amount of free memory on the device in MiB
+    total_mem : float
+        The total amount of memory on the device in MiB
+    """
+
     # class to contain cudaDeviceProp struct
     # https://docs.nvidia.com/cuda/cuda-runtime-api/structcudaDeviceProp.html
     def __init__(self, device_id: int, cuda_api: ctypes.CDLL) -> None:
@@ -115,8 +143,9 @@ class CUDADeviceProp:
             self._reveal_error_code(result, 'cuDeviceGetName')
             self.name = None
         else:
-            self.name = name.decode().rstrip()
-        
+            name = name.decode()
+            self.name = name.rstrip().rstrip('\x00')
+
         if result := cuda_api.cuDeviceComputeCapability(
             ctypes.byref(cc_major), ctypes.byref(cc_minor), self._device_id
         ) != CUDA_SUCCESS:
@@ -196,11 +225,10 @@ class CUDADeviceProp:
         return self
     
     def __exit__(self, exc_type, exc_value, traceback):
-        if self._context is not None:
-            self._destroy_context(self._context)
-            self._context = None
+        self.detach()
 
-    def __del__(self):
+    def detach(self):
+        """Free the memory for CUDA context and destroy handle"""
         if self._context is not None:
             self._destroy_context(self._context)
             self._context = None
@@ -209,11 +237,15 @@ class CUDADeviceProp:
         error_str = ctypes.c_char_p()
         self._get_error_str(result, ctypes.byref(error_str))
         warnings.warn(
-            f"Device {self.device_id} {func_name} failed with error code {result}: ",
+            f"Device {self.device_id} {func_name} failed with error code {result}: "
             f"{error_str.value.decode()}"
         )
 
     def _update_mem(self):
+        if self._context is None:
+            self._free_mem = None
+            return
+
         free_mem = ctypes.c_size_t()
         total_mem = ctypes.c_size_t()
 
@@ -231,16 +263,28 @@ class CUDADeviceProp:
         """Returns the free memory on the device in MiB."""
         self._update_mem()
         return self._free_mem
-    
+
     @property
     def device_id(self):
         return self._device_id.value
 
+    @property
+    def compute_capability(self):
+        """Returns the compute capability of the device."""
+        return '.'.join([str(self.cc_major), str(self.cc_minor)])
+
+    @property
+    def is_detached(self):
+        return self._context is None
+
     def __str__(self) -> str:
         info_str = (
-            f"<CUDA Device {self.device_id}: {self.name} "
-            f"totalMem={self.total_mem} MiB freeMem={self.free_mem} MiB>"
+            f"<Device {self.device_id}: {self.name} "
+            f"totalMem={self.total_mem} MiB"
         )
+        if self.free_mem is not None:
+            info_str += f", freeMem={self.free_mem} MiB"
+        info_str += ">"
         return info_str
     
     def __repr__(self) -> str:
@@ -248,17 +292,67 @@ class CUDADeviceProp:
     
     def report(self) -> None:
         """Prints a report of the device's information."""
-        print(f"<CUDA Device {self.device_id}: {self.name}>")
-        print(f"\tCompute Capability: {self.cc_major}.{self.cc_minor}")
+        print(f"<Device {self.device_id}: {self.name}>")
+        print(f"\tCompute Capability: {self.compute_capability}")
         print(f"\tCUDA Cores: {self.cuda_cores}")
         print(f"\tClockrate: {self.clockrate} MHz")
         print(f"\tMemory Clockrate: {self.mem_clockrate} MHz")
         print(f"\tConcurrent Threads: {self.concurrent_threads}")
         print(f"\tTotal Memory: {self.total_mem} MiB")
-        print(f"\tFree Memory: {self.free_mem} MiB")
+        if self.free_mem is not None:
+            print(f"\tFree Memory: {self.free_mem} MiB")
+
 
 class CUDAInfo:
-    """Container for available CUDA device information."""
+    """Container for available CUDA device information.
+    Note, the CUDA driver API must be installed for this to work. The class will 
+    attempt to load the CUDA driver API library from the default locations for 
+    the current platform. If the library cannot be found, OSError will be 
+    raised. If the library is found, but the CUDA driver API cannot be loaded
+    from it, RuntimeError will be raised. 
+    While using this utility for free memory monitoring, the class will allocate
+    about 220 MiB of memory on each device for memory monitoring. This memory 
+    will be deallocated when the context is detached. Thus, it is recommended to 
+    use a context manager; the memory will be automatically freed when the 
+    context is exited.
+
+    Attributes:
+        devices (list): List of CUDA devices available on the system.
+        n_gpus (int): Number of CUDA devices available on the system.
+
+    Usage:
+    >>> from crimm.Utils.cuda_info import CUDAInfo
+    ## with context manager
+    >>> with CUDAInfo() as cuda_info:
+    >>>     cuda_info.report()
+    <CUDA Device Info for 1 GPU(s)>
+    <Device 0: NVIDIA GeForce GTX 1080 Ti>
+        Compute Capability: 6.1
+        CUDA Cores: 3584
+        Clockrate: 1582.0 MHz
+        Memory Clockrate: 5505.0 MHz
+        Concurrent Threads: 57344
+        Total Memory: 11172.1875 MiB
+        Free Memory: 11032.125 MiB
+    ## or without context manager
+    >>> cuda_info = CUDAInfo()
+    >>> cuda_info.devices
+    [<CUDA Device 0: NVIDIA GeForce GTX 1080 Ti>]
+    >>> cuda_info.n_gpus
+    1
+    >>> cuda_info.devices[0].name # or cuda_info[0].name
+    'NVIDIA GeForce GTX 1080 Ti'
+    >>> cuda_info.devices[0].compute_capability
+    '6.1'
+    >>> cuda_info.devices[0].free_mem #MiB of free memory
+    11032.125
+    >>> cuda_info.detach() #deallocate CUDA memory and destroy CUDA context on all devices
+    >>> cuda_info.devices[0].free_mem
+    None
+    >>> cuda_info.devices[0].is_detached
+    True
+    """
+
     # possible CUDA driver API library names
     # for linux, it's usually located in /usr/lib64/libcuda.so 
     libnames = ('libcuda.so', 'libcuda.dylib', 'cuda.dll')
@@ -288,7 +382,7 @@ class CUDAInfo:
                 break
         else:
             raise OSError(
-                "Could not find CUDA driver."
+                "Could not find CUDA driver. "
                 "Failed to load any of: " + ' '.join(self.libnames)
             )
 
@@ -322,7 +416,7 @@ class CUDAInfo:
 
     def __del__(self):
         for device in self.devices:
-            device.__del__()
+            device.detach()
 
     def __getitem__(self, index):
         return self.devices[index]
@@ -337,12 +431,16 @@ class CUDAInfo:
         print(f"<CUDA Device Info for {self.n_gpus} GPU(s)>")
         for device in self.devices:
             device.report()
+    
+    def detach(self):
+        for device in self.devices:
+            device.detach()
 
 def report_cuda_devices():
     """Prints a report of the CUDA devices on the system."""
     with CUDAInfo() as cuda_info:
         cuda_info.report()
-        return 0
+    return 0
 
 if __name__=="__main__":
     sys.exit(report_cuda_devices())
