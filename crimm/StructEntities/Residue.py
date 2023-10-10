@@ -7,8 +7,9 @@ from crimm.StructEntities.TopoElements import Bond
 class Residue(_Residue):
     """Residue class derived from Biopython Residue and made compatible with
     CHARMM Topology."""
-    def __init__(self, res_id, resname, segid):
+    def __init__(self, res_id, resname, segid, author_seq_id=None):
         super().__init__(res_id, resname, segid)
+        self.author_seq_id = author_seq_id
         # Forcefield Parameters
         self.topo_definition = None
         self.missing_atoms = None

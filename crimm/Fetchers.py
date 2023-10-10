@@ -4,6 +4,7 @@ import requests
 import warnings
 from Bio.Seq import Seq
 from crimm.IO import MMCIFParser, PDBParser
+from crimm.IO.MMCIF2Dict import MMCIF2Dict
 from crimm.Superimpose.ChainSuperimposer import ChainSuperimposer
 
 def uniprot_id_query(pdbid, entity_id):
@@ -84,9 +85,22 @@ def fetch_alphafold(uniprot_id):
 
 def _get_mmcif_fh(pdb_id):
     """Get a mmcif file handle from the rcsb database"""
-    entry_point = "https://files.rcsb.org/download"
+    if len(pdb_id) == 4:
+        entry_point = "https://files.rcsb.org/download"
+    elif len(pdb_id) == 3:
+        entry_point = "https://files.rcsb.org/ligands/download"
+    else:
+        raise ValueError(f"Invalid PDB ID {pdb_id}")
     rcsb_cif_url = f"{entry_point}/{pdb_id}.cif"
     return _file_handle_from_url(rcsb_cif_url)
+
+def fetch_rcsb_as_dict(pdb_id):
+    """Get info about a pdb entry as a dictionary from rcsb"""
+    file = _get_mmcif_fh(pdb_id)
+    if file is None:
+        raise ValueError(f"Could not load file for {pdb_id}")
+    cifdict = MMCIF2Dict(file)
+    return cifdict
 
 def fetch_rcsb(
         pdb_id,
@@ -97,6 +111,8 @@ def fetch_rcsb(
         include_hydrogens = False,
     ):
     """Get a structure from rcsb with a pdb id or from a local mmcif file"""
+    if len(pdb_id) == 3:
+        raise ValueError("Ligand entries are not supported yet!")
     if local_entry is not None:
         file = _find_local_cif_path(pdb_id, entry_point = local_entry)
     else:

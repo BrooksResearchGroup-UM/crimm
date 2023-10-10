@@ -195,7 +195,7 @@ class StructureBuilder():
         duplicate_residue = chain[duplicated_res_id]
         return self._process_duplicated_res(residue, duplicate_residue, chain)
 
-    def init_residue(self, resname, field, resseq, icode):
+    def init_residue(self, resname, field, resseq, icode, author_seq_id=None):
         """Create a new Residue object.
 
         Arguments:
@@ -214,7 +214,9 @@ class StructureBuilder():
         if isinstance(self.chain, Heterogens):
             new_residue = Heterogen(res_id, resname, self.segid)
         else:
-            new_residue = Residue(res_id, resname, self.segid)
+            new_residue = Residue(
+                res_id, resname, self.segid, author_seq_id
+            )
         self.residue = self.add_residue(new_residue, self.chain)
 
     def _assign_atom_names(self, atom, residue):
