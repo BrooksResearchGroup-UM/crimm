@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "crimm"
-version = "2023.7a2"
+version = "2023.9a1"
 authors = [
   { name="Truman Xu", email="ziqiaoxu@umich.edu" },
 ]

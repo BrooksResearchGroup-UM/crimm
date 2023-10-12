@@ -225,6 +225,7 @@ class MMCIFParser:
         res_dict_entry = {
             "resname": resname,
             "res_id": res_id,
+            "author_seq_id": atom_entry.auth_seq_id,
             "atom_list": []
         }
         return res_dict_entry
@@ -358,8 +359,9 @@ class MMCIFParser:
                     for resseq, res_info in res_dict.items():
                         resname = res_info["resname"]
                         res_id = res_info["res_id"]
+                        author_seq_id = res_info["author_seq_id"]
                         atoms = res_info["atom_list"]
-                        sb.init_residue(resname, *res_id)
+                        sb.init_residue(resname, *res_id, author_seq_id=author_seq_id)
                         for atom in atoms:
                             sb.add_atom(atom, sb.residue)
                             if atom.orig_serial_number <= len(all_anisou):
