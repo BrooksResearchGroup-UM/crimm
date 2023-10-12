@@ -310,6 +310,8 @@ class ResidueFixer:
                 hydrogens.append(atom)
         for hydrogen in hydrogens:
             self._res.detach_child(hydrogen.id)
+            if hydrogen in self._res.undefined_atoms:
+                self._res.undefined_atoms.remove(hydrogen)
         # update missing hydrogens from the residue topology definition
         self._res.missing_hydrogens = {}
         for atom_def in self._res.topo_definition:
@@ -319,6 +321,7 @@ class ResidueFixer:
             find_build_seq(
             self.topo_def, self.missing_atoms, self.missing_hydrogens
         )
+
 
     def _build_atoms(self, build_sequence, missing_atoms:dict):
         computed_atom_names = find_coords_by_ic(
@@ -375,11 +378,14 @@ class ResidueFixer:
 
     def remove_undefined_atoms(self):
         """Remove undefined atoms from the residue"""
+        
+        detach_ids = [atom.id for atom in self._res.undefined_atoms]
         for atom in self._res.undefined_atoms:
-            self._res.detach_child(atom.id)
             for atom_group in self._res.atom_groups:
                 if atom in atom_group:
                     atom_group.remove(atom)
+        for atom_id in detach_ids:
+            self._res.detach_child(atom_id)
         self._res.undefined_atoms = []
 
     def rebuild_hydrogens(self):

@@ -256,7 +256,7 @@ class RDKitHetConverter:
     def _create_rdkit_atoms(self):
         self._rd_atoms = {}
         for atom in self.lig.atoms:
-            rd_atom = Chem.Atom(atom.element)
+            rd_atom = Chem.Atom(atom.element.capitalize())
             pdb_info = self._create_rdkit_PDBinfo(atom.name, atom.altloc)
             rd_atom.SetPDBResidueInfo(pdb_info)
             atom_idx = self._edmol.AddAtom(rd_atom)
@@ -270,14 +270,20 @@ class RDKitHetConverter:
                     self._pending_hydrogens[a2] = []
                 self._pending_hydrogens[a2].append(a1)
                 if self.element_dict[a1][1] != 'H':
-                    raise ValueError(f'Fail to find atom {a1} in mol')
+                    raise ValueError(
+                        'CIF definition does not match the heterogen instance! '
+                        f'Fail to find atom {a1} in mol {self.resname}'
+                    )
                 continue
             elif a2 not in self._rd_atoms:
                 if a1 not in self._pending_hydrogens:
                     self._pending_hydrogens[a1] = []
                 self._pending_hydrogens[a1].append(a2)
                 if self.element_dict[a2][1] != 'H':
-                    raise ValueError(f'Fail to find atom {a2} in mol')
+                    raise ValueError(
+                        'CIF definition does not match the heterogen instance! '
+                        f'Fail to find atom {a2} in mol {self.resname}'
+                    )
                 continue
             if is_arom:
                 bo = rdBond.AROMATIC
