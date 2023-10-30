@@ -238,7 +238,7 @@ class ResidueDefinition:
             standard_coord_dict = init_coord_dict
 
         lookup_dict = self.atom_lookup_dict
-        
+ 
         all_atoms = [k for k in lookup_dict.keys() if k not in standard_coord_dict]
         running_dict = OrderedDict({k: lookup_dict[k] for k in all_atoms})
 

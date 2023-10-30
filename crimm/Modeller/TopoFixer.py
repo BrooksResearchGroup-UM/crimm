@@ -21,7 +21,7 @@ def recur_find_build_seq(
 
     if len(missing_atoms) == 0:
         return build_seq
-    
+ 
     atom_name, ic_list = running_dict.popitem(last=False)
     for ic_keys in ic_list:
         cur_ic_set = set(ic_keys)
