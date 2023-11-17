@@ -1,6 +1,11 @@
+// This file contains the CUDA kernels for calculating pairwise distances,
+// electrostatic grids and vdw grids. This version is for CUDA device of 
+// compute capability above sm_6X (pascal), where atomicAdd supports 
+// double precision.
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <algorithm>
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
 
@@ -60,31 +65,31 @@ __global__ void gen_elec_grid_kernel(
     const int N_coords, const int N_grid_points, double* electrostat_grid
 ) { 
     int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int j = blockIdx.y * blockDim.y + threadIdx.y;
 
-    if (i < N_grid_points) {
+    if (i < N_grid_points && j < N_coords) {
         double elec_const, rc, alpha;
         double emax_tmp;
         double cur_grid_val = 0.0;
-        for (int j = 0; j < N_coords; j++) {
-            double dist = dists[i * N_coords + j];
+        double dist = dists[i * N_coords + j];
 
-            elec_const = cc_elec * charges[j] / rad_dielec_const;
+        elec_const = cc_elec * charges[j] / rad_dielec_const;
 
-            if (charges[j] > 0) {
-                emax_tmp = elec_rep_max;
-            } else {
-                emax_tmp = elec_attr_max;
-            }
-            rc = sqrt(2.0 * fabs(elec_const / emax_tmp));
-            alpha = fabs(emax_tmp / (2.0 * rc * rc));
-
-            double cur_potential = calc_point_elec_potential(
-                dist, elec_const, charges[j], rc, alpha, 
-                elec_rep_max, elec_attr_max
-            );
-            cur_grid_val += cur_potential;
+        if (charges[j] > 0) {
+            emax_tmp = elec_rep_max;
+        } else {
+            emax_tmp = elec_attr_max;
         }
-        electrostat_grid[i] = cur_grid_val;
+        rc = sqrt(2.0 * fabs(elec_const / emax_tmp));
+        alpha = fabs(emax_tmp / (2.0 * rc * rc));
+
+        double cur_potential = calc_point_elec_potential(
+            dist, elec_const, charges[j], rc, alpha, 
+            elec_rep_max, elec_attr_max
+        );
+        cur_grid_val += cur_potential;
+        // for CUDA 8 and sm_6X above, atomicAdd supports double precision
+        atomicAdd(&electrostat_grid[i], cur_grid_val);
     }
 }
 
@@ -115,32 +120,87 @@ __global__ void gen_vdw_grid_kernel(
     double vwd_softcore_max, int N_coords, int N_grid_points, double* vdw_grid
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int j = blockIdx.y * blockDim.y + threadIdx.y;
     
-    if (i < N_grid_points) {
+    if (i < N_grid_points && j < N_coords) {
         double r_min, eps_sqrt, vdwconst, rc_vdw, beta;
-        double cur_grid_val = 0.0;
-        for (int j = 0; j < N_coords; j++) {
-            double dist = dists[i * N_coords + j];
+        double dist = dists[i * N_coords + j];
 
-            r_min = vdw_rs[j] + probe_radius;
-            eps_sqrt = sqrt(fabs(epsilons[j]));
-            vdwconst = 1.0 + sqrt(1.0 + 0.5 * fabs(vwd_softcore_max) / eps_sqrt);
-            rc_vdw = r_min * powf(vdwconst, -1.0 / 6.0);
-            beta = 24.0 * eps_sqrt / 
-            vwd_softcore_max * (vdwconst * vdwconst - vdwconst);
+        r_min = vdw_rs[j] + probe_radius;
+        eps_sqrt = sqrt(fabs(epsilons[j]));
+        vdwconst = 1.0 + sqrt(1.0 + 0.5 * fabs(vwd_softcore_max) / eps_sqrt);
+        rc_vdw = r_min * powf(vdwconst, -1.0 / 6.0);
+        beta = 24.0 * eps_sqrt / 
+        vwd_softcore_max * (vdwconst * vdwconst - vdwconst);
 
-            double cur_potential = calc_point_vdw_potential(
-                dist, eps_sqrt, r_min, probe_radius, 
-                vwd_softcore_max, rc_vdw, beta
-            );
-            cur_grid_val += cur_potential;
-        }
-        vdw_grid[i] = cur_grid_val;
+        double cur_potential = calc_point_vdw_potential(
+            dist, eps_sqrt, r_min, probe_radius, 
+            vwd_softcore_max, rc_vdw, beta
+        );
+        // for CUDA 8 and sm_6X above, atomicAdd supports double precision
+        atomicAdd(&vdw_grid[i], cur_potential);
     }
 }
 
+void calc_chunk_pairwise_dist(
+    double* host_grid_pos, double* host_coords, 
+    const int N_coords, const int N_grid_points, size_t chunk_size,
+    size_t num_chunks, double* host_dists
+) {
+    double* device_grid_pos;
+    double* device_coords;
+    double* device_dists;
+
+    cudaMalloc((void**)&device_coords, N_coords * 3 * sizeof(double));
+    cudaMemcpy(
+        device_coords, host_coords,
+        N_coords * 3 * sizeof(double), 
+        cudaMemcpyHostToDevice
+    );
+
+    cudaMalloc((void**)&device_grid_pos, chunk_size * 3 * sizeof(double));
+    CUDA_CHECK(cudaPeekAtLastError());
+    cudaMalloc((void**)&device_dists, chunk_size * N_coords * sizeof(double));
+    CUDA_CHECK(cudaPeekAtLastError());
+    
+    for (size_t i = 0; i < num_chunks; ++i) {
+        size_t start = i * chunk_size;
+        size_t end = std::min<size_t>((i + 1) * chunk_size, N_grid_points);
+        size_t cur_chunk_size = end - start;
+        printf("Chunk %zu num of grid points: %zu\n", i, cur_chunk_size);
+        // Copy chunk to device
+        cudaMemcpy(
+            device_grid_pos, &host_grid_pos[start], 
+            cur_chunk_size * sizeof(double), 
+            cudaMemcpyHostToDevice
+        );
+        CUDA_CHECK(cudaPeekAtLastError());
+        // cudaMemset(device_dists, 0, chunk_size * N_coords * sizeof(double));
+        // Run the kernel
+        dim3 dimBlock(32, 32);
+        dim3 dimGrid(
+            (cur_chunk_size + dimBlock.x - 1) / dimBlock.x,
+            (N_coords + dimBlock.y - 1) / dimBlock.y
+        );
+        calc_pairwise_dist_kernel<<<dimGrid, dimBlock>>>(
+            device_grid_pos, device_coords, 
+            N_coords, cur_chunk_size, device_dists
+        );
+        CUDA_CHECK(cudaPeekAtLastError());
+        cudaMemcpy(
+            &host_dists[start * N_coords], device_dists,
+            cur_chunk_size * N_coords * sizeof(double),
+            cudaMemcpyDeviceToHost
+        );
+        CUDA_CHECK(cudaPeekAtLastError());
+    }
+    cudaFree(device_dists);
+    cudaFree(device_grid_pos);
+    cudaFree(device_coords);
+}
+
 extern "C"
-void calc_pairwise_dist(
+void calc_all_pairwise_dist(
     double* host_grid_pos, double* host_coords, 
     const int N_coords, const int N_grid_points, double* host_dists
 ) {
@@ -189,6 +249,41 @@ void calc_pairwise_dist(
 }
 
 extern "C"
+void calc_pairwise_dist(
+    double* host_grid_pos, double* host_coords, 
+    const int N_coords, const int N_grid_points, double* host_dists
+){
+    size_t dists_size = N_grid_points * N_coords * sizeof(double);
+    size_t coords_size = N_coords * 3 * sizeof(double);
+    size_t grid_pos_size = N_grid_points * 3 * sizeof(double);
+
+    cudaDeviceProp prop;
+    int device;
+    cudaGetDevice(&device);
+    cudaGetDeviceProperties(&prop, device);
+    size_t device_memory = prop.totalGlobalMem;
+    size_t leftover_memory = device_memory - coords_size - grid_pos_size;
+
+    if (dists_size > leftover_memory){
+        // 1.1 is a safety factor for 10% headroom
+        size_t chunk_size = leftover_memory / (N_coords * 1.1 * sizeof(double));
+        size_t num_chunks = (N_grid_points + chunk_size - 1) / chunk_size;
+        printf(
+            "Array size is too large for the device memory (%zuMB). Split into %zu chunks\n", 
+            leftover_memory/1024/1024, num_chunks
+        );
+        calc_chunk_pairwise_dist(
+            host_grid_pos, host_coords, 
+            N_coords, N_grid_points, chunk_size, num_chunks, host_dists
+        );
+    } else {
+        calc_all_pairwise_dist(
+            host_grid_pos, host_coords, 
+            N_coords, N_grid_points, host_dists);
+    }
+}
+
+extern "C"
 void gen_elec_grid(
     double* host_dists, double* host_charges, const double cc_elec, 
     const double rad_dielec_const, const double elec_rep_max, 
@@ -218,14 +313,12 @@ void gen_elec_grid(
     );
 
     // Run the kernel
-    // dim3 dimBlock(32, 32);
-    // dim3 dimGrid(
-    //     (N_grid_points + dimBlock.x - 1) / dimBlock.x
-    //     // (N_coords + dimBlock.y - 1) / dimBlock.y
-    // );
-    int block_size = 32;
-    int grid_size = (N_grid_points + block_size - 1) / block_size;
-    gen_elec_grid_kernel<<<grid_size, block_size>>>(
+    dim3 dimBlock(32, 32);
+    dim3 dimGrid(
+        (N_grid_points + dimBlock.x - 1) / dimBlock.x,
+        (N_coords + dimBlock.y - 1) / dimBlock.y
+    );
+    gen_elec_grid_kernel<<<dimGrid, dimBlock>>>(
         device_dists, device_charges, cc_elec, 
         rad_dielec_const, elec_rep_max, elec_attr_max, 
         N_coords, N_grid_points, device_electrostat_grid
@@ -279,14 +372,12 @@ void gen_vdw_grid(
     );
 
     // Run the kernel
-    // dim3 dimBlock(32, 32);
-    // dim3 dimGrid(
-    //     (N_grid_points + dimBlock.x - 1) / dimBlock.x 
-    //     // (N_coords + dimBlock.y - 1) / dimBlock.y
-    // );
-    int block_size = 32;
-    int grid_size = (N_grid_points + block_size - 1) / block_size;
-    gen_vdw_grid_kernel<<<grid_size, block_size>>>(
+    dim3 dimBlock(32, 32);
+    dim3 dimGrid(
+        (N_grid_points + dimBlock.x - 1) / dimBlock.x, 
+        (N_coords + dimBlock.y - 1) / dimBlock.y
+    );
+    gen_vdw_grid_kernel<<<dimGrid, dimBlock>>>(
         device_dists, device_epsilons, device_vdw_rs, 
         probe_radius, vwd_softcore_max, 
         N_coords, N_grid_points, device_vdw_grid
@@ -329,12 +420,14 @@ void gen_all_grids(
 
     cudaMalloc((void**)&device_grid_pos, N_grid_points * 3 * sizeof(double));
     cudaMalloc((void**)&device_coords, N_coords * 3 * sizeof(double));
+    cudaMalloc((void**)&device_charges, N_coords * sizeof(double));
     cudaMalloc((void**)&device_epsilons, N_coords * sizeof(double));
     cudaMalloc((void**)&device_vdw_rs, N_coords * sizeof(double));
-    cudaMalloc((void**)&device_vdw_grid, N_grid_points * sizeof(double));
+
     cudaMalloc((void**)&device_dists, N_grid_points * N_coords * sizeof(double));
-    cudaMalloc((void**)&device_charges, N_coords * sizeof(double));
     cudaMalloc((void**)&device_electrostat_grid, N_grid_points * sizeof(double));
+    cudaMalloc((void**)&device_vdw_grid, N_grid_points * sizeof(double));
+
 
     // Copy data to the device
     cudaMemcpy(
@@ -373,15 +466,13 @@ void gen_all_grids(
         device_grid_pos, device_coords, N_coords, N_grid_points, device_dists
     );
 
-    int block_size = 32;
-    int grid_size = (N_grid_points + block_size - 1) / block_size;
-    gen_elec_grid_kernel<<<grid_size, block_size>>>(
+    gen_elec_grid_kernel<<<dimGrid, dimBlock>>>(
         device_dists, device_charges, cc_elec, 
         rad_dielec_const, elec_rep_max, elec_attr_max, 
         N_coords, N_grid_points, device_electrostat_grid
     );
 
-    gen_vdw_grid_kernel<<<grid_size, block_size>>>(
+    gen_vdw_grid_kernel<<<dimGrid, dimBlock>>>(
         device_dists, device_epsilons, device_vdw_rs, 
         probe_radius, vwd_softcore_max, 
         N_coords, N_grid_points, device_vdw_grid
