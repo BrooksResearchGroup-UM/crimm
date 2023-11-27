@@ -1,6 +1,6 @@
 from Bio.Seq import Seq
 from Bio.Data.PDBData import protein_letters_1to3, protein_letters_3to1
-from crimm.Modeller import TopologyLoader, ParameterLoader
+from crimm.Modeller import TopologyGenerator, ParameterLoader, ResidueTopologySet
 from crimm.StructEntities import PolymerChain, ResidueDefinition
 
 class SeqChainGenerator:
@@ -18,7 +18,7 @@ class SeqChainGenerator:
         self.built_residues = None
 
     def _set_topo_definitions(self, definition_type: str):
-        self.topo_definitions = TopologyLoader(definition_type)
+        self.topo_definitions = ResidueTopologySet(definition_type)
         self.params = ParameterLoader(definition_type)
         self.params.fill_ic(self.topo_definitions)
 

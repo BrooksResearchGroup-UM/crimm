@@ -11,23 +11,26 @@ nucleic_letters_1to3 = {
     'A': 'ADE', 'C': 'CYT', 'G': 'GUA', 'T': 'THY', 'U': 'URA',
 }
 
-def load_topology(topo_loader, append = False):
-    with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
-        tf.write('*RTF Loaded from crimm\n')
-        for line in topo_loader._raw_data_strings:
-            if line.upper().startswith('RESI') or line.upper().startswith('PRES'):
-                line = '\n'+line
-            tf.write(line+'\n')
-        tf.flush() # has to flush first for long files!
-        read.rtf(tf.name, append = append)
-        
-def load_parameters(param_loader, append = False):
-    with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
-        tf.write('*PRM Loaded from crimm\n')
-        for line in param_loader._raw_data_strings:
-            tf.write(line+'\n')
-        tf.flush()
-        read.prm(tf.name, append = append, flex=True)
+def load_topology(topo_generator, append = False):
+    """Load topology and parameter files from a TopoGenerator object."""
+    topo_loaders = topo_generator.res_def_dict.values()
+    param_loaders = topo_generator.param_dict.values()
+    for topo_loader in topo_loaders:
+        with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
+            tf.write('*RTF Loaded from crimm\n')
+            for line in topo_loader._raw_data_strings:
+                if line.upper().startswith('RESI') or line.upper().startswith('PRES'):
+                    line = '\n'+line
+                tf.write(line+'\n')
+            tf.flush() # has to flush first for long files!
+            read.rtf(tf.name, append = append)
+    for param_loader in param_loaders:
+        with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
+            tf.write('*PRM Loaded from crimm\n')
+            for line in param_loader._raw_data_strings:
+                tf.write(line+'\n')
+            tf.flush()
+            read.prm(tf.name, append = append, flex=True)
 
 def load_chain(chain, hbuild = False, report = False):
     if not chain.is_continuous():
