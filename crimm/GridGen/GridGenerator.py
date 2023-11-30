@@ -302,17 +302,27 @@ class EnerGridGenerator(GridCoordGenerator):
     }
     comp_engine = GridCompEngine()
 
-    def __init__(self, grid_spacing, padding) -> None:
+    def __init__(
+            self, grid_spacing, padding, 
+            rad_dielec_const=2.0, elec_rep_max=40, elec_attr_max=-20,
+            vdw_rep_max=2.0, vdw_attr_max=-1.0
+        ) -> None:
         super().__init__(grid_spacing, padding)
         self.coord_grid : _Grid = None # the current grid used for energy calculations
         self._elec_grid = None
-        self._vdw_grid = None
+        self._vdw_grid_attr = None
+        self._vdw_grid_rep = None
         self._dists = None
         self._charges = None
         self._epsilons = None
         self._vdw_rs = None
         self._grid_shape = None
         self.param_loader = None
+        self.rad_dielec_const = rad_dielec_const
+        self.elec_rep_max = elec_rep_max
+        self.elec_attr_max = elec_attr_max
+        self.vdw_rep_max = vdw_rep_max
+        self.vdw_attr_max = vdw_attr_max
 
     @property
     def backend(self):
@@ -361,12 +371,13 @@ class EnerGridGenerator(GridCoordGenerator):
             )
         super().load_entity(entity)
         self._grid_shape = grid_shape
-        self.coord_grid= getattr(self, self.grid_shape_dict[grid_shape])
+        self.coord_grid = getattr(self, self.grid_shape_dict[grid_shape])
         self._collect_params()
         # clear the pairwise dists and grids
         self._dists = None
         self._elec_grid = None
-        self._vdw_grid = None
+        self._vdw_grid_attr = None
+        self._vdw_grid_rep = None
 
     def _collect_params(self):
         charges = []
@@ -399,36 +410,32 @@ class EnerGridGenerator(GridCoordGenerator):
             )
         return self._dists
 
-    def get_vdw_grid(self, probe_radius, vwd_softcore_max):
-        """Get the van der Waals energy grid."""
-        pairwise_dists = self.get_pairwise_dists()
-        if self._vdw_grid is None:
-            self._vdw_grid = self.comp_engine.gen_vdw_grid(
-                pairwise_dists, self._epsilons, self._vdw_rs, 
-                probe_radius, vwd_softcore_max
-            )
-        return self._vdw_grid
+    def get_attr_vdw_grid(self):
+        """Get the van der Waals attractive energy grid."""
+        if self._vdw_grid_attr is None:
+            self.gen_all_grids()
+        return self._vdw_grid_attr
 
-    def get_elec_grid(self, rad_dielec_const, elec_rep_max, elec_attr_max):
+    def get_rep_vdw_grid(self):
+        """Get the van der Waals repulsive energy grid."""
+        if self._vdw_grid_rep is None:
+            self.gen_all_grids()
+        return self._vdw_grid_rep
+
+    def get_elec_grid(self):
         """Get the electrostatic energy grid."""
-        pairwise_dists = self.get_pairwise_dists()
         if self._elec_grid is None:
-            self._elec_grid = self.comp_engine.gen_elec_grid(
-                pairwise_dists, self._charges, rad_dielec_const,
-                elec_rep_max, elec_attr_max
-            )
+            self.gen_all_grids()
         return self._elec_grid
 
-    def gen_all_grids(
-            self, rad_dielec_const, elec_rep_max, elec_attr_max, probe_radius,
-            vwd_softcore_max
-        ):
-        """Generate all grids"""
-        self._dists, self._elec_grid, self._vdw_grid = \
+    def gen_all_grids(self):
+        """Generate all grids (electrostatic, van der Waals attractive, and
+        van der Waals repulsive)"""
+        self._elec_grid, self._vdw_grid_attr, self._vdw_grid_rep = \
             self.comp_engine.gen_all_grids(
                 self.coord_grid.coords, self.coords, self._charges, self._epsilons,
-                self._vdw_rs, rad_dielec_const, elec_rep_max, elec_attr_max,
-                probe_radius, vwd_softcore_max
+                self._vdw_rs, self.rad_dielec_const, self.elec_rep_max,
+                self.elec_attr_max, self.vdw_rep_max, self.vdw_attr_max
             )
 
     def convert_to_boxed_grid(self, grid):
@@ -450,10 +457,14 @@ class EnerGridGenerator(GridCoordGenerator):
         boxed_grid = self.convert_to_boxed_grid(grid_vals)
         return boxed_grid.reshape(self.coord_grid.points_per_dim)
 
-    def save_dx(self, filename, grid_vals):
+    def save_dx(self, filename, grid_vals, convert_shape=True):
         """Save a grid to a .dx file."""
-        boxed_grid = self.convert_to_boxed_grid(grid_vals)
-
+        if convert_shape:
+            boxed_grid = self.convert_to_boxed_grid(grid_vals)
+        else:
+            # Assume the grid is already in the correct box shape
+            boxed_grid = grid_vals
+        
         values_str = ''
         counter = 0
         for value in boxed_grid:
@@ -497,6 +508,7 @@ class ProbeGridGenerator(EnerGridGenerator):
         super().__init__(grid_spacing, padding)
         self._grid_shape = "bounding_box"
         self.param_loader = ParameterLoader('cgenff')
+        self._eps_sqrt = None
 
     def load_entity(self, probe):
         """Load a probe and generate the grid coordinates and energy potentials
@@ -514,7 +526,8 @@ class ProbeGridGenerator(EnerGridGenerator):
             self.coord_grid.coords, self.coords
         )
         self._elec_grid = None
-        self._vdw_grids = None
+        self._vdw_grids_attr = None
+        self._vdw_grids_rep = None
 
     def _collect_params(self):
         epsilons = []
@@ -526,6 +539,7 @@ class ProbeGridGenerator(EnerGridGenerator):
             epsilons.append(self.param_loader['nonbonded'][atom_type].epsilon)
             vdw_rs.append(self.param_loader['nonbonded'][atom_type].rmin_half)
         self._epsilons = np.asarray(epsilons)
+        self._eps_sqrt = np.sqrt(np.abs(self._epsilons))
         self._vdw_rs = np.asarray(vdw_rs)
         self._charges = np.asarray(charges)
 
@@ -571,6 +585,27 @@ class ProbeGridGenerator(EnerGridGenerator):
         return self._elec_grid
 
     def get_vdw_grid(self):
-        raise NotImplementedError(
-            'van der Waals grid is not implemented for small molecules yet.'
-        )
+        if self._vdw_grids_attr is not None and self._vdw_grids_rep is not None:
+            return self._vdw_grids_attr, self._vdw_grids_rep
+        grid_coords = self.coord_grid.coords
+        vdw_grid_attr = np.zeros(grid_coords.shape[0])
+        vdw_grid_rep = np.zeros(grid_coords.shape[0])
+        for i, coord in enumerate(self.coords):
+            abs_dist_vecs = np.abs(grid_coords - coord)
+            verts, verts3 = self._get_cell_dist_vecs(abs_dist_vecs)
+            dist_ratios = verts/self.spacing
+            r_min = self._vdw_rs[i]
+            epsilon_sqrt = self._eps_sqrt[i]
+            r_min_3 = r_min**3
+            cur_vdw_attr = epsilon_sqrt*r_min_3*np.prod(dist_ratios, 1)
+            cur_vdw_rep = epsilon_sqrt*r_min_3**2*np.prod(dist_ratios, 1)
+            # Find the indices from the 3D coords
+            # verts could be 2D or even 1D if the atom sits on a plane of a grid point
+            indices = np.where(
+                np.all(np.isin(abs_dist_vecs, verts3), axis = 1)
+            )[0]
+            vdw_grid_attr[indices] += cur_vdw_attr
+            vdw_grid_rep[indices] += cur_vdw_rep
+        self._vdw_grids_attr = vdw_grid_attr
+        self._vdw_grids_rep = vdw_grid_rep
+        return self._vdw_grids_attr, self._vdw_grids_rep
