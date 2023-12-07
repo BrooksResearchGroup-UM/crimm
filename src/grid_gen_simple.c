@@ -68,9 +68,9 @@ void gen_all_grids(
     user_float_t charge, elec_const, emax_tmp, alpha, rc_sq_elec, cur_elec_potential;
 
     #pragma omp parallel for private( \
-        dx, dy, dz, dist_sq, r_min, eps_sqrt, vdwconst_attr, vdwconst_rep, \
-        rc_sq_vdw_attr, rc_sq_vdw_rep, beta_attr, beta_rep, elec_const, \
-        emax_tmp, alpha, rc_sq_elec, cur_elec_potential, r6 \
+        dx, dy, dz, dist_sq, r_min, eps_sqrt, vdwconst_attr, vdwconst_rep, r6, \
+        beta_attr, beta_rep, rc_sq_vdw_attr, rc_sq_vdw_rep, charge, elec_const, \
+        emax_tmp, alpha, rc_sq_elec, cur_elec_potential \
     )
     for (int i = 0; i < N_coords; i++) {
         // calculate vdw constants
