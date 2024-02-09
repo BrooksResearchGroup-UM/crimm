@@ -2,6 +2,7 @@
 import warnings
 from Bio.PDB.Model import Model as _Model
 
+
 class Model(_Model):
     """The extended Model class representing a model in a structure.
     Derived from Biopython's Bio.PDB.Model and compatible with Biopython functions
@@ -32,7 +33,8 @@ class Model(_Model):
         if len(self) == 0:
             return
         from crimm.Visualization import show_nglview_multiple
-        show_nglview_multiple(self.child_list)
+        from IPython.display import display
+        display(show_nglview_multiple(self.child_list))
         print(self.expanded_view())
 
     @property

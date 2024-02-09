@@ -7,7 +7,6 @@ if find_spec("nglview") is None:
 
 import warnings
 from typing import List
-from IPython.display import display
 import nglview as nv
 from Bio.PDB.Selection import unfold_entities
 from crimm.IO import get_pdb_str
@@ -22,20 +21,31 @@ class NGLStructure(nv.Structure):
     def get_structure_string(self):
         return get_pdb_str(self.entity, include_alt=False, trunc_resname=True)
 
+def _load_ngl_view(entity, view):
+    """Load entity into nglview instance"""
+    ngl_structure = NGLStructure(entity)
+    component = view.add_component(ngl_structure)
+    if entity.level == 'C' and entity.chain_type == 'Solvent':
+        view.add_representation('licorice', component = component._index)
+
 def show_nglview(entity):
     """
     Load pdb string into nglview instance
     """
     view = nv.NGLWidget()
-    ngl_structure = NGLStructure(entity)
-    component = view.add_component(ngl_structure)
-    if entity.level == 'C' and entity.chain_type == 'Solvent':
-        view.add_representation('licorice', component = component._index)
-    display(view)
+    if entity.level == 'S':
+        for chain in entity.models[0].chains:
+            _load_ngl_view(chain, view)
+    elif entity.level == 'M':
+        for chain in entity.chains:
+            _load_ngl_view(chain, view)
+    else:
+        _load_ngl_view(entity, view)
+    return view
 
 def show_nglview_multiple(entity_list):
     """
-    Load pdb string into nglview instance
+    Load a list of entity into nglview instance
     """
     view = nv.NGLWidget()
     for entity in entity_list:
@@ -43,7 +53,7 @@ def show_nglview_multiple(entity_list):
         component = view.add_component(ngl_structure)
         if entity.level == 'C' and entity.chain_type == 'Solvent':
             view.add_representation('licorice', component = component._index)
-    display(view)
+    return view
 
 ## TODO: Add feature for add_representation() directly for entity list
 class View(nv.NGLWidget):

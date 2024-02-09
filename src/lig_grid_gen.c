@@ -29,6 +29,7 @@ typedef struct{
 typedef struct{
     Dim3d dim;
     int N_grid_points;
+    int N_lig_coords;
     Vector3d origin;
     user_float_t spacing;
     Vector3d* coords;
@@ -113,7 +114,7 @@ BoxSpec get_box_spec(const user_float_t* coords, const int N_coords){
 
 Grid create_grid(
     const user_float_t spacing, const BoxSpec box_spec, 
-    user_float_t* lig_coords
+    user_float_t* lig_coords, const int N_lig_coords
 ){
     Vector3d ptp3d = box_spec.ptp3d;
     Vector3d min_coord = box_spec.min_coord;
@@ -137,6 +138,7 @@ Grid create_grid(
     Grid grid;
     grid.dim = dim;
     grid.N_grid_points = N_grid_points;
+    grid.N_lig_coords = N_lig_coords;
     grid.origin = origin;
     grid.spacing = spacing;
     grid.coords = malloc(N_grid_points * sizeof(Vector3d));
@@ -174,7 +176,7 @@ Grid gen_lig_grid(
 ){
     BoxSpec box_spec = get_box_spec(coords, N_coords);
     Vector3d min_grid_coord = box_spec.min_coord;
-    Grid grid = create_grid(grid_spacing, box_spec, coords);
+    Grid grid = create_grid(grid_spacing, box_spec, coords, N_coords);
     
     for (int i = 0; i < N_coords; i++){
         Vector3d coord = {coords[i * 3], coords[i * 3 + 1], coords[i * 3 + 2]};
@@ -244,8 +246,8 @@ Grid* rotate_gen_lig_grids(
     const user_float_t* quats, const int N_quats
 ){
     Grid* grids = malloc(N_quats * sizeof(Grid));
+    user_float_t* cur_coords = malloc(N_coords * 3 * sizeof(user_float_t));
     for (int i = 0; i < N_quats; i++){
-        user_float_t* cur_coords = malloc(N_coords * 3 * sizeof(user_float_t));
         Quaternion q = {quats[i * 4], quats[i * 4 + 1], quats[i * 4 + 2], quats[i * 4 + 3]};
         for (int j = 0; j < N_coords; j++){
             Vector3d v = {coords[j * 3], coords[j * 3 + 1], coords[j * 3 + 2]};
@@ -259,6 +261,7 @@ Grid* rotate_gen_lig_grids(
             cur_coords, N_coords
         );
     }
+    free(cur_coords);
     return grids;
 }
 

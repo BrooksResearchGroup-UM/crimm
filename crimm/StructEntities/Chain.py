@@ -81,7 +81,8 @@ class BaseChain(_Chain):
         if len(self) == 0:
             return
         from crimm.Visualization import show_nglview
-        show_nglview(self)
+        from IPython.display import display
+        display(show_nglview(self))
         print(self.expanded_view())
 
     def get_atoms(self, include_alt = False):

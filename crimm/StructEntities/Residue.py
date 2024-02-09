@@ -55,7 +55,8 @@ class Residue(_Residue):
         if len(self) == 0:
             return
         from crimm.Visualization import show_nglview
-        show_nglview(self)
+        from IPython.display import display
+        display(show_nglview(self))
         print(repr(self))
 
     def get_top_parent(self):

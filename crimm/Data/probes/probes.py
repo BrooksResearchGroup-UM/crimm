@@ -2,6 +2,22 @@ import numpy as np
 from Bio.Data.IUPACData import atom_weights
 from crimm.StructEntities import Bond, Angle, Dihedral, Improper
 
+bond_type_dict = {
+    1: 'single',
+    2: 'double',
+    3: 'triple',
+    4: 'quadruple',
+    5: 'aromatic'
+}
+
+bond_order_dict = {
+    1: 1,
+    2: 2,
+    3: 3,
+    4: 4,
+    5: 2
+}
+
 class _ProbeAtomDef:
     """Atom definition class for Probe molecules."""
     # This class is created for the purpose of compatibility with the
@@ -55,6 +71,7 @@ class _Probe:
     child_dict = {}
     parent = None
     _bonds = ()
+    _bond_types = ()
     _angles = ()
     _dihedrals = ()
     _impropers = ()
@@ -76,9 +93,12 @@ class _Probe:
             self.child_list[acceptor-1].topo_definition.is_acceptor = True
             self.H_acceptors.append(self.child_list[acceptor-1])
         self.bonds = self._assign_topo_elements(self._bonds, Bond)
+        self._assign_bond_types()
         self.impropers = self._assign_topo_elements(self._impropers, Improper)
         self.angles = self._assign_topo_elements(self._angles, Angle)
         self.dihedrals = self._assign_topo_elements(self._dihedrals, Dihedral)
+        self.child_dict = {atom.name: atom for atom in self.child_list}
+        self._conformer_coords = np.empty((0, len(self.atoms), 3), dtype=np.float32)
 
     def __getitem__(self, key):
         return self.child_dict[key]
@@ -99,6 +119,11 @@ class _Probe:
             elements.append(topo_element_type(*atoms))
         return elements
     
+    def _assign_bond_types(self):
+        for bond, order in zip(self.bonds, self._bond_types):
+            bond.order = bond_order_dict[order]
+            bond.type = bond_type_dict[order]
+
     @property
     def id(self):
         return (' ', self.res_id, ' ')
@@ -107,6 +132,13 @@ class _Probe:
     def atoms(self):
         return self.child_list
     
+    @property
+    def conformer_coords(self):
+        """Return the coordinates of all conformers of the molecule. Returns an
+        NxMx3 array, where N is the number of conformers and M is the number of
+        atoms in the molecule."""
+        return self._conformer_coords
+
     def get_atoms(self, include_alt=False):
         return iter(self.child_list)
     
@@ -117,7 +149,27 @@ class _Probe:
         from crimm.Visualization import show_nglview
         show_nglview(self)
         print(repr(self))
-    
+
+    def add_conformer_coord(self, conformer_coord):
+        """Add a conformer's coordinates to the molecule."""
+        self._conformer_coords = np.append(
+            self._conformer_coords, conformer_coord.reshape(1,-1,3), axis=0
+        )
+
+    def add_conformer_coords_multiple(self, conformer_coords):
+        """Add multiple conformers' coordinates to the molecule. Accepts an
+        NxMx3 array, where N is the number of conformers and M is the number of
+        atoms in the molecule."""
+        if conformer_coords.shape[1:] != (len(self.atoms), 3):
+            raise ValueError(
+                "Each conformer's coordinates must be Nx3 array, "
+                "where N is the number of atoms in the molecule."
+            )
+        self._conformer_coords = np.append(
+            self._conformer_coords, conformer_coords, axis=0
+        )
+
+
 class Acetaldehyde(_Probe):
     """Acetaldehyde probe for use in the PROBE grid generation and docking."""
     probe_id = 0
@@ -132,8 +184,8 @@ class Acetaldehyde(_Probe):
         ProbeAtom('HB2', [1.054, -0.477, 0.906], 'H', 'HGA3', 0.09),
         ProbeAtom('HB3', [1.054, -0.477, -0.906], 'H', 'HGA3', 0.09),
     ]
-    child_dict = {atom.name: atom for atom in child_list}
     _bonds = ((1, 2), (2, 4), (4, 5), (4, 6), (4, 7), (2, 3))
+    _bond_types = (1, 1, 1, 1, 1, 2)
     _angles = (
         (1, 2, 3), (1, 2, 4), (3, 2, 4), (2, 4, 5), (2, 4, 6),
         (2, 4, 7), (5, 4, 6), (5, 4, 7), (6, 4, 7)
@@ -167,6 +219,7 @@ class Acetamide(_Probe):
         ProbeAtom('HC3', [-1.205, -0.755, 0.907], 'H', 'HGA3', 0.09),
     ]
     _bonds = ((2, 3), (3, 4), (3, 5), (2, 6), (2, 1), (1, 7), (1, 8), (1, 9))
+    _bond_types = (1, 1, 1, 2, 1, 1, 1, 1)
     _angles = (
         (2, 1, 7), (2, 1, 8), (2, 1, 9), (7, 1, 8), (7, 1, 9), (8, 1, 9),
         (1, 2, 3), (1, 2, 6), (3, 2, 6), (2, 3, 4), (2, 3, 5), (4, 3, 5)
@@ -198,6 +251,7 @@ class AceticAcid(_Probe):
         ProbeAtom('O2', [-1.398, -1.133, -0.000], 'O', 'OG2D2', -0.76),
     ]
     _bonds = ((1, 3), (1, 4), (1, 5), (1, 2), (2, 6), (2, 7))
+    _bond_types = (1, 1, 1, 1, 2, 1)
     _angles = (
         (2, 1, 3), (2, 1, 4), (2, 1, 5), (3, 1, 4), (3, 1, 5),
         (4, 1, 5), (1, 2, 6), (1, 2, 7), (6, 2, 7)
@@ -228,6 +282,7 @@ class Acetonitrile(_Probe):
         ProbeAtom('N3', [-2.150, 0.000, 0.000], 'N', 'NG1T1', -0.46),
     ]
     _bonds = ((1, 5), (5, 6), (1, 2), (1, 3), (1, 4))
+    _bond_types = (1, 3, 1, 1, 1)
     _angles = (
         (2, 1, 3), (2, 1, 4), (2, 1, 5), (3, 1, 4), 
         (3, 1, 5), (4, 1, 5), (1, 5, 6)
@@ -259,9 +314,10 @@ class Acetone(_Probe):
         ProbeAtom('H33', [1.296, 0.839, 0.881], 'H', 'HGA3', 0.09),
     ]
     _bonds = (
-        (2, 3), (2, 4), (3, 5), (3, 6), (3, 7), 
+        (2, 3), (2, 4), (3, 5), (3, 6), (3, 7),
         (4, 8), (4, 9), (4, 10), (1, 2)
     )
+    _bond_types = (1, 1, 1, 1, 1, 1, 1, 1, 2)
     _angles = (
         (1, 2, 3), (1, 2, 4), (3, 2, 4), (2, 3, 5), (2, 3, 6),
         (2, 3, 7), (5, 3, 6), (5, 3, 7), (6, 3, 7), (2, 4, 8),
@@ -306,6 +362,7 @@ class Benzaldehyde(_Probe):
         (1, 2), (2, 4), (4, 5), (4, 11), (5, 6), (11, 12), (5, 7), 
         (11, 13), (7, 8), (13, 14), (7, 9), (13, 9), (9, 10), (2, 3)
     )
+    _bond_types = (1, 1, 5, 5, 1, 1, 5, 5, 1, 1, 5, 5, 1, 2)
     _angles = (
         (1, 2, 3), (1, 2, 4), (3, 2, 4), (2, 4, 5), (2, 4, 11), (5, 4, 11),
         (4, 5, 6), (4, 5, 7), (6, 5, 7), (5, 7, 8), (5, 7, 9), (8, 7, 9),
@@ -353,6 +410,7 @@ class Benzene(_Probe):
         (3, 1), (5, 1), (7, 3), (9, 5), (11, 7), (11, 9), (1, 2),
         (3, 4), (5, 6), (7, 8), (9, 10), (11, 12)
     )
+    _bond_types = (5, 5, 5, 5, 5, 5, 1, 1, 1, 1, 1, 1)
     _angles = (
         (2, 1, 3), (2, 1, 5), (3, 1, 5), (1, 3, 4), (1, 3, 7),
         (4, 3, 7), (1, 5, 6), (1, 5, 9), (6, 5, 9), (3, 7, 8),
@@ -378,7 +436,7 @@ class Benzene(_Probe):
 class Cyclohexene(_Probe):
     """Cyclohexene probe for use in the PROBE grid generation and docking."""
     probe_id = 7
-    probe_name = 'chxe'
+    probe_code = 'chxe'
     child_list = [
         # name, coord, element, atom_type, charge
         ProbeAtom('C1', [-1.502, 0.158, 0.099], 'C', 'CG321', -0.18),
@@ -403,6 +461,7 @@ class Cyclohexene(_Probe):
         (15, 16), (1, 2), (1, 3), (4, 5), (4, 6), (7, 8), (7, 9),
         (10, 11), (10, 12), (13, 14)
     )
+    _bond_types = (1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
     _angles = (
         (2, 1, 3), (2, 1, 4), (2, 1, 15), (3, 1, 4), (3, 1, 15),
         (4, 1, 15), (1, 4, 5), (1, 4, 6), (1, 4, 7), (5, 4, 6),
@@ -449,6 +508,7 @@ class DimethylEther(_Probe):
         ProbeAtom("H33", [1.194, -0.907, 0.591], "H", "HGA3", 0.09),
     ]
     _bonds = ((1, 5), (5, 6), (1, 2), (1, 3), (1, 4), (6, 7), (6, 8), (6, 9))
+    _bond_types = (1, 1, 1, 1, 1, 1, 1, 1)
     _angles = (
         (2, 1, 3), (2, 1, 4), (2, 1, 5), (3, 1, 4), (3, 1, 5),
         (4, 1, 5), (1, 5, 6), (5, 6, 7), (5, 6, 8), (5, 6, 9),
@@ -489,6 +549,7 @@ class Dimethylformamide(_Probe):
         (10, 9), (11, 9), (12, 9), (2, 1), (2, 4),
         (4, 5), (4, 9), (6, 5), (7, 5), (8, 5), (2, 3)
     )
+    _bond_types = (1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2)
     _angles = (
         (1, 2, 3), (1, 2, 4), (3, 2, 4), (2, 4, 5), (2, 4, 9),
         (5, 4, 9), (4, 5, 6), (4, 5, 7), (4, 5, 8), (6, 5, 7),
@@ -524,6 +585,7 @@ class Ethane(_Probe):
         ProbeAtom('C2', [0.766, -0.000, 0.000], 'C', 'CG331', -0.270),
     ]
     _bonds = ((4, 1), (4, 2), (4, 3), (4, 8), (8, 5), (8, 6), (8, 7))
+    _bond_types = (1, 1, 1, 1, 1, 1, 1)
     _angles = (
         (1, 4, 2), (1, 4, 3), (1, 4, 8), (2, 4, 3), (2, 4, 8), (3, 4, 8),
         (4, 8, 5), (4, 8, 6), (4, 8, 7), (5, 8, 6), (5, 8, 7), (6, 8, 7)
@@ -557,6 +619,7 @@ class Ethanol(_Probe):
         ProbeAtom('H23', [1.216, 0.761, -0.900], 'H', 'HGA3', 0.090)
     ]
     _bonds = ((1, 6), (1, 2), (1, 4), (1, 5), (2, 3), (6, 7), (6, 8), (6, 9))
+    _bond_types = (1, 1, 1, 1, 1, 1, 1, 1)
     _angles = (
         (2, 1, 4), (2, 1, 5), (2, 1, 6), (4, 1, 5), (4, 1, 6), (5, 1, 6),
         (1, 2, 3), (1, 6, 7), (1, 6, 8), (1, 6, 9), (7, 6, 8), (7, 6, 9),
@@ -589,6 +652,7 @@ class Methylamine(_Probe):
         ProbeAtom('HC3', [-1.082, -0.882, -0.437], 'H', 'HGAAM2', 0.090)
     ]
     _bonds = ((1, 2), (1, 3), (1, 4), (2, 5), (2, 6), (2, 7))
+    _bond_types = (1, 1, 1, 1, 1, 1)
     _angles = (
         (2, 1, 3), (2, 1, 4), (3, 1, 4), (1, 2, 5), (1, 2, 6),
         (1, 2, 7), (5, 2, 6), (5, 2, 7), (6, 2, 7)
@@ -620,6 +684,7 @@ class Methylammonium(_Probe):
         ProbeAtom('HZ3', [1.110, -0.313, -0.925], 'H', 'HGP2', 0.033)
     ]
     _bonds = ((1, 3), (1, 4), (1, 5), (1, 2), (2, 6), (2, 7), (2, 8))
+    _bond_types = (1, 1, 1, 1, 1, 1, 1)
     _angles = (
         (2, 1, 3), (2, 1, 4), (2, 1, 5), (3, 1, 4), (3, 1, 5),
         (4, 1, 5), (1, 2, 6), (1, 2, 7), (1, 2, 8), (6, 2, 7),
@@ -661,6 +726,7 @@ class Phenol(_Probe):
         (5, 1), (7, 3), (11, 9), (1, 2), (3, 4), (5, 6), (7, 8),
         (9, 10), (11, 12), (12, 13), (3, 1), (9, 5), (11, 7)
     )
+    _bond_types = (5, 5, 5, 1, 1, 1, 1, 1, 1, 1, 5, 5, 5)
     _angles = (
         (2, 1, 3), (2, 1, 5), (3, 1, 5), (1, 3, 4), (1, 3, 7),
         (4, 3, 7), (1, 5, 6), (1, 5, 9), (6, 5, 9), (3, 7, 8),
@@ -706,6 +772,7 @@ class Isopropanol(_Probe):
         (5, 1), (1, 9), (1, 2), (1, 4), (2, 3), (5, 6),
         (5, 7), (5, 8), (9, 10), (9, 11), (9, 12)
     )
+    _bond_types = (1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
     _angles = (
         (2, 1, 4), (2, 1, 5), (2, 1, 9), (4, 1, 5), (4, 1, 9), (5, 1, 9),
         (1, 2, 3), (1, 5, 6), (1, 5, 7), (1, 5, 8), (6, 5, 7), (6, 5, 8),
@@ -752,6 +819,7 @@ class TertButanol(_Probe):
         (4, 1), (8, 1), (12, 1), (1, 2), (2, 3), (4, 5), (4, 6),
         (4, 7), (8, 9), (8, 10), (8, 11), (12, 13), (12, 14), (12, 15)
     )
+    _bond_types = (1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
     _angles = (
         (2, 1, 4), (2, 1, 8), (2, 1, 12), (4, 1, 8), (4, 1, 12),
         (8, 1, 12), (1, 2, 3), (1, 4, 5), (1, 4, 6), (1, 4, 7),
@@ -792,6 +860,7 @@ class Urea(_Probe):
         ProbeAtom('H32', [1.036, 1.205, 0.000], 'H', 'HGP1', 0.34)
     ]
     _bonds = ((4, 5), (4, 1), (4, 6), (1, 2), (1, 3), (6, 7), (6, 8))
+    _bond_types = (2, 1, 1, 1, 1, 1, 1)
     _angles = (
         (2, 1, 3), (2, 1, 4), (3, 1, 4), (1, 4, 5), (1, 4, 6),
         (5, 4, 6), (4, 6, 7), (4, 6, 8), (7, 6, 8)
@@ -807,23 +876,26 @@ class Urea(_Probe):
     def __init__(self, res_id = 0):
         super().__init__(res_id, resname="Urea")
 
-probe_set = {
-    "acetaldehyde": Acetaldehyde(),
-    "acetamide": Acetamide(),
-    "acetic_acid": AceticAcid(),
-    "acetonitrile": Acetonitrile(),
-    "acetone": Acetone(),
-    "benzaldehyde": Benzaldehyde(),
-    "benzene": Benzene(),
-    "cyclohexene": Cyclohexene(),
-    "dimethyl_ether": DimethylEther(),
-    "dimethylformamide": Dimethylformamide(),
-    "ethane": Ethane(),
-    "ethanol": Ethanol(),
-    "methylamine": Methylamine(),
-    "methylammonium": Methylammonium(),
-    "phenol": Phenol(),
-    "isopropanol": Isopropanol(),
-    "tertbutanol": TertButanol(),
-    "urea": Urea()
-}
+def create_new_probe_set():
+    """Creates dictionary of probes for use in the PROBE grid generation and docking."""
+    probe_set = {
+        "acetaldehyde": Acetaldehyde(),
+        "acetamide": Acetamide(),
+        "acetic_acid": AceticAcid(),
+        "acetonitrile": Acetonitrile(),
+        "acetone": Acetone(),
+        "benzaldehyde": Benzaldehyde(),
+        "benzene": Benzene(),
+        "cyclohexene": Cyclohexene(),
+        "dimethyl_ether": DimethylEther(),
+        "dimethylformamide": Dimethylformamide(),
+        "ethane": Ethane(),
+        "ethanol": Ethanol(),
+        "methylamine": Methylamine(),
+        "methylammonium": Methylammonium(),
+        "phenol": Phenol(),
+        "isopropanol": Isopropanol(),
+        "tertbutanol": TertButanol(),
+        "urea": Urea()
+    }
+    return probe_set

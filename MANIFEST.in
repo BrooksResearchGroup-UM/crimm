@@ -4,3 +4,6 @@ include crimm/Data/toppar/*.str
 include crimm/Data/toppar/*.inp
 include crimm/Data/propka.cfg
 include crimm/Data/water_coords.npy
+include crimm/Data/quaternions-1.npy
+include crimm/Data/quaternions-2.npy
+include crimm/Data/quaternions-3.npy

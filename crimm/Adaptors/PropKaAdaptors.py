@@ -10,7 +10,7 @@ from propka.molecular_container import MolecularContainer as _MolContnr
 from propka.conformation_container import ConformationContainer
 from propka.hydrogens import setup_bonding_and_protonation
 from propka.atom import Atom as _ppAtom
-from crimm.Modeller import TopologyLoader, ParameterLoader
+from crimm.Modeller import TopologyGenerator
 from crimm.Modeller.TopoFixer import ResidueFixer
 from crimm import Data
 
@@ -126,8 +126,7 @@ class PropKaProtonator:
     }
     def __init__(
             self,
-            topology_loader: TopologyLoader,
-            parameter_loader: ParameterLoader,
+            topology_loader: TopologyGenerator,
             pH: float = 7.0,
             reference: str = 'neutral',
             titrate_only: Optional[str] = None,
@@ -172,7 +171,7 @@ class PropKaProtonator:
         self.conf_container = None
         self.reportable_groups = None
         self.topo = topology_loader
-        self.param = parameter_loader
+        self.param = self.topo.cur_param
 
     def load_model(self, model):
         """Load a list of PolymerChains to propKa MolecularContainer for pKa 
@@ -253,7 +252,7 @@ class PropKaProtonator:
 
     def _patch_residue(self, residue, patch_name:str):
         fixer = ResidueFixer()
-        topo_def = self.topo[patch_name]
+        topo_def = self.topo.cur_defs[patch_name]
         if topo_def.is_patch:
             self.topo.patch_residue(residue, patch_name)
         else:

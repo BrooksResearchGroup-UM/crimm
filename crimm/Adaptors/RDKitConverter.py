@@ -40,11 +40,18 @@ from rdkit.Chem import BondType as rdBond
 from rdkit.Geometry import Point3D
 
 bond_order_dict = {
+    # PDB mmCIF bond type names
     'SING': rdBond.SINGLE,
     'DOUB': rdBond.DOUBLE,
     'TRIP': rdBond.TRIPLE,
     'QUAD': rdBond.QUADRUPLE,
     'AROM': rdBond.AROMATIC,
+    # probe bond type names
+    'single': rdBond.SINGLE,
+    'double': rdBond.DOUBLE,
+    'triple': rdBond.TRIPLE,
+    'quadruple': rdBond.QUADRUPLE,
+    'aromatic': rdBond.AROMATIC,
 }
 
 def get_rdkit_bond_order(bo_name):
@@ -483,3 +490,30 @@ def heterogen_to_rdkit(het_res, smiles=None):
         )
         warnings.warn(msg, LigandBondOrderWarning)
         return
+    
+def create_rdkit_mol_from_probe(probe):
+    """Create an rdkit mol object from a probe object."""
+    edmol = Chem.EditableMol(Chem.Mol())
+    rd_atoms = {}
+    conf = Chem.Conformer()
+    conf.Set3D(True)
+    for atom in probe.atoms:
+        rd_atom = Chem.Atom(atom.element.capitalize())
+        atom_idx = edmol.AddAtom(rd_atom)
+        rd_atoms[atom.name] = atom_idx
+        coord = Point3D(*atom.coord)
+        conf.SetAtomPosition(atom_idx, coord)
+    for bond in probe.bonds:
+        a1, a2 = bond[0].name, bond[1].name
+        idx1, idx2 = rd_atoms[a1], rd_atoms[a2]
+        bo = get_rdkit_bond_order(bond.type)
+        edmol.AddBond(idx1, idx2, bo)
+
+    mol = edmol.GetMol()
+    mol.AddConformer(conf)
+    AllChem.SanitizeMol(mol)
+    mol = AllChem.AddHs(mol, addCoords=True)
+    AllChem.SanitizeMol(mol)
+    AllChem.ComputeGasteigerCharges(mol)
+    Chem.AssignStereochemistryFrom3D(mol)
+    return mol

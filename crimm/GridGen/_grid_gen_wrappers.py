@@ -141,18 +141,60 @@ class Grid(ctypes.Structure):
     )
     _fields_ = [('dim', _Dim3d),
                 ('N_grid_points', ctypes.c_int),
-                ('origin', _Vector3d),
+                ('N_lig_coords', ctypes.c_int),
+                ('_origin', _Vector3d),
                 ('spacing', ctypes.c_float),
-                ('coords', ctypes.POINTER(_Vector3d)),
-                ('lig_coords', ctypes.POINTER(ctypes.c_float)),
-                ('elec_grid', ctypes.POINTER(ctypes.c_float)),
-                ('vdw_grid_attr', ctypes.POINTER(ctypes.c_float)),
-                ('vdw_grid_rep', ctypes.POINTER(ctypes.c_float))]
+                ('_coords', ctypes.POINTER(_Vector3d)),
+                ('_lig_coords', ctypes.POINTER(ctypes.c_float)),
+                ('_elec_grid', ctypes.POINTER(ctypes.c_float)),
+                ('_vdw_grid_attr', ctypes.POINTER(ctypes.c_float)),
+                ('_vdw_grid_rep', ctypes.POINTER(ctypes.c_float))]
+
+    @property
+    def shape(self):
+        """Get the grid dimension."""
+        return (self.dim.x, self.dim.y, self.dim.z)
+
+    @property
+    def origin(self):
+        """Get the grid origin."""
+        return np.array((self._origin.x, self._origin.y, self._origin.z))
+    
+    @property
+    def lig_coords(self):
+        """Get the ligand coordinates."""
+        return np.ctypeslib.as_array(self._lig_coords, (self.N_lig_coords, 3))
+
+    @property
+    def elec_grid(self):
+        """Get the electrostatic grid."""
+        return np.ctypeslib.as_array(self._elec_grid, self.shape)
+
+    @property
+    def attr_vdw_grid(self):
+        """Get the van der Waals attractive grid."""
+        return np.ctypeslib.as_array(self._vdw_grid_attr, self.shape)
+
+    @property
+    def rep_vdw_grid(self):
+        """Get the van der Waals repulsive grid."""
+        return np.ctypeslib.as_array(self._vdw_grid_rep, self.shape)
+
+    @property
+    def max_coord(self):
+        """Get the coordinates of the grid corners."""
+        coord = self._coords[self.N_grid_points-1]
+        return np.array((coord.x, coord.y, coord.z))
+
+    @property
+    def min_coord(self):
+        """Get the coordinates of the grid corners."""
+        coord = self._coords[0]
+        return np.array((coord.x, coord.y, coord.z))
 
     def __repr__(self):
         return (
-            f'<ParamGrid dim=({self.dim.x}, {self.dim.y}, {self.dim.z}) '
-            f'spacing={self.spacing}>'
+            f'<ParamGrid shape={self.shape} spacing={self.spacing}>'
         )
 
     def __del__(self):
