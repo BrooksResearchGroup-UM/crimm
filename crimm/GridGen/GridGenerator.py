@@ -1,5 +1,6 @@
 import os
 import numpy as np
+from scipy.spatial.distance import pdist
 from crimm.Visualization import View
 from crimm.Modeller import ParameterLoader
 from crimm.GridGen._grid_gen_wrappers import ReceptorGridCompEngine, ProbeGridCompEngine
@@ -167,7 +168,7 @@ class _EnerGridGenerator(GridCoordGenerator):
         min_x, min_y, min_z = self.coord_grid.min_coords
         spacing = self.spacing
         dx_template = (
-            f'''#Generated dx file for fftgrid
+            f'''#Generated dx file for fft grid
 object 1 class gridpositions counts {xd} {yd} {zd}
 origin {min_x:e} {min_y:e} {min_z:e}
 delta {spacing:e} 0.000000e+000 0.000000e+000
@@ -205,7 +206,7 @@ class ReceptorGridGenerator(_EnerGridGenerator):
         self.vdw_rep_max = vdw_rep_max
         self.vdw_attr_max = vdw_attr_max
 
-    def load_entity(self, entity, grid_shape = 'convex_hull'):
+    def load_entity(self, entity, grid_shape='convex_hull'):
         """Load an entity and generate the grid coordinates and energy potentials
         associated with each grid point in space.
         
@@ -264,25 +265,40 @@ class ReceptorGridGenerator(_EnerGridGenerator):
             )
         return self._dists
 
-    def get_attr_vdw_grid(self):
-        """Get the van der Waals attractive energy grid."""
+    def get_attr_vdw_grid(self, convert_shape=True):
+        """Get the van der Waals attractive energy grid. If convert_shape is True,
+        the grid will be converted to the bounding box shape, where the void will
+        be filled with zeros. The returned grid will be 3D array. Otherwise, the
+        grid will be returned as a 1D array with only values within the shape."""
         if self._vdw_grid_attr is None:
-            self.gen_all_grids()
+            self.gen_grids()
+        if convert_shape:
+            return self.convert_to_3d_grid(self._vdw_grid_attr)
         return self._vdw_grid_attr
 
-    def get_rep_vdw_grid(self):
-        """Get the van der Waals repulsive energy grid."""
+    def get_rep_vdw_grid(self, convert_shape=True):
+        """Get the van der Waals repulsive energy grid. If convert_shape is True,
+        the grid will be converted to the bounding box shape, where the void will
+        be filled with zeros. The returned grid will be 3D array. Otherwise, the
+        grid will be returned as a 1D array with only values within the shape."""
         if self._vdw_grid_rep is None:
-            self.gen_all_grids()
+            self.gen_grids()
+        if convert_shape:
+            return self.convert_to_3d_grid(self._vdw_grid_rep)
         return self._vdw_grid_rep
 
-    def get_elec_grid(self):
-        """Get the electrostatic energy grid."""
+    def get_elec_grid(self, convert_shape=True):
+        """Get the electrostatic energy grid. If convert_shape is True,
+        the grid will be converted to the bounding box shape, where the void will
+        be filled with zeros. The returned grid will be 3D array. Otherwise, the
+        grid will be returned as a 1D array with only values within the shape."""
         if self._elec_grid is None:
-            self.gen_all_grids()
+            self.gen_grids()
+        if convert_shape:
+            return self.convert_to_3d_grid(self._elec_grid)
         return self._elec_grid
 
-    def gen_all_grids(self):
+    def gen_grids(self):
         """Generate all grids (electrostatic, van der Waals attractive, and
         van der Waals repulsive)"""
         self._elec_grid, self._vdw_grid_attr, self._vdw_grid_rep = \
@@ -293,7 +309,8 @@ class ReceptorGridGenerator(_EnerGridGenerator):
             )
 
     def convert_to_boxed_grid(self, grid):
-        """Convert a 1D grid to a 3D grid."""
+        """Fill a non-box-shaped grid to bounding box shape, where the void will 
+        be filled with zeros. The returned grid will be 1D array."""
         if self._grid_shape in ('convex_hull', 'truncated_sphere'):
             # Place the grid values back in the correct positions in the 
             # bounding box grid
@@ -361,43 +378,80 @@ class ProbeGridGenerator(_EnerGridGenerator):
         self.param_loader = ParameterLoader('cgenff')
         self.grids = None
         self.quats = self._rot_search_levels[rotation_search_level]
+        self.rotated_coords = None
 
-    def load_entity(self, entity):
-        """Load a probe and generate the grid coordinates and energy potentials
+    def load_probe(self, probe):
+        """Load an entity and generate the grid coordinates and energy potentials
         associated with each grid point in space.
         
         Parameters
         ----------
-        probe : :obj:`crimm.Data.probes._Probe` 
-        The probe to be loaded.
+        entity : :obj:`crimm.StructEntity.Chain` 
+        The entity to be loaded.
+        grid_spacing : float
+        The spacing of the grid in Angstroms.
+        rotation_search_level : int, optional
+        The level of rotations to be used for the probe. Must be one of 0, 1, 2, or 3.
+        Default is 2. Number of rotations : {0: No rotation, 1: 576, 2: 4068, 3: 36864}
         """
-        super().load_entity(entity)
+        super().load_entity(probe)
+        self._grid_shape = "cubic"
         self._collect_params()
-        self._elec_grid = None
-        self._vdw_grid_attr = None
-        self._vdw_grid_rep = None
 
-    def gen_grids(self, quats=None):
-        """Generate the electrostatic and van der Waals energy grids for a given 
-        set of probe orientations.
+    def generate_grids(self, quats=None):
+        """Generate the electrostatic and van der Waals energy grids for a probe.
+        Quaternion rotations will be applied first to obtain various orientations.
+        The grids will be generated for all orientations. 
         
         Parameters
         ----------
         quats : np.array 
-        A (N, 4) array of quaternions (scalar-first). Default to None, 
+        A (N, 4) array of quaternions (scalar-first) to apply to the probe. Default to None, 
         and the default quaternions set based on selected the rotation level will be used.
+
+        Returns
+        -------
+        np.array
+        A 5D array of grids (3, N, x, y, z) where N is the number of orientations, and
+        (x, y, z) are the grid dimensions. The first dimension of the array is the
+        **electrostatic** grid, the second dimension is the **van der Waals attractive**
+        grid, and the third dimension is the **van der Waals repulsive** grid.
+        i.e. elec_grid, vdw_attr_grid, vdw_rep_grid = grids
         """
+        cube_dim = np.ceil(
+            pdist(self.coords).max()/self.spacing
+        ).astype(int)
+        vdw_attr_factor, vdw_rep_factor = \
+            self.comp_engine.calc_vdw_energy_factors(
+                self._epsilons, self._vdw_rs
+            )
+
         if quats is None:
             quats = self.quats
-        grids = self.comp_engine.rotate_gen_grids_eps_rmin(
-            self.spacing, self._charges, self._epsilons, self._vdw_rs, self.coords,
-            quats
+        self.grids, self.rotated_coords = self.comp_engine.rotate_gen_grids(
+            self.spacing, self._charges, vdw_attr_factor, vdw_rep_factor, 
+            self.coords, quats, cube_dim
         )
-        self.grids = [grids[i] for i in range(quats.shape[0])]
-
-    def dealloc_grids(self):
-        """Deallocate the grids."""
-        for grid in self.grids:
-            self.comp_engine.dealloc_grid(grid)
-
+        return self.grids
     
+    def get_roated_coords(self):
+        """Return the rotated coordinates of the probe."""
+        if self.rotated_coords is None:
+            raise ValueError(
+                'No rotated coordinates are available. Please generate the grids first.'
+            )
+        return self.rotated_coords
+
+    def save_dx(self, filename, grid_vals):
+        """Save a grid to a .dx file."""
+        values_str = ''
+        counter = 0
+        for value in grid_vals:
+            counter += 1
+            values_str += f'{value:e} '
+            if counter % 6 == 0:
+                values_str += '\n'
+
+        dx_str = self._fill_dx(grid_vals, values_str)
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(dx_str)

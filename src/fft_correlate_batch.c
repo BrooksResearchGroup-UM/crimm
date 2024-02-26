@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 #include <complex.h>
 #include <fftw3.h>
 #include <Python.h>
@@ -66,29 +67,6 @@ void excute_fft_correlate(
       fftwf_execute_dft_c2r(plan_inv, fft_prod, cur_corr);
     }
   }
-}
-
-void excute_fft_correlate_batch(
-    fftwf_plan plan_fwd_r, fftwf_plan plan_fwd_l, fftwf_plan plan_inv,
-    fftwf_complex *fft_r, fftwf_complex *fft_l,
-    float *arr_r, int n_orientations, int n_grids,
-    int N_grid_points, int N_fft_points, float *corr)
-{
-  float scale = 1.0 / N_grid_points;
-  // Execute forward FFTs on both arrays
-  fftwf_execute_dft_r2c(plan_fwd_r, arr_r, fft_r);
-  fftwf_execute_dft_r2c(plan_fwd_l, corr, fft_l);
-
-  for (int i = 0; i < n_grids; i++){
-    for (int j = 0; j < n_orientations; j++){
-      for (int k = 0; k < N_fft_points; k++){
-        int index_l = (j * n_grids + i) * N_fft_points + k;
-        int index_r = i * N_fft_points + k;
-        fft_l[index_l] = conjf(fft_r[index_r]) * fft_l[index_l] * scale;
-      }
-    }
-  }
-  fftwf_execute_dft_c2r(plan_inv, fft_l, corr);
 }
 
 // Function to perform 3D FFT correlation
@@ -237,7 +215,13 @@ void fft_correlate_batch(
   // To save memory, we use corr as the padded array as it should be initialized to 0
   // and has the same shape. It will be overwritten in the excute_fft_correlate
   // after the inverse FFT to store the correlation result.
-  fill_pad_4d_array(n_orientations * n_grids, nx_l, ny_l, nz_l, nx, ny, nz, arr_l, corr);
+  // fill_pad_4d_array(n_orientations * n_grids, nx_l, ny_l, nz_l, nx, ny, nz, arr_l, corr);
+
+  int success = fftwf_init_threads();
+  if (success == 0) {
+    PyErr_SetString(PyExc_RuntimeError, "Failed to initialize FFTW threads");
+    return;
+  }
 
   // Allocate memory for FFTW plans and data
   fftwf_plan plan_fwd_r, plan_fwd_l, plan_inv;
@@ -245,22 +229,16 @@ void fft_correlate_batch(
   fft_r = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * N_fft_points * n_grids);
   fft_l = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * N_fft_points * n_orientations * n_grids);
 
+// int n_threads = fftwf_planner_nthreads();
+  int n_threads = 8;
+  fftwf_plan_with_nthreads(n_threads);
+  printf("Number of threads: %d\n", n_threads);
+
   // Create forward and inverse FFT plans for both arrays
   plan_fwd_r = fftwf_plan_many_dft_r2c(
       3, (int[]){nx, ny, nz}, n_grids, arr_r, NULL, 1, N_grid_points,
       fft_r, NULL, 1, N_fft_points,
       FFTW_ESTIMATE);
-
-  int success = fftwf_init_threads();
-  if (success == 0) {
-    PyErr_SetString(PyExc_RuntimeError, "Failed to initialize FFTW threads");
-    return;
-  }
-  // int n_threads = fftwf_planner_nthreads();
-  int n_threads = 4;
-  fftwf_plan_with_nthreads(n_threads);
-  printf("Number of threads: %d\n", n_threads);
-
   plan_fwd_l = fftwf_plan_many_dft_r2c(
       3, (int[]){nx, ny, nz}, n_orientations*n_grids, corr, NULL, 1, N_grid_points,
       fft_l, NULL, 1, N_fft_points,
@@ -271,10 +249,21 @@ void fft_correlate_batch(
       FFTW_ESTIMATE);
 
   // Execute forward FFTs on all grids
-  excute_fft_correlate_batch(
-      plan_fwd_r, plan_fwd_l, plan_inv,
-      fft_r, fft_l, arr_r,
-      n_orientations, n_grids, N_grid_points, N_fft_points, corr);
+  float scale = 1.0 / N_grid_points;
+  // Execute forward FFTs on both arrays
+  fftwf_execute_dft_r2c(plan_fwd_r, arr_r, fft_r);
+  fftwf_execute_dft_r2c(plan_fwd_l, corr, fft_l);
+
+  for (int i = 0; i < n_grids; i++){
+    for (int j = 0; j < n_orientations; j++){
+      for (int k = 0; k < N_fft_points; k++){
+        int index_l = (j * n_grids + i) * N_fft_points + k;
+        int index_r = i * N_fft_points + k;
+        fft_l[index_l] = conjf(fft_r[index_r]) * fft_l[index_l] * scale;
+      }
+    }
+  }
+  fftwf_execute_dft_c2r(plan_inv, fft_l, corr);
 
   // Clean up memory and plans
   fftwf_destroy_plan(plan_fwd_r);

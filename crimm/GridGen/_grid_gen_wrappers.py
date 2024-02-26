@@ -208,45 +208,42 @@ class ProbeGridCompEngine:
     """Wrapper for the C++ receptor grid generation library."""
     def __init__(self):
         self.lib = ctypes.CDLL(
-            os.path.join(os.path.dirname(__file__), 'probe_grid_gen_simple.so')
+            os.path.join(os.path.dirname(__file__), 'lig_gen_cube.so')
         )
-        self._batch_quat_rotate = None
-        self._rotate_gen_grids_eps_rmin = None 
-        self._rotate_gen_grids = None
-        self._gen_lig_grid = None
-        self._dealloc_grid = None
-
         # Define the argument dtype and return types for the C functions
-        # This is for taking the rmin and epsilon values then computing the AB coefficients
-        self._rotate_gen_grids_eps_rmin = self.lib.rotate_gen_lig_grids_eps_rmin
-        self._rotate_gen_grids_eps_rmin.restype = ctypes.POINTER(Grid)
-        self._rotate_gen_grids_eps_rmin.argtypes = [
-            ctypes.c_float, # grid_spacing
-            nd_float_ptr_type, # charges
-            nd_float_ptr_type, # epsilons
-            nd_float_ptr_type, # vdw_rs
-            nd_float_ptr_type, # coords
-            ctypes.c_int, # N_coords
-            nd_float_ptr_type, # quats
-            ctypes.c_int # N_quats
-        ]
-
-        # This is for taking the AB coefficients directly
+        # This is for taking the AB coefficients
         self._rotate_gen_grids = self.lib.rotate_gen_lig_grids
-        self._rotate_gen_grids.restype = ctypes.POINTER(Grid)
+        self._rotate_gen_grids.restype = None
         self._rotate_gen_grids.argtypes = [
             ctypes.c_float, # grid_spacing
             nd_float_ptr_type, # charges
-            nd_float_ptr_type, # vdw_attr_factors (B coefficients)
-            nd_float_ptr_type, # vdw_rep_factors (A coefficients)
+            nd_float_ptr_type, # vdw_attr_factors
+            nd_float_ptr_type, # vdw_rep_factors
             nd_float_ptr_type, # coords
             ctypes.c_int, # N_coords
             nd_float_ptr_type, # quats
-            ctypes.c_int # N_quats
+            ctypes.c_int, # N_quats
+            ctypes.c_int, # cube_dim
+            _Vector3d, # min_corner
+            nd_float_ptr_type, # rot_coords
+            nd_float_ptr_type, # elec_grids
+            nd_float_ptr_type, # vdw_grids_attr
+            nd_float_ptr_type, # vdw_grids_rep
+        ]
+
+        # calculate the AB coefficients from epsilon and r_min
+        self._calc_vdw_energy_factors = self.lib.calc_vdw_energy_factors
+        self._calc_vdw_energy_factors.restype = None
+        self._calc_vdw_energy_factors.argtypes = [
+            nd_float_ptr_type, # epsilons
+            nd_float_ptr_type, # vdw_rs
+            ctypes.c_int, # N_coords
+            nd_float_ptr_type, # vdw_attr_factor
+            nd_float_ptr_type, # vdw_rep_factor
         ]
 
         self._gen_lig_grid = self.lib.gen_lig_grid
-        self._gen_lig_grid.restype = Grid
+        self._gen_lig_grid.restype = None
         self._gen_lig_grid.argtypes = [
             ctypes.c_float, # grid_spacing
             nd_float_ptr_type, # charges
@@ -254,6 +251,11 @@ class ProbeGridCompEngine:
             nd_float_ptr_type, # vdw_rep_factors
             nd_float_ptr_type, # coords
             ctypes.c_int, # N_coords
+            _Vector3d, # min_corner
+            ctypes.c_int, # cube_dim
+            nd_float_ptr_type, # elec_grid
+            nd_float_ptr_type, # vdw_grid_attr
+            nd_float_ptr_type # vdw_grid_rep
         ]
 
         self._batch_quat_rotate = self.lib.batch_quatornion_rotate
@@ -265,10 +267,6 @@ class ProbeGridCompEngine:
             ctypes.c_int, # N_coords
             nd_float_ptr_type # out_coords
         ]
-
-        self._dealloc_grid = self.lib.dealloc_grid
-        self._dealloc_grid.restype = None
-        self._dealloc_grid.argtypes = [Grid]
 
     @property
     def backend(self):
@@ -299,56 +297,80 @@ class ProbeGridCompEngine:
         )
         return out_coords
 
-    def rotate_gen_grids_eps_rmin(
-            self, grid_spacing, charges, epsilons, vdw_rs, coords, quats
+    def calc_vdw_energy_factors(self, epsilons, vdw_rs):
+        """Calculate the van der Waals energy factors."""
+        N_coords = epsilons.shape[0]
+        vdw_attr_factor = np.zeros(N_coords, dtype=np.float32, order='C')
+        vdw_rep_factor = np.zeros(N_coords, dtype=np.float32, order='C')
+        self._calc_vdw_energy_factors(
+            # Ensure contiguity of the arrays to pass to the C function
+            np.ascontiguousarray(epsilons, dtype=np.float32), 
+            np.ascontiguousarray(vdw_rs, dtype=np.float32),
+            N_coords, vdw_attr_factor, vdw_rep_factor
+        )
+        return vdw_attr_factor, vdw_rep_factor
+
+    def rotate_gen_grids(
+            self, grid_spacing, charges, vdw_attr_factor, vdw_rep_factor, coords, quats,
+            cube_dim
         ):
         """Rotate the ligand grids by a batch of quaternions. Use the rmin and 
         epsilon values. The quaternions should be scalar-first."""
         N_quats, N_coords = quats.shape[0], coords.shape[0]
-        grids = self._rotate_gen_grids_eps_rmin(
-            grid_spacing, 
+        min_corner = coords.min(axis=0)
+        min_corner = _Vector3d(*min_corner)
+        rot_coords = np.zeros((N_quats, N_coords, 3), dtype=np.float32)
+        elec_grids = np.zeros((N_quats, cube_dim, cube_dim, cube_dim), dtype=np.float32)
+        vdw_grids_attr = np.zeros_like(elec_grids, dtype=np.float32)
+        vdw_grids_rep = np.zeros_like(elec_grids, dtype=np.float32)
+        self._rotate_gen_grids(
+            grid_spacing,
             np.ascontiguousarray(charges, dtype=np.float32),
-            np.ascontiguousarray(epsilons, dtype=np.float32),
-            np.ascontiguousarray(vdw_rs, dtype=np.float32),
-            np.ascontiguousarray(coords, dtype=np.float32), N_coords,
-            np.ascontiguousarray(quats, dtype=np.float32), N_quats
+            np.ascontiguousarray(vdw_attr_factor, dtype=np.float32),
+            np.ascontiguousarray(vdw_rep_factor, dtype=np.float32),
+            np.ascontiguousarray(coords, dtype=np.float32), 
+            N_coords,
+            np.ascontiguousarray(quats, dtype=np.float32), 
+            N_quats,
+            cube_dim,
+            min_corner,
+            rot_coords,
+            elec_grids,
+            vdw_grids_attr,
+            vdw_grids_rep
         )
-        grids = [grids[i] for i in range(N_quats)]
-        return grids
-
-    def rotate_gen_grids(
-            self, grid_spacing, charges, vdw_attr_factors, vdw_rep_factors, 
-            coords, quats
-        ):
-        """Rotate the ligand grids by a batch of quaternions. Use the A and B
-        coefficients. The quaternions should be scalar-first."""
-        N_quats, N_coords = quats.shape[0], coords.shape[0]
-        grids = self._rotate_gen_grids(
-            grid_spacing, 
-            np.ascontiguousarray(charges, dtype=np.float32),
-            np.ascontiguousarray(vdw_attr_factors, dtype=np.float32), 
-            np.ascontiguousarray(vdw_rep_factors, dtype=np.float32), 
-            np.ascontiguousarray(coords, dtype=np.float32), N_coords,
-            np.ascontiguousarray(quats, dtype=np.float32), N_quats
+        all_grids = np.empty(
+            (N_quats, 3, cube_dim, cube_dim, cube_dim), dtype=np.float32
         )
-        grids = [grids[i] for i in range(N_quats)]
-        return grids
+        all_grids[:, 0] = elec_grids
+        all_grids[:, 1] = vdw_grids_attr
+        all_grids[:, 2] = vdw_grids_rep
+        return all_grids, rot_coords
 
     def gen_lig_grid(
-            self, grid_spacing, charges, vdw_attr_factors, vdw_rep_factors, coords
+            self, grid_spacing, charges, vdw_attr_factors, vdw_rep_factors, coords,
+            cube_dim
         ):
         """Generate the ligand grid without any rotation."""
         N_coords = coords.shape[0]
-        grid = self._gen_lig_grid(
+        min_corner = coords.min(axis=0)
+        min_corner = _Vector3d(*min_corner)
+        elec_grids = np.zeros((cube_dim, cube_dim, cube_dim), dtype=np.float32)
+        vdw_grids_attr = np.zeros_like(elec_grids, dtype=np.float32)
+        vdw_grids_rep = np.zeros_like(elec_grids, dtype=np.float32)
+        self._gen_lig_grid(
             grid_spacing, 
             np.ascontiguousarray(charges, dtype=np.float32),
             np.ascontiguousarray(vdw_attr_factors, dtype=np.float32), 
             np.ascontiguousarray(vdw_rep_factors, dtype=np.float32), 
-            np.ascontiguousarray(coords, dtype=np.float32), N_coords
+            np.ascontiguousarray(coords, dtype=np.float32), 
+            N_coords,
+            min_corner,
+            cube_dim,
+            elec_grids,
+            vdw_grids_attr,
+            vdw_grids_rep
         )
-        return grid
-
-    def dealloc_grid(self, grid):
-        """Deallocate the grid."""
-        self._dealloc_grid(grid)
+        all_grids = np.array([elec_grids, vdw_grids_attr, vdw_grids_rep])
+        return all_grids
 
