@@ -2,6 +2,7 @@ import os
 import warnings
 import ctypes
 import numpy as np
+from scipy.spatial.distance import pdist
 from numpy.ctypeslib import ndpointer
 from crimm.Data.constants import CC_ELEC_CHARMM as CC_ELEC
 from crimm.Utils.cuda_info import is_cuda_available
@@ -208,7 +209,7 @@ class ProbeGridCompEngine:
     """Wrapper for the C++ receptor grid generation library."""
     def __init__(self):
         self.lib = ctypes.CDLL(
-            os.path.join(os.path.dirname(__file__), 'lig_gen_cube.so')
+            os.path.join(os.path.dirname(__file__), 'lig_grid_gen.so')
         )
         # Define the argument dtype and return types for the C functions
         # This is for taking the AB coefficients
@@ -224,7 +225,6 @@ class ProbeGridCompEngine:
             nd_float_ptr_type, # quats
             ctypes.c_int, # N_quats
             ctypes.c_int, # cube_dim
-            _Vector3d, # min_corner
             nd_float_ptr_type, # rot_coords
             nd_float_ptr_type, # elec_grids
             nd_float_ptr_type, # vdw_grids_attr
@@ -251,7 +251,6 @@ class ProbeGridCompEngine:
             nd_float_ptr_type, # vdw_rep_factors
             nd_float_ptr_type, # coords
             ctypes.c_int, # N_coords
-            _Vector3d, # min_corner
             ctypes.c_int, # cube_dim
             nd_float_ptr_type, # elec_grid
             nd_float_ptr_type, # vdw_grid_attr
@@ -311,14 +310,15 @@ class ProbeGridCompEngine:
         return vdw_attr_factor, vdw_rep_factor
 
     def rotate_gen_grids(
-            self, grid_spacing, charges, vdw_attr_factor, vdw_rep_factor, coords, quats,
-            cube_dim
+            self, grid_spacing, charges, vdw_attr_factor, vdw_rep_factor, coords, quats
         ):
         """Rotate the ligand grids by a batch of quaternions. Use the rmin and 
         epsilon values. The quaternions should be scalar-first."""
         N_quats, N_coords = quats.shape[0], coords.shape[0]
-        min_corner = coords.min(axis=0)
-        min_corner = _Vector3d(*min_corner)
+        max_dist = pdist(coords).max()
+        cube_dim = np.ceil(max_dist/grid_spacing).astype(int)
+
+        min_corner = _Vector3d(min_corner, min_corner, min_corner)
         rot_coords = np.zeros((N_quats, N_coords, 3), dtype=np.float32)
         elec_grids = np.zeros((N_quats, cube_dim, cube_dim, cube_dim), dtype=np.float32)
         vdw_grids_attr = np.zeros_like(elec_grids, dtype=np.float32)
@@ -333,7 +333,6 @@ class ProbeGridCompEngine:
             np.ascontiguousarray(quats, dtype=np.float32), 
             N_quats,
             cube_dim,
-            min_corner,
             rot_coords,
             elec_grids,
             vdw_grids_attr,

@@ -1,6 +1,5 @@
 import os
 import numpy as np
-from scipy.spatial.distance import pdist
 from crimm.Visualization import View
 from crimm.Modeller import ParameterLoader
 from crimm.GridGen._grid_gen_wrappers import ReceptorGridCompEngine, ProbeGridCompEngine
@@ -358,6 +357,8 @@ class ProbeGridGenerator(_EnerGridGenerator):
     rotation_search_level : int, optional
     The level of rotations to be used for the probe. Must be one of 0, 1, 2, or 3.
     Default is 2. Number of rotations : {0: No rotation, 1: 576, 2: 4068, 3: 36864}
+    The rotations are represented by quaternions (scalar-first) that are evenly 
+    sampled from the rotational space.
     """
     _rot_search_levels = {
         0: np.array([[1, 0, 0, 0]]), # identity quaternion (no rotation)
@@ -388,11 +389,6 @@ class ProbeGridGenerator(_EnerGridGenerator):
         ----------
         entity : :obj:`crimm.StructEntity.Chain` 
         The entity to be loaded.
-        grid_spacing : float
-        The spacing of the grid in Angstroms.
-        rotation_search_level : int, optional
-        The level of rotations to be used for the probe. Must be one of 0, 1, 2, or 3.
-        Default is 2. Number of rotations : {0: No rotation, 1: 576, 2: 4068, 3: 36864}
         """
         super().load_entity(probe)
         self._grid_shape = "cubic"
@@ -413,14 +409,11 @@ class ProbeGridGenerator(_EnerGridGenerator):
         -------
         np.array
         A 5D array of grids (3, N, x, y, z) where N is the number of orientations, and
-        (x, y, z) are the grid dimensions. The first dimension of the array is the
-        **electrostatic** grid, the second dimension is the **van der Waals attractive**
-        grid, and the third dimension is the **van der Waals repulsive** grid.
+        (x, y, z) are the grid dimensions. For the first dimension (3), the first array is the
+        **electrostatic** grid, the second array is the **van der Waals attractive**
+        grid, and the third array is the **van der Waals repulsive** grid.
         i.e. elec_grid, vdw_attr_grid, vdw_rep_grid = grids
         """
-        cube_dim = np.ceil(
-            pdist(self.coords).max()/self.spacing
-        ).astype(int)
         vdw_attr_factor, vdw_rep_factor = \
             self.comp_engine.calc_vdw_energy_factors(
                 self._epsilons, self._vdw_rs
@@ -430,7 +423,7 @@ class ProbeGridGenerator(_EnerGridGenerator):
             quats = self.quats
         self.grids, self.rotated_coords = self.comp_engine.rotate_gen_grids(
             self.spacing, self._charges, vdw_attr_factor, vdw_rep_factor, 
-            self.coords, quats, cube_dim
+            self.coords, quats
         )
         return self.grids
     

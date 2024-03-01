@@ -147,8 +147,9 @@ class _Probe:
         if len(self) == 0:
             return
         from crimm.Visualization import show_nglview
-        show_nglview(self)
-        print(repr(self))
+        from IPython.display import display
+        display(show_nglview(self))
+        return repr(self)
 
     def add_conformer_coord(self, conformer_coord):
         """Add a conformer's coordinates to the molecule."""

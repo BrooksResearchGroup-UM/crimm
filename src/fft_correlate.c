@@ -1,4 +1,6 @@
 #include <stdlib.h>
+#include <stdbool.h>
+#include <math.h>
 #include <complex.h>
 #include <omp.h>
 #include <fftw3.h>
@@ -83,9 +85,6 @@ void fft_correlate_batch(
   fft_r = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * N_fft_points);
   fft_l = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * N_fft_points * n_orientations);
 
-  // fftwf_plan_with_nthreads(n_threads);
-  printf("Number of threads: %d\n", n_threads);
-
   // Create forward and inverse FFT plans for both arrays
   plan_fwd = fftwf_plan_dft_r2c_3d(nx, ny, nz, recep_arr, fft_r, FFTW_MEASURE);
   plan_inv = fftwf_plan_dft_c2r_3d(nx, ny, nz, fft_l, lig_arr, FFTW_MEASURE);
@@ -150,12 +149,27 @@ static PyObject *argsort_wrapper(PyObject *self, PyObject *args) {
 
     // Free memory
     // free(indices);
-
     return indices_out;
 }
 
+// Function to find negative values in an array and store their indices
+// Returns the number of negative values
+int find_neg_vals(float *arr, int n, int *neg_val_ids) {
+    int neg_val_counter = 1; 
+    // Start at 1 to avoid overwriting the first index
+    // The index 0 is temp place holder for positive values
+    int cur_id = 0;
+    for (int i = 0; i < n; i++) {
+      bool is_neg = signbit(arr[i]); // 1 if negative, 0 if positive
+      cur_id = is_neg * neg_val_counter; // 0 if positive, cur_id > 0 if negative
+      neg_val_ids[cur_id] = i;
+      neg_val_counter += is_neg; // Increment counter if negative
+    }
+    return neg_val_counter;
+}
+
 void sum_grids(
-  PyArrayObject *grids, PyArrayObject *result
+  PyArrayObject *grids, PyArrayObject *result, int *neg_val_ids, int *n_neg_vals
 ) {
   // Get array dimensions
   int n_orientations = PyArray_DIMS(grids)[0];
@@ -165,20 +179,19 @@ void sum_grids(
   int nz = PyArray_DIMS(grids)[4];
   int N_grid_points = nx * ny * nz;
 
-  // Get NumPy arrays data pointers
-  float *arr_grids = (float *)PyArray_DATA(grids);
-  float *arr_result = (float *)PyArray_DATA(result);
-
   // Sum all grids
   #pragma omp parallel for
   for (int i = 0; i < n_orientations; i++) {
+    float *cur_arr_result = (float *)PyArray_GETPTR1(grids, i);
     for (int j = 0; j < n_grids; j++) {
-      float *cur_arr_grids = arr_grids + (i * n_grids + j) * N_grid_points;
-      float *cur_arr_result = arr_result + i * N_grid_points;
+      float *cur_arr_grids = (float *)PyArray_GETPTR2(grids, i, j);
       for (int k = 0; k < N_grid_points; k++) {
         cur_arr_result[k] += cur_arr_grids[k];
       }
     }
+    n_neg_vals[i] = find_neg_vals(
+      cur_arr_result, N_grid_points, neg_val_ids + i * N_grid_points
+    );
   }
 }
 
@@ -249,7 +262,16 @@ static PyObject* py_sum_grids(PyObject* self, PyObject* args) {
       return NULL;
     }
 
-    sum_grids(grids, result);
+    int n_orientations = PyArray_DIMS(grids)[0];
+    int n_grids = PyArray_DIMS(grids)[1];
+    int nx = PyArray_DIMS(grids)[2];
+    int ny = PyArray_DIMS(grids)[3];
+    int nz = PyArray_DIMS(grids)[4];
+    int N_grid_points = nx * ny * nz;
+    int *neg_val_ids = (int *)malloc(n_orientations * N_grid_points * sizeof(int));
+    int *n_neg_vals = (int *)malloc(n_orientations * sizeof(int));
+
+    sum_grids(grids, result, neg_val_ids, n_neg_vals);
 
     Py_RETURN_NONE;
 }

@@ -16,7 +16,7 @@ fft_correlate_module = Extension('fft_correlate', sources=['fft_correlate.c'],
                                 #     '-O0', '-g', 
                                 #     # '-pthread',
                                 #     '-fopenmp']
-                                 )
+                                )
 
 # Run the setup
 setup(ext_modules=[fft_correlate_module])
