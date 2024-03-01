@@ -318,7 +318,6 @@ class ProbeGridCompEngine:
         max_dist = pdist(coords).max()
         cube_dim = np.ceil(max_dist/grid_spacing).astype(int)
 
-        min_corner = _Vector3d(min_corner, min_corner, min_corner)
         rot_coords = np.zeros((N_quats, N_coords, 3), dtype=np.float32)
         elec_grids = np.zeros((N_quats, cube_dim, cube_dim, cube_dim), dtype=np.float32)
         vdw_grids_attr = np.zeros_like(elec_grids, dtype=np.float32)
