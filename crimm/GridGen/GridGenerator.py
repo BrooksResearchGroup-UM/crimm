@@ -346,6 +346,7 @@ class ReceptorGridGenerator(_EnerGridGenerator):
         dx_str = self._fill_dx(boxed_grid, values_str)
         with open(filename, 'w', encoding='utf-8') as f:
             f.write(dx_str)
+            f.flush() # flush the buffer to ensure the file is written
 
 class ProbeGridGenerator(_EnerGridGenerator):
     """A potential energy grid generator for a small molecule probe.

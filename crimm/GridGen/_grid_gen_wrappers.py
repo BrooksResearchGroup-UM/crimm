@@ -136,75 +136,6 @@ class _Dim3d(ctypes.Structure):
                 ('y', ctypes.c_int),
                 ('z', ctypes.c_int)]
 
-class Grid(ctypes.Structure):
-    lib = ctypes.CDLL(
-        os.path.join(os.path.dirname(__file__), 'probe_grid_gen_simple.so')
-    )
-    _fields_ = [('dim', _Dim3d),
-                ('N_grid_points', ctypes.c_int),
-                ('N_lig_coords', ctypes.c_int),
-                ('_origin', _Vector3d),
-                ('spacing', ctypes.c_float),
-                ('_coords', ctypes.POINTER(_Vector3d)),
-                ('_lig_coords', ctypes.POINTER(ctypes.c_float)),
-                ('_elec_grid', ctypes.POINTER(ctypes.c_float)),
-                ('_vdw_grid_attr', ctypes.POINTER(ctypes.c_float)),
-                ('_vdw_grid_rep', ctypes.POINTER(ctypes.c_float))]
-
-    @property
-    def shape(self):
-        """Get the grid dimension."""
-        return (self.dim.x, self.dim.y, self.dim.z)
-
-    @property
-    def origin(self):
-        """Get the grid origin."""
-        return np.array((self._origin.x, self._origin.y, self._origin.z))
-    
-    @property
-    def lig_coords(self):
-        """Get the ligand coordinates."""
-        return np.ctypeslib.as_array(self._lig_coords, (self.N_lig_coords, 3))
-
-    @property
-    def elec_grid(self):
-        """Get the electrostatic grid."""
-        return np.ctypeslib.as_array(self._elec_grid, self.shape)
-
-    @property
-    def attr_vdw_grid(self):
-        """Get the van der Waals attractive grid."""
-        return np.ctypeslib.as_array(self._vdw_grid_attr, self.shape)
-
-    @property
-    def rep_vdw_grid(self):
-        """Get the van der Waals repulsive grid."""
-        return np.ctypeslib.as_array(self._vdw_grid_rep, self.shape)
-
-    @property
-    def max_coord(self):
-        """Get the coordinates of the grid corners."""
-        coord = self._coords[self.N_grid_points-1]
-        return np.array((coord.x, coord.y, coord.z))
-
-    @property
-    def min_coord(self):
-        """Get the coordinates of the grid corners."""
-        coord = self._coords[0]
-        return np.array((coord.x, coord.y, coord.z))
-
-    def __repr__(self):
-        return (
-            f'<ParamGrid shape={self.shape} spacing={self.spacing}>'
-        )
-
-    def __del__(self):
-        self.dealloc()
-
-    def dealloc(self):
-        """Deallocate the grid."""
-        self.lib.dealloc_grid(self)
-
 class ProbeGridCompEngine:
     """Wrapper for the C++ receptor grid generation library."""
     def __init__(self):
@@ -224,7 +155,7 @@ class ProbeGridCompEngine:
             ctypes.c_int, # N_coords
             nd_float_ptr_type, # quats
             ctypes.c_int, # N_quats
-            ctypes.c_int, # cube_dim
+            ctypes.c_int, # probe_grid_dim
             nd_float_ptr_type, # rot_coords
             nd_float_ptr_type, # elec_grids
             nd_float_ptr_type, # vdw_grids_attr
@@ -251,7 +182,7 @@ class ProbeGridCompEngine:
             nd_float_ptr_type, # vdw_rep_factors
             nd_float_ptr_type, # coords
             ctypes.c_int, # N_coords
-            ctypes.c_int, # cube_dim
+            ctypes.c_int, # probe_grid_dim
             nd_float_ptr_type, # elec_grid
             nd_float_ptr_type, # vdw_grid_attr
             nd_float_ptr_type # vdw_grid_rep
@@ -317,9 +248,12 @@ class ProbeGridCompEngine:
         N_quats, N_coords = quats.shape[0], coords.shape[0]
         max_dist = pdist(coords).max()
         cube_dim = np.ceil(max_dist/grid_spacing).astype(int)
-
+        # +1 account for the last edge of the grid, e,g. a cube of 3x3x3 has 4 
+        # grid points per edge
+        grid_dim = cube_dim + 1
+        
         rot_coords = np.zeros((N_quats, N_coords, 3), dtype=np.float32)
-        elec_grids = np.zeros((N_quats, cube_dim, cube_dim, cube_dim), dtype=np.float32)
+        elec_grids = np.zeros((N_quats, grid_dim, grid_dim, grid_dim), dtype=np.float32)
         vdw_grids_attr = np.zeros_like(elec_grids, dtype=np.float32)
         vdw_grids_rep = np.zeros_like(elec_grids, dtype=np.float32)
         self._rotate_gen_grids(
@@ -327,18 +261,18 @@ class ProbeGridCompEngine:
             np.ascontiguousarray(charges, dtype=np.float32),
             np.ascontiguousarray(vdw_attr_factor, dtype=np.float32),
             np.ascontiguousarray(vdw_rep_factor, dtype=np.float32),
-            np.ascontiguousarray(coords, dtype=np.float32), 
+            np.ascontiguousarray(coords, dtype=np.float32),
             N_coords,
-            np.ascontiguousarray(quats, dtype=np.float32), 
+            np.ascontiguousarray(quats, dtype=np.float32),
             N_quats,
-            cube_dim,
+            grid_dim,
             rot_coords,
             elec_grids,
             vdw_grids_attr,
             vdw_grids_rep
         )
         all_grids = np.empty(
-            (N_quats, 3, cube_dim, cube_dim, cube_dim), dtype=np.float32
+            (N_quats, 3, grid_dim, grid_dim, grid_dim), dtype=np.float32
         )
         all_grids[:, 0] = elec_grids
         all_grids[:, 1] = vdw_grids_attr
@@ -351,9 +285,12 @@ class ProbeGridCompEngine:
         ):
         """Generate the ligand grid without any rotation."""
         N_coords = coords.shape[0]
-        min_corner = coords.min(axis=0)
-        min_corner = _Vector3d(*min_corner)
-        elec_grids = np.zeros((cube_dim, cube_dim, cube_dim), dtype=np.float32)
+        max_dist = pdist(coords).max()
+        cube_dim = np.ceil(max_dist/grid_spacing).astype(int)
+        # +1 account for the last edge of the grid, e,g. a cube of 3x3x3 has 4 
+        # grid points per edge
+        grid_dim = cube_dim + 1
+        elec_grids = np.zeros((grid_dim, grid_dim, grid_dim), dtype=np.float32)
         vdw_grids_attr = np.zeros_like(elec_grids, dtype=np.float32)
         vdw_grids_rep = np.zeros_like(elec_grids, dtype=np.float32)
         self._gen_lig_grid(
@@ -363,8 +300,7 @@ class ProbeGridCompEngine:
             np.ascontiguousarray(vdw_rep_factors, dtype=np.float32), 
             np.ascontiguousarray(coords, dtype=np.float32), 
             N_coords,
-            min_corner,
-            cube_dim,
+            grid_dim,
             elec_grids,
             vdw_grids_attr,
             vdw_grids_rep
