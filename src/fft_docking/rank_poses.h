@@ -2,6 +2,7 @@
 #define RANK_POSES_H
 
 #include <Python.h>
+
 typedef struct {
     int index;
     float score;
@@ -14,11 +15,9 @@ typedef struct {
 } OrienPoseScore;
 
 void rank_poses(
-    int num_poses, int num_orientations, float *scores, int *pose_ids, 
-    int *orientation_ids, ScoreIndexPair *sorted_poses, 
-    OrienPoseScore *sorted_orientations
+  float *scores, const int n_orientations, const int n_scores,
+  const int sample_factor, const int n_top_scores, int n_threads,
+  OrienPoseScore *top_scores
 );
-
-PyObject* py_rank_poses(PyObject* self, PyObject* args);
 
 #endif

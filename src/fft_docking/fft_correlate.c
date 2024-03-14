@@ -3,15 +3,9 @@
 #include <complex.h>
 #include <omp.h>
 #include <fftw3.h>
-#include <Python.h>
-#include <numpy/npy_math.h>
-#include <numpy/arrayobject.h>
+
 #include "rank_poses.h"
-
-typedef struct {
-    int x, y, z;
-} Dim3d;
-
+#include "fft_correlate.h"
 
 // Function to perform batch 3D FFT correlation
 void fft_correlate_batch(
@@ -120,101 +114,3 @@ void sum_grids(
   }
 }
 
-// Wrapper function to be called from Python
-static PyObject* py_fft_correlate_batch(PyObject* self, PyObject* args) {
-    PyArrayObject *recep_grid, *result;
-    int n_threads;
-    if (!PyArg_ParseTuple(
-      args, "O!O!i", 
-      &PyArray_Type, &recep_grid, 
-      &PyArray_Type, &result,
-      &n_threads
-    )) {
-        return NULL;
-    }
-
-    // Check array dimensions and data type
-    if (PyArray_NDIM(recep_grid) != 4 || PyArray_TYPE(recep_grid) != NPY_FLOAT32) {
-      PyErr_SetString(
-        PyExc_TypeError, "Expected receptor arrays of float32 with 4 dimensions."
-      );
-      return NULL;
-    }
-
-    if (PyArray_NDIM(result) != 5 || PyArray_TYPE(result) != NPY_FLOAT32) {
-      PyErr_SetString(
-        PyExc_TypeError, "Expected result arrays of float32 with 5 dimensions."
-      );
-      return NULL;
-    }
-    int n_grids = PyArray_DIMS(recep_grid)[0];
-    int n_grids_result = PyArray_DIMS(result)[1];
-    if (n_grids != n_grids_result) {
-      PyErr_SetString(
-        PyExc_TypeError, 
-        "Expected same number of grids for both receptor and result arrays."
-      );
-      return NULL;
-    }
-
-    fft_correlate_batch(recep_grid, result, n_threads);
-
-    Py_RETURN_NONE;
-}
-
-static PyObject* py_sum_grids(PyObject* self, PyObject* args) {
-    PyArrayObject *grids, *result;
-    int roll_steps;
-    if (!PyArg_ParseTuple(
-      args, "O!iO!", 
-      &PyArray_Type, &grids, 
-      &roll_steps,
-      &PyArray_Type, &result
-    )) {
-        return NULL;
-    }
-
-    // Check array dimensions and data type
-    if (PyArray_NDIM(grids) != 5 || PyArray_TYPE(grids) != NPY_FLOAT32) {
-      PyErr_SetString(
-        PyExc_TypeError, "Expected grids array of float32 with 5 dimensions."
-      );
-      return NULL;
-    }
-
-    if (PyArray_NDIM(result) != 4 || PyArray_TYPE(result) != NPY_FLOAT32) {
-      PyErr_SetString(
-        PyExc_TypeError, "Expected result array of float32 with 4 dimensions."
-      );
-      return NULL;
-    }
-
-    sum_grids(
-      grids, result, roll_steps
-    );
-
-    Py_RETURN_NONE;
-}
-
-// Method table
-static PyMethodDef FftCorrelateMethods[] = {
-    {"fft_correlate_batch", py_fft_correlate_batch, METH_VARARGS, "FFT Correlation Batch"},
-    {"sum_grids", py_sum_grids, METH_VARARGS, "Sum grids"},
-    {"rank_poses", py_rank_poses, METH_VARARGS, "Rank poses"},
-    {NULL, NULL, 0, NULL}
-};
-
-// Module definition
-static struct PyModuleDef fftcorrelatemodule = {
-    PyModuleDef_HEAD_INIT,
-    "fft_correlate",   // name of module
-    NULL,              // module documentation, may be NULL
-    -1,                // size of per-interpreter state of the module, or -1 if the module keeps state in global variables.
-    FftCorrelateMethods
-};
-
-// Initialization function
-PyMODINIT_FUNC PyInit_fft_correlate(void) {
-    import_array();
-    return PyModule_Create(&fftcorrelatemodule);
-}

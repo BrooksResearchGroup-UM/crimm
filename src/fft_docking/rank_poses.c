@@ -2,9 +2,6 @@
 #include <stdbool.h>
 #include <math.h>
 #include <omp.h>
-#include <Python.h>
-#include <numpy/npy_math.h>
-#include <numpy/arrayobject.h>
 #include <stdio.h>
 #include "rank_poses.h"
 
@@ -47,8 +44,7 @@ void get_top_n_scores(
 
     // Copy the heap to the output array
     for (int i = 0; i < top_n_poses; i++) {
-      top_scores[top_n_poses-i-1].index = heap[i].index;
-      top_scores[top_n_poses-i-1].score = heap[i].score;
+      top_scores[top_n_poses-i-1] = heap[i];
     }
 
     free(heap);
@@ -57,7 +53,7 @@ void get_top_n_scores(
 void combine_top_scores(
   ScoreIndexPair *scores_by_orientation, int n_orientations, int n_scores,
   int n_top_scores_per_orientation, int n_top_scores, OrienPoseScore *top_scores
-){
+) {
   int cur_idx;
   // Initialize max heap
   OrienPoseScore* heap = (OrienPoseScore*) malloc(
@@ -100,9 +96,7 @@ void combine_top_scores(
   }
   // Copy the heap to the output array reverse the order for a min heap
   for (int i = 0; i < n_top_scores; i++) {
-    top_scores[n_top_scores-i-1].pose_id = heap[i].pose_id;
-    top_scores[n_top_scores-i-1].orientation_id = heap[i].orientation_id;
-    top_scores[n_top_scores-i-1].score = heap[i].score;
+    top_scores[n_top_scores-i-1] = heap[i];
   }
   free(heap);
 }
@@ -183,81 +177,3 @@ void rank_poses(
   free(top_scores_by_orientation);
 }
 
-// Function to pack the top scores and their indices into a tuple to return to Python
-PyObject *pack_top_scores_as_tuple(
-  OrienPoseScore *top_scores, const int top_n_scores
-  ){
-    // Create numpy arrays for scores and indices
-    npy_intp dims[1] = {top_n_scores};
-    PyObject *out_scores = PyArray_SimpleNew(1, dims, NPY_DOUBLE);
-    PyObject *pose_ids = PyArray_SimpleNew(1, dims, NPY_INT);
-    PyObject *orientation_ids = PyArray_SimpleNew(1, dims, NPY_INT);
-
-    // Fill the numpy arrays
-    for (int i = 0; i < top_n_scores; i++) {
-      *(double *)PyArray_GETPTR1((PyArrayObject *)out_scores, i) = top_scores[i].score;
-      *(int *)PyArray_GETPTR1((PyArrayObject *)pose_ids, i) = top_scores[i].pose_id;
-      *(int *)PyArray_GETPTR1((PyArrayObject *)orientation_ids, i) = top_scores[i].orientation_id;
-    }
-
-    // Pack the numpy arrays into a tuple
-    PyObject *result = PyTuple_Pack(3, out_scores, pose_ids, orientation_ids);
-
-    // Decrease reference to the numpy arrays as they're now owned by the tuple
-    Py_DECREF(out_scores);
-    Py_DECREF(pose_ids);
-    Py_DECREF(orientation_ids);
-
-    return result;
-}
-
-PyObject* py_rank_poses(PyObject* self, PyObject* args) {
-    PyArrayObject *scores;
-    int top_n_poses, sample_factor, n_threads, n_orientations, n_scores;
-    if (!PyArg_ParseTuple(
-      args, "O!iii", 
-      &PyArray_Type, &scores, 
-      &top_n_poses, &sample_factor, &n_threads
-    )) {
-        return NULL;
-    }
-
-    if (PyArray_TYPE(scores) != NPY_FLOAT32){
-      PyErr_SetString(
-        PyExc_TypeError, "Expected scores array of float32."
-      );
-      return NULL;
-    }
-
-    // Check array dimensions and data type
-    if (PyArray_NDIM(scores) == 4) {
-      // Get array dimensions
-      n_orientations = PyArray_DIMS(scores)[0];
-      int nx = PyArray_DIMS(scores)[1];
-      int ny = PyArray_DIMS(scores)[2];
-      int nz = PyArray_DIMS(scores)[3];
-      n_scores = nx * ny * nz;
-    } else if (PyArray_NDIM(scores) == 2) {
-      // Get array dimensions
-      n_orientations = PyArray_DIMS(scores)[0];
-      n_scores = PyArray_DIMS(scores)[1];
-    } else {
-      PyErr_SetString(
-        PyExc_TypeError, 
-        "Expected scores array of float32 with 4 dimension \
-        (n_orientations, nx, ny, nz), or 2 dimension (n_orientations, n_scores)."
-      );
-      return NULL;
-    }
-    // Allocate memory for the output array
-    OrienPoseScore *top_scores = (OrienPoseScore *)malloc(
-      top_n_poses * sizeof(OrienPoseScore)
-    );
-    float *scores_arr = (float *)PyArray_GETPTR1(scores, 0);
-    rank_poses(
-      scores_arr, n_orientations, n_scores, sample_factor, 
-      top_n_poses, n_threads, top_scores
-    );
-    PyObject *result = pack_top_scores_as_tuple(top_scores, top_n_poses);
-    return result;
-}
