@@ -21,7 +21,7 @@ fft_correlate_module = Extension(
     define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')],
     extra_compile_args=[
     '-Ofast', 
-    '-g',
+    # '-g',
     '-fopenmp'
     ]
 )

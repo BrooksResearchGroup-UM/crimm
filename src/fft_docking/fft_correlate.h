@@ -1,14 +1,15 @@
 #ifndef FFT_CORRELATE_H
 #define FFT_CORRELATE_H
-#include <Python.h>
-#include <numpy/arrayobject.h>
 
-void fft_correlate_batch(
-  PyArrayObject *recep_grid, PyArrayObject *result, int n_threads
-);
-
-void sum_grids(
-  PyArrayObject *grids, PyArrayObject *result, int roll_steps
+// Function to perform 3D FFT correlation
+void fft_correlate(
+  float *recep_arr, float *lig_arr, int N_grids, 
+  // Protein receptor grid dimensions
+  int nx, int ny, int nz,
+  // Ligand grid dimensions
+  int nx_lig, int ny_lig, int nz_lig,
+  int N_orientations, int N_threads, 
+  float *result_arr
 );
 
 #endif
