@@ -3,6 +3,7 @@
 #include <math.h>
 #include <omp.h>
 #include <stdio.h>
+#include <string.h>
 #include "rank_poses.h"
 
 // Comparator function for max heap

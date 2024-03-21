@@ -7,7 +7,8 @@ fft_correlate_module = Extension(
     sources=[
         'py_bindings.c',
         'fft_correlate.c',
-        'rank_poses.c'
+        'rank_poses.c',
+        'grid_gen.c'
     ],
     include_dirs=[
         numpy.get_include(),

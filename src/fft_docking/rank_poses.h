@@ -1,7 +1,6 @@
 #ifndef RANK_POSES_H
 #define RANK_POSES_H
 
-#include <Python.h>
 
 typedef struct {
     int index;

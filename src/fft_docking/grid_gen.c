@@ -1,12 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <omp.h>
+#include "grid_gen.h"
 
-void calc_pairwise_dist(
-    const double* grid_pos, const double* coords, const int N_coords, 
-    const int N_grid_points, double* dists
+void calc_grid_coord_pairwise_dist(
+    const float* grid_pos, const float* coords, const int N_coords, 
+    const int N_grid_points, float* dists
 ){
-    double dx, dy, dz;
+    float dx, dy, dz;
+    #pragma omp parallel for private(dx, dy, dz)
     for (int i = 0; i < N_grid_points; i++) {
         for (int j = 0; j < N_coords; j++) {
             // pairwise distances between the receptor atom coords 
@@ -19,18 +22,18 @@ void calc_pairwise_dist(
     }
 }
 
-double calc_point_elec_potential(
-    const double dist, const double elec_const, const double charge, 
-    const double rc, const double alpha, const double elec_rep_max, 
-    const double elec_attr_max
+float calc_point_elec_potential_radial(
+    const float dist_sq, const float elec_const, const float charge, 
+    const float rc_sq, const float alpha, const float elec_rep_max, 
+    const float elec_attr_max
 ) {
-    double cur_potential;
+    float cur_potential;
     // beyond cutoff
-    if (dist > rc) {
-        cur_potential = elec_const / (dist * dist);
+    if (dist_sq > rc_sq) {
+        cur_potential = elec_const / dist_sq;
     // within cutoff
     } else {
-        double alpha_tmp = alpha * dist * dist;
+        float alpha_tmp = alpha * dist_sq;
         // repulsive
         if (charge > 0) {
             cur_potential = elec_rep_max - alpha_tmp;
@@ -44,121 +47,126 @@ double calc_point_elec_potential(
     return cur_potential;
 }
 
-void gen_elec_grid(
-    const double* dists, const double* charges, const double cc_elec,
-    const double rad_dielec_const, const double elec_rep_max, 
-    const double elec_attr_max, const int N_coords, const int N_grid_points, 
-    double* electrostat_grid
-) { 
-    double* elec_consts = malloc(N_coords * sizeof(double));
-    double* rc = malloc(N_coords * sizeof(double));
-    double* alpha = malloc(N_coords * sizeof(double));
+float calc_point_elec_potential_constant(
+    const float dist_sq, const float elec_const, const float charge, 
+    const float rc_sq, const float alpha, const float elec_rep_max, 
+    const float elec_attr_max
+) {
+    float cur_potential, dist;
+    dist = sqrt(dist_sq);
+    // beyond cutoff
+    if (dist_sq > rc_sq) {
+        cur_potential = elec_const / dist;
+    // within cutoff
+    } else {
+        float alpha_tmp = alpha * dist;
+        // repulsive
+        if (charge > 0) {
+            cur_potential = elec_rep_max - alpha_tmp;
+        // attractive
+        } else {
+            cur_potential = elec_attr_max + alpha_tmp;
+        }
+        // zero charge is very unlikely and will
+        // turn out to be zero potential in the end
+    }
+    return cur_potential;
+}
 
-    double emax_tmp;
-    double dist, cur_potential, cur_grid_val;
+void gen_all_grids(
+    const float* grid_pos, const float* coords, const float* charges, 
+    const float* epsilons, const float* vdw_rs, const float cc_elec, 
+    const float rad_dielec_const, const float elec_rep_max, 
+    const float elec_attr_max, const float vwd_rep_max,
+    const float vwd_attr_max, const int N_coords, const int N_grid_points,
+    const int use_constant_dielectric,
+    float* electrostat_grid, float* vdw_grid_attr, float* vdw_grid_rep
+) {
+    float dx, dy, dz, dist_sq;
+    float r_min, eps_sqrt, vdwconst_attr, vdwconst_rep, r6;
+    float beta_attr, beta_rep;
+    float rc_sq_vdw_attr, rc_sq_vdw_rep;
+    float charge, elec_const, emax_tmp, alpha, rc_sq_elec, cur_elec_potential;
+    float (*calc_point_elec_potential)(
+        float, float, float, float, 
+        float, float, float
+    );
 
+    // set the electrostatic potential function
+    if (use_constant_dielectric) {
+        calc_point_elec_potential = &calc_point_elec_potential_constant;
+    } else {
+        calc_point_elec_potential = &calc_point_elec_potential_radial;
+    }
+
+    #pragma omp parallel for private( \
+        dx, dy, dz, dist_sq, r_min, eps_sqrt, vdwconst_attr, vdwconst_rep, r6, \
+        beta_attr, beta_rep, rc_sq_vdw_attr, rc_sq_vdw_rep, charge, elec_const, \
+        emax_tmp, alpha, rc_sq_elec, cur_elec_potential \
+    )
     for (int i = 0; i < N_coords; i++) {
+        // calculate vdw constants
+        r_min = vdw_rs[i];
+        eps_sqrt = sqrt(fabs(epsilons[i]));
+        vdwconst_attr = 0.5 * fabs(vwd_attr_max) / eps_sqrt;
+        vdwconst_rep = 0.25 * fabs(vwd_rep_max) / eps_sqrt;
+        // vdw cutoff distance squared
+        rc_sq_vdw_attr = r_min * r_min * pow(vdwconst_attr, -1.0 / 3.0);
+        rc_sq_vdw_rep = r_min * r_min * pow(vdwconst_rep, -1.0 / 6.0);
+        beta_attr = -12.0 * eps_sqrt / vwd_attr_max * vdwconst_attr;
+        beta_rep = 12.0 * eps_sqrt / vwd_rep_max * vdwconst_rep;
         // calculate electrostatic constants
-        elec_consts[i] = cc_elec * charges[i] / rad_dielec_const;
-        if (charges[i] > 0) {
+        charge = charges[i];
+        elec_const = cc_elec * charge / rad_dielec_const;
+        if (charge > 0) {
             // repulsive
             emax_tmp = elec_rep_max;
         } else {
             // attractive
             emax_tmp = elec_attr_max;
         }
-        // cutoff distance
-        rc[i] = sqrt(2.0 * fabs(elec_consts[i] / emax_tmp));
-        alpha[i] = fabs(emax_tmp / (2.0 * rc[i] * rc[i]));
-    }
+        // elec cutoff distance squared
+        rc_sq_elec = 2.0 * fabs(elec_const / emax_tmp);
+        alpha = fabs(emax_tmp / (2.0 * rc_sq_elec));
 
-    // calculate electrostatic grid values
-    for (int i = 0; i < N_grid_points; i++) {
-        cur_grid_val = 0.0;
-        for (int j = 0; j < N_coords; j++) {
-            dist = dists[i * N_coords + j];
-            // calculate electrostatic potential
-            cur_potential = calc_point_elec_potential(
-                dist, elec_consts[j], charges[j], rc[j], alpha[j],
+        for (int j = 0; j < N_grid_points; j++) {
+            // pairwise distances squared between the receptor atom coords 
+            // and the grid points
+            dx = grid_pos[j * 3] - coords[i * 3];
+            dy = grid_pos[j * 3 + 1] - coords[i * 3 + 1];
+            dz = grid_pos[j * 3 + 2] - coords[i * 3 + 2];
+            dist_sq = dx * dx + dy * dy + dz * dz;
+            // attractive vdw grid
+            r6 = pow(r_min / dist_sq, 3.0); // (sqrt(r_min)/r)^6
+            
+            // repulsive vdw grid
+            if (dist_sq > rc_sq_vdw_rep) {
+                // beyond cutoff
+                #pragma omp atomic
+                vdw_grid_rep[j] += eps_sqrt * r6 * r6;
+            } else {
+                // within cutoff
+                #pragma omp atomic
+                vdw_grid_rep[j] += vwd_rep_max * 
+                (1.0 - 0.5 * pow((dist_sq / rc_sq_vdw_rep), beta_rep));
+            }
+            // attractive vdw grid
+            if (dist_sq > rc_sq_vdw_attr) {
+                #pragma omp atomic
+                vdw_grid_attr[j] -= 2.0 * eps_sqrt * r6;
+            } else {
+                // within cutoff
+                #pragma omp atomic
+                vdw_grid_attr[j] += vwd_attr_max * 
+                (1.0 - 0.5 * pow((dist_sq / rc_sq_vdw_attr), beta_attr));
+            }
+            // electrostatic grid
+            cur_elec_potential = (*calc_point_elec_potential)(
+                dist_sq, elec_const, charge, rc_sq_elec, alpha,
                 elec_rep_max, elec_attr_max
             );
-            cur_grid_val += cur_potential;
-        }
-        electrostat_grid[i] = cur_grid_val;
-    }
-    free(elec_consts);
-    free(rc);
-    free(alpha);
-}
-
-void gen_vdw_grid(
-    const double* dists, const double* epsilons, const double* vdw_rs, 
-    const double probe_radius, const double vwd_softcore_max, 
-    const int N_coords, const int N_grid_points, double* vdw_grid
-) {
-    double* r_mins = malloc(N_coords * sizeof(double));
-    double* eps_sqrt = malloc(N_coords * sizeof(double));
-    double* rc_vdw = malloc(N_coords * sizeof(double));
-    double* beta = malloc(N_coords * sizeof(double));
-
-    double r_min, r_min_over_dist;
-    double cur_eps_sqrt, vdwconst;
-    double dist, cur_grid_val;
-
-    // calculate vdw constants
-    for (int i = 0; i < N_coords; i++) {
-        r_min = vdw_rs[i] + probe_radius;
-        r_mins[i] = r_min;
-        cur_eps_sqrt = sqrt(fabs(epsilons[i]));
-        eps_sqrt[i] = cur_eps_sqrt;
-        vdwconst = 1.0 + sqrt(
-            1.0 + 0.5 * fabs(vwd_softcore_max) / cur_eps_sqrt
-        );
-        // cutoff distance
-        rc_vdw[i] = r_min * pow(vdwconst, -1.0 / 6.0);
-        beta[i] = 24.0 * cur_eps_sqrt /
-        vwd_softcore_max * (vdwconst * vdwconst - vdwconst);
-    }
-
-    for (int i = 0; i < N_grid_points; i++) {
-        cur_grid_val = 0.0;
-        for (int j = 0; j < N_coords; j++) {
-            dist = dists[i * N_coords + j];
-            r_min_over_dist = r_mins[j]/dist;
-            // beyond cutoff
-            if (dist > rc_vdw[j]) {
-                cur_grid_val += eps_sqrt[j] * (
-                    pow(r_min_over_dist, 12.0) - 2.0 * pow(r_min_over_dist, 6.0)
-                );
-            // within cutoff
-            } else {
-                cur_grid_val += vwd_softcore_max * 
-                (1.0 - 0.5 * pow((dist / rc_vdw[j]), beta[j]));
-            }
-        }
-        vdw_grid[i] = cur_grid_val;
-    }
-    free(r_mins);
-    free(eps_sqrt);
-    free(rc_vdw);
-    free(beta);
-}
-
-void gen_all_grids(
-    const double* grid_pos, const double* coords, const double* charges, 
-    const double* epsilons, const double* vdw_rs, const double cc_elec, 
-    const double rad_dielec_const, const double elec_rep_max, 
-    const double elec_attr_max, const double probe_radius,
-    const double vwd_softcore_max, const int N_coords, const int N_grid_points,
-    double* dists, double* electrostat_grid, double* vdw_grid
-) {
-    calc_pairwise_dist(grid_pos, coords, N_coords, N_grid_points, dists);
-    gen_elec_grid(
-        dists, charges, cc_elec, rad_dielec_const, elec_rep_max,
-        elec_attr_max, N_coords, N_grid_points, electrostat_grid
-    );
-    gen_vdw_grid(
-        dists, epsilons, vdw_rs, probe_radius, vwd_softcore_max, N_coords,
-        N_grid_points, vdw_grid
-    );
+            #pragma omp atomic
+            electrostat_grid[j] += cur_elec_potential;
+        } // end grid points loop
+    } // end coords loop
 }
