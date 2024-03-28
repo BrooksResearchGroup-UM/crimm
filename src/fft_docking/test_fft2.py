@@ -1,8 +1,8 @@
 import pickle
 import numpy as np
 # from scipy.signal import correlate
-import fft_correlate
-from crimm.GridGen.GridGenerator import ReceptorGridGenerator, ProbeGridGenerator
+from crimm import fft_docking
+from crimm.Docking.GridGenerator import ReceptorGridGenerator, ProbeGridGenerator
 from crimm.Data.probes.probes import create_new_probe_set
 # from tqdm.contrib.concurrent import process_map
 from rdkit import Chem
@@ -82,7 +82,7 @@ signal = np.stack((
 
 
 time1 = time.time()
-result = fft_correlate.fft_correlate(signal, kernels, N_THREADS)
+result = fft_docking.fft_correlate(signal, kernels, N_THREADS)
 time2 = time.time()
 print(round(time2 - time1, 3), 's')
 

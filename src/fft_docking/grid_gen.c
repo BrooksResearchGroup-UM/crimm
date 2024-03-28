@@ -136,7 +136,7 @@ void gen_all_grids(
             dy = grid_pos[j * 3 + 1] - coords[i * 3 + 1];
             dz = grid_pos[j * 3 + 2] - coords[i * 3 + 2];
             dist_sq = dx * dx + dy * dy + dz * dz;
-            // attractive vdw grid
+
             r6 = pow(r_min / dist_sq, 3.0); // (sqrt(r_min)/r)^6
             
             // repulsive vdw grid

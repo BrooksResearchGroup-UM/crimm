@@ -6,7 +6,7 @@
 #include "grid_gen.h"
 
 // Wrapper function to be called from Python
-// Grid generation functions
+// Generate Protein Grids
 static PyObject* py_generate_grids(PyObject* self, PyObject* args) {
     PyArrayObject *grid_pos, *coords, *charges, *epsilons, *vdw_rs;
     float cc_elec, rad_dielec_const, elec_rep_max, elec_attr_max;
@@ -121,37 +121,42 @@ static PyObject* py_generate_grids(PyObject* self, PyObject* args) {
     );
     // Create NumPy arrays from the result arrays
     npy_intp dims[1] = {N_grid_points};
-    PyObject *electrostat_grid_np = PyArray_SimpleNewFromData(
+    PyObject *npy_electrostat_grid = PyArray_SimpleNewFromData(
         1, dims, NPY_FLOAT32, electrostat_grid
     );
-    PyObject *vdw_grid_attr_np = PyArray_SimpleNewFromData(
+    PyObject *npy_vdw_grid_attr = PyArray_SimpleNewFromData(
         1, dims, NPY_FLOAT32, vdw_grid_attr
     );
-    PyObject *vdw_grid_rep_np = PyArray_SimpleNewFromData(
+    PyObject *npy_vdw_grid_rep = PyArray_SimpleNewFromData(
         1, dims, NPY_FLOAT32, vdw_grid_rep
     );
     if (
-        electrostat_grid_np == NULL || vdw_grid_attr_np == NULL || 
-        vdw_grid_rep_np == NULL
+        npy_electrostat_grid == NULL || npy_vdw_grid_attr == NULL || 
+        npy_vdw_grid_rep == NULL
     ) {
         PyErr_SetString(PyExc_MemoryError, "Failed to create result arrays");
         return NULL;
     }
+    // Enable ownership of the result arrays by the NumPy arrays
+    PyArray_ENABLEFLAGS((PyArrayObject*) npy_electrostat_grid, NPY_ARRAY_OWNDATA);
+    PyArray_ENABLEFLAGS((PyArrayObject*) npy_vdw_grid_attr, NPY_ARRAY_OWNDATA);
+    PyArray_ENABLEFLAGS((PyArrayObject*) npy_vdw_grid_rep, NPY_ARRAY_OWNDATA);
+
     // Return a tuple of the result arrays
-    PyObject *result = PyTuple_Pack(
-        3, electrostat_grid_np, vdw_grid_attr_np, vdw_grid_rep_np
+    PyObject *py_return = PyTuple_Pack(
+        3, npy_electrostat_grid, npy_vdw_grid_attr, npy_vdw_grid_rep
     );
-    if (result == NULL) {
+    if (py_return == NULL) {
         PyErr_SetString(PyExc_MemoryError, "Failed to create result tuple");
         return NULL;
     }
-    return result;
+    return py_return;
 }
 
 static PyObject* py_pairwise_dist(PyObject* self, PyObject* args) {
-    PyArrayObject *coords, *grid_pos;
+    PyArrayObject *grid_pos, *coords;
     if (!PyArg_ParseTuple(
-        args, "O!O!", &PyArray_Type, &coords, &PyArray_Type, &grid_pos
+        args, "O!O!", &PyArray_Type, &grid_pos, &PyArray_Type, &coords
     )) {
         return NULL;
     }
@@ -168,15 +173,15 @@ static PyObject* py_pairwise_dist(PyObject* self, PyObject* args) {
         PyErr_SetString(PyExc_TypeError, "Expected coords array with 2 dimensions");
         return NULL;
     }
-    if (PyArray_NDIM(grid_pos) != 1) {
-        PyErr_SetString(PyExc_TypeError, "Expected grid_pos array with 1 dimensions");
+    if (PyArray_NDIM(grid_pos) != 2) {
+        PyErr_SetString(PyExc_TypeError, "Expected grid_pos array with 2 dimensions");
         return NULL;
     }
     int N_coords = PyArray_DIMS(coords)[0];
     int N_grid_points = PyArray_DIMS(grid_pos)[0];
     // Get NumPy arrays data pointers
-    float *coords_arr = (float *)PyArray_DATA(coords);
     float *grid_pos_arr = (float *)PyArray_DATA(grid_pos);
+    float *coords_arr = (float *)PyArray_DATA(coords);
     // Allocate memory for the result array
     float *dists = (float *)malloc(N_coords * N_grid_points * sizeof(float));
     if (dists == NULL) {
@@ -189,13 +194,132 @@ static PyObject* py_pairwise_dist(PyObject* self, PyObject* args) {
     );
     // Create a new NumPy array from the result array
     npy_intp dims[2] = {N_grid_points, N_coords};
-    PyObject *result = PyArray_SimpleNewFromData(2, dims, NPY_FLOAT32, dists);
-    if (result == NULL) {
+    PyObject *npy_dists = PyArray_SimpleNewFromData(2, dims, NPY_FLOAT32, dists);
+    // Enable ownership of the result arrays by the NumPy arrays
+    PyArray_ENABLEFLAGS((PyArrayObject*) npy_dists, NPY_ARRAY_OWNDATA);
+
+    if (npy_dists == NULL) {
         PyErr_SetString(PyExc_MemoryError, "Failed to create result array");
         return NULL;
     }
     // Return the result array
-    return result;
+    return npy_dists;
+}
+
+// Generate ligand grids
+static PyObject* py_rotate_gen_lig_grids(PyObject* self, PyObject* args){
+    float grid_spacing;
+    PyArrayObject *charges, *vdw_attr_factors, *vdw_rep_factors;
+    PyArrayObject *coords, *quats;
+    
+    if (!PyArg_ParseTuple(args, "fO!O!O!O!O!", 
+        &grid_spacing,
+        &PyArray_Type, &charges, &PyArray_Type, &vdw_attr_factors, 
+        &PyArray_Type, &vdw_rep_factors, 
+        &PyArray_Type, &coords, &PyArray_Type, &quats
+    )){
+        return NULL;
+    }
+    int N_coords = PyArray_DIM(coords, 0);
+    int N_quats = PyArray_DIM(quats, 0);
+    float *charges_data = PyArray_DATA(charges);
+    float *vdw_attr_factors_data = PyArray_DATA(vdw_attr_factors);
+    float *vdw_rep_factors_data = PyArray_DATA(vdw_rep_factors);
+    float *coords_data = PyArray_DATA(coords);
+    float *quats_data = PyArray_DATA(quats);
+    float *rot_coords = malloc(N_quats * N_coords * 3 * sizeof(float));
+    float max_dist = get_max_pairwise_dist(coords_data, N_coords);
+    // +1 account for the last edge of the grid, e,g. a cube of 3x3x3 has 4 
+    // grid points per edge 
+    int grid_dim = (int)ceil(max_dist / grid_spacing) + 1;
+    // we use cube grid to promote throughput
+    size_t N_grid_points = grid_dim * grid_dim * grid_dim; 
+    float *elec_grids = calloc(N_grid_points * N_quats, sizeof(float));
+    float *vdw_grids_attr = calloc(N_grid_points * N_quats, sizeof(float));
+    float *vdw_grids_rep = calloc(N_grid_points * N_quats, sizeof(float));
+
+    rotate_gen_lig_grids(
+        grid_spacing, charges_data, vdw_attr_factors_data, vdw_rep_factors_data, 
+        coords_data, N_coords, quats_data, N_quats, grid_dim, 
+        rot_coords, elec_grids, vdw_grids_attr, vdw_grids_rep
+    );
+    
+    npy_intp rot_coords_dims[3] = {N_quats, N_coords, 3};
+    npy_intp grid_dims[4] = {N_quats, grid_dim, grid_dim, grid_dim};
+    PyObject *npy_rot_coords = PyArray_SimpleNewFromData(
+        3, rot_coords_dims, NPY_FLOAT32, rot_coords
+    );
+    PyObject *npy_elec_grids = PyArray_SimpleNewFromData(
+        4, grid_dims, NPY_FLOAT32, elec_grids
+    );
+    PyObject *npy_vdw_grids_attr = PyArray_SimpleNewFromData(
+        4, grid_dims, NPY_FLOAT32, vdw_grids_attr
+    );
+    PyObject *npy_vdw_grids_rep = PyArray_SimpleNewFromData(
+        4, grid_dims, NPY_FLOAT32, vdw_grids_rep
+    );
+    PyArray_ENABLEFLAGS((PyArrayObject*) npy_rot_coords, NPY_ARRAY_OWNDATA);
+    PyArray_ENABLEFLAGS((PyArrayObject*) npy_elec_grids, NPY_ARRAY_OWNDATA);
+    PyArray_ENABLEFLAGS((PyArrayObject*) npy_vdw_grids_attr, NPY_ARRAY_OWNDATA);
+    PyArray_ENABLEFLAGS((PyArrayObject*) npy_vdw_grids_rep, NPY_ARRAY_OWNDATA);
+    return Py_BuildValue(
+        "OOOO", 
+        npy_rot_coords, npy_elec_grids, npy_vdw_grids_attr, npy_vdw_grids_rep
+    );
+}
+
+// Calculate VDW energy factors
+static PyObject* py_calc_vdw_energy_factors(PyObject* self, PyObject* args){
+    PyArrayObject *epsilons, *vdw_rs;
+    int N_coords;
+    if (!PyArg_ParseTuple(args, "O!O!", 
+        &PyArray_Type, &epsilons, &PyArray_Type, &vdw_rs
+    )){
+        return NULL;
+    }
+    N_coords = PyArray_DIM(epsilons, 0);
+    float *epsilons_data = PyArray_DATA(epsilons);
+    float *vdw_rs_data = PyArray_DATA(vdw_rs);
+    float *vdw_attr_factors = malloc(N_coords * sizeof(float));
+    float *vdw_rep_factors = malloc(N_coords * sizeof(float));
+    calc_vdw_energy_factors(
+        epsilons_data, vdw_rs_data, N_coords, vdw_attr_factors, vdw_rep_factors
+    );
+    npy_intp dims[1] = {N_coords};
+    PyObject* npy_vdw_attr_factors = PyArray_SimpleNewFromData(
+        1, dims, NPY_FLOAT32, vdw_attr_factors
+    );
+    PyObject* npy_vdw_rep_factors = PyArray_SimpleNewFromData(
+        1, dims, NPY_FLOAT32, vdw_rep_factors
+    );
+    PyArray_ENABLEFLAGS((PyArrayObject*) npy_vdw_attr_factors, NPY_ARRAY_OWNDATA);
+    PyArray_ENABLEFLAGS((PyArrayObject*) npy_vdw_rep_factors, NPY_ARRAY_OWNDATA);
+    return Py_BuildValue("OO", npy_vdw_attr_factors, npy_vdw_rep_factors);
+}
+
+// Batch quaternion rotation on coordinates
+static PyObject* py_batch_quatornion_rotate(PyObject* self, PyObject* args){
+    PyArrayObject *coords, *quats;
+    int N_coords, N_quats;
+    if (!PyArg_ParseTuple(args, "O!O!", 
+        &PyArray_Type, &coords, &PyArray_Type, &quats
+    )){
+        return NULL;
+    }
+    N_coords = PyArray_DIM(coords, 0);
+    N_quats = PyArray_DIM(quats, 0);
+    float* coords_data = PyArray_DATA(coords);
+    float* quats_data = PyArray_DATA(quats);
+    float* rot_coords = malloc(N_quats * N_coords * 3 * sizeof(float));
+    batch_quaternion_rotate(
+        coords_data, N_coords, quats_data, N_quats, rot_coords
+    );
+    npy_intp rot_coords_dims[3] = {N_quats, N_coords, 3};
+    PyObject* npy_rot_coords = PyArray_SimpleNewFromData(
+        3, rot_coords_dims, NPY_FLOAT32, rot_coords
+    );
+    PyArray_ENABLEFLAGS((PyArrayObject*) npy_rot_coords, NPY_ARRAY_OWNDATA);
+    return npy_rot_coords;
 }
 
 // FFT correlation functions
@@ -229,11 +353,11 @@ static PyObject* py_fft_correlate(PyObject* self, PyObject* args) {
     int n_grids = PyArray_DIMS(recep_grid)[0];
     int n_grids_l = PyArray_DIMS(lig_grid)[1];
     if (n_grids != n_grids_l) {
-      PyErr_SetString(
+      return PyErr_Format(
         PyExc_TypeError, 
-        "Expected same number of grids for both receptor, ligand, and result arrays."
+        "Expected same number of grids for both receptor, ligand, and result arrays. "
+        "Receptor grids: %d, Ligand grids: %d", n_grids, n_grids_l
       );
-      return NULL;
     }
     // Get array dimensions
     
@@ -272,13 +396,14 @@ static PyObject* py_fft_correlate(PyObject* self, PyObject* args) {
     );
     // Create a new NumPy array from the fft correlation result
     npy_intp dims[4] = {n_orientations, nx, ny, nz};
-    PyObject *result = PyArray_SimpleNewFromData(4, dims, NPY_FLOAT32, result_arr);
-    if (result == NULL) {
+    PyObject *npy_result = PyArray_SimpleNewFromData(4, dims, NPY_FLOAT32, result_arr);
+    if (npy_result == NULL) {
       PyErr_SetString(PyExc_MemoryError, "Failed to create result array");
       return NULL;
     }
+    PyArray_ENABLEFLAGS((PyArrayObject*) npy_result, NPY_ARRAY_OWNDATA);
     // Return the result array
-    return result;
+    return npy_result;
 }
 
 // Function to pack the top scores and their indices into a tuple to return to Python
@@ -309,11 +434,15 @@ static PyObject *pack_top_scores_as_tuple(
     return result;
 }
 
-static PyObject* py_rank_poses(PyObject* self, PyObject* args) {
+static PyObject* py_rank_poses(PyObject* self, PyObject* args, PyObject* kwargs) {
     PyArrayObject *scores;
-    int top_n_poses, sample_factor, n_threads, n_orientations, n_scores;
-    if (!PyArg_ParseTuple(
-      args, "O!iii", 
+    int top_n_poses, sample_factor, n_threads;
+    size_t n_orientations, n_scores;
+    static char* keywords[] = {
+        "", "top_n_poses", "sample_factor", "n_threads", NULL
+    };
+    if (!PyArg_ParseTupleAndKeywords(
+      args, kwargs, "O!kki", keywords,
       &PyArray_Type, &scores, 
       &top_n_poses, &sample_factor, &n_threads
     )) {
@@ -351,7 +480,7 @@ static PyObject* py_rank_poses(PyObject* self, PyObject* args) {
     OrienPoseScore *top_scores = (OrienPoseScore *)malloc(
       top_n_poses * sizeof(OrienPoseScore)
     );
-    float *scores_arr = (float *)PyArray_GETPTR1(scores, 0);
+    float *scores_arr = (float *)PyArray_DATA(scores);
     rank_poses(
       scores_arr, n_orientations, n_scores, sample_factor, 
       top_n_poses, n_threads, top_scores
@@ -361,25 +490,28 @@ static PyObject* py_rank_poses(PyObject* self, PyObject* args) {
 }
 
 // Method table
-static PyMethodDef FftCorrelateMethods[] = {
+static PyMethodDef FftDockingMethods[] = {
     {"pairwise_dist", py_pairwise_dist, METH_VARARGS, "Pairwise distance calculation"},
     {"generate_grids", py_generate_grids, METH_VARARGS, "Generate grids"},
+    {"calc_vdw_energy_factors", py_calc_vdw_energy_factors, METH_VARARGS, "Calculate VDW energy factors"},
+    {"rotate_gen_lig_grids", py_rotate_gen_lig_grids, METH_VARARGS, "Rotate and generate ligand grids"},
+    {"batch_quaternion_rotate", py_batch_quatornion_rotate, METH_VARARGS, "Batch quaternion rotation"},
     {"fft_correlate", py_fft_correlate, METH_VARARGS, "FFT Correlation Batch"},
-    {"rank_poses", py_rank_poses, METH_VARARGS, "Rank poses"},
+    {"rank_poses", py_rank_poses, METH_VARARGS | METH_KEYWORDS, "Rank poses"},
     {NULL, NULL, 0, NULL}
 };
 
 // Module definition
-static struct PyModuleDef fftcorrelatemodule = {
+static struct PyModuleDef fftdockingmodule = {
     PyModuleDef_HEAD_INIT,
-    "fft_correlate",   // name of module
+    "fft_docking",   // name of module
     NULL,              // module documentation, may be NULL
     -1,                // size of per-interpreter state of the module, or -1 if the module keeps state in global variables.
-    FftCorrelateMethods
+    FftDockingMethods
 };
 
 // Initialization function
-PyMODINIT_FUNC PyInit_fft_correlate(void) {
+PyMODINIT_FUNC PyInit_fft_docking(void) {
     import_array();
-    return PyModule_Create(&fftcorrelatemodule);
+    return PyModule_Create(&fftdockingmodule);
 }

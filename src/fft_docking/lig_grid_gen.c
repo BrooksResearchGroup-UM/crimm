@@ -3,36 +3,20 @@
 #include <stdio.h>
 #include <math.h>
 #include <stdbool.h>
+#include "grid_gen.h"
 
-#ifdef USE_DOUBLES // use -DUSE_DOUBLES=1 to compile with double precision floats
-typedef double user_float_t;
-#else
-typedef float user_float_t;
-#endif
-
-typedef struct{
-    int x, y, z;
-} Dim3d;
-
-typedef struct{
-    user_float_t x, y, z;
-} Vector3d;
-
-typedef struct{
-    user_float_t w, x, y, z;
-} Quaternion;
-
+// Rotate a set of coordinates based on a quaternion
 Vector3d quaternion_rotate(Quaternion q, Vector3d v){
     Vector3d dest;
 
-    user_float_t qxsq = q.x * q.x;
-    user_float_t qysq = q.y * q.y;
-    user_float_t qzsq = q.z * q.z;
+    float qxsq = q.x * q.x;
+    float qysq = q.y * q.y;
+    float qzsq = q.z * q.z;
 
-    user_float_t qxqy = q.x * q.y;
-    user_float_t qxqz = q.x * q.z;
-    user_float_t qyqz = q.y * q.z;
-    user_float_t qwsq = q.w * q.w;
+    float qxqy = q.x * q.y;
+    float qxqz = q.x * q.z;
+    float qyqz = q.y * q.z;
+    float qwsq = q.w * q.w;
 
     dest.x = v.x * (qwsq + qxsq - qysq - qzsq) +
             2* (v.y * (qxqy - q.w*q.z) + v.z * (qxqz + q.w*q.y));
@@ -46,9 +30,10 @@ Vector3d quaternion_rotate(Quaternion q, Vector3d v){
     return dest;
 }
 
-void batch_quatornion_rotate(
-    const user_float_t* quats, const user_float_t* coords, const int N_quats, 
-    const int N_coords, user_float_t* coords_rotated
+// Batch rotate coordinates based on quaternions
+void batch_quaternion_rotate(
+    const float* coords, const int N_coords, const float* quats, 
+    const int N_quats, float* coords_rotated
 ){
     for (int i = 0; i < N_quats; i++){
         Quaternion q = {quats[i * 4], quats[i * 4 + 1], quats[i * 4 + 2], quats[i * 4 + 3]};
@@ -62,8 +47,9 @@ void batch_quatornion_rotate(
     }
 }
 
+// Get the minimum coordinate of the grid
 Vector3d get_min_coord(
-    const user_float_t* grid_pos, const int N_grid_points
+    const float* grid_pos, const int N_grid_points
 ){  
     float diff;
     bool is_neg;
@@ -82,11 +68,31 @@ Vector3d get_min_coord(
     return min_grid_coord;
 }
 
+// Find the maximum pairwise distance within a set of coordinates
+float get_max_pairwise_dist(const float* coords, const int N_coords) {
+    float max_dist = 0.0;
+    float diff;
+    bool is_neg;
+    for (int i = 0; i < N_coords; i++) {
+        for (int j = i + 1; j < N_coords; j++) {
+            float dx = coords[i * 3] - coords[j * 3];
+            float dy = coords[i * 3 + 1] - coords[j * 3 + 1];
+            float dz = coords[i * 3 + 2] - coords[j * 3 + 2];
+            float dist = sqrtf(dx * dx + dy * dy + dz * dz);
+            diff = max_dist - dist;
+            is_neg = signbit(diff);
+            max_dist -= is_neg * diff;
+        }
+    }
+    return max_dist;
+}
+
+// Generate ligand grid
 void gen_lig_grid(
-    const user_float_t grid_spacing, const user_float_t* charges,
-    const user_float_t* vdw_attr_factors, const user_float_t* vdw_rep_factors,
-    user_float_t* coords, const int N_coords, const int grid_dim, 
-    user_float_t* elec_grid, user_float_t* vdw_grid_attr, user_float_t* vdw_grid_rep
+    const float grid_spacing, const float* charges,
+    const float* vdw_attr_factors, const float* vdw_rep_factors,
+    float* coords, const int N_coords, const int grid_dim, 
+    float* elec_grid, float* vdw_grid_attr, float* vdw_grid_rep
 ){
     Vector3d min_grid_coord = get_min_coord(coords, N_coords);
     for (int i = 0; i < N_coords; i++){
@@ -107,9 +113,9 @@ void gen_lig_grid(
             d_grid_coord.y / grid_spacing - grid_coord_idx.y,
             d_grid_coord.z / grid_spacing - grid_coord_idx.z
         };
-        user_float_t charge = charges[i];
-        user_float_t vdw_attr_factor = vdw_attr_factors[i];
-        user_float_t vdw_rep_factor = vdw_rep_factors[i];
+        float charge = charges[i];
+        float vdw_attr_factor = vdw_attr_factors[i];
+        float vdw_rep_factor = vdw_rep_factors[i];
         for (int x = 0; x < 2; x++){
             for (int y = 0; y < 2; y++){
                 for (int z = 0; z < 2; z++){
@@ -118,7 +124,7 @@ void gen_lig_grid(
                         (grid_coord_idx.y + y) * grid_dim +
                         (grid_coord_idx.z + z)
                     );
-                    user_float_t frac = (
+                    float frac = (
                         (x == 0 ? 1.0 - grid_coord_frac.x : grid_coord_frac.x) *
                         (y == 0 ? 1.0 - grid_coord_frac.y : grid_coord_frac.y) *
                         (z == 0 ? 1.0 - grid_coord_frac.z : grid_coord_frac.z)
@@ -132,32 +138,34 @@ void gen_lig_grid(
     }
 }
 
+// Calculate vdw energy factors from epsilon and vdw r_min
 void calc_vdw_energy_factors(
-    const user_float_t* epsilons, const user_float_t* vdw_rs, const int N_coords, 
-    user_float_t* vdw_attr_factors, user_float_t* vdw_rep_factors
+    const float* epsilons, const float* vdw_rs, const int N_coords, 
+    float* vdw_attr_factors, float* vdw_rep_factors
 ){
-    user_float_t epsilon_sqrt, r_min_3;
+    float epsilon_sqrt, r_min_3;
     for (int i = 0; i < N_coords; i++){
-        user_float_t vdw_r = vdw_rs[i];
-        user_float_t epsilon = epsilons[i];
-        epsilon_sqrt = sqrt(fabsf(epsilon));
-        r_min_3 = pow(vdw_r, 3.0);
+        float vdw_r = vdw_rs[i];
+        float epsilon = epsilons[i];
+        epsilon_sqrt = sqrtf(fabsf(epsilon));
+        r_min_3 = powf(vdw_r, 3.0);
         vdw_attr_factors[i] = epsilon_sqrt * r_min_3;
-        vdw_rep_factors[i] = epsilon_sqrt * pow(r_min_3, 2.0);
+        vdw_rep_factors[i] = epsilon_sqrt * r_min_3 * r_min_3;
     }
 }
 
+// Rotate and generate ligand grids
 void rotate_gen_lig_grids(
-    const user_float_t grid_spacing, const user_float_t* charges,
-    const user_float_t* vdw_attr_factors, const user_float_t* vdw_rep_factors,
-    const user_float_t* coords, const int N_coords,
-    const user_float_t* quats, const int N_quats, const int cube_dim, 
-    user_float_t* rot_coords, user_float_t* elec_grids, 
-    user_float_t* vdw_grids_attr, user_float_t* vdw_grids_rep
+    const float grid_spacing, const float* charges,
+    const float* vdw_attr_factors, const float* vdw_rep_factors,
+    const float* coords, const int N_coords,
+    const float* quats, const int N_quats, const int cube_dim, 
+    float* rot_coords, float* elec_grids, 
+    float* vdw_grids_attr, float* vdw_grids_rep
 ){
     int N_grid_points = cube_dim * cube_dim * cube_dim;
     for (int i = 0; i < N_quats; i++){
-        user_float_t* cur_coords = rot_coords + i * N_coords * 3;
+        float* cur_coords = rot_coords + i * N_coords * 3;
         Quaternion q = {quats[i * 4], quats[i * 4 + 1], quats[i * 4 + 2], quats[i * 4 + 3]};
         for (int j = 0; j < N_coords; j++){
             Vector3d v = {coords[j * 3], coords[j * 3 + 1], coords[j * 3 + 2]};
@@ -166,9 +174,9 @@ void rotate_gen_lig_grids(
             cur_coords[j * 3 + 1] = v_rotated.y;
             cur_coords[j * 3 + 2] = v_rotated.z;
         }
-        user_float_t* elec_grid = elec_grids + i * N_grid_points;
-        user_float_t* vdw_grid_attr = vdw_grids_attr + i * N_grid_points;
-        user_float_t* vdw_grid_rep = vdw_grids_rep + i * N_grid_points;
+        float* elec_grid = elec_grids + i * N_grid_points;
+        float* vdw_grid_attr = vdw_grids_attr + i * N_grid_points;
+        float* vdw_grid_rep = vdw_grids_rep + i * N_grid_points;
         gen_lig_grid(
             grid_spacing, charges, vdw_attr_factors, vdw_rep_factors, 
             cur_coords, N_coords, cube_dim, 
@@ -176,3 +184,4 @@ void rotate_gen_lig_grids(
         );
     }
 }
+

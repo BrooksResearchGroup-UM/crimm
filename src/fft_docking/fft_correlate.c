@@ -58,10 +58,6 @@ void fft_correlate(
   size_t N_lig_grid_points = nx_lig * ny_lig * nz_lig;
   // Number FFT coefficients (only half of the array is needed due to symmetry)
   size_t N_fft_points = nx * ny * (nz / 2 + 1); 
-  // Get result array roll steps (half of the probe grid dimension)
-  int roll_x = nx_lig / 2 + nx_lig % 2;
-  int roll_y = ny_lig / 2 + ny_lig % 2;
-  int roll_z = nz_lig / 2 + nz_lig % 2;
   // Allocate memory for FFTW plans and data
   fftwf_plan plan_fwd, plan_inv;
   fftwf_complex *fft_r, *fft_l;
@@ -92,16 +88,16 @@ void fft_correlate(
       // The pointer to the padded ligand array is the same as the pointer 
       // to the correlation array
       fftwf_execute_dft_r2c(plan_fwd, padded_lig, cur_fft_l);
-      // Perform element-wise complex conjugate multiplication
+
       for (size_t k = 0; k < N_fft_points; k++) {
-        cur_fft_l[k] = conjf(fft_r[k]) * cur_fft_l[k] * scale;
+        cur_fft_l[k] += fft_r[k] * conjf(cur_fft_l[k]) * scale;
       }
       // Execute inverse FFT on the product
       fftwf_execute_dft_c2r(plan_inv, cur_fft_l, padded_lig);
-      // Flip and roll to correct the data, and then add to the result array
-      flip_roll_and_sum(
-        padded_lig, cur_result_arr, roll_x, roll_y, roll_z, nx, ny, nz
-      );
+      // Add the result to the result array
+      for (size_t k = 0; k < N_grid_points; k++) {
+        cur_result_arr[k] += padded_lig[k];
+      }
       fftwf_free(padded_lig);
     }
   }

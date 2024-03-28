@@ -7,3 +7,6 @@ include crimm/Data/water_coords.npy
 include crimm/Data/quaternions-1.npy
 include crimm/Data/quaternions-2.npy
 include crimm/Data/quaternions-3.npy
+include src/fft_docking/*.c
+include src/fft_docking/*.h
+include src/fft_docking/*.cu

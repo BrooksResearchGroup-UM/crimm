@@ -34,6 +34,7 @@ import warnings
 import requests, json
 from crimm.Fetchers import fetch_rcsb_as_dict
 from crimm import StructEntities
+import numpy as np
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit.Chem import BondType as rdBond
@@ -490,9 +491,8 @@ def heterogen_to_rdkit(het_res, smiles=None):
         )
         warnings.warn(msg, LigandBondOrderWarning)
         return
-    
-def create_rdkit_mol_from_probe(probe):
-    """Create an rdkit mol object from a probe object."""
+
+def create_probe_mol(probe, use_conf=True):
     edmol = Chem.EditableMol(Chem.Mol())
     rd_atoms = {}
     conf = Chem.Conformer()
@@ -508,12 +508,35 @@ def create_rdkit_mol_from_probe(probe):
         idx1, idx2 = rd_atoms[a1], rd_atoms[a2]
         bo = get_rdkit_bond_order(bond.type)
         edmol.AddBond(idx1, idx2, bo)
-
     mol = edmol.GetMol()
-    mol.AddConformer(conf)
+    if use_conf:
+        mol.AddConformer(conf)
     AllChem.SanitizeMol(mol)
-    mol = AllChem.AddHs(mol, addCoords=True)
+    mol = AllChem.AddHs(mol, addCoords=use_conf)
     AllChem.SanitizeMol(mol)
     AllChem.ComputeGasteigerCharges(mol)
     Chem.AssignStereochemistryFrom3D(mol)
     return mol
+
+def create_probe_confomers(probe, conf_coords: np.ndarray):
+    if conf_coords.shape[1] != len(probe.atoms):
+        raise ValueError(
+            'Number of atoms in probe and number of coordinates do not match!'
+        )
+    mol = create_probe_mol(probe, use_conf=False)
+    for conf_coord in conf_coords:
+        conf = Chem.Conformer()
+        conf.Set3D(True)
+        for atom_idx, coord in enumerate(conf_coord):
+            coord = Point3D(*coord.astype(np.float64))
+            conf.SetAtomPosition(atom_idx, coord)
+        mol.AddConformer(conf, assignId=True)
+    return mol
+
+def write_conformers_sdf(mol, filename):
+    conformers = mol.GetConformers()
+    if not conformers:
+        raise ValueError('No conformers found in the molecule!')
+    with AllChem.SDWriter(filename) as writer:
+        for conf in conformers:
+            writer.write(mol, confId=conf.GetId())

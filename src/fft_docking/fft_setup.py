@@ -8,7 +8,8 @@ fft_correlate_module = Extension(
         'py_bindings.c',
         'fft_correlate.c',
         'rank_poses.c',
-        'grid_gen.c'
+        'grid_gen.c',
+        'lig_grid_gen.c'
     ],
     include_dirs=[
         numpy.get_include(),
@@ -22,7 +23,7 @@ fft_correlate_module = Extension(
     define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')],
     extra_compile_args=[
     '-Ofast', 
-    # '-g',
+    '-g',
     '-fopenmp'
     ]
 )

@@ -14,8 +14,8 @@ typedef struct {
 } OrienPoseScore;
 
 void rank_poses(
-  float *scores, const int n_orientations, const int n_scores,
-  const int sample_factor, const int n_top_scores, int n_threads,
+  float *scores, const size_t n_orientations, const size_t n_scores,
+  const size_t sample_factor, const size_t n_top_scores, int n_threads,
   OrienPoseScore *top_scores
 );
 
