@@ -102,6 +102,15 @@ def convert_chains(chains):
             new_chain = Solvent(new_chain_id)
         for res in residues:
             res.detach_parent()
+            if res.resname == 'ILE' and 'CD' in res:
+                # ILE could have a CD atom (CHARMM convention) 
+                # that is not in the standard PDB format
+                atom = res['CD']
+                res.detach_child('CD')
+                atom.name = 'CD1'
+                atom.id = 'CD1'
+                atom.fullname = ' CD1'
+                res.add(atom)
             new_chain.add(res)
         new_chains.append(new_chain)
     return new_chains
