@@ -43,9 +43,9 @@ class _Grid:
                     spacing
                 )
             )
-        grid_pos = np.array(
+        grid_pos = np.ascontiguousarray(np.array(
             np.meshgrid(*dims, indexing='ij')
-        ).reshape(3,-1).T.astype(np.float32)
+        ).reshape(3,-1).T, dtype=np.float32)
         x_pos, y_pos, z_pos = dims
         dim_sizes = np.array([x_pos.size, y_pos.size, z_pos.size])
         return dim_sizes, grid_pos

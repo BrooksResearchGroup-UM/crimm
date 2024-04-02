@@ -12,4 +12,8 @@ void fft_correlate(
   float *result_arr
 );
 
+void sum_grids(
+  float *grids, float *result, size_t N_orietations, int N_grids, size_t N_grid_points
+);
+
 #endif

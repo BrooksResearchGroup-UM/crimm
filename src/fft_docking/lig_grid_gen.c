@@ -104,9 +104,9 @@ void gen_lig_grid(
             coord.z - min_grid_coord.z
         };
         Dim3d grid_coord_idx = {
-            (int) floor(d_grid_coord.x / grid_spacing),
-            (int) floor(d_grid_coord.y / grid_spacing),
-            (int) floor(d_grid_coord.z / grid_spacing)
+            (int) floorf(d_grid_coord.x / grid_spacing),
+            (int) floorf(d_grid_coord.y / grid_spacing),
+            (int) floorf(d_grid_coord.z / grid_spacing)
         };
         Vector3d grid_coord_frac = {
             d_grid_coord.x / grid_spacing - grid_coord_idx.x,

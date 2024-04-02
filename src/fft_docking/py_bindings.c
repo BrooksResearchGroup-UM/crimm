@@ -5,6 +5,7 @@
 #include "rank_poses.h"
 #include "grid_gen.h"
 
+// TODO: Add check for NPY_ARRAY_C_CONTIGUOUS flag
 // Wrapper function to be called from Python
 // Generate Protein Grids
 static PyObject* py_generate_grids(PyObject* self, PyObject* args) {
@@ -376,7 +377,7 @@ static PyObject* py_fft_correlate(PyObject* self, PyObject* args) {
     float *lig_arr = (float *)PyArray_DATA(lig_grid);
     
     // Allocate memory for the result array
-    size_t n_result_grid_points = N_grid_points * n_orientations;
+    size_t n_result_grid_points = N_grid_points * n_orientations * n_grids;
     float *result_arr = (float *)calloc(
       n_result_grid_points, sizeof(float)
     );
@@ -395,8 +396,8 @@ static PyObject* py_fft_correlate(PyObject* self, PyObject* args) {
       n_threads, result_arr
     );
     // Create a new NumPy array from the fft correlation result
-    npy_intp dims[4] = {n_orientations, nx, ny, nz};
-    PyObject *npy_result = PyArray_SimpleNewFromData(4, dims, NPY_FLOAT32, result_arr);
+    npy_intp dims[5] = {n_orientations, n_grids, nx, ny, nz};
+    PyObject *npy_result = PyArray_SimpleNewFromData(5, dims, NPY_FLOAT32, result_arr);
     if (npy_result == NULL) {
       PyErr_SetString(PyExc_MemoryError, "Failed to create result array");
       return NULL;
@@ -405,6 +406,76 @@ static PyObject* py_fft_correlate(PyObject* self, PyObject* args) {
     // Return the result array
     return npy_result;
 }
+
+// Function to sum grids
+static PyObject *py_sum_grids(PyObject *self, PyObject *args){
+        PyArrayObject *grids;
+        int n_grids;
+        size_t n_orientations, n_scores;
+        if (!PyArg_ParseTuple(args, "O!", &PyArray_Type, &grids)) {
+            return NULL;
+        }
+        // Check array dimensions and data type
+        if (PyArray_TYPE(grids) != NPY_FLOAT32) {
+            PyErr_SetString(PyExc_TypeError, "Expected grids array of float32");
+            return NULL;
+        }
+        int n_dims = PyArray_NDIM(grids);
+        npy_intp out_dims[n_dims-1];
+        // Check array dimensions and data type
+        if (n_dims == 5) {
+            // Get array dimensions
+            n_orientations = PyArray_DIMS(grids)[0];
+            n_grids = PyArray_DIMS(grids)[1];
+            int nx = PyArray_DIMS(grids)[2];
+            int ny = PyArray_DIMS(grids)[3];
+            int nz = PyArray_DIMS(grids)[4];
+            n_scores = nx * ny * nz;
+            out_dims[0] = n_orientations;
+            out_dims[1] = nx;
+            out_dims[2] = ny;
+            out_dims[3] = nz;
+        } else if (n_dims == 3) {
+            // Get array dimensions
+            n_orientations = PyArray_DIMS(grids)[0];
+            n_grids = PyArray_DIMS(grids)[1];
+            n_scores = PyArray_DIMS(grids)[2];
+            out_dims[0] = n_orientations;
+            out_dims[1] = n_scores;
+        } else {
+        PyErr_SetString(
+            PyExc_TypeError, 
+            "Expected scores array of float32 with 5 dimension \
+            (n_grids, n_orientations, nx, ny, nz), or 2 dimension \
+            (n_grids, n_orientations, n_scores)."
+        );
+        return NULL;
+        }
+        
+        // Get NumPy arrays data pointers
+        float *grids_arr = (float *)PyArray_DATA(grids);
+        // Allocate memory for the result array
+        size_t n_grid_points = n_scores * n_orientations;
+        float *result_arr = (float *)calloc(n_grid_points, sizeof(float));
+        if (result_arr == NULL) {
+            PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory for result array");
+            return NULL;
+        }
+        // Perform grid summation
+        sum_grids(grids_arr, result_arr, n_orientations, n_grids, n_scores);
+        // Create a new NumPy array from the result array
+        PyObject *npy_result = PyArray_SimpleNewFromData(
+            n_dims-1, out_dims, NPY_FLOAT32, result_arr
+        );
+        if (npy_result == NULL) {
+            PyErr_SetString(PyExc_MemoryError, "Failed to create result array");
+            return NULL;
+        }
+        PyArray_ENABLEFLAGS((PyArrayObject*) npy_result, NPY_ARRAY_OWNDATA);
+        // Return the result array
+        return npy_result;
+    }
+
 
 // Function to pack the top scores and their indices into a tuple to return to Python
 static PyObject *pack_top_scores_as_tuple(
@@ -497,6 +568,7 @@ static PyMethodDef FftDockingMethods[] = {
     {"rotate_gen_lig_grids", py_rotate_gen_lig_grids, METH_VARARGS, "Rotate and generate ligand grids"},
     {"batch_quaternion_rotate", py_batch_quatornion_rotate, METH_VARARGS, "Batch quaternion rotation"},
     {"fft_correlate", py_fft_correlate, METH_VARARGS, "FFT Correlation Batch"},
+    {"sum_grids", py_sum_grids, METH_VARARGS, "Sum grids"},
     {"rank_poses", py_rank_poses, METH_VARARGS | METH_KEYWORDS, "Rank poses"},
     {NULL, NULL, 0, NULL}
 };

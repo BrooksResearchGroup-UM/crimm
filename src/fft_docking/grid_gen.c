@@ -17,7 +17,7 @@ void calc_grid_coord_pairwise_dist(
             dx = grid_pos[i * 3] - coords[j * 3];
             dy = grid_pos[i * 3 + 1] - coords[j * 3 + 1];
             dz = grid_pos[i * 3 + 2] - coords[j * 3 + 2];
-            dists[i * N_coords + j] = sqrt(dx * dx + dy * dy + dz * dz);
+            dists[i * N_coords + j] = sqrtf(dx * dx + dy * dy + dz * dz);
         }
     }
 }
@@ -53,7 +53,7 @@ float calc_point_elec_potential_constant(
     const float elec_attr_max
 ) {
     float cur_potential, dist;
-    dist = sqrt(dist_sq);
+    dist = sqrtf(dist_sq);
     // beyond cutoff
     if (dist_sq > rc_sq) {
         cur_potential = elec_const / dist;
@@ -107,12 +107,13 @@ void gen_all_grids(
     for (int i = 0; i < N_coords; i++) {
         // calculate vdw constants
         r_min = vdw_rs[i];
-        eps_sqrt = sqrt(fabs(epsilons[i]));
-        vdwconst_attr = 0.5 * fabs(vwd_attr_max) / eps_sqrt;
-        vdwconst_rep = 0.25 * fabs(vwd_rep_max) / eps_sqrt;
+        eps_sqrt = sqrtf(fabsf(epsilons[i]));
+        vdwconst_attr = 0.25 * fabsf(vwd_attr_max) / eps_sqrt;
+        vdwconst_rep = 0.5 * fabsf(vwd_rep_max) / eps_sqrt;
         // vdw cutoff distance squared
-        rc_sq_vdw_attr = r_min * r_min * pow(vdwconst_attr, -1.0 / 3.0);
-        rc_sq_vdw_rep = r_min * r_min * pow(vdwconst_rep, -1.0 / 6.0);
+        rc_sq_vdw_attr = r_min * powf(vdwconst_attr, -1.0 / 3.0);
+        rc_sq_vdw_rep = r_min * powf(vdwconst_rep, -1.0 / 6.0);
+        // we use half of the beta since the rc and dist are squared
         beta_attr = -12.0 * eps_sqrt / vwd_attr_max * vdwconst_attr;
         beta_rep = 12.0 * eps_sqrt / vwd_rep_max * vdwconst_rep;
         // calculate electrostatic constants
@@ -126,8 +127,8 @@ void gen_all_grids(
             emax_tmp = elec_attr_max;
         }
         // elec cutoff distance squared
-        rc_sq_elec = 2.0 * fabs(elec_const / emax_tmp);
-        alpha = fabs(emax_tmp / (2.0 * rc_sq_elec));
+        rc_sq_elec = 2.0 * fabsf(elec_const / emax_tmp);
+        alpha = fabsf(emax_tmp / (2.0 * rc_sq_elec));
 
         for (int j = 0; j < N_grid_points; j++) {
             // pairwise distances squared between the receptor atom coords 
@@ -137,7 +138,7 @@ void gen_all_grids(
             dz = grid_pos[j * 3 + 2] - coords[i * 3 + 2];
             dist_sq = dx * dx + dy * dy + dz * dz;
 
-            r6 = pow(r_min / dist_sq, 3.0); // (sqrt(r_min)/r)^6
+            r6 = powf(r_min / dist_sq, 3.0); // (sqrt(r_min)/r)^6
             
             // repulsive vdw grid
             if (dist_sq > rc_sq_vdw_rep) {
@@ -148,7 +149,7 @@ void gen_all_grids(
                 // within cutoff
                 #pragma omp atomic
                 vdw_grid_rep[j] += vwd_rep_max * 
-                (1.0 - 0.5 * pow((dist_sq / rc_sq_vdw_rep), beta_rep));
+                (1.0 - 0.5 * powf((dist_sq / rc_sq_vdw_rep), beta_rep));
             }
             // attractive vdw grid
             if (dist_sq > rc_sq_vdw_attr) {
@@ -158,7 +159,7 @@ void gen_all_grids(
                 // within cutoff
                 #pragma omp atomic
                 vdw_grid_attr[j] += vwd_attr_max * 
-                (1.0 - 0.5 * pow((dist_sq / rc_sq_vdw_attr), beta_attr));
+                (1.0 - 0.5 * powf((dist_sq / rc_sq_vdw_attr), beta_attr));
             }
             // electrostatic grid
             cur_elec_potential = (*calc_point_elec_potential)(

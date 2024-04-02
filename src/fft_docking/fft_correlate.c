@@ -19,25 +19,36 @@ void fill_padded_array(
   }
 }
 
-// Function to sum all grids in the input array
-// the output array will be flipped and rolled by the roll steps
-// to correct for the index changes from fft_correlation
-// roll step should be half of the probe grid dimension (ceiling of nx/2)
-void flip_roll_and_sum(
+// Function to roll and sum the array
+void roll_and_sum_array(
   float *grids, float *result, int roll_x, int roll_y, int roll_z,
   int nx, int ny, int nz
 ){
   // Get array dimensions
-  for (int x = nx - 1, new_x = 0; x >= 0; x--, new_x++) {
-    for (int y = ny - 1, new_y = 0; y >= 0; y--, new_y++) {
-      for (int z = nz - 1, new_z = 0; z >= 0; z--, new_z++) {
-        int updated_idx = \
-          (new_x + roll_x) % nx * ny * nz + 
-          (new_y + roll_y) % ny * nz + 
-          (new_z + roll_z) % nz;
+  for (int x = 0; x < nx; x++) {
+    for (int y = 0; y < ny; y++) {
+      for (int z = 0; z < nz; z++) {
+        int updated_idx = (
+          (x + roll_x) % nx * ny * nz + 
+          (y + roll_y) % ny * nz + 
+          (z + roll_z) % nz
+        );
         result[updated_idx] += grids[
           x * ny * nz + y * nz + z
         ];
+      }
+    }
+  }
+}
+
+void sum_grids(
+  float *grids, float *result, size_t N_orietations, int N_grids, size_t N_scores
+) {
+  #pragma omp parallel for 
+  for (size_t i = 0; i < N_orietations; i++) {
+    for (int j = 0; j < N_grids; j++) {
+      for (size_t k = 0; k < N_scores; k++) {
+        result[N_scores * i + k] += grids[N_scores * (i * N_grids + j) + k];
       }
     }
   }
@@ -56,6 +67,7 @@ void fft_correlate(
   // Number of grid points
   size_t N_grid_points = nx * ny * nz;
   size_t N_lig_grid_points = nx_lig * ny_lig * nz_lig;
+
   // Number FFT coefficients (only half of the array is needed due to symmetry)
   size_t N_fft_points = nx * ny * (nz / 2 + 1); 
   // Allocate memory for FFTW plans and data
@@ -79,9 +91,9 @@ void fft_correlate(
     // to the outer loop and use collapse(2) to parallelize the inner loop
     #pragma omp parallel for num_threads(N_threads) 
     for (int j = 0; j < N_orientations; j++) {
-      float *cur_result_arr = result_arr + (N_grid_points * j);
+      float *cur_result_arr = result_arr + (N_grid_points * (N_grids * j + i));
       float *padded_lig = (float *)fftwf_alloc_real(N_grid_points);
-      memset(padded_lig, 0, N_grid_points * sizeof(float));
+      memset(padded_lig, 0.0, N_grid_points * sizeof(float));
       float *cur_lig = lig_arr + (N_lig_grid_points * (N_grids * j + i));
       fill_padded_array(nx_lig, ny_lig, nz_lig, nx, ny, nz, cur_lig, padded_lig);
       fftwf_complex *cur_fft_l = fft_l + (N_fft_points * j);
@@ -90,14 +102,15 @@ void fft_correlate(
       fftwf_execute_dft_r2c(plan_fwd, padded_lig, cur_fft_l);
 
       for (size_t k = 0; k < N_fft_points; k++) {
-        cur_fft_l[k] += fft_r[k] * conjf(cur_fft_l[k]) * scale;
+        cur_fft_l[k] = fft_r[k] * conjf(cur_fft_l[k]) * scale;
       }
       // Execute inverse FFT on the product
       fftwf_execute_dft_c2r(plan_inv, cur_fft_l, padded_lig);
+      memcpy(cur_result_arr, padded_lig, N_grid_points * sizeof(float));
       // Add the result to the result array
-      for (size_t k = 0; k < N_grid_points; k++) {
-        cur_result_arr[k] += padded_lig[k];
-      }
+      // for (size_t k = 0; k < N_grid_points; k++) {
+      //   cur_result_arr[k] += padded_lig[k];
+      // }
       fftwf_free(padded_lig);
     }
   }

@@ -1,8 +1,9 @@
 import numpy as np
+# This is a C extension module compiled from src/fft_docking/py_bindings.c
 from crimm import fft_docking
-from crimm.Docking.GridGenerator import ReceptorGridGenerator, ProbeGridGenerator
+from .GridGenerator import ReceptorGridGenerator, ProbeGridGenerator
 from crimm.Data.probes.probes import create_new_probe_set
-
+from .GridShapes import CubeGrid, ConvexHullGrid, BoundingBoxGrid, TruncatedSphereGrid
 
 class FFTDocker:
     def __init__(
@@ -39,6 +40,7 @@ class FFTDocker:
         self.pose_id = None
         self.orientation_id = None
         self.top_scores = None
+        self.total_energy = None
         self.result = None
 
     def load_receptor(self, receptor):
@@ -52,29 +54,43 @@ class FFTDocker:
             vdw_attr_max=self.vdw_attr_max,
             use_constant_dielectric=False
         )
+        self.recep_gen.load_entity(receptor, grid_shape=self.effective_grid_shape)
+        self.receptor_grids = self.recep_gen.get_potential_grids()
+
+
+    def load_probe(self, probe):
         self.probe_gen = ProbeGridGenerator(
             grid_spacing=self.grid_spacing,
             rotation_search_level=self.rotation_level
         )
-        self.recep_gen.load_entity(receptor, grid_shape=self.effective_grid_shape)
-        self.receptor_grids = self.recep_gen.get_potential_grids()
-
-    def dock(self, probe):
-        if self.receptor_grids is None:
-            raise ValueError('Receptor must be loaded before docking')
-
         self.probe_gen.load_probe(probe)
         self.probe_grids = self.probe_gen.get_param_grids()
+
+    # TODO: Implement batch splitting for large number of poses
+    def dock(self):
+        if self.receptor_grids is None or self.probe_grids is None:
+            raise ValueError('Receptor and Probe must be loaded before docking')
 
         self.result = fft_docking.fft_correlate(
             self.receptor_grids, self.probe_grids, self.n_threads
         )
-    
+        self.total_energy = fft_docking.sum_grids(self.result)
+
+    def dock_single_pose(self, pose_coords):
+        if self.receptor_grids is None or self.probe_grids is None:
+            raise ValueError('Receptor and Probe must be loaded before docking')
+
+        pose_grids = self.probe_gen.generate_grids_single_pose(pose_coords)
+        result = fft_docking.fft_correlate(
+            self.receptor_grids, np.expand_dims(pose_grids,0), self.n_threads
+        )
+        return np.squeeze(result)
+
     def rank_poses(self):
         self.top_scores, self.pose_id, self.orientation_id = fft_docking.rank_poses(
-            self.result, 
+            self.total_energy, 
             top_n_poses=self.n_top_poses,
-            sample_factor=self.reduce_sample_factor, 
+            sample_factor=self.reduce_sample_factor,
             n_threads=self.n_threads
         )
         self.conf_coords = self._get_conf_coords(self.pose_id, self.orientation_id)
@@ -82,8 +98,13 @@ class FFTDocker:
 
     def _get_conf_coords(self, pose_id, orientation_id):
         selected_ori_coord = self.probe_gen.rotated_coords[orientation_id]
-        dists_to_recep_grid = self.recep_gen.bounding_box_grid.coords[pose_id]
+        coord_grid = self.recep_gen.coord_grid
+        if isinstance(coord_grid, CubeGrid):
+            dists_to_recep_grid = coord_grid.coords[pose_id]
+        else:
+            dists_to_recep_grid = self.recep_gen.bounding_box_grid.coords[pose_id]
         probe_origins = (selected_ori_coord.max(1) + selected_ori_coord.min(1))/2
         offsets = dists_to_recep_grid + probe_origins
         conf_coords = selected_ori_coord+offsets[:,np.newaxis,:]
+
         return conf_coords

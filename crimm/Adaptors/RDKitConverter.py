@@ -512,8 +512,8 @@ def create_probe_mol(probe, use_conf=True):
     if use_conf:
         mol.AddConformer(conf)
     AllChem.SanitizeMol(mol)
-    mol = AllChem.AddHs(mol, addCoords=use_conf)
-    AllChem.SanitizeMol(mol)
+    # mol = AllChem.AddHs(mol, addCoords=use_conf)
+    # AllChem.SanitizeMol(mol)
     AllChem.ComputeGasteigerCharges(mol)
     Chem.AssignStereochemistryFrom3D(mol)
     return mol
