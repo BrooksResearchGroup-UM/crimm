@@ -2,6 +2,26 @@ import numpy as np
 from numpy.linalg import norm
 from scipy.spatial import ConvexHull, Delaunay
 
+def is_divisible_by_2357(x):
+    """Check if the input integer is divisible by 2, 3, 5, or 7."""
+    prime_factors = np.array([2, 3, 5, 7])
+    modulus = np.mod(x, prime_factors)
+    mask = np.logical_not(modulus)
+    if not mask.any():
+        return False
+    other_factors = x//prime_factors[mask]
+    if 1 in other_factors:
+        return True
+    for factor in other_factors:
+        return is_divisible_by_2357(factor)
+
+def find_optimized_dim(x):
+    """Return the smallest number x' that is divisible by 2, 3, 5, or 7 
+    where x' >= x (the input number)."""
+    while not is_divisible_by_2357(x):
+        x+=1
+    return x
+
 class _Grid:
     def __init__(self, coord_center, spacing, padding) -> None:
         self._center = coord_center
@@ -30,11 +50,25 @@ class _Grid:
         """Return the coordinates of the grid points (N, 3) """
         return self._coords
 
-    @staticmethod
-    def _get_box_grid(center, grid_half_widths, spacing):
+    def find_optimal_dims(self, dims):
+        """Return the optimal dimensions for fast fourier transform. The returned
+        dimensions are the smallest power of (2, 3, 5, 7) that is greater than 
+        the input dims."""
+        for i, dim in enumerate(dims):
+            dims[i] = find_optimized_dim(dim)
+        return dims
+
+    def _get_box_grid(
+            self, center, grid_half_widths, spacing, optimize_for_fft=False
+        ):
         """Return a grid of points (N, 3) defined by a center (x, y, z) and the
         grid box's half widths (x_len/2, y_len/2, z_len/2)."""
         dims = []
+        if optimize_for_fft:
+            widths = grid_half_widths*2
+            n_grids = np.ceil(widths/spacing).astype(int)
+            n_grids = self.find_optimal_dims(n_grids)-1
+            grid_half_widths = n_grids*spacing/2
         for mid_point, half_width in zip(center, grid_half_widths):
             dims.append(
                 np.arange(
@@ -43,37 +77,40 @@ class _Grid:
                     spacing
                 )
             )
+        x_pos, y_pos, z_pos = dims
+        dim_sizes = np.array([x_pos.size, y_pos.size, z_pos.size])
+        if optimize_for_fft:
+            assert np.alltrue(dim_sizes == n_grids+1)
         grid_pos = np.ascontiguousarray(np.array(
             np.meshgrid(*dims, indexing='ij')
         ).reshape(3,-1).T, dtype=np.float32)
-        x_pos, y_pos, z_pos = dims
-        dim_sizes = np.array([x_pos.size, y_pos.size, z_pos.size])
+        
         return dim_sizes, grid_pos
 
 class CubeGrid(_Grid):
     """A grid of points (N, 3) that covers the bounding cube of the coordinates."""
-    def __init__(self, dims, coord_center, spacing, padding) -> None:
+    def __init__(self, dims, coord_center, spacing, padding, optimize_for_fft) -> None:
         super().__init__(coord_center, spacing, padding)
         grid_half_widths = (np.ceil(np.max(dims)/2)+padding)*np.ones(3)
         self._points_per_dim, self._coords = self._get_box_grid(
-            coord_center, grid_half_widths, spacing
+            coord_center, grid_half_widths, spacing, optimize_for_fft
         )
         self.min_coords = self._coords.min(0)
 
 class BoundingBoxGrid(_Grid):
     """A grid of points (N, 3) that covers the bounding box of the coordinates."""
-    def __init__(self, dims, coord_center, spacing, padding) -> None:
+    def __init__(self, dims, coord_center, spacing, padding, optimize_for_fft) -> None:
         super().__init__(coord_center, spacing, padding)
         grid_half_widths = np.ceil(dims/2)+self._padding
         self._points_per_dim, self._coords = self._get_box_grid(
-            coord_center, grid_half_widths, spacing
+            coord_center, grid_half_widths, spacing, optimize_for_fft
         )
         self.min_coords = self._coords.min(0)
 
 class TruncatedSphereGrid(BoundingBoxGrid):
     """A grid of points (N, 3) that covers the truncated sphere of the coordinates."""
-    def __init__(self, dims, coord_center, spacing, padding) -> None:
-        super().__init__(dims, coord_center, spacing, padding)
+    def __init__(self, dims, coord_center, spacing, padding, optimize_for_fft) -> None:
+        super().__init__(dims, coord_center, spacing, padding, optimize_for_fft)
         tolerance = spacing*1e-2
         self.bounding_box_coords = self._coords
         radius = max(self.box_lengths)/2
@@ -95,8 +132,8 @@ class TruncatedSphereGrid(BoundingBoxGrid):
 
 class ConvexHullGrid(BoundingBoxGrid):
     """A grid of points (N, 3) that covers the convex hull of the coordinates."""
-    def __init__(self, entity_coords, dims, coord_center, spacing, padding) -> None:
-        super().__init__(dims, coord_center, spacing, padding)
+    def __init__(self, entity_coords, dims, coord_center, spacing, padding, optimize_for_fft) -> None:
+        super().__init__(dims, coord_center, spacing, padding, optimize_for_fft)
         self.bounding_box_coords = self._coords
         self.Qhull = ConvexHull(entity_coords)
         self.enlarged_hull_vertices = self._enlarge_convex_hull(entity_coords)

@@ -134,16 +134,14 @@ void sort_neg_vals(
     neg_scores[i].score = scores[neg_val_ids[i+1]];
     neg_scores[i].index = neg_val_ids[i+1];
   }
-  if (n_neg_scores < n_top_scores) {
-    get_top_n_scores(neg_scores, n_neg_scores, n_neg_scores, top_scores);
-  }
-  else {
-    get_top_n_scores(neg_scores, n_neg_scores, n_top_scores, top_scores);
-  }
+
+  size_t n_score_to_get = (n_neg_scores < n_top_scores)? n_neg_scores : n_top_scores;
+  get_top_n_scores(neg_scores, n_neg_scores, n_score_to_get, top_scores);
   free(neg_val_ids);
   free(neg_scores);
 }
 
+// Function to rank poses based on docking scores
 void rank_poses(
   float *scores, const size_t n_orientations, const size_t n_scores,
   const size_t sample_factor, const size_t n_top_scores, int n_threads,
@@ -175,3 +173,23 @@ void rank_poses(
   free(top_scores_by_orientation);
 }
 
+// Function to calculate pairwise RMSD between conformations
+void calc_pairwise_rmsd(
+  const float *conf_coords, const size_t n_confs, const size_t n_atoms,
+  float *rmsd
+) {
+  #pragma omp parallel for 
+  for (size_t i = 0; i < n_confs; i++) {
+    for (size_t j = i+1; j < n_confs; j++) {
+      float sum = 0;
+      for (size_t k = 0; k < n_atoms; k++) {
+        for (size_t l = 0; l < 3; l++) {
+          float diff = conf_coords[i*n_atoms*3+k*3+l] - conf_coords[j*n_atoms*3+k*3+l];
+          sum += diff * diff;
+        }
+      }
+      size_t cur_pair = i * (n_confs - 1) - i * (i + 1) / 2 + j - 1;
+      rmsd[cur_pair] = sqrt(sum / n_atoms);
+    }
+  }
+}

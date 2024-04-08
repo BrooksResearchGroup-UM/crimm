@@ -14,15 +14,27 @@ data_dir = os.path.abspath(
 )
 
 class GridCoordGenerator:
-    def __init__(self, grid_spacing, padding) -> None:
+    def __init__(self, grid_spacing, padding, optimize_for_fft) -> None:
         self.spacing = grid_spacing
         self.paddings = padding
         self.entity = None
         self.coords = None
+        self.optimize_for_fft = optimize_for_fft
         self._cubic_grid = None
         self._bounding_box_grid = None
         self._truncated_sphere_grid = None
         self._enlarged_convex_hull_grid = None
+        # the current grid used for energy calculations
+        self.coord_grid : _Grid = None 
+        self._elec_grid = None
+        self._vdw_grid_attr = None
+        self._vdw_grid_rep = None
+        self._dists = None
+        self._charges = None
+        self._epsilons = None
+        self._vdw_rs = None
+        self._grid_shape = None
+        self.param_loader = {}
 
     def load_entity(self, entity):
         """Load entity and set grid spacing and paddings."""
@@ -62,7 +74,8 @@ class GridCoordGenerator:
         """Return a grid of points (N, 3) that covers the bounding cube of the coordinates."""
         if self._cubic_grid is None:
             self._cubic_grid = CubeGrid(
-                self.max_dims, self.coord_center, self.spacing, self.paddings
+                self.max_dims, self.coord_center, self.spacing, self.paddings, 
+                self.optimize_for_fft
             )
         return self._cubic_grid
 
@@ -71,7 +84,8 @@ class GridCoordGenerator:
         """Return a grid of points (N, 3) that covers the bounding box of the coordinates."""
         if self._bounding_box_grid is None:
             self._bounding_box_grid = BoundingBoxGrid(
-                self.max_dims, self.coord_center, self.spacing, self.paddings
+                self.max_dims, self.coord_center, self.spacing, self.paddings,
+                self.optimize_for_fft
             )
         return self._bounding_box_grid
 
@@ -80,7 +94,8 @@ class GridCoordGenerator:
         """Return a grid of points (N, 3) that covers the truncated sphere of the coordinates."""
         if self._truncated_sphere_grid is None:
             self._truncated_sphere_grid = TruncatedSphereGrid(
-                self.max_dims, self.coord_center, self.spacing, self.paddings
+                self.max_dims, self.coord_center, self.spacing, self.paddings,
+                self.optimize_for_fft
             )
         return self._truncated_sphere_grid
 
@@ -90,7 +105,7 @@ class GridCoordGenerator:
         if self._enlarged_convex_hull_grid is None:
             self._enlarged_convex_hull_grid = ConvexHullGrid(
                 self.coords, self.max_dims,
-                self.coord_center, self.spacing, self.paddings
+                self.coord_center, self.spacing, self.paddings, self.optimize_for_fft
             )
         return self._enlarged_convex_hull_grid
 
@@ -122,33 +137,6 @@ class GridCoordGenerator:
 
         return view
 
-class _EnerGridGenerator(GridCoordGenerator):
-    """Base class of potential energy grid generator. Do not use this class"""
-    comp_engine = None
-    def __init__(self, grid_spacing, padding) -> None:
-        super().__init__(grid_spacing, padding)
-        self.coord_grid : _Grid = None # the current grid used for energy calculations
-        self._elec_grid = None
-        self._vdw_grid_attr = None
-        self._vdw_grid_rep = None
-        self._dists = None
-        self._charges = None
-        self._epsilons = None
-        self._vdw_rs = None
-        self._grid_shape = None
-        self.param_loader = {}
-
-    @property
-    def backend(self):
-        return self.comp_engine.backend
-
-    @backend.setter
-    def backend(self, backend):
-        return self.comp_engine.set_backend(backend)
-
-    def load_entity(self, entity):
-        return super().load_entity(entity)
-
     def _collect_params(self):
         charges = []
         vdw_rs = []
@@ -157,11 +145,12 @@ class _EnerGridGenerator(GridCoordGenerator):
             atom_type = atom.topo_definition.atom_type
             charges.append(atom.topo_definition.charge)
             nb_param = self.param_loader['nonbonded'][atom_type]
-            vdw_rs. append(nb_param.rmin_half)
+            vdw_rs.append(nb_param.rmin_half) 
             epsilons.append(nb_param.epsilon)
         # Single precision is enough for energy calculations
         self._charges = np.asarray(charges, dtype=np.float32, order='C')
         self._vdw_rs = np.asarray(vdw_rs, dtype=np.float32, order='C')
+        self._vdw_rs *= 2 # convert rmin_half to rmin
         self._epsilons = np.asarray(epsilons, dtype=np.float32, order='C')
 
     def _fill_dx(self, grid, values_str, spacing=None):
@@ -187,7 +176,7 @@ component "data" value 3'''
         )
         return dx_template
 
-class ReceptorGridGenerator(_EnerGridGenerator):
+class ReceptorGridGenerator(GridCoordGenerator):
     """A potential energy grid generator for a receptor molecule."""
     grid_shape_dict = {
         'cubic': 'cubic_grid',
@@ -196,11 +185,12 @@ class ReceptorGridGenerator(_EnerGridGenerator):
         'convex_hull' : 'convex_hull_grid'
     }
     def __init__(
-            self, grid_spacing, padding, 
+            self, grid_spacing, padding, optimize_for_fft,
             rad_dielec_const=2.0, elec_rep_max=40, elec_attr_max=-20,
             vdw_rep_max=2.0, vdw_attr_max=-1.0, use_constant_dielectric=False
         ) -> None:
-        super().__init__(grid_spacing, padding)
+        super().__init__(grid_spacing, padding, optimize_for_fft)
+        self.optimize_for_fft = optimize_for_fft
         self.rad_dielec_const = abs(rad_dielec_const)
         self.elec_rep_max = abs(elec_rep_max)
         self.elec_attr_max = -abs(elec_attr_max)
@@ -362,7 +352,7 @@ class ReceptorGridGenerator(_EnerGridGenerator):
             f.write(dx_str)
             f.flush() # flush the buffer to ensure the file is written
 
-class ProbeGridGenerator(_EnerGridGenerator):
+class ProbeGridGenerator(GridCoordGenerator):
     """A potential energy grid generator for a small molecule probe.
     
     Parameters
@@ -383,7 +373,7 @@ class ProbeGridGenerator(_EnerGridGenerator):
     }
 
     def __init__(self, grid_spacing, rotation_search_level=2) -> None:
-        super().__init__(grid_spacing, padding=0)
+        super().__init__(grid_spacing, padding=0, optimize_for_fft=False)
         if rotation_search_level not in self._rot_search_levels:
             raise ValueError(
                 f'rotation_search_level must be one of {list(self._rot_search_levels.keys())}'

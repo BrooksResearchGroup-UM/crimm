@@ -560,6 +560,43 @@ static PyObject* py_rank_poses(PyObject* self, PyObject* args, PyObject* kwargs)
     return result;
 }
 
+static PyObject* py_calc_pairwise_rmsd(PyObject* self, PyObject* args){
+    PyArrayObject *conf_coords;
+    if (!PyArg_ParseTuple(args, "O!", &PyArray_Type, &conf_coords)){
+        return NULL;
+    }
+    // Check array dimensions and data type
+    if (PyArray_TYPE(conf_coords) != NPY_FLOAT32){
+        PyErr_SetString(PyExc_TypeError, "Expected conf_coords array of float32.");
+        return NULL;
+    }
+    if (PyArray_NDIM(conf_coords) != 3){
+        PyErr_SetString(PyExc_TypeError, "Expected conf_coords array with 3 dimensions.");
+        return NULL;
+    }
+    int N_confs = PyArray_DIM(conf_coords, 0);
+    if (N_confs < 2) {
+        PyErr_SetString(PyExc_TypeError, "Expected at least 2 conformations.");
+        return NULL;
+    }
+    int N_atoms = PyArray_DIM(conf_coords, 1);
+    if (PyArray_DIM(conf_coords, 2) != 3){
+        PyErr_SetString(
+            PyExc_TypeError, 
+            "Expected conf_coords array with 3 columns (x, y, z) for coordinates."
+        );
+        return NULL;
+    }
+    float *conf_coords_data = PyArray_DATA(conf_coords);
+    size_t N_pairs = (N_confs-1)*N_confs/2;
+    float *rmsd = malloc(N_pairs * sizeof(float));
+    calc_pairwise_rmsd(conf_coords_data, N_confs, N_atoms, rmsd);
+    npy_intp dims[1] = {N_pairs};
+    PyObject *npy_rmsd = PyArray_SimpleNewFromData(1, dims, NPY_FLOAT32, rmsd);
+    PyArray_ENABLEFLAGS((PyArrayObject*) npy_rmsd, NPY_ARRAY_OWNDATA);
+    return npy_rmsd;
+}
+
 // Method table
 static PyMethodDef FftDockingMethods[] = {
     {"pairwise_dist", py_pairwise_dist, METH_VARARGS, "Pairwise distance calculation"},
@@ -570,6 +607,7 @@ static PyMethodDef FftDockingMethods[] = {
     {"fft_correlate", py_fft_correlate, METH_VARARGS, "FFT Correlation Batch"},
     {"sum_grids", py_sum_grids, METH_VARARGS, "Sum grids"},
     {"rank_poses", py_rank_poses, METH_VARARGS | METH_KEYWORDS, "Rank poses"},
+    {"calc_pairwise_rmsd", py_calc_pairwise_rmsd, METH_VARARGS, "Pairwise RMSD calculation"},
     {NULL, NULL, 0, NULL}
 };
 

@@ -100,17 +100,12 @@ void fft_correlate(
       // The pointer to the padded ligand array is the same as the pointer 
       // to the correlation array
       fftwf_execute_dft_r2c(plan_fwd, padded_lig, cur_fft_l);
-
       for (size_t k = 0; k < N_fft_points; k++) {
         cur_fft_l[k] = fft_r[k] * conjf(cur_fft_l[k]) * scale;
       }
       // Execute inverse FFT on the product
       fftwf_execute_dft_c2r(plan_inv, cur_fft_l, padded_lig);
       memcpy(cur_result_arr, padded_lig, N_grid_points * sizeof(float));
-      // Add the result to the result array
-      // for (size_t k = 0; k < N_grid_points; k++) {
-      //   cur_result_arr[k] += padded_lig[k];
-      // }
       fftwf_free(padded_lig);
     }
   }
