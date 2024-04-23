@@ -1,3 +1,4 @@
+import multiprocessing
 import numpy as np
 # This is a C extension module compiled from src/fft_docking/py_bindings.c
 from crimm import fft_docking
@@ -16,7 +17,6 @@ class FFTDocker:
             n_threads=None
         ):
         if n_threads is None:
-            import multiprocessing
             n_threads = multiprocessing.cpu_count()
         self.n_threads = n_threads
         self.grid_spacing = grid_spacing
@@ -111,5 +111,5 @@ class FFTDocker:
         offsets = dists_to_recep_grid + probe_origins
         conf_coords = selected_ori_coord+offsets[:,np.newaxis,:]
         # Add the grid spacing to the coordinates to shift it back
-        conf_coords += np.array([1.0,1.0,1.0], dtype=np.float32)*self.grid_spacing
+        conf_coords += np.array([1.0,1.0,1.0], dtype=np.float32)
         return conf_coords

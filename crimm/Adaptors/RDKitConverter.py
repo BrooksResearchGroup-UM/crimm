@@ -288,7 +288,7 @@ class RDKitHetConverter:
         ### Select the heterogen from the structure
         ### Note that the heterogen is at residue level not chain level
         >>> lig = structure[1]['D'].residues[0]
-        >>> converter = RDKitHetConverter()
+        >>> rdk_converter = RDKitHetConverter()
         >>> rdk_converter.load_heterogen(lig)
         >>> mol = rdk_converter.get_mol()
         >>> rdk_converter.write_mol2()

@@ -1,5 +1,5 @@
 """The structure class, representing a macromolecular structure."""
-
+import warnings
 from Bio.PDB.Structure import Structure as _Structure
 
 class Structure(_Structure):
@@ -9,11 +9,23 @@ class Structure(_Structure):
 
     def __init__(self, id) -> None:
         super().__init__(id)
+        self.pdb_id = None
         self.header = None
         self.resolution = None
         self.method = None
         self.assemblies = None
         self.cell_info = None
+
+    def set_pdb_id(self, pdb_id):
+        """Set the PDB ID of this structure."""
+        if self.pdb_id is not None:
+            warnings.warn(
+                f"Overwriting PDB ID {self.pdb_id} with {pdb_id}"
+            )
+        self.pdb_id = pdb_id
+        # we set pdb_id on models to make many other routines easier
+        for model in self.get_models():
+            model.set_pdb_id(pdb_id)
 
     def __repr__(self):
         return f"<Structure id={self.get_id()} Models={len(self)}>"

@@ -1,6 +1,13 @@
 #ifndef FFT_CORRELATE_H
 #define FFT_CORRELATE_H
 
+// Function to fill the padded 3D array for ligand grid for FFT
+void fill_padded_array(
+  int x, int y, int z, 
+  int pad_x, int pad_y, int pad_z,
+  float *arr_l, float *padded_arr_l
+);
+
 // Function to perform 3D FFT correlation
 void fft_correlate(
   float *recep_arr, float *lig_arr, int N_grids, 

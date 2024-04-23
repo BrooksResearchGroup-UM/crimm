@@ -73,7 +73,9 @@ void fft_correlate(
   // Allocate memory for FFTW plans and data
   fftwf_plan plan_fwd, plan_inv;
   fftwf_complex *fft_r, *fft_l;
-  fft_r = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * N_fft_points);
+  fft_r = (fftwf_complex *)fftwf_malloc(
+    sizeof(fftwf_complex) * N_fft_points * N_grids
+  );
   fft_l = (fftwf_complex *)fftwf_malloc(
     sizeof(fftwf_complex) * N_fft_points * N_orientations
   );
@@ -83,14 +85,19 @@ void fft_correlate(
   plan_inv = fftwf_plan_dft_c2r_3d(nx, ny, nz, fft_r, recep_arr, FFTW_MEASURE);
 
   float scale = 1.0 / N_grid_points;
-  // Execute forward FFTs on both arrays
+  int N_threads_recep = N_grids > N_threads ? N_threads : N_grids;
+  // Execute forward FFTs on receptor arrays
+  #pragma omp parallel for num_threads(N_threads_recep)
   for (int i = 0; i < N_grids; i++) {
     float *cur_recep = recep_arr + (N_grid_points * i);
-    fftwf_execute_dft_r2c(plan_fwd, cur_recep, fft_r);
-    // TODO: refactor the fftwf_execute_dft_r2c above and move omp parallel for
-    // to the outer loop and use collapse(2) to parallelize the inner loop
-    #pragma omp parallel for num_threads(N_threads) 
-    for (int j = 0; j < N_orientations; j++) {
+    fftwf_complex *cur_fft_r = fft_r + (N_fft_points * i);
+    fftwf_execute_dft_r2c(plan_fwd, cur_recep, cur_fft_r);
+  }
+  // Execute forward FFTs on ligand arrays and correlate with receptor arrays
+  #pragma omp parallel for num_threads(N_threads)
+  for (int j = 0; j < N_orientations; j++) {
+    for (int i = 0; i < N_grids; i++) {
+      fftwf_complex *cur_fft_r = fft_r + (N_fft_points * i);
       float *cur_result_arr = result_arr + (N_grid_points * (N_grids * j + i));
       float *padded_lig = (float *)fftwf_alloc_real(N_grid_points);
       memset(padded_lig, 0.0, N_grid_points * sizeof(float));
@@ -101,7 +108,7 @@ void fft_correlate(
       // to the correlation array
       fftwf_execute_dft_r2c(plan_fwd, padded_lig, cur_fft_l);
       for (size_t k = 0; k < N_fft_points; k++) {
-        cur_fft_l[k] = fft_r[k] * conjf(cur_fft_l[k]) * scale;
+        cur_fft_l[k] = cur_fft_r[k] * conjf(cur_fft_l[k]) * scale;
       }
       // Execute inverse FFT on the product
       fftwf_execute_dft_c2r(plan_inv, cur_fft_l, padded_lig);

@@ -380,7 +380,7 @@ class MMCIFParser:
                 if isinstance(sb.chain, PolymerChain):
                     sb.chain.reset_disordered_residues()
                     sb.chain.sort_residues()
-
+        sb.structure.set_pdb_id(structure_id)
         self.add_cell_and_symmetry_info()
         self.add_connect_record()
         
