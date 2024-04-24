@@ -285,10 +285,7 @@ class RDKitHetConverter:
                         f'Fail to find atom {a2} in mol {self.resname}'
                     )
                 continue
-            if is_arom:
-                bo = rdBond.AROMATIC
-            else:
-                bo = get_rdkit_bond_order(bo_name)
+            bo = get_rdkit_bond_order(bo_name)
             idx1, idx2 = self._rd_atoms[a1], self._rd_atoms[a2]
             self._edmol.AddBond(idx1, idx2, bo)
 
