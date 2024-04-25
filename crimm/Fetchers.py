@@ -253,7 +253,7 @@ def query_drugbank_info(lig_id):
         raise ValueError('Ligand ID has to be a three-letter code')
 
     query_url = f'https://data.rcsb.org/rest/v1/core/drugbank/{lig_id}'
-    response = requests.get(query_url, timeout=200)
+    response = requests.get(query_url, timeout=500)
     if (code := response.status_code) != 200:
         warnings.warn(
             f"GET request on RCSB for \"{lig_id}\" for Drugbank Info "

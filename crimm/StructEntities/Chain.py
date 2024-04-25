@@ -1,5 +1,5 @@
 import warnings
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 from Bio.Seq import Seq
 from Bio.PDB import PPBuilder
 from Bio.Data.PDBData import protein_letters_3to1_extended
@@ -130,6 +130,8 @@ class Chain(BaseChain):
         if hetflag.startswith('H_'):
             self.het_res.append(residue) 
             self.het_resseq_lookup[resseq] = entity_id
+        if icode != " ":
+            self.het_resseq_lookup[resseq] = entity_id
     
     def _translate_id(self, id):
         """Translate sequence identifier to tuple form (PRIVATE).
@@ -235,6 +237,7 @@ class PolymerChain(Chain):
         self.reported_missing_res = reported_missing_res
         self.known_seq = Seq(known_sequence)
         self.can_seq = Seq(canon_sequence)
+        self.seq_lookup: Dict[int, Tuple[str, int, str]] = {}
         if len(self.reported_res) != len(self.can_seq):
             warnings.warn(
                 "Total number of reported residues do not match with the "
@@ -248,6 +251,16 @@ class PolymerChain(Chain):
                 **nucleic_letters_3to1_extended
             }
 
+    def __contains__(self, id):
+        return super().__contains__(id) or id in self.het_resseq_lookup
+
+    def __getitem__(self, id):
+        # Translate the sequence id to the tuple form. We rely on the one-to-one
+        # correspendence here
+        if id in self.het_resseq_lookup:
+            id = self.het_resseq_lookup[id]
+        return super().__getitem__(id)
+    
     @property
     def seq(self):
         """
@@ -318,7 +331,7 @@ class PolymerChain(Chain):
         """Update the ordering of the residues in child list by resseq
         """
         self.child_list = sorted(self.child_list, key=lambda x: x.id[1:])
-    
+
     def find_het_by_resseq(self, resseq):
         """Return a list of heterogens for a residue seq id."""
         modified_het_ids = []

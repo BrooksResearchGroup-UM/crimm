@@ -312,23 +312,32 @@ class RDKitHetConverter:
             self.lig = lig
         else:
             raise TypeError("Input must be a Heterogen object.")
+
         self.lig_pdbid = lig.resname
         self.chain_id = lig.parent.id
         self.resname = lig.resname
         self.resnum = lig.id[1]
+        self._edmol = Chem.EditableMol(Chem.Mol())
+        self._pending_hydrogens = None
+        self._rd_atoms = None
+        self.mol = None
 
         cifdict = fetch_rcsb_as_dict(self.lig_pdbid)
 
         atom_ids = cifdict['chem_comp_atom']['atom_id']
         element_names = cifdict['chem_comp_atom']['type_symbol']
-        self.element_dict = dict(zip(atom_ids, enumerate(element_names)))
+        charges = cifdict['chem_comp_atom']['charge']
+        self.element_dict = {}
+        for i, (atom_id, element_name, charge) in enumerate(
+            zip(atom_ids, element_names, charges)
+        ):
+            self.element_dict[atom_id] = (i, element_name, charge)
 
         bond_info = cifdict['chem_comp_bond']
         a1, a2 = bond_info['atom_id_1'], bond_info['atom_id_2']
         bond_order = bond_info['value_order']
         aro_flag = [flag == 'Y' for flag in bond_info['pdbx_aromatic_flag']]
         self.bond_dict = list(zip(a1, a2, bond_order, aro_flag))
-        self._create_rdkit_mol()
 
     def _create_rdkit_PDBinfo(self, pdb_atom_name, altloc):
         serial_number = self.element_dict[pdb_atom_name][0]
@@ -345,6 +354,8 @@ class RDKitHetConverter:
             rd_atom = Chem.Atom(atom.element.capitalize())
             pdb_info = self._create_rdkit_PDBinfo(atom.name, atom.altloc)
             rd_atom.SetPDBResidueInfo(pdb_info)
+            charge = self.element_dict[atom.name][2]
+            rd_atom.SetFormalCharge(charge)
             atom_idx = self._edmol.AddAtom(rd_atom)
             self._rd_atoms[atom.name] = atom_idx
 
@@ -411,6 +422,8 @@ class RDKitHetConverter:
 
     def get_mol(self):
         """Return the rdkit mol object."""
+        if self.mol is None:
+            self._create_rdkit_mol()
         return self.mol
 
     def write_mol2(self, filename = None):
