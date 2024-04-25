@@ -130,7 +130,7 @@ class Chain(BaseChain):
         if hetflag.startswith('H_'):
             self.het_res.append(residue) 
             self.het_resseq_lookup[resseq] = entity_id
-        if icode != " ":
+        if icode != ' ':
             self.het_resseq_lookup[resseq] = entity_id
     
     def _translate_id(self, id):
@@ -260,7 +260,11 @@ class PolymerChain(Chain):
         if id in self.het_resseq_lookup:
             id = self.het_resseq_lookup[id]
         return super().__getitem__(id)
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> master
     @property
     def seq(self):
         """
