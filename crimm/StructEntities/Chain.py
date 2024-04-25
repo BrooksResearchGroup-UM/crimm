@@ -129,6 +129,8 @@ class Chain(BaseChain):
         if hetflag.startswith('H_'):
             self.het_res.append(residue) 
             self.het_resseq_lookup[resseq] = entity_id
+        if icode != ' ':
+            self.het_resseq_lookup[resseq] = entity_id
     
     def _translate_id(self, id):
         """Translate sequence identifier to tuple form (PRIVATE).
@@ -246,6 +248,16 @@ class PolymerChain(Chain):
                 **{v:v for k, v in nucleic_letters_3to1_extended.items()},
                 **nucleic_letters_3to1_extended
             }
+
+    def __contains__(self, id):
+        return super().__contains__(id) or id in self.het_resseq_lookup
+
+    def __getitem__(self, id):
+        # Translate the sequence id to the tuple form. We rely on the one-to-one
+        # correspendence here
+        if id in self.het_resseq_lookup:
+            id = self.het_resseq_lookup[id]
+        return super().__getitem__(id)
 
     @property
     def seq(self):
