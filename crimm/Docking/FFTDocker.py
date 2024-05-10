@@ -50,7 +50,7 @@ class FFTDocker:
             grid_spacing=self.grid_spacing,
             rotation_search_level=self.rotation_level
         )
-        ## These are the outputs of the docking
+        ## These are the outputs from docking
         self.conf_coords = None
         self.pose_id = None
         self.orientation_id = None
@@ -63,6 +63,13 @@ class FFTDocker:
             raise ValueError('Only Chain level entities are supported for docking')
         if not receptor.is_continuous():
             raise ValueError('Missing residues detected in the receptor entity. Please fill the gaps first.')
+        ## These are the outputs from docking
+        self.conf_coords = None
+        self.pose_id = None
+        self.orientation_id = None
+        self.top_scores = None
+        self.total_energy = None
+        self.result = None
         self.recep_gen.load_entity(receptor, grid_shape=self.effective_grid_shape)
         self.receptor_grids = self.recep_gen.get_potential_grids()
 
@@ -92,7 +99,7 @@ class FFTDocker:
 
     def rank_poses(self):
         self.top_scores, self.pose_id, self.orientation_id = fft_docking.rank_poses(
-            self.total_energy, 
+            self.total_energy,
             top_n_poses=self.n_top_poses,
             sample_factor=self.reduce_sample_factor,
             n_threads=self.n_threads

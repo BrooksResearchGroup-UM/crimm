@@ -11,6 +11,7 @@ import nglview as nv
 from Bio.PDB.Selection import unfold_entities
 from crimm.IO import get_pdb_str
 import crimm.StructEntities as Entities
+from rdkit import Chem
 
 class NGLStructure(nv.Structure):
     """NGLView Structure class for visualizing crimm.Structure.Structure on jupyter notebook"""
@@ -21,6 +22,25 @@ class NGLStructure(nv.Structure):
     def get_structure_string(self):
         return get_pdb_str(self.entity, include_alt=False, trunc_resname=True)
 
+class NGLRDKitStructure(nv.Structure):
+    """NGLView Structure class for visualizing crimm.Structure.Structure on jupyter notebook"""
+    def __init__(self, entity, conf_id=None):
+        super().__init__()
+        self.entity = entity
+        self.ext = 'sdf'
+        self.conf_id = conf_id
+
+    def get_structure_string(self):
+        n_conf = self.entity.GetNumConformers()
+        if n_conf == 0:
+            return Chem.MolToMolBlock(self.entity)
+        elif self.conf_id is not None:
+            return Chem.MolToMolBlock(self.entity, confId=self.conf_id)
+        struct_str = ''
+        for i in range(n_conf):
+            struct_str += Chem.MolToMolBlock(self.entity, confId=i)
+        return struct_str
+    
 def _load_ngl_view(entity, view):
     """Load entity into nglview instance"""
     ngl_structure = NGLStructure(entity)

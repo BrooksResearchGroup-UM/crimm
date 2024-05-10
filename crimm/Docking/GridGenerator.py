@@ -240,7 +240,7 @@ class ReceptorGridGenerator(GridCoordGenerator):
         self._elec_grid = None
         self._vdw_grid_attr = None
         self._vdw_grid_rep = None
-    
+
     def get_coord_grid(self):
         """Return the coordinate grid used for the energy calculations."""
         if self.coord_grid is None:

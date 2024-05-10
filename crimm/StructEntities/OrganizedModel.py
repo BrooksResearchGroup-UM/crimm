@@ -6,21 +6,51 @@ from Bio.PDB.Selection import unfold_entities
 from crimm.Data.components_dict import NUCLEOSIDE_PHOS # Nucleoside phosphates and phosphonates
 from crimm.Fetchers import query_drugbank_info
 from .Model import Model
-from .Chain import PolymerChain
+from .Chain import (
+    PolymerChain, Heterogens, Solvent, CoSolvent, Ion,
+    Glycosylation, NucleosidePhosphate, Chain
+)
 
+class OrganizedChainContainer(list):
+    """The EntityTypeContainer class is a list of chains with the same chain type."""
+    def __init__(self, chain_type):
+        super().__init__()
+        self.chain_type = chain_type
+        
+    def __repr__(self):
+        return f"<{self.chain_type}={len(self)}>"
+    
+    def __str__(self):
+        return f"{self.chain_type}={len(self)}"
 
 class OrganizedModel:
     """The OrganizedModel class represents a model in a structure with a specific 
     organization of chains. It is derived from the Model class and is used in the 
     Structure class to organize chains into categories. Require network access to
     fetch binding affinity and drugbank information."""
+    chain_types = {
+        'Polypeptide(L)': PolymerChain,
+        'Polyribonucleotide': PolymerChain,
+        'Polydeoxyribonucleotide': PolymerChain,
+        'Solvent': Solvent,
+        'Heterogens': Heterogens,
+        'CoSolvent': CoSolvent,
+        'Ion': Ion,
+        'Glycosylation': Glycosylation,
+        'NucleosidePhosphate': NucleosidePhosphate,
+        'UnknownType': Chain,
+    }
+
     def __init__(self, entity):
         if entity.level == 'M':
             self._model = entity
         elif entity.level == 'S':
             self._model = entity.models[0]
         else:
-            raise ValueError("Only Structure level or Model level entity is accepted")
+            raise ValueError(
+                "Only Structure level (S) or Model level (M) entity is accepted for OrganizedModel!"
+                f"{entity}  has level \"{entity.level}\"."
+            )
         self.pdb_id = None
         self.rcsb_web_data = None
         # Binding Affinity Information
@@ -28,17 +58,17 @@ class OrganizedModel:
         # Biologically Interesting Molecules Information
         self.bio_mol_info = None
         # Lists of Entity Classifications
-        self.protein = []
-        self.RNA = []
-        self.DNA = []
-        self.other_polymer = []
-        self.phos_ligand =[]
-        self.ligand = []
-        self.co_solvent = []
-        self.ion = []
-        self.solvent = []
-        self.glycosylation = []
-        self.unknown_type = []
+        self.protein = OrganizedChainContainer('Polypeptide(L)')
+        self.RNA = OrganizedChainContainer('Polyribonucleotide')
+        self.DNA = OrganizedChainContainer('Polydeoxyribonucleotide')
+        self.other_polymer = OrganizedChainContainer('UnknownType')
+        self.phos_ligand = OrganizedChainContainer('NucleosidePhosphate')
+        self.ligand = OrganizedChainContainer('Heterogens')
+        self.co_solvent = OrganizedChainContainer('CoSolvent')
+        self.ion = OrganizedChainContainer('Ion')
+        self.solvent = OrganizedChainContainer('Solvent')
+        self.glycosylation = OrganizedChainContainer('Glycosylation')
+        self.unknown_type = OrganizedChainContainer('UnknownType')
         # Names (3-letter code) for ligand with binding affinity information
         self.lig_names = set()
         # Names (descriptor string) for ligand that exists in 
@@ -163,7 +193,7 @@ class OrganizedModel:
         display(show_nglview_multiple(self._model.child_list))
         print(repr(self))
         print(self._model.expanded_view())
-    
+
     def create_new_model_from_list(self, entity_list):
         new_model = Model(self.pdb_id)
         chain_list = []

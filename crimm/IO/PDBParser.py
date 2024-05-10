@@ -133,7 +133,7 @@ class PDBParser(_PDBParser):
             PERMISSIVE, get_header, structure_builder, QUIET, is_pqr=False
         )
 
-    def get_structure(self, filepath, structure_id=None):
+    def _get_structure(self, filepath, structure_id=None):
         """Return the structure contained in file."""
         if structure_id is None:
             structure_id = pathlib.Path(filepath).stem
@@ -151,4 +151,11 @@ class PDBParser(_PDBParser):
             model.child_dict = {c.id: c for c in new_chains}
         return structure
 
+    def get_structure(self, filepath, structure_id=None):
+        """Return the structure contained in file."""
+        if self.QUIET:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                return self._get_structure(filepath, structure_id)
+        return self._get_structure(filepath, structure_id)
     

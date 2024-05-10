@@ -39,6 +39,7 @@ from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit.Chem import BondType as rdBond
 from rdkit.Geometry import Point3D
+from crimm.Data.components_dict import TRANSITION_METALS, ALL_METALS
 
 bond_order_dict = {
     # PDB mmCIF bond type names
@@ -304,6 +305,7 @@ class RDKitHetConverter:
         self._edmol = Chem.EditableMol(Chem.Mol())
         self._pending_hydrogens = None
         self._rd_atoms = None
+        self._sanitize = True # determine if sanitization can be performed
         self.mol = None
 
     def load_heterogen(self, lig):
@@ -311,7 +313,7 @@ class RDKitHetConverter:
         if isinstance(lig, StructEntities.Heterogen):
             self.lig = lig
         else:
-            raise TypeError("Input must be a Heterogen object.")
+            raise TypeError("Input must be a Heterogen object (Residue level).")
 
         self.lig_pdbid = lig.resname
         self.chain_id = lig.parent.id
@@ -320,6 +322,7 @@ class RDKitHetConverter:
         self._edmol = Chem.EditableMol(Chem.Mol())
         self._pending_hydrogens = None
         self._rd_atoms = None
+        self._sanitize = True
         self.mol = None
 
         cifdict = fetch_rcsb_as_dict(self.lig_pdbid)
@@ -331,6 +334,9 @@ class RDKitHetConverter:
         for i, (atom_id, element_name, charge) in enumerate(
             zip(atom_ids, element_names, charges)
         ):
+            if element_name.capitalize() in ALL_METALS:
+                # if the heterogen contains a metal, we do not perform sanitization
+                self._sanitize = False
             self.element_dict[atom_id] = (i, element_name, charge)
 
         bond_info = cifdict['chem_comp_bond']
@@ -355,6 +361,7 @@ class RDKitHetConverter:
             pdb_info = self._create_rdkit_PDBinfo(atom.name, atom.altloc)
             rd_atom.SetPDBResidueInfo(pdb_info)
             charge = self.element_dict[atom.name][2]
+            element = self.element_dict[atom.name][1].capitalize()
             rd_atom.SetFormalCharge(charge)
             atom_idx = self._edmol.AddAtom(rd_atom)
             self._rd_atoms[atom.name] = atom_idx
@@ -362,6 +369,13 @@ class RDKitHetConverter:
     def _add_rdkit_bonds(self):
         self._pending_hydrogens = {}
         for a1, a2, bo_name, is_arom in self.bond_dict:
+            elem1 = self.element_dict[a1][1].capitalize()
+            elem2 = self.element_dict[a2][1].capitalize()
+            n_transition_metals = (
+                elem1 in TRANSITION_METALS
+            ) + (
+                elem2 in TRANSITION_METALS
+            )
             if a1 not in self._rd_atoms:
                 if a2 not in self._pending_hydrogens:
                     self._pending_hydrogens[a2] = []
@@ -382,7 +396,11 @@ class RDKitHetConverter:
                         f'Fail to find atom {a2} in mol {self.resname}'
                     )
                 continue
-            bo = get_rdkit_bond_order(bo_name)
+            if n_transition_metals == 1:
+                # we assume metal-ligand bond is a dative bond 
+                bo = rdBond.DATIVE
+            else:
+                bo = get_rdkit_bond_order(bo_name)
             idx1, idx2 = self._rd_atoms[a1], self._rd_atoms[a2]
             self._edmol.AddBond(idx1, idx2, bo)
 
@@ -412,6 +430,13 @@ class RDKitHetConverter:
         mol = self._edmol.GetMol()
         conf = self._create_conformer()
         mol.AddConformer(conf)
+        if not self._sanitize:
+            warnings.warn(
+                'The heterogen contains metal atoms! Sanitization is not performed.'
+                'Hygrogen atoms are not added to the mol object.'
+            )
+            self.mol = mol
+            return
         AllChem.SanitizeMol(mol)
         mol = AllChem.AddHs(mol, addCoords=True)
         AllChem.SanitizeMol(mol)

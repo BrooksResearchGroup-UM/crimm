@@ -6,7 +6,7 @@ from Bio.Data.PDBData import protein_letters_3to1_extended
 from Bio.Data.PDBData import nucleic_letters_3to1_extended
 from Bio.PDB.Chain import Chain as _Chain
 from Bio.PDB.PDBExceptions import PDBConstructionException
-import crimm.StructEntities as Entities
+import crimm.StructEntities as cEntities
 
 class BaseChain(_Chain):
     """Base class derived from and Biopython chain object and compatible with
@@ -154,7 +154,7 @@ class Chain(BaseChain):
     def get_disordered_res(self):
         disordered_res = []
         for res in self:
-            if isinstance(res, Entities.DisorderedResidue):
+            if isinstance(res, cEntities.DisorderedResidue):
                 disordered_res.append(res)
         return disordered_res
     
@@ -260,11 +260,6 @@ class PolymerChain(Chain):
         if id in self.het_resseq_lookup:
             id = self.het_resseq_lookup[id]
         return super().__getitem__(id)
-<<<<<<< HEAD
-    
-=======
-
->>>>>>> master
     @property
     def seq(self):
         """
@@ -281,7 +276,7 @@ class PolymerChain(Chain):
         """
         present_res = set()
         for res in self:
-            if isinstance(res, Entities.DisorderedResidue):
+            if isinstance(res, cEntities.DisorderedResidue):
                 # Record both residues as present from the disordered residue
                 for resname, child_res in res.child_dict.items():
                     _, resseq, _ = child_res.get_id()
@@ -384,6 +379,21 @@ class Oligosaccharide(BaseChain):
 
 class Solvent(BaseChain):
     chain_type = 'Solvent'
+
+class CoSolvent(BaseChain):
+    chain_type = 'CoSolvent'
+
+class Ion(BaseChain):
+    chain_type = 'Ion'
+
+class Glycosylation(BaseChain):
+    chain_type = 'Glycosylation'
+
+class NucleosidePhosphate(BaseChain):
+    chain_type = 'NucleosidePhosphate'
+
+class Ligand(BaseChain):
+    chain_type = 'Ligand'
 
 class MaskedSeq(Seq):
     """
