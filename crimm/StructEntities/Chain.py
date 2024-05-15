@@ -60,7 +60,7 @@ class BaseChain(_Chain):
         """Reset the selected child of all disordered residues to the first
         residue (alt loc A) supplied by PDB."""
         for res in self:
-            if isinstance(res, Entities.DisorderedResidue):
+            if isinstance(res, cEntities.DisorderedResidue):
                 self._disordered_reset_residue(res)
             elif res.disordered == 1:
                 self._disordered_reset_atom(res)
