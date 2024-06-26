@@ -6,7 +6,7 @@
 """Module containing the parser class for constructing structures from mmCIF 
 files from PDB"""
 import warnings
-import numpy
+import numpy as np
 from Bio.PDB.PDBExceptions import PDBConstructionWarning
 from crimm.StructEntities.Atom import Atom
 from crimm.IO.MMCIF2Dict import MMCIF2Dict
@@ -15,13 +15,13 @@ from crimm.StructEntities.Chain import (
     Chain, PolymerChain, Heterogens, Oligosaccharide, Solvent, Macrolide
 )
 from crimm.StructEntities.Model import Model
-
+from crimm.Utils.StructureUtils import get_coords, index_to_letters
 class MMCIFParser:
     """Parser class for standard mmCIF files from PDB"""
     def __init__(
             self,
             first_model_only = True,
-            first_assembly_only = True,
+            use_bio_assembly = True,
             include_solvent = True,
             include_hydrogens = False,
             strict_parser = True,
@@ -30,12 +30,13 @@ class MMCIFParser:
         self._structure_builder = StructureBuilder()
         self.QUIET = QUIET
         self.first_model_only = first_model_only
-        self.first_assembly_only = first_assembly_only
+        self.use_bio_assembly = use_bio_assembly
         self.include_solvent = include_solvent
         self.include_hydrogens = include_hydrogens
         self.strict_parser = strict_parser
         self.cifdict = None
         self.model_template = None
+        self.symmetry_ops = None
 
     @staticmethod
     def _cif_find_resolution(cifdict):
@@ -65,6 +66,29 @@ class MMCIFParser:
 
         return header
 
+    def _cif_find_symmetry_info(self):
+        symmetry_info = self.cifdict.get('pdbx_struct_oper_list')
+        if symmetry_info is None:
+            return
+        operation_names = symmetry_info['type']
+        matrices = np.empty((len(operation_names), 3, 3))
+        vectors = np.empty((len(operation_names), 3))
+        for key, val in symmetry_info.items():
+            if key.startswith('matrix'):
+                idx_j, idx_k = int(key[-2])-1, int(key[-1])-1
+                for idx_i, x in enumerate(val):
+                    matrices[idx_i, idx_j, idx_k] = x
+            if key.startswith('vector'):
+                idx_j = int(key[-1])-1
+                for idx_i, x in enumerate(val):
+                    vectors[idx_i, idx_j] = x
+                    
+        operation_dict = {
+            x[0]:x[1:] for x in zip(operation_names, matrices, vectors)
+        }
+        operation_dict.pop('identity operation')
+        return operation_dict
+
     def get_structure(self, filepath, structure_id = None):
         """Return the structure.
 
@@ -92,6 +116,8 @@ class MMCIFParser:
             self._structure_builder.set_resolution(resolution)
             header = self._cif_get_header(self.cifdict)
             self._structure_builder.set_header(header)
+            # find crystal symmetry operation
+            self.symmetry_ops = self._cif_find_symmetry_info
 
         return self._structure_builder.get_structure()
 
@@ -185,7 +211,7 @@ class MMCIFParser:
                            with field names as attributes in the tuple
          :type atom_entry: namedtuple
         """
-        coord = numpy.array(
+        coord = np.array(
                 [atom_entry.Cartn_x, atom_entry.Cartn_y, atom_entry.Cartn_z]
         )
         altloc = atom_entry.label_alt_id
@@ -305,13 +331,33 @@ class MMCIFParser:
             )
             return
         entries = self.cifdict.create_namedtuples('pdbx_struct_assembly_gen')
-        if self.first_assembly_only:
+        if self.use_bio_assembly:
             entries = entries[:1]
         for entry in entries:
             chain_id_list = entry.asym_id_list.split(',')
             assemblies[entry.assembly_id] = chain_id_list
 
         return assemblies
+
+    def _execute_symmetry_operations(self, model):
+        if not self.symmetry_ops:
+            return
+        copy_model = model.copy()
+        copy_coords = get_coords(copy_model)
+        for operation_name, (matrix, vector) in self.symmetry_ops.items():
+            warnings.warn(
+                f"Crystal symmetry operation performed: {operation_name} "
+                "per mmCIF specified."
+            )
+            new_coords = copy_coords @ matrix + vector
+            for i, atom in enumerate(copy_model.get_atoms()):
+                atom.coord = new_coords[i]
+            for i, chain in enumerate(copy_model):
+                new_id = index_to_letters(i+len(copy_model))
+                chain.id = new_id
+        for chain in copy_model:
+            model.add(chain)
+        model.reset_atom_serial_numbers()
 
     def _build_structure(self, structure_id):
         """build the structure with structure builder object and mmcif dict"""
@@ -374,12 +420,16 @@ class MMCIFParser:
                                     anisou.U23,
                                     anisou.U33,
                                 )
-                                atom.set_anisou(numpy.array(u, "f"))
+                                atom.set_anisou(np.array(u, "f"))
                 if isinstance(sb.chain, Heterogens):
                     sb.chain.update()
                 if isinstance(sb.chain, PolymerChain):
                     sb.chain.reset_disordered_residues()
                     sb.chain.sort_residues()
+
+            if self.use_bio_assembly:
+                self._execute_symmetry_operations(sb.model)
+
         sb.structure.set_pdb_id(structure_id)
         self.add_cell_and_symmetry_info()
         self.add_connect_record()
@@ -399,7 +449,7 @@ class MMCIFParser:
         alpha = float(cell.angle_alpha)
         beta = float(cell.angle_beta)
         gamma = float(cell.angle_gamma)
-        cell_data = numpy.array((a, b, c, alpha, beta, gamma), "f")
+        cell_data = np.array((a, b, c, alpha, beta, gamma), "f")
         spacegroup = symmetry.space_group_name_H_M #Hermann-Mauguin space-group symbol
         self._structure_builder.set_symmetry(spacegroup, cell_data)
 
