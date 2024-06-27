@@ -104,6 +104,8 @@ class MMCIFParser:
             # to gather all the necessary info to construct the structure
             self.cifdict = MMCIF2Dict(filepath)
             self.model_template = self.create_model_template()
+            # find crystal symmetry operation
+            self.symmetry_ops = self._cif_find_symmetry_info()
             self._build_structure(structure_id)
             # set additional info on the structure
             structure_method = None
@@ -413,12 +415,8 @@ class MMCIFParser:
                             if atom.orig_serial_number <= len(all_anisou):
                                 anisou = all_anisou[atom.orig_serial_number-1]
                                 u = (
-                                    anisou.U11,
-                                    anisou.U12,
-                                    anisou.U13,
-                                    anisou.U22,
-                                    anisou.U23,
-                                    anisou.U33,
+                                    anisou.U11, anisou.U12, anisou.U13,
+                                    anisou.U22, anisou.U23, anisou.U33,
                                 )
                                 atom.set_anisou(np.array(u, "f"))
                 if isinstance(sb.chain, Heterogens):

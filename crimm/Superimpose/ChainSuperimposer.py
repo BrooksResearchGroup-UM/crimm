@@ -216,4 +216,4 @@ class ChainSuperimposer(Superimposer):
         self.apply(entity.get_atoms())
 
     def show(self):
-        show_nglview_multiple([self.ref_chain, self.mov_chain])
+        return show_nglview_multiple([self.ref_chain, self.mov_chain])

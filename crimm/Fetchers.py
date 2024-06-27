@@ -77,7 +77,7 @@ def fetch_alphafold(uniprot_id):
         # AlphaFold only has one model and does not have multiple 
         # assemblies, solvent, or hydrogens
         first_model_only = True,
-        first_assembly_only = False, 
+        use_bio_assembly = False,
         include_hydrogens = False,
         include_solvent = False
     )
@@ -107,7 +107,7 @@ def fetch_rcsb(
         pdb_id,
         local_entry = None,
         first_model_only = True,
-        first_assembly_only = True,
+        use_bio_assembly = True,
         include_solvent = True,
         include_hydrogens = False,
     ):
@@ -122,7 +122,7 @@ def fetch_rcsb(
         raise ValueError(f"Could not load file for {pdb_id}")
     parser = MMCIFParser(
         first_model_only = first_model_only,
-        first_assembly_only = first_assembly_only,
+        use_bio_assembly = use_bio_assembly,
         include_hydrogens = include_hydrogens,
         include_solvent=include_solvent
     )
