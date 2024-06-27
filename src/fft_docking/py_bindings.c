@@ -606,7 +606,7 @@ static PyMethodDef FftDockingMethods[] = {
     {"batch_quaternion_rotate", py_batch_quatornion_rotate, METH_VARARGS, "Batch quaternion rotation"},
     {"fft_correlate", py_fft_correlate, METH_VARARGS, "FFT Correlation Batch"},
     {"sum_grids", py_sum_grids, METH_VARARGS, "Sum grids"},
-    {"rank_poses", py_rank_poses, METH_VARARGS | METH_KEYWORDS, "Rank poses"},
+    {"rank_poses", (PyCFunction)py_rank_poses, METH_VARARGS | METH_KEYWORDS, "Rank poses"},
     {"calc_pairwise_rmsd", py_calc_pairwise_rmsd, METH_VARARGS, "Pairwise RMSD calculation"},
     {NULL, NULL, 0, NULL}
 };
