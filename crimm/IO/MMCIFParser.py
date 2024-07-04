@@ -82,11 +82,15 @@ class MMCIFParser:
                 idx_j = int(key[-1])-1
                 for idx_i, x in enumerate(val):
                     vectors[idx_i, idx_j] = x
-                    
-        operation_dict = {
-            x[0]:x[1:] for x in zip(operation_names, matrices, vectors)
-        }
-        operation_dict.pop('identity operation')
+
+        operation_dict = {}
+        for operation, matrix, vector in zip(operation_names, matrices, vectors):
+            if operation == 'identity operation':
+                continue
+            if operation not in operation_dict:
+                operation_dict[operation] = []
+            operation_dict[operation].append((matrix, vector))
+
         return operation_dict
 
     def get_structure(self, filepath, structure_id = None):
@@ -118,8 +122,6 @@ class MMCIFParser:
             self._structure_builder.set_resolution(resolution)
             header = self._cif_get_header(self.cifdict)
             self._structure_builder.set_header(header)
-            # find crystal symmetry operation
-            self.symmetry_ops = self._cif_find_symmetry_info
 
         return self._structure_builder.get_structure()
 
@@ -344,21 +346,24 @@ class MMCIFParser:
     def _execute_symmetry_operations(self, model):
         if not self.symmetry_ops:
             return
-        copy_model = model.copy()
-        copy_coords = get_coords(copy_model)
-        for operation_name, (matrix, vector) in self.symmetry_ops.items():
+        reference_model = model.copy()
+        reference_model.detach_parent()
+
+        for operation_name, operations in self.symmetry_ops.items():
             warnings.warn(
                 f"Crystal symmetry operation performed: {operation_name} "
                 "per mmCIF specified."
             )
-            new_coords = copy_coords @ matrix + vector
-            for i, atom in enumerate(copy_model.get_atoms()):
-                atom.coord = new_coords[i]
-            for i, chain in enumerate(copy_model):
-                new_id = index_to_letters(i+len(copy_model))
-                chain.id = new_id
-        for chain in copy_model:
-            model.add(chain)
+            for matrix, vector in operations:
+                copy_model = reference_model.copy()
+                copy_coords = get_coords(copy_model)
+                new_coords = copy_coords @ matrix + vector
+                for i, atom in enumerate(copy_model.get_atoms()):
+                    atom.coord = new_coords[i]
+                for i, chain in enumerate(copy_model):
+                    chain.id = index_to_letters(len(model)+i)
+                for chain in copy_model:
+                    model.add(chain)
         model.reset_atom_serial_numbers()
 
     def _build_structure(self, structure_id):
