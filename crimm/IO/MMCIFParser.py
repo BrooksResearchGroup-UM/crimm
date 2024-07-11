@@ -351,8 +351,7 @@ class MMCIFParser:
 
         for operation_name, operations in self.symmetry_ops.items():
             warnings.warn(
-                f"Crystal symmetry operation performed: {operation_name} "
-                "per mmCIF specified."
+                f"{operation_name.upper()} performed as specified in mmCIF file."
             )
             for matrix, vector in operations:
                 copy_model = reference_model.copy()
