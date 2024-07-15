@@ -20,7 +20,7 @@ class SeqChainGenerator:
     def _set_topo_definitions(self, definition_type: str):
         self.topo_definitions = ResidueTopologySet(definition_type)
         self.params = ParameterLoader(definition_type)
-        self.params.fill_ic(self.topo_definitions)
+        self.params.fill_ic(self.topo_definitions, preserve=True)
 
     def set_chain_type(self, chain_type: str):
         chain_type = chain_type.lower()

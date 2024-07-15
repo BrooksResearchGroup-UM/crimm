@@ -568,7 +568,7 @@ class ParameterLoader:
             atom_type_list.append(atom_type)
         return atom_type_list
     
-    def res_def_fill_ic(self, residue_definition, preserve = True):
+    def res_def_fill_ic(self, residue_definition, preserve):
         """Fill in the missing parameters for the internal coordinates table
         of a residue definition."""
         for atom_key, ic_table in residue_definition.ic.items():
@@ -600,7 +600,7 @@ class ParameterLoader:
                 return angle_param.theta0
             return None
 
-    def fill_ic(self, topology_loader, preserve = True):
+    def fill_ic(self, topology_loader, preserve):
         """Fill in the missing parameters for the internal coordinates table
         of a topology."""
         for residue_definition in topology_loader.residues:
@@ -688,7 +688,7 @@ class TopologyGenerator:
         self.cur_defs: ResidueTopologySet = None
         self.cur_param: ParameterLoader = None
 
-    def _load_residue_definitions(self, chain_type: str):
+    def _load_residue_definitions(self, chain_type: str, preserve):
         """Load topology definition from the RTF file"""
         entity_type = chain_type_def_lookup.get(chain_type)
         if entity_type is None:
@@ -702,7 +702,7 @@ class TopologyGenerator:
         
         self.cur_defs = self.res_def_dict[entity_type]
         self.cur_param = self.param_dict[entity_type]
-        self.cur_param.fill_ic(self.cur_defs)
+        self.cur_param.fill_ic(self.cur_defs, preserve=preserve)
         
     def _generate_residue_topology(
             self, residue: Entities.Residue, coerce = False, QUIET = False
@@ -744,8 +744,8 @@ class TopologyGenerator:
 
     @staticmethod
     def apply_topo_def_on_residue(
-            residue: Entities.Residue,
-            res_definition: Entities.ResidueDefinition,
+            residue,
+            res_definition,
             QUIET = False
         ):
         """Apply the topology definition to the residue"""
@@ -832,6 +832,7 @@ class TopologyGenerator:
             warnings.warn(
                 f'Coerced Residue {residue.resname} to {new_resname}'
             )
+        old_resname = residue.resname
         residue.resname = new_resname
         _, resseq, icode = residue.id
         residue.id = (" ", resseq, icode)
@@ -843,13 +844,17 @@ class TopologyGenerator:
         if hasattr(residue.parent, "reported_res"):
             # if the chain has reported_res attribute, update it
             # to avoid generating new gaps due to mismatch resnames
-            residue.parent.reported_res[resseq-1] = (resseq, new_resname)
+            reported_res = residue.parent.reported_res
+            if (resseq, old_resname) in reported_res:
+                reported_res.remove((resseq, old_resname))
+                reported_res.append((resseq, new_resname))
+            residue.parent.reported_res = sorted(reported_res)
         return True
 
     def generate(
             self, chain: Entities.Chain, coerce: bool = False,
             first_patch: str = None, last_patch: str = None,
-            QUIET = False
+            preserve_ic = True, QUIET = False
         ):
         """Load topology definition into the chain and find any missing atoms.
         Argument:
@@ -860,7 +865,7 @@ class TopologyGenerator:
         """
 
         chain.undefined_res = []
-        self._load_residue_definitions(chain.chain_type)
+        self._load_residue_definitions(chain.chain_type, preserve_ic)
         for residue in chain:
             is_defined = self._generate_residue_topology(
                 residue, coerce=coerce, QUIET=QUIET
@@ -874,9 +879,10 @@ class TopologyGenerator:
         if first_patch is not None or last_patch is not None:
             self.patch_termini(chain, first_patch, last_patch, QUIET=True)
 
-        self.cur_param.fill_ic(self.cur_defs)
+        self.cur_param.fill_ic(self.cur_defs, preserve_ic)
         topo_elements = TopologyElementContainer()
         chain.topo_elements = topo_elements.load_chain(chain)
+        self.cur_param.apply(chain.topo_elements)
         return topo_elements
 
     def patch_termini(
@@ -1051,10 +1057,10 @@ class ResiduePatcher:
 
     def patch_residue_definition(
             self,
-            residue_definition: Entities.ResidueDefinition,
-            patch_definition: Entities.PatchDefinition,
+            residue_definition,
+            patch_definition,
             patch_loc: str = "MIDCHAIN",
-        ) -> Entities.ResidueDefinition:
+        ):
         """Patch a residue definition with a patch definition. Return the patched residue definition
         """
         patch_loc = patch_loc.upper()

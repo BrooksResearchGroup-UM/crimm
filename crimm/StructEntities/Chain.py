@@ -20,7 +20,7 @@ class BaseChain(_Chain):
         self.topo_definitions = None
         self.topo_elements = None
         self.pdbx_description = None
-    
+
     @property
     def residues(self):
         """Alias for child_list. Returns the list of residues in this chain."""
@@ -302,7 +302,7 @@ class PolymerChain(Chain):
             missing_res_ids = []
         else:
             missing_res_ids = list(zip(*self.missing_res))[0]
-        return MaskedSeq(missing_res_ids, self.can_seq)
+        return MaskedSeq(missing_res_ids, self.can_seq, self.reported_res[0][0])
 
     @property
     def gaps(self):
@@ -338,6 +338,26 @@ class PolymerChain(Chain):
             if resseq == res.id[1]:
                 modified_het_ids.append(res.id)
         return modified_het_ids
+
+    def truncate_missing_terminal(self):
+        """Remove the missing residues in reported_res list and the sequence info"""
+        bg, end = 1, len(self.can_seq)
+        trunc_bg = 0
+        trunc_end = -1
+        terminal_gaps = []
+        for gap in self.gaps:
+            if bg in gap:
+                terminal_gaps.append(gap)
+                trunc_bg = len(gap)
+            elif end in gap:
+                terminal_gaps.append(gap)
+                trunc_end = -len(gap)
+        if not terminal_gaps:
+            return
+        self.reported_res = sorted(self.reported_res)[trunc_bg:trunc_end]
+        self.can_seq = self.can_seq[trunc_bg:trunc_end]
+        known_seq = self.known_seq
+        self.known_seq = known_seq.rstrip(known_seq[trunc_end:]).lstrip(known_seq[:trunc_bg])
 
     def is_continuous(self):
         """
@@ -405,11 +425,11 @@ class MaskedSeq(Seq):
     RED = '\033[91m'
     ENDC = '\033[0m'
 
-    def __init__(self, missing_res_ids, can_seq, length=None):
+    def __init__(self, missing_res_ids, can_seq, seq_start, length=None):
         self.color_coded_seq = ''
         masked_seq = ''
-        for i, code in enumerate(can_seq):
-            if i+1 in missing_res_ids:
+        for i, code in enumerate(can_seq, start=seq_start):
+            if i in missing_res_ids:
                 self.color_coded_seq += f"{self.RED}{code}{self.ENDC}"
                 masked_seq += '-'
             else:

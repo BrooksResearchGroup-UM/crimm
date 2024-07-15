@@ -257,7 +257,7 @@ class PropKaProtonator:
             self.topo.patch_residue(residue, patch_name)
         else:
             self.topo.apply_topo_def_on_residue(residue, topo_def)
-        self.param.res_def_fill_ic(residue.topo_definition)
+        self.param.res_def_fill_ic(residue.topo_definition, preserve=True)
         fixer.load_residue(residue)
         fixer.build_missing_atoms()
         fixer.build_hydrogens()

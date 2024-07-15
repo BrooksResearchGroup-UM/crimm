@@ -1,15 +1,20 @@
-import os
 import tempfile
 import pycharmm as chm
-from pycharmm import read, write, psf, coor
+from pycharmm import read, psf, coor
 from pycharmm import generate
 from pycharmm import ic, cons_harm
 from pycharmm import minimize as _minimize
+from pycharmm.psf import get_natom, delete_atoms
 from crimm.IO import get_pdb_str
 
 nucleic_letters_1to3 = {
     'A': 'ADE', 'C': 'CYT', 'G': 'GUA', 'T': 'THY', 'U': 'URA',
 }
+
+def empty_charmm():
+    """If any atom exists in current CHARMM runtime, remove them."""
+    if get_natom() > 0:
+        delete_atoms()
 
 def load_topology(topo_generator, append = False):
     """Load topology and parameter files from a TopoGenerator object."""
@@ -56,7 +61,7 @@ def load_chain(chain, hbuild = False, report = False):
         tf.flush()
         _load_chain(
             tf.name, segnames=[segid], first_patch=first_patch, last_patch=last_patch,
-            hbuild = False
+            hbuild=hbuild, report=report
         )
         
 def _get_charmm_named_chain(chain, segid):

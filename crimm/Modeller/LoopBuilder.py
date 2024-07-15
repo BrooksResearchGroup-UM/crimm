@@ -385,7 +385,7 @@ class ChainLoopBuilder:
         for entity_dict in query_results.values():
             for pdbid, chain_ids in entity_dict.items():
                 structure = fetch_rcsb(
-                    pdbid, first_assembly_only = False,
+                    pdbid, use_bio_assembly = False,
                     include_solvent = False, local_entry=local_entry_point
                 )
                 first_model = structure.child_list[0]
@@ -511,6 +511,7 @@ class ChainLoopBuilder:
             # remove alphafold terminal residues from repairables
             for gap in missing_terminals:
                 repairables.pop(gap)
+            self.model_can_seq = self.model_chain.can_seq
 
         for gap_ids, repairable_info_dict in repairables.items():
             repairable_info_dict['structure_id'] = af_struct.id
