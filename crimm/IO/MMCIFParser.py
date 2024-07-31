@@ -15,7 +15,7 @@ from crimm.StructEntities.Chain import (
     Chain, PolymerChain, Heterogens, Oligosaccharide, Solvent, Macrolide
 )
 from crimm.StructEntities.Model import Model
-from crimm.Utils.StructureUtils import get_coords, index_to_letters
+from crimm.Utils.StructureUtils import get_coords, index_to_letters, rename_chains_by_order
 class MMCIFParser:
     """Parser class for standard mmCIF files from PDB"""
     def __init__(
@@ -36,6 +36,8 @@ class MMCIFParser:
         self.strict_parser = strict_parser
         self.cifdict = None
         self.model_template = None
+        self.structure_id = None
+        self.assembly_dict = None
         self.symmetry_ops = None
 
     @staticmethod
@@ -66,33 +68,6 @@ class MMCIFParser:
 
         return header
 
-    def _cif_find_symmetry_info(self):
-        symmetry_info = self.cifdict.get('pdbx_struct_oper_list')
-        if symmetry_info is None:
-            return
-        operation_names = symmetry_info['type']
-        matrices = np.empty((len(operation_names), 3, 3))
-        vectors = np.empty((len(operation_names), 3))
-        for key, val in symmetry_info.items():
-            if key.startswith('matrix'):
-                idx_j, idx_k = int(key[-2])-1, int(key[-1])-1
-                for idx_i, x in enumerate(val):
-                    matrices[idx_i, idx_j, idx_k] = x
-            if key.startswith('vector'):
-                idx_j = int(key[-1])-1
-                for idx_i, x in enumerate(val):
-                    vectors[idx_i, idx_j] = x
-
-        operation_dict = {}
-        for operation, matrix, vector in zip(operation_names, matrices, vectors):
-            if operation == 'identity operation':
-                continue
-            if operation not in operation_dict:
-                operation_dict[operation] = []
-            operation_dict[operation].append((matrix, vector))
-
-        return operation_dict
-
     def get_structure(self, filepath, structure_id = None):
         """Return the structure.
 
@@ -107,7 +82,10 @@ class MMCIFParser:
             # mmCIF will be parsed into dictionary first and then namedtuples
             # to gather all the necessary info to construct the structure
             self.cifdict = MMCIF2Dict(filepath)
+            self.structure_id = structure_id
             self.model_template = self.create_model_template()
+            # get bioassembly info
+            self.assembly_dict = self.create_assembly_dict()
             # find crystal symmetry operation
             self.symmetry_ops = self._cif_find_symmetry_info()
             self._build_structure(structure_id)
@@ -323,17 +301,18 @@ class MMCIFParser:
         "pdbx_struct_assembly_gen". If no assembly info available, None is
         returned.
         """
-        assemblies = dict()
-        structure_id = self.cifdict['data']
-        if structure_id.startswith('AF-'):
+        self.structure_id = self.cifdict.get('data')
+        if self.structure_id.startswith('AF-'):
             # AF-xxxxx is AlphaFold Structure, which does not have assembly
             return
 
         if 'pdbx_struct_assembly_gen' not in self.cifdict:
             warnings.warn(
-                f"No structure assembly info in {structure_id}"
+                f"No structure assembly info in {self.structure_id}"
             )
             return
+
+        assemblies = dict()
         entries = self.cifdict.create_namedtuples('pdbx_struct_assembly_gen')
         if self.use_bio_assembly:
             entries = entries[:1]
@@ -343,26 +322,84 @@ class MMCIFParser:
 
         return assemblies
 
+    def _cif_find_symmetry_info(self):
+        symmetry_info = self.cifdict.get('pdbx_struct_oper_list')
+        if symmetry_info is None or self.assembly_dict is None:
+            return
+        operation_names = symmetry_info['type']
+        matrices = np.empty((len(operation_names), 3, 3))
+        vectors = np.empty((len(operation_names), 3))
+        for key, val in symmetry_info.items():
+            if key.startswith('matrix'):
+                idx_j, idx_k = int(key[-2])-1, int(key[-1])-1
+                for idx_i, x in enumerate(val):
+                    matrices[idx_i, idx_j, idx_k] = x
+            if key.startswith('vector'):
+                idx_j = int(key[-1])-1
+                for idx_i, x in enumerate(val):
+                    vectors[idx_i, idx_j] = x
+
+        operation_dict = {}
+        for i, (operation, matrix, vector) in enumerate(
+            zip(operation_names, matrices, vectors)
+        ):
+            operation_dict[i] = {
+                'type': operation,
+                'matrix': matrix,
+                'vector': vector
+            }
+
+        return operation_dict
+
+    def _oper_str_to_list(self, ops):
+        ops = ops.lstrip('(').rstrip(')')
+        if ',' in ops:
+            return [int(op)-1 for op in ops.split(',')]
+        elif '-' in ops:
+            st, end = ops.split('-')
+            return list(range(int(st)-1, int(end)))
+        raise ValueError(f'Unknown Type of operation number format {ops}')
+
+    def _find_first_assembly_ops(self):
+        oper_details = self.cifdict.create_namedtuples('pdbx_struct_assembly_gen')
+        for oper_detail in oper_details:
+            if oper_detail.assembly_id != 1:
+                continue
+            op_val = oper_detail.oper_expression
+            if isinstance(op_val, str):
+                first_assem_ops = self._oper_str_to_list(op_val)
+            else:
+                first_assem_ops = [int(op_val)-1]
+        return first_assem_ops
+
     def _execute_symmetry_operations(self, model):
         if not self.symmetry_ops:
             return
         reference_model = model.copy()
         reference_model.detach_parent()
 
-        for operation_name, operations in self.symmetry_ops.items():
+        for op_id in self._find_first_assembly_ops():
+            if op_id not in self.symmetry_ops:
+                raise ValueError(
+                    f'Operation id {op_id} not found in listed symmetry ops'
+                )
+            operation = self.symmetry_ops[op_id]
+            if operation['type'] == 'identity operation':
+                continue
             warnings.warn(
-                f"{operation_name.upper()} performed as specified in mmCIF file."
+                f"{operation['type'].upper()} performed as specified in mmCIF file."
             )
-            for matrix, vector in operations:
-                copy_model = reference_model.copy()
-                copy_coords = get_coords(copy_model)
-                new_coords = copy_coords @ matrix + vector
-                for i, atom in enumerate(copy_model.get_atoms()):
-                    atom.coord = new_coords[i]
-                for i, chain in enumerate(copy_model):
-                    chain.id = index_to_letters(len(model)+i)
-                for chain in copy_model:
-                    model.add(chain)
+            matrix, vector = operation['matrix'], operation['vector']
+            copy_model = reference_model.copy()
+            copy_coords = get_coords(copy_model)
+            new_coords = copy_coords @ matrix + vector
+            for i, atom in enumerate(copy_model.get_atoms()):
+                atom.coord = new_coords[i]
+            for i, chain in enumerate(copy_model):
+                chain.id = index_to_letters(len(model)+i)
+            for chain in copy_model:
+                model.add(chain)
+        
         model.reset_atom_serial_numbers()
 
     def _build_structure(self, structure_id):
@@ -378,13 +415,13 @@ class MMCIFParser:
         if 'cell' in self.cifdict:
             cell_info = self.cifdict.create_namedtuples('cell')[0]
             sb.structure.cell_info = cell_info._asdict()
-        assembly_dict = self.create_assembly_dict()
-        if assembly_dict is None:
+        
+        if self.assembly_dict is None:
             selected_chains = None
         else:
-            sb.structure.assemblies = assembly_dict
+            sb.structure.assemblies = self.assembly_dict
             selected_chains = []
-            for chain_list in assembly_dict.values():
+            for chain_list in self.assembly_dict.values():
                 selected_chains.extend(chain_list)
 
         atom_site = self.create_atom_site_entry_dict()
