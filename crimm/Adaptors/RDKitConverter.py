@@ -34,6 +34,7 @@ import warnings
 import requests, json
 from crimm.Fetchers import fetch_rcsb_as_dict
 from crimm import StructEntities
+from crimm.IO import get_pdb_str
 import numpy as np
 from rdkit import Chem
 from rdkit.Chem import AllChem
@@ -190,13 +191,19 @@ def _determine_ligname(mol):
         ligname = 'LIG'
     return ligname.upper()[:3]
 
-def MolToMol2File(mol, ligname = None, filename = None):
-    """Write a mol2 file from a RDKit Mol Object."""
+def MolToMol2Block(mol, ligname = None):
+    """Write a mol2 block string from a RDKit Mol Object."""
     if ligname is None:
         ligname = _determine_ligname(mol)
 
+    if len(mol.GetConformers()) == 0:
+        # No conformer generated, use 2D mol coords
+        AllChem.Compute2DCoords(mol)
+
     pos = mol.GetConformer().GetPositions()
     atoms = list(mol.GetAtoms())
+    if not atoms[0].HasProp('_GasteigerCharge'):
+        Chem.rdPartialCharges.ComputeGasteigerCharges(mol)
 
     tripos_atom_format = '{:<6} {:<5} {:>7.3f} {:>7.3f} {:>7.3f} {:<6} {} {} {:>6.3f}'
     tripos_bond_format = '{:<5} {:<5} {:<5} {:<2}'
@@ -228,20 +235,25 @@ def MolToMol2File(mol, ligname = None, filename = None):
         bond_lines.append(tripos_bond_format.format(i, *bond_info))
 
     n_atoms, n_bonds = len(atom_lines), len(bond_lines)
-    title_block = _generate_mol2_title_block(ligname, n_atoms, n_bonds)
+    block_string = ""
+    block_string += _generate_mol2_title_block(ligname, n_atoms, n_bonds)
+    block_string += '@<TRIPOS>ATOM\n'
+    for l in atom_lines:
+        block_string += l+'\n'
+    block_string += '@<TRIPOS>BOND\n'
+    for l in bond_lines:
+        block_string += l+'\n'
+    block_string += f'@<TRIPOS>SUBSTRUCTURE\n1 {ligname} 1'
+    return block_string
+
+def MolToMol2File(mol, ligname = None, filename = None):
+    """Write a mol2 file from a RDKit Mol Object."""
+    mol2_string = MolToMol2Block(mol=mol, ligname=ligname)
 
     if filename is None:
         filename = f'{ligname}.mol2'
     with open(filename, 'w', encoding='UTF-8') as f:
-        f.write(title_block)
-        f.write('@<TRIPOS>ATOM\n')
-        for l in atom_lines:
-            f.write(l+'\n')
-        f.write('@<TRIPOS>BOND\n')
-        for l in bond_lines:
-            f.write(l+'\n')
-        f.write(f'@<TRIPOS>SUBSTRUCTURE\n1 {ligname} 1')
-
+        f.write(mol2_string)
 
 class LigandBondOrderException(Exception):
     """Define class LigandBondOrderException."""

@@ -40,7 +40,7 @@ class ProbeAtom:
     altloc = ' '
     bfactor = 0.0
     occupancy = 1.0
-    def __init__(self, name, coord, element,atom_type, charge):
+    def __init__(self, name, coord, element, atom_type, charge):
         self.name = name
         self.fullname = name
         self.coord = np.asarray(coord, dtype=np.float64)
@@ -64,6 +64,98 @@ class ProbeAtom:
     def get_serial_number(self):
         return self.serial_number
 
+class CustomFFTProbe:
+    segid = 'PROB'
+    level = 'R'
+    child_list = []
+    child_dict = {}
+    parent = None
+
+    def __init__(self, res_id, resname, atoms, bonds, bond_types):
+        self.resname = resname
+        self.res_id = res_id
+        self.child_list = atoms
+        for i, atom in enumerate(self.child_list, start=1):
+            if not isinstance(atom, ProbeAtom):
+                raise TypeError(
+                    f'List of atoms has to be ProbeAtom but {type(atom)} is provided'
+                )
+            atom.serial_number = i
+            atom.parent = self
+        self.child_dict = {atom.name: atom for atom in self.child_list}
+        self.bonds = self._assign_topo_elements(bonds, Bond)
+        self._assign_bond_types(bond_types)
+        
+    def __getitem__(self, key):
+        return self.child_dict[key]
+
+    def __iter__(self):
+        return iter(self.child_list)
+
+    def __len__(self):
+        return len(self.child_list)
+    
+    def __repr__(self) -> str:
+        return f'<Probe Molecule name={self.resname}>'
+    
+    @property
+    def id(self):
+        return (' ', self.res_id, ' ')
+
+    @property
+    def atoms(self):
+        return self.child_list
+    
+    @property
+    def conformer_coords(self):
+        """Return the coordinates of all conformers of the molecule. Returns an
+        NxMx3 array, where N is the number of conformers and M is the number of
+        atoms in the molecule."""
+        return self._conformer_coords
+
+    def get_atoms(self, include_alt=False):
+        return iter(self.child_list)
+
+    def _assign_topo_elements(self, atom_serial_tuples, topo_element_type):
+        elements = []
+        for serial_tuple in atom_serial_tuples:
+            atoms = [self.child_list[i-1] for i in serial_tuple]
+            elements.append(topo_element_type(*atoms))
+        return elements
+
+    def _assign_bond_types(self, bond_types):
+        for bond, order in zip(self.bonds, bond_types):
+            bond.order = bond_order_dict[order]
+            bond.type = bond_type_dict[order]
+
+    def _ipython_display_(self):
+        """Return the nglview interactive visualization window"""
+        if len(self) == 0:
+            return
+        from crimm.Visualization import show_nglview
+        from IPython.display import display
+        display(show_nglview(self))
+        print(repr(self))
+
+    def add_conformer_coord(self, conformer_coord):
+        """Add a conformer's coordinates to the molecule."""
+        self._conformer_coords = np.append(
+            self._conformer_coords, conformer_coord.reshape(1,-1,3), axis=0
+        )
+
+    def add_conformer_coords_multiple(self, conformer_coords):
+        """Add multiple conformers' coordinates to the molecule. Accepts an
+        NxMx3 array, where N is the number of conformers and M is the number of
+        atoms in the molecule."""
+        if conformer_coords.shape[1:] != (len(self.atoms), 3):
+            raise ValueError(
+                "Each conformer's coordinates must be Nx3 array, "
+                "where N is the number of atoms in the molecule."
+            )
+        self._conformer_coords = np.append(
+            self._conformer_coords, conformer_coords, axis=0
+        )
+    
 class _Probe:
     segid = 'PROB'
     level = 'R'
@@ -149,7 +241,7 @@ class _Probe:
         from crimm.Visualization import show_nglview
         from IPython.display import display
         display(show_nglview(self))
-        return repr(self)
+        print(repr(self))
 
     def add_conformer_coord(self, conformer_coord):
         """Add a conformer's coordinates to the molecule."""
