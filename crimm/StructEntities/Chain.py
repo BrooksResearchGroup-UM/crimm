@@ -342,22 +342,22 @@ class PolymerChain(Chain):
     def truncate_missing_terminal(self):
         """Remove the missing residues in reported_res list and the sequence info"""
         bg, end = 1, len(self.can_seq)
-        trunc_bg = 0
-        trunc_end = -1
-        terminal_gaps = []
+        keep_bg = None
+        keep_end = None
+        terminal_gaps = False
         for gap in self.gaps:
             if bg in gap:
-                terminal_gaps.append(gap)
-                trunc_bg = len(gap)
+                terminal_gaps = True
+                keep_bg = len(gap)
             elif end in gap:
-                terminal_gaps.append(gap)
-                trunc_end = -len(gap)
+                terminal_gaps = True
+                keep_end = -len(gap)
         if not terminal_gaps:
             return
-        self.reported_res = sorted(self.reported_res)[trunc_bg:trunc_end]
-        self.can_seq = self.can_seq[trunc_bg:trunc_end]
+        self.reported_res = sorted(self.reported_res)[keep_bg:keep_end]
+        self.can_seq = self.can_seq[keep_bg:keep_end]
         known_seq = self.known_seq
-        self.known_seq = known_seq.rstrip(known_seq[trunc_end:]).lstrip(known_seq[:trunc_bg])
+        self.known_seq = known_seq.rstrip(known_seq[keep_end:]).lstrip(known_seq[:keep_bg])
 
     def is_continuous(self):
         """

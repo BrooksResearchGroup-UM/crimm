@@ -171,15 +171,20 @@ class RTFParser:
     """A parser class to load rtf (residue topology files) into dictionary.
     Parser is initialized with RTF file from file path. If any lines from the 
     file are not parsed, they will be stored in the unparsed_lines"""
-    def __init__(self, file_path):
+    def __init__(self, file_path=None, rtf_block=None):
         self.rtf_version = None
         self.topo_dict = None
         self.decl_peptide_atoms = []
         self.default_patchs = {'FIRST':None,'LAST':None}
         self.default_autogen = None
         self.unparsed_lines = []
-        with open(file_path, 'r', encoding='utf-8') as f:
-            self.lines = [l.strip() for l in f.readlines() if not skip_line(l)]
+        if rtf_block is not None:
+            self.lines = [l.strip() for l in rtf_block.split('\n') if not skip_line(l)]
+        elif file_path is not None:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                self.lines = [l.strip() for l in f.readlines() if not skip_line(l)]
+        else:
+            raise ValueError('Either file_path or rtf_block has to be provided!')
         self._parse_lines()
         n_unparsed = len(self.unparsed_lines)
         if n_unparsed > 0:

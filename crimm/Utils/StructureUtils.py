@@ -37,7 +37,15 @@ def letters_to_index(letters):
     return index
 
 def get_coords(entity, include_alt=False):
-    """Get atom coordinates from any structure entity level"""
+    """Get atom coordinates from any structure entity level or a list of entities.
+    If a list of entity is provided, the coordinates will be an Nx3 array, where 
+    N is the total number of atoms in the list"""
+    if isinstance(entity, list):
+        return np.concatenate([get_coords(child) for child in entity])
+    if not hasattr(entity, 'level'):
+        raise TypeError(
+            'get_coord takes a Biopython/crimm structure object, '
+            f'while {type(entity)} is provided')
     if entity.level == 'A':
         return entity.coord
     return np.array([a.coord for a in entity.get_atoms(include_alt)])
