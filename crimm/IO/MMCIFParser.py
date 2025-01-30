@@ -5,6 +5,7 @@
 
 """Module containing the parser class for constructing structures from mmCIF 
 files from PDB"""
+from copy import deepcopy
 import warnings
 import numpy as np
 from Bio.PDB.PDBExceptions import PDBConstructionWarning
@@ -375,7 +376,7 @@ class MMCIFParser:
     def _execute_symmetry_operations(self, model):
         if not self.symmetry_ops:
             return
-        reference_model = model.copy()
+        reference_model = deepcopy(model)
         reference_model.detach_parent()
 
         for op_id in self._find_first_assembly_ops():
@@ -390,7 +391,7 @@ class MMCIFParser:
                 f"{operation['type'].upper()} performed as specified in mmCIF file."
             )
             matrix, vector = operation['matrix'], operation['vector']
-            copy_model = reference_model.copy()
+            copy_model = deepcopy(reference_model)
             copy_coords = get_coords(copy_model)
             new_coords = copy_coords @ matrix + vector
             for i, atom in enumerate(copy_model.get_atoms()):

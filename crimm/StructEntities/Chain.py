@@ -115,7 +115,6 @@ class Chain(BaseChain):
             **protein_letters_3to1_extended,
             **{v:v for k, v in nucleic_letters_3to1_extended.items()}
         }
-        self.het_res = []
         self.het_resseq_lookup = {}
 
     def add(self, residue):
@@ -128,11 +127,10 @@ class Chain(BaseChain):
         self.child_list.append(residue)
         self.child_dict[entity_id] = residue
         if hetflag.startswith('H_'):
-            self.het_res.append(residue) 
             self.het_resseq_lookup[resseq] = entity_id
         if icode != ' ':
             self.het_resseq_lookup[resseq] = entity_id
-    
+
     def _translate_id(self, id):
         """Translate sequence identifier to tuple form (PRIVATE).
 

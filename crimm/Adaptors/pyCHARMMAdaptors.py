@@ -6,6 +6,7 @@ from pycharmm import ic, cons_harm
 from pycharmm import minimize as _minimize
 from pycharmm.psf import get_natom, delete_atoms
 from crimm.IO import get_pdb_str
+from pathlib import Path
 
 nucleic_letters_1to3 = {
     'A': 'ADE', 'C': 'CYT', 'G': 'GUA', 'T': 'THY', 'U': 'URA',
@@ -16,11 +17,11 @@ def empty_charmm():
     if get_natom() > 0:
         delete_atoms()
 
-def load_topology(topo_generator, append = False):
+def load_topology(topo_generator):
     """Load topology and parameter files from a TopoGenerator object."""
     topo_loaders = topo_generator.res_def_dict.values()
     param_loaders = topo_generator.param_dict.values()
-    for topo_loader in topo_loaders:
+    for i, topo_loader in enumerate(topo_loaders):
         with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
             tf.write('*RTF Loaded from crimm\n')
             for line in topo_loader._raw_data_strings:
@@ -28,14 +29,14 @@ def load_topology(topo_generator, append = False):
                     line = '\n'+line
                 tf.write(line+'\n')
             tf.flush() # has to flush first for long files!
-            read.rtf(tf.name, append = append)
-    for param_loader in param_loaders:
+            read.rtf(tf.name, append = bool(i))
+    for i, param_loader in enumerate(param_loaders):
         with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
             tf.write('*PRM Loaded from crimm\n')
             for line in param_loader._raw_data_strings:
                 tf.write(line+'\n')
             tf.flush()
-            read.prm(tf.name, append = append, flex=True)
+            read.prm(tf.name, append = bool(i), flex=True)
 
 def load_chain(chain, hbuild = False, report = False):
     if not chain.is_continuous():
@@ -63,7 +64,42 @@ def load_chain(chain, hbuild = False, report = False):
             tf.name, segnames=[segid], first_patch=first_patch, last_patch=last_patch,
             hbuild=hbuild, report=report
         )
-        
+
+def load_water(water_chains):
+    # Currently only supports TIP3 water model
+    segids = []
+    abs_path = Path(__file__).resolve().parent.parent
+    abs_path = abs_path / "Data/toppar/water_ions.str"
+    with open(abs_path, 'r', encoding='utf-8') as f:
+        with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
+            tf.write('* WATER ION TOPPAR Loaded from crimm\n')
+            for line in f.readlines():
+                tf.write(line)
+            tf.flush()
+            read.stream(tf.name)
+    
+    for chain in water_chains:
+        segid = f'{chain.id}'
+        for res in chain:
+            res.segid = segid
+            res.resname = 'TIP3'
+        with tempfile.NamedTemporaryFile('w') as tf:
+            tf.write(get_pdb_str(chain))
+            tf.write('END\n')
+            tf.flush()
+
+            read.sequence_pdb(tf.name)
+            generate.new_segment(
+                seg_name=segid,
+                first_patch='',
+                last_patch='',
+                angle=False, 
+                dihedral=False
+            )
+            read.pdb(tf.name, resid=True)
+        segids.append(segid)
+    return segids
+
 def _get_charmm_named_chain(chain, segid):
     m_chain = chain.copy()
     if chain.chain_type == 'Polypeptide(L)':

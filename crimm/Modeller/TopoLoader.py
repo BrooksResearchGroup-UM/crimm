@@ -39,6 +39,11 @@ chain_type_def_lookup = {
     "Polynucleotide": "nucleic",
 }
 
+protein_n_term_patch_correction = {
+    'PRO': 'PROP',
+    'GLY': 'GLYP'
+}
+
 def _find_atom_in_residue(
         residue: Entities.Residue, atom_name: str
     )->Entities.Atom:
@@ -741,7 +746,7 @@ class TopologyGenerator:
         res_definition = self.cur_defs[residue.resname]
         self.apply_topo_def_on_residue(residue, res_definition, QUIET=QUIET)
         return True
-
+    
     @staticmethod
     def apply_topo_def_on_residue(
             residue,
@@ -837,28 +842,35 @@ class TopologyGenerator:
         _, resseq, icode = residue.id
         residue.id = (" ", resseq, icode)
 
-        if residue.parent is not None:
-            residue.parent.het_res.remove(residue)
-            residue.parent.het_resseq_lookup.pop(resseq)
+        if residue.parent is None:
+            return True
 
-        if hasattr(residue.parent, "reported_res"):
+        chain = residue.parent
+        chain.het_resseq_lookup.pop(resseq)
+
+        if hasattr(chain, "reported_res"):
             # if the chain has reported_res attribute, update it
             # to avoid generating new gaps due to mismatch resnames
-            reported_res = residue.parent.reported_res
+            reported_res = chain.reported_res
             if (resseq, old_resname) in reported_res:
                 reported_res.remove((resseq, old_resname))
                 reported_res.append((resseq, new_resname))
-            residue.parent.reported_res = sorted(reported_res)
+            chain.reported_res = sorted(reported_res)
+
         return True
 
     def generate(
             self, chain: Entities.Chain, coerce: bool = False,
             first_patch: str = None, last_patch: str = None,
-            preserve_ic = True, QUIET = False
+            auto_correct_first_patch=True, preserve_ic = True, QUIET = False
         ):
         """Load topology definition into the chain and find any missing atoms.
         Argument:
             chain: the Chain object whose topology is to be defined
+            auto_correct_first_patch: if True, automatically correct the first patch
+                of polypeptide chains. Since PRO or GLY needs special treatment when
+                patched at the N-terminus, the first patch will be corrected to PROP
+                or GLYP respectively.
             coerce: if True, try to coerce the modified residue name to the canonical name
                     and load the canonical residue topology definition
             QUIET: if True, suppress all warnings
@@ -877,7 +889,11 @@ class TopologyGenerator:
                 f"{n_undefined} residue(s) not defined in the chain!"
             )
         if first_patch is not None or last_patch is not None:
-            self.patch_termini(chain, first_patch, last_patch, QUIET=True)
+            self.patch_termini(
+                chain, first_patch, last_patch, 
+                auto_correct_first_patch, 
+                QUIET=QUIET
+            )
 
         self.cur_param.fill_ic(self.cur_defs, preserve_ic)
         topo_elements = TopologyElementContainer()
@@ -887,7 +903,7 @@ class TopologyGenerator:
 
     def patch_termini(
             self, chain: Entities.PolymerChain,
-            first: str, last: str, QUIET=False
+            first: str, last: str, auto_correct_first_patch=True, QUIET=False
         ):
         """Patch the terminal residues of the chain"""
         if chain.chain_type not in ('Polypeptide(L)', 'Polyribonucleotide'):
@@ -896,10 +912,24 @@ class TopologyGenerator:
                 f"for patching! Got {chain.chain_type}"
             )
         chain.sort_residues()
+        if auto_correct_first_patch:
+            corrected_first = protein_n_term_patch_correction.get(
+                chain.residues[0].resname, first
+            )
+            if corrected_first != first and not QUIET:
+                warnings.warn(
+                    f"Corrected first patch from {first} to {corrected_first}"
+                    f" for the N-terminal residue {chain.residues[0].resname}"
+                    f" in chain {chain.id}"
+                )
         if first is not None:
-            self.patch_residue(chain.child_list[0], first, "NTER", QUIET=QUIET)
+            self.patch_residue(
+                chain.child_list[0], first, patch_loc="NTER", QUIET=QUIET
+            )
         if last is not None:
-            self.patch_residue(chain.child_list[-1], last, "CTER", QUIET=QUIET)
+            self.patch_residue(
+                chain.child_list[-1], last, patch_loc="CTER", QUIET=QUIET
+            )
         if chain.topo_elements is not None:
             # Update topology elements if they are already defined
             chain.topo_elements.update()

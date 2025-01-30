@@ -151,6 +151,9 @@ class ChainLoopBuilder:
     def set_template_chain(
             self, template_chain: Entities.PolymerChain
         ):
+        """
+        Set the template chain for copying the coordinates of loop residues from
+        """
         self.template_chain = template_chain
         self.template_can_seq = template_chain.can_seq
         if self.template_can_seq is None:
@@ -523,6 +526,14 @@ class ChainLoopBuilder:
         self.model_chain.reset_atom_serial_numbers()
         self.repaired_residues.update(repairables)
 
-    def get_chain(self):
-        """Get the chain that is being modelled on"""
+    def get_chain(self, return_incomplete_chain = False):
+        """If no missing loop exists or return_incomplete_chain is True, this 
+        function returns the chain that is being modelled. Otherwise, 
+        it raises an error."""
+        if not self.model_chain.is_continuous() and not return_incomplete_chain:
+            raise ValueError(
+                'The chain being worked on remains broken! If you have tried to repair the missing loops, '
+                'this means that the method(s) failed on at least one missing loops.'
+            )
+
         return self.model_chain
