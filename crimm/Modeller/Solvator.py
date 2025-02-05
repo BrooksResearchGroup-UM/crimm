@@ -7,7 +7,8 @@ import numpy as np
 from scipy.spatial import KDTree
 from crimm import Data
 from crimm.Modeller.CoordManipulator import CoordManipulator
-from crimm.StructEntities import Atom, Residue, Chain, Model
+from crimm.StructEntities import Atom, Residue, Model
+from crimm.StructEntities.Chain import Solvent
 
 WATER_COORD_PATH = os.path.join(os.path.dirname(Data.__file__), 'water_coords.npy')
 BOXWIDTH=18.662 # water unit cube width
@@ -112,8 +113,6 @@ class Solvator:
     alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
     def __init__(self) -> None:
         self.solvated_model = None
-        self._cur_water_chain = None
-        self._alphabet_index = None
         self.cutoff = None
         self.solvcut = None
         self.coords = None
@@ -123,7 +122,7 @@ class Solvator:
         self.water_unit_coords = np.load(WATER_COORD_PATH)
 
     def solvate(
-            self, entity, cutoff=9.0, solvcut = 2.10, 
+            self, entity, cutoff=9.0, solvcut = 2.10,
             remove_existing_water = True
         ) -> Model:
         """Solvates the entity and returns a Model level entity. The solvated
@@ -184,7 +183,9 @@ class Solvator:
             model.detach_child(chain_id)
     
     def create_water_box_coords(self) -> np.ndarray:
-        """Creates a cubic box of water molecules centered at the origin (0, 0, 0)."""
+        """
+        Creates a cubic box of water molecules centered at the origin (0, 0, 0).
+        """
         n_water_cubes = int(np.ceil(self.box_dim / BOXWIDTH))
         water_coords_expanded = self.water_unit_coords.reshape(-1,3)
         n_atoms = water_coords_expanded.shape[0]
@@ -238,34 +239,32 @@ class Solvator:
             np.any(within_cutoff.reshape(-1,3), axis=1)
         ) # (N_waters,)
 
-        water_box = water_box.reshape(-1,3,3)[
+        water_box = water_box.reshape((-1,3,3))[
             boundary_select & cutoff_select
         ] # (N_waters, 3, 3)
 
         return water_box
 
-    def _create_new_water_chain(self) -> Chain:
-        chain_id = 'W'+self.alphabet[self._alphabet_index]
-        water_chain = Chain(chain_id)
-        water_chain.chain_type = 'Solvent'
+    def _create_new_water_chain(self, alphabet_index) -> Solvent:
+        chain_id = 'W'+self.alphabet[alphabet_index]
+        water_chain = Solvent(chain_id)
         water_chain.pdbx_description = 'water'
         return water_chain
 
     def _solvate_model(self):
         self.water_box_coords = self.get_expelled_water_box_coords()
-        self._alphabet_index = 0
-        self._cur_water_chain = self._create_new_water_chain()
-        self.solvated_model.add(self._cur_water_chain)
-
+        alphabet_index = 0
+        assert self.water_box_coords.shape[1:] == (3, 3), \
+        f'Invalid water box coords shape {self.water_box_coords.shape}'
+        
         for i, res_coords in enumerate(self.water_box_coords):
             # split water molecules into chains of 9999 residues for PDB format
             # compliance
             resseq = i % 9999 + 1
-            if i > 0 and resseq == 1:
-                self._cur_water_chain.reset_atom_serial_numbers()
-                self._alphabet_index += 1
-                self._cur_water_chain = self._create_new_water_chain()
-                self.solvated_model.add(self._cur_water_chain)
+            if resseq == 1:
+                cur_water_chain = self._create_new_water_chain(alphabet_index)
+                alphabet_index += 1
+                self.solvated_model.add(cur_water_chain)
 
             water_res = Residue((' ', resseq, ' '), 'HOH', '')
 
@@ -281,6 +280,9 @@ class Solvator:
             water_res.add(cur_oxygen)
             water_res.add(cur_h1)
             water_res.add(cur_h2)
-            self._cur_water_chain.add(water_res)
-        self._cur_water_chain.reset_atom_serial_numbers()
+            cur_water_chain.add(water_res)
+
+            
+            
+        
 

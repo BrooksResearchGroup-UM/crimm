@@ -10,7 +10,6 @@ from crimm import StructEntities as Entities
 from crimm.IO.PRMParser import categorize_lines, parse_line_dict
 from crimm.IO.RTFParser import RTFParser
 from crimm.Modeller import ResidueFixer
-# from crimm.Modeller.ParamLoader import ParameterLoader
 
 toppar_dir = os.path.abspath(
     os.path.join(os.path.dirname(__file__), '../Data/toppar')
@@ -21,7 +20,8 @@ rtf_path_dict = {
     "lipid": os.path.join(toppar_dir, 'lipid.rtf'),
     "carb": os.path.join(toppar_dir, 'carb.rtf'),
     "ethers": os.path.join(toppar_dir, 'ethers.rtf'),
-    "cgenff": os.path.join(toppar_dir, 'cgenff.rtf')
+    "cgenff": os.path.join(toppar_dir, 'cgenff.rtf'),
+    "water_ions": os.path.join(toppar_dir, 'water_ions.rtf'),
 }
 
 prm_path_dict = {
@@ -30,7 +30,8 @@ prm_path_dict = {
     "lipid": os.path.join(toppar_dir, 'lipid.prm'),
     "carb": os.path.join(toppar_dir, 'carb.prm'),
     "ethers": os.path.join(toppar_dir, 'ethers.prm'),
-    "cgenff": os.path.join(toppar_dir, 'cgenff.prm')
+    "cgenff": os.path.join(toppar_dir, 'cgenff.prm'),
+    "water_ions": os.path.join(toppar_dir, 'water_ions.prm'),
 }
 
 chain_type_def_lookup = {
@@ -259,8 +260,22 @@ def get_cmap(chain: Entities.PolymerChain)->List[Entities.CMap]:
             cmaps.append(cmap)
     return cmaps
 
-class TopologyElementContainer:
-    """A class object that stores topology elements"""
+class HeterogenTopology:
+    """A class object that stores topology elements for a heterogen residue, e.g.
+    ligand, water, ions, etc."""
+    def __init__(self, heterogen_topo_def):
+        self.heterogen_topo_def = heterogen_topo_def
+        self.bonds = None
+        self.angles = None
+        self.dihedrals = None
+        self.impropers = None
+        self.cmap = None
+        self.atom_lookup = None
+        self.missing_param_dict = None
+
+class ChainTopology:
+    """A class that stores topology elements of bio-polymer chains, e.g. 
+    Protein, RNA, DNA."""
     def __init__(self):
         self._visited_atoms = None
         self.bonds = None
@@ -281,8 +296,8 @@ class TopologyElementContainer:
 
     def __repr__(self) -> str:
         if self.containing_entity is None:
-            return "<EmptyTopologyElementContainer>"
-        s = f"<TopologyElementContainer for {self.containing_entity} with "
+            return "<EmptyTopology>"
+        s = f"<Topology for {self.containing_entity} with "
         for attr, value in self:
             if value is None:
                 n = 0
@@ -292,7 +307,7 @@ class TopologyElementContainer:
         s = s[:-2] + ">"
         return s
 
-    def load_chain(self, chain: Entities.PolymerChain):
+    def load_chain(self, chain):
         """Find all topology elements from the chain"""
         self.containing_entity = chain
         self.find_topo_elements(chain)
@@ -317,29 +332,21 @@ class TopologyElementContainer:
             for topo in remove_list:
                 topo_list.remove(topo)
 
-    @staticmethod
-    def _find_seeding_atom(chain):
+    def _find_seeding_atom(self):
         """Find the first atom to start the search"""
-        for atom in chain.child_list[0]:
+        for atom in self.containing_entity.get_atoms():
             if len(atom.neighbors) > 0:
                 return atom
 
     ## TODO: get Cmap from the topology rtf file
     def find_topo_elements(self, chain: Entities.Chain):
         """Find all topology elements in the chain"""
-        if chain.chain_type == 'Polypeptide(L)':
-            inter_res_bond = ('C','N') # peptide bond
-        elif chain.chain_type == 'Polyribonucleotide':
-            inter_res_bond = ("O3'",'P') # phosphodiester bond
-        else:
-            raise NotImplementedError("Chain type not supported yet!")
-        
         if chain.undefined_res:
             raise ValueError(
                 "Cannot find topology elements for a chain with undefined residues! "
                 f"Undefined residues: {chain.undefined_res}. This is possibly due "
-                "to heterogen residues. Use Chain.generate_chain_topology() "
-                "with coerce=True to coerce the heterogen into canoncal residue "
+                "to heterogen residues. Use TopologyGenerator.generate() "
+                "with coerce=True to coerce the heterogen name into canoncal residue "
                 "if necessary."
             )
 
@@ -350,16 +357,23 @@ class TopologyElementContainer:
                 "loop modeling tool to construct the missing residues first."
             )
 
+        if chain.chain_type == 'Polypeptide(L)':
+            inter_res_bond = ('C','N') # peptide bond
+        elif chain.chain_type == 'Polyribonucleotide':
+            inter_res_bond = ("O3'",'P') # phosphodiester bond
+        else:
+            raise NotImplementedError("Chain type not supported!")
+
         self.bonds = chain_trace_atom_neighbors(chain, inter_res_bond)
         visited_atoms = set()
         angles = set()
         dihedrals = set()
-        seed_atom = self._find_seeding_atom(chain)
+        seed_atom = self._find_seeding_atom()
         traverse_graph(seed_atom, angles, dihedrals, visited_atoms)
         self._visited_atoms = list(visited_atoms)
         self.angles = list(angles)
         self.dihedrals = list(dihedrals)
-        self.impropers = get_impropers(chain)
+        self.impropers = get_impropers(chain) 
 
     def create_atom_lookup_table(self) -> dict:
         """Create a lookup table for all topology elements for a given atom in the chain"""
@@ -402,11 +416,11 @@ class ParameterLoader:
         'R(I-K)': (0, 2),
     }
     """A dictionary that stores parameters for CHARMM force field."""
-    def __init__(self, file_path=None):
+    def __init__(self, entity_type=None):
         self.param_dict = {}
         self._raw_data_strings = []
-        if file_path is not None:
-            self.load_type(file_path)
+        if entity_type is not None:
+            self.load_type(entity_type=entity_type)
 
     def load_type(self, entity_type:str):
         """Load parameters from a CHARMM prm file."""
@@ -528,11 +542,11 @@ class ParameterLoader:
                 topo_element.param = param
         return no_param_list
     
-    def apply(self, topo_element_container: TopologyElementContainer):
+    def apply(self, topo_element_container: ChainTopology):
         """Apply the parameter for a list of topology element"""
-        if not isinstance(topo_element_container, TopologyElementContainer):
+        if not isinstance(topo_element_container, ChainTopology):
             raise TypeError(
-                'Invalid argument type provided! TopologyElementContainer'
+                'Invalid argument type provided! Topology'
                 f' is expected. {type(topo_element_container)} is provided.'
             )
         missing_param_dict = {}
@@ -896,10 +910,10 @@ class TopologyGenerator:
             )
 
         self.cur_param.fill_ic(self.cur_defs, preserve_ic)
-        topo_elements = TopologyElementContainer()
-        chain.topo_elements = topo_elements.load_chain(chain)
-        self.cur_param.apply(chain.topo_elements)
-        return topo_elements
+        topology = ChainTopology()
+        chain.topology = topology.load_chain(chain)
+        self.cur_param.apply(chain.topology)
+        return topology
 
     def patch_termini(
             self, chain: Entities.PolymerChain,
@@ -930,9 +944,9 @@ class TopologyGenerator:
             self.patch_residue(
                 chain.child_list[-1], last, patch_loc="CTER", QUIET=QUIET
             )
-        if chain.topo_elements is not None:
+        if chain.topology is not None:
             # Update topology elements if they are already defined
-            chain.topo_elements.update()
+            chain.topology.update()
 
     def patch_residue(
             self, residue: Entities.Residue, patch: str,
@@ -961,7 +975,7 @@ class TopologyGenerator:
         fixer.load_residue(residue)
         fixer.remove_undefined_atoms()
 
-##TODO: Rewrite TopoDef and this class to use the TopologyElementContainer instead
+##TODO: Rewrite TopoDef and this class to use the Topology instead
 ## of removing entries one by one here
 class ResiduePatcher:
     """Class Object for patching a residue with a patch definition"""

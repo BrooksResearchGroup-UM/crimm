@@ -50,7 +50,7 @@ def resi_parser(line):
     """Parse the keyword RESI for a new residue"""
     field_str, desc = comment_parser(line)
     # [key, residue_name, total_charge]
-    key, res_name, total_charge = field_str.split()
+    key, res_name, total_charge = field_str.split()[:3]
     return res_name, total_charge, desc
 
 def atom_parser(line):

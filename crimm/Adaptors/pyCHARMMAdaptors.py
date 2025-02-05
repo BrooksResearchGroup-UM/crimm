@@ -46,18 +46,15 @@ def load_chain(chain, hbuild = False, report = False):
     m_chain = _get_charmm_named_chain(chain, segid)
     first_res = m_chain.child_list[0]
     last_res = m_chain.child_list[-1]
+    first_patch, last_patch = '', ''
     if (patch_name:=first_res.topo_definition.patch_with) is not None:
         first_patch = patch_name
-    else:
-        first_patch = ''
         
     if (patch_name:=last_res.topo_definition.patch_with) is not None:
         last_patch = patch_name
-    else:
-        last_patch = ''
         
     with tempfile.NamedTemporaryFile('w') as tf:
-        tf.write(get_pdb_str(m_chain))
+        tf.write(get_pdb_str(m_chain, use_charmm_format=True))
         tf.write('END\n')
         tf.flush()
         _load_chain(
@@ -78,13 +75,14 @@ def load_water(water_chains):
             tf.flush()
             read.stream(tf.name)
     
-    for chain in water_chains:
-        segid = f'{chain.id}'
+    for i, chain in enumerate(water_chains):
+        segid = f'WT{i:02d}'
+        print(f"Loading water chain {segid}")
         for res in chain:
             res.segid = segid
             res.resname = 'TIP3'
         with tempfile.NamedTemporaryFile('w') as tf:
-            tf.write(get_pdb_str(chain))
+            tf.write(get_pdb_str(chain, use_charmm_format=True))
             tf.write('END\n')
             tf.flush()
 
@@ -93,7 +91,7 @@ def load_water(water_chains):
                 seg_name=segid,
                 first_patch='',
                 last_patch='',
-                angle=False, 
+                angle=False,
                 dihedral=False
             )
             read.pdb(tf.name, resid=True)
@@ -106,6 +104,7 @@ def _get_charmm_named_chain(chain, segid):
         for res in m_chain:
             res.segid = segid
             if res.resname == 'HIS':
+                # we uses HSD for default HIS protonation state here
                 res.resname = res.topo_definition.resname
     elif chain.chain_type == 'Polyribonucleotide':
         for res in m_chain:

@@ -18,7 +18,7 @@ class BaseChain(_Chain):
         # instantiated but not initiated
         self.undefined_res = None
         self.topo_definitions = None
-        self.topo_elements = None
+        self.topology = None
         self.pdbx_description = None
 
     @property
@@ -31,11 +31,17 @@ class BaseChain(_Chain):
             return self
         return self.parent.get_top_parent()
 
-    def reset_atom_serial_numbers(self, include_alt = True):
+    def reset_atom_serial_numbers(
+            self, include_alt = True, reset_current_only = False
+        ):
         """Reset all atom serial numbers in the encompassing entity (the parent
-        structure and/or model, if they exist) starting from 1."""
+        structure and/or model, if they exist) starting from 1. If include_alt
+        is True, the disordered atoms will be expanded and the altloc will be
+        included in the serial number. If reset_current_only is True, the serial 
+        numbers will be reset for the entity itself, otherwise, the top parent 
+        will be searched for the reset."""
         top_parent = self.get_top_parent()
-        if top_parent is not self:
+        if top_parent is not self and not reset_current_only:
             top_parent.reset_atom_serial_numbers(include_alt=include_alt)
             return
         # no parent, reset the serial number for the entity itself
