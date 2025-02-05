@@ -313,9 +313,14 @@ class ResidueFixer:
             if hydrogen in self._res.undefined_atoms:
                 self._res.undefined_atoms.remove(hydrogen)
         # update missing hydrogens from the residue topology definition
-        self._res.missing_hydrogens = {}
+        remove_h_names = []
+        for missing_h in self._res.missing_hydrogens:
+            if missing_h not in self._res.topo_definition:
+                remove_h_names.append(missing_h)
+        for h_name in remove_h_names:
+            self._res.missing_hydrogens.pop(h_name)
         for atom_def in self._res.topo_definition:
-            if atom_def.element == 'H':
+            if atom_def.element == 'H' and atom_def.name not in self._res.missing_hydrogens:
                 self._res.missing_hydrogens[atom_def.name] = atom_def.create_new_atom()
         self.heavy_build_sequence, self.hydrogen_build_sequence = \
             find_build_seq(

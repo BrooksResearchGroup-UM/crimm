@@ -7,11 +7,16 @@ from crimm import StructEntities as Entities
 _ATOM_FORMAT_STRING = (
     "%s%5i %-4s%c%3s %c%4i%c   %8.3f%8.3f%8.3f%s%6.2f      %4s%2s%2s\n"
 )
+_CHARMM_ATOM_FORMAT_STRING = (
+    "%s%5i %-4s%c%4s %4i%c   %8.3f%8.3f%8.3f%s%6.2f      %4s\n"
+)
 _TER_FORMAT_STRING = (
     "TER   %5i      %3s %c%4i%c                                                      \n"
 )
 
-def _get_atom_line_with_parent_info(atom: Entities.Atom, trunc_resname=False):
+def _get_atom_line_with_parent_info(
+        atom: Entities.Atom, trunc_resname=False, use_charmm_format=False
+    ):
     """Return the parent info of the atom (PRIVATE). Atom must have a parent residue."""
     residue = atom.parent
     resname = residue.resname
@@ -23,7 +28,8 @@ def _get_atom_line_with_parent_info(atom: Entities.Atom, trunc_resname=False):
         chain_id = '_'
     return _get_atom_line(
         atom, hetfield, segid, atom.get_serial_number(),
-        resname, resseq, icode, chain_id, trunc_resname=trunc_resname
+        resname, resseq, icode, chain_id, trunc_resname=trunc_resname,
+        use_charmm_format=use_charmm_format
     )
 
 def _get_ter_line(atom: Entities.Atom, trunc_resname=False):
@@ -45,7 +51,7 @@ def _get_ter_line(atom: Entities.Atom, trunc_resname=False):
     args = (atom.get_serial_number(), resname, chain_id, resseq, icode)
     return _TER_FORMAT_STRING % args
 
-def _get_orphan_atom_line(atom: Entities.Atom, trunc_resname=False):
+def _get_orphan_atom_line(atom: Entities.Atom, trunc_resname=False, use_charmm_format=False):
     """Return the orphan atom line (PRIVATE). Dummy residue and chain info will be filled."""
     resname = 'DUM'
     segid = ' '
@@ -53,7 +59,8 @@ def _get_orphan_atom_line(atom: Entities.Atom, trunc_resname=False):
     chain_id = '_'
     return _get_atom_line(
         atom, hetfield, segid, atom.get_serial_number(),
-        resname, resseq, icode, chain_id, trunc_resname=trunc_resname
+        resname, resseq, icode, chain_id, trunc_resname=trunc_resname,
+        use_charmm_format=use_charmm_format
     )
 
 def _get_atom_line(
@@ -67,8 +74,14 @@ def _get_atom_line(
     chain_id,
     charge="  ",
     trunc_resname=False,
+    use_charmm_format=False,
 ):
     """Return an ATOM PDB string (PRIVATE)."""
+    if use_charmm_format:
+        format_string = _CHARMM_ATOM_FORMAT_STRING
+    else:
+        format_string = _ATOM_FORMAT_STRING
+    
     if hetfield != " ":
         record_type = "HETATM"
     else:
@@ -135,36 +148,56 @@ def _get_atom_line(
                 f"Invalid occupancy value: {atom.occupancy!r}"
             ) from None
 
-    args = (
-        record_type,
-        atom_number,
-        name,
-        altloc,
-        resname,
-        chain_id,
-        resseq,
-        icode,
-        x,
-        y,
-        z,
-        occupancy,
-        bfactor,
-        segid,
-        element,
-        charge,
-    )
-    return _ATOM_FORMAT_STRING % args
+    if use_charmm_format:
+        args = (
+            record_type,
+            atom_number,
+            name,
+            altloc,
+            resname,
+            resseq,
+            icode,
+            x,
+            y,
+            z,
+            occupancy,
+            bfactor,
+            segid,
+        )
+    else:
+        args = (
+            record_type,
+            atom_number,
+            name,
+            altloc,
+            resname,
+            chain_id,
+            resseq,
+            icode,
+            x,
+            y,
+            z,
+            occupancy,
+            bfactor,
+            segid,
+            element,
+            charge,
+        )
+    return format_string % args
 
 ##TODO: Add support for CONECT records
-def get_pdb_str(entity, reset_serial=True, include_alt=False, trunc_resname=False):
+def get_pdb_str(
+        entity, reset_serial=True,
+        include_alt=False, trunc_resname=False, use_charmm_format=False
+    ):
     """Return the PDB string of the entity."""
     if reset_serial and hasattr(entity, 'reset_atom_serial_numbers'):
         entity.reset_atom_serial_numbers(include_alt=include_alt)
 
     if entity.level == 'A':
         if entity.parent is None:
-            return _get_orphan_atom_line(entity, trunc_resname)
-        return _get_atom_line_with_parent_info(entity, trunc_resname)
+            return _get_orphan_atom_line(entity, trunc_resname, use_charmm_format)
+        return _get_atom_line_with_parent_info(entity, trunc_resname, use_charmm_format)
 
     chains = None
     if entity.level in ('C', 'R', 'A'):
@@ -180,7 +213,7 @@ def get_pdb_str(entity, reset_serial=True, include_alt=False, trunc_resname=Fals
         if len(atoms) == 0:
             continue
         for atom in atoms:
-            pdb_str += _get_atom_line_with_parent_info(atom, trunc_resname)
+            pdb_str += _get_atom_line_with_parent_info(atom, trunc_resname, use_charmm_format)
         pdb_str += _get_ter_line(atoms[-1], trunc_resname)
     pdb_str += 'END\n'
     return pdb_str
