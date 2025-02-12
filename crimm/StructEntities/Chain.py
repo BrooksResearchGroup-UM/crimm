@@ -7,6 +7,7 @@ from Bio.Data.PDBData import nucleic_letters_3to1_extended
 from Bio.PDB.Chain import Chain as _Chain
 from Bio.PDB.PDBExceptions import PDBConstructionException
 import crimm.StructEntities as cEntities
+from copy import copy
 
 class BaseChain(_Chain):
     """Base class derived from and Biopython chain object and compatible with
@@ -26,6 +27,14 @@ class BaseChain(_Chain):
         """Alias for child_list. Returns the list of residues in this chain."""
         return self.child_list
 
+    def get_empty_shell(self):
+        """Remove all residues from the chain."""
+        new_chain = copy(self)
+        new_chain.child_list = []
+        new_chain.child_dict = {}
+        new_chain.detach_parent()
+        return new_chain
+    
     def get_top_parent(self):
         if self.parent is None:
             return self
@@ -84,11 +93,11 @@ class BaseChain(_Chain):
     
     def _ipython_display_(self):
         """Return the nglview interactive visualization window"""
-        if len(self) == 0:
-            return
-        from crimm.Visualization import show_nglview
-        from IPython.display import display
-        display(show_nglview(self))
+        if len(self) != 0:
+            from crimm.Visualization import show_nglview
+            from IPython.display import display
+            display(show_nglview(self))
+
         print(self.expanded_view())
 
     def get_atoms(self, include_alt = False):
@@ -394,7 +403,11 @@ class Heterogens(BaseChain):
     def __repr__(self):
         """Return the chain identifier."""
         return f"<{self.chain_type} id={self.get_id()} Molecules={len(self)}>"
-            
+
+class Ligand(Heterogens):
+    """A chain of ligands."""
+    chain_type = 'Ligand'
+              
 class Macrolide(BaseChain):
     chain_type = 'Macrolide'
     
@@ -416,8 +429,6 @@ class Glycosylation(BaseChain):
 class NucleosidePhosphate(BaseChain):
     chain_type = 'NucleosidePhosphate'
 
-class Ligand(BaseChain):
-    chain_type = 'Ligand'
 
 class MaskedSeq(Seq):
     """

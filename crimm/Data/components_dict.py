@@ -28,3 +28,19 @@ TRANSITION_METALS = (
     'Rf', 'Db', 'Sg', 'Bh', 'Hs'
 )
 ALL_METALS = tuple((*ALKALI_METALS, *ALKALI_EARTH_METALS, *TRANSITION_METALS))
+
+PDB_CHARMM_ION_NAMES = {
+    "LI": "LIT",
+    "NA": "SOD",
+    "MG": "MG",
+    "K": "POT",
+    "CA": "CAL",
+    "RB": "RUB",
+    "CS": "CES",
+    "BA": "BAR",
+    "ZN": "ZN",
+    "CD": "CAD",
+    "CL": "CLA",
+}
+
+CHARMM_PDB_ION_NAMES = {k:v for v,k in PDB_CHARMM_ION_NAMES.items()}

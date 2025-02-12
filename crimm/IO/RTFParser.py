@@ -18,8 +18,13 @@ def mass_parser(line):
     """Parse lines with keyword MASS"""
     field_str, desc = comment_parser(line)
     # fields: [key, deprecated_entry, atom_type, atomic_mass]
-    key, _, atom_type, mass = field_str.split()[:4] # ignore the fifth field if present
-    return atom_type, mass, desc
+    fields = field_str.split()
+    if len(fields) == 4:
+        key, _, atom_type, mass = fields
+        element = None
+    elif len(fields) == 5:
+        key, _, atom_type, mass, element = fields
+    return atom_type, mass, desc, element
 
 def decl_parser(line):
     """Parse line with keyword DECLare"""
@@ -200,8 +205,8 @@ class RTFParser:
         for l in self.lines[1:]:
             l = l.upper()
             if l.startswith('MASS'):
-                symbol, mass, desc = mass_parser(l)
-                mass_dict.update({symbol: (float(mass), desc)})
+                symbol, mass, desc, element = mass_parser(l)
+                mass_dict.update({symbol: (float(mass), desc, element)})
             elif l.startswith('DECL'):
                 atom = decl_parser(l)
                 self.decl_peptide_atoms.append(atom)
@@ -251,7 +256,8 @@ class RTFParser:
                         'atom_type': atom_type, 
                         'charge': float(atom_charge), 
                         'mass': mass_dict[atom_type][0],
-                        'desc': mass_dict[atom_type][1]
+                        'desc': mass_dict[atom_type][1],
+                        'element': mass_dict[atom_type][2]
                     }
                 }
                 cur_atom_group[cur_group_i].update(cur_atom_dict)

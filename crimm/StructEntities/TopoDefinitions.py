@@ -11,7 +11,7 @@ class AtomDefinition:
     other properties of an atom. It is also used to create new atom instances."""
     def __init__(
         self, parent_def, name, atom_type, charge, mass,
-        desc = None
+        desc = None, element = None
     ):
         self.parent_def = parent_def
         self.name = name
@@ -21,7 +21,12 @@ class AtomDefinition:
         self.charge = charge
         self.mass = mass
         self.desc = desc
-        self.element = name[0]
+        self.element = element
+        if element is None:
+            # if element is not specified, take the first letter of the atom name
+            # as the element
+            # TODO: this is not a good way to determine the element
+            self.element = name[0] 
 
     def __repr__(self):
         repr_str = f"<Atom Definition name={self.name} type={self.atom_type}>"
@@ -55,10 +60,12 @@ class ResidueDefinition:
     bond_order_dict = {'single':1, 'double':2, 'triple':3, 'aromatic':2}
 
     def __init__(
-            self, file_source : str, resname : str, res_topo_dict: Dict
+            self, file_source : str, resname : str, res_topo_dict: Dict,
+            is_hetero : bool = False
         ):
         self.file_source = file_source
         self.resname = resname
+        self.is_hetero = is_hetero
         self.is_modified = False
         self.is_patch : bool = None
         self.atom_groups : List = None
@@ -314,6 +321,26 @@ class ResidueDefinition:
         Return:
             Residue object with atoms whose names and coordinates are filled
         """
+        ## TODO: add type to determine heterogens
+        if self.is_hetero:
+            het_field = 'H_'+self.resname
+        else:
+            het_field = ' '
+        if len(self.atom_dict) == 1:
+            atom_name = next(iter(self.atom_dict))
+            atom_def = self.atom_dict[atom_name]
+            new_atom = atom_def.create_new_atom(
+                coords = np.zeros(3),
+                serial_number=1
+            )
+            new_res = Entities.Residue(
+                (het_field, int(resseq), str(icode)),
+                atom_name,
+                segid = segid
+            )
+            new_res.add(new_atom)
+            return new_res
+
         if not self._is_ic_defined():
             warnings.warn(
                 f'IC table for {self.resname} is not fully defined! '
@@ -327,16 +354,19 @@ class ResidueDefinition:
                 return
 
         new_res = self._standard_res.copy()
-        new_res.id = (" ", int(resseq), str(icode))
+        new_res.id = (het_field, int(resseq), str(icode))
         new_res.segid = str(segid)
         return new_res
 
 
 class PatchDefinition(ResidueDefinition):
     """Class Object for patch definition"""
-    def __init__(self, file_source : str, resname : str, res_topo_dict: Dict):
+    def __init__(
+            self, file_source : str, resname : str, res_topo_dict: Dict,
+            is_hetero : bool = False
+        ):
         self.delete = None
-        super().__init__(file_source, resname, res_topo_dict)
+        super().__init__(file_source, resname, res_topo_dict, is_hetero)
         
     def build_standard_coord_from_ic_table(self):
         raise NotImplementedError
