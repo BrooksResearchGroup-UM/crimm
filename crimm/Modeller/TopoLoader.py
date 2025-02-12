@@ -38,6 +38,8 @@ chain_type_def_lookup = {
     "Polypeptide(L)": "protein",
     "Polyribonucleotide": "nucleic",
     "Polynucleotide": "nucleic",
+    "Solvent": "water_ions",
+    "Ion": "water_ions"
 }
 
 protein_n_term_patch_correction = {
@@ -260,38 +262,23 @@ def get_cmap(chain: Entities.PolymerChain)->List[Entities.CMap]:
             cmaps.append(cmap)
     return cmaps
 
-class HeterogenTopology:
-    """A class object that stores topology elements for a heterogen residue, e.g.
-    ligand, water, ions, etc."""
-    def __init__(self, heterogen_topo_def):
-        self.heterogen_topo_def = heterogen_topo_def
-        self.bonds = None
-        self.angles = None
-        self.dihedrals = None
-        self.impropers = None
-        self.cmap = None
-        self.atom_lookup = None
-        self.missing_param_dict = None
-
-class ChainTopology:
-    """A class that stores topology elements of bio-polymer chains, e.g. 
-    Protein, RNA, DNA."""
+class BaseTopology:
+    topo_types = [
+        'bonds', 'angles', 'dihedrals', 'impropers'
+    ]
     def __init__(self):
-        self._visited_atoms = None
         self.bonds = None
         self.angles = None
         self.dihedrals = None
         self.impropers = None
-        self.cmap = None
         self.atom_lookup = None
         self.missing_param_dict = None
         self.containing_entity = None
+        self._visited_atoms = None
+        self.containing_entity = None
 
     def __iter__(self):
-        topo_types = [
-            'bonds', 'angles', 'dihedrals', 'impropers', 'cmap'
-        ]
-        for topo_type_name in topo_types:
+        for topo_type_name in self.topo_types:
             yield topo_type_name, getattr(self, topo_type_name)
 
     def __repr__(self) -> str:
@@ -306,6 +293,96 @@ class ChainTopology:
             s += f"{attr}={n}, "
         s = s[:-2] + ">"
         return s
+    
+    def update(self):
+        """Update the topology elements"""
+        self.find_topo_elements(self.containing_entity)
+        self.create_atom_lookup_table()
+
+    def create_atom_lookup_table(self) -> dict:
+        """Create a lookup table for all topology elements for a given atom in the chain"""
+        atom_lookup = {
+            atom:{
+                'bonds': [],
+                'angles': [],
+                'dihedrals': [],
+                'impropers': []
+            }
+            for atom in self._visited_atoms
+        }
+
+        for bond in self.bonds:
+            for atom in bond:
+                atom_lookup[atom]['bonds'].append(bond)
+            
+        for angle in self.angles:
+            for atom in angle:
+                atom_lookup[atom]['angles'].append(angle)
+
+        for dihedral in self.dihedrals:
+            for atom in dihedral:
+                atom_lookup[atom]['dihedrals'].append(dihedral)
+
+        for improper in self.impropers:
+            for atom in improper:
+                atom_lookup[atom]['impropers'].append(improper)
+
+        self.atom_lookup = atom_lookup
+
+    def find_topo_elements(self, entity):
+        """Find all topology elements in the entity"""
+        raise NotImplementedError
+
+class HeterogenTopology(BaseTopology):
+    """A class object that stores topology elements (bond, angles, dihe, etc) 
+    for a heterogen residue, e.g. ligand, water, ions, etc."""
+    def __init__(self):
+        super().__init__()
+        
+    def load_chain(self, heterogen_chain):
+        """Find all topology elements from the heterogen chain"""
+        self.containing_entity = heterogen_chain
+        self.find_topo_elements(heterogen_chain)
+        self.create_atom_lookup_table()
+        return self
+                        
+    def find_topo_elements(self, heterogen_chain: Entities.Chain):
+        """Find all topology elements in the chain"""
+        self.bonds = []
+        self.angles = []
+        self.dihedrals = []
+        self.impropers = []
+        self._visited_atoms = []
+        for residue in heterogen_chain:
+            cur_bonds = residue_trace_atom_neigbors(residue)
+            if len(cur_bonds) == 0:
+                continue
+            self.bonds.extend(cur_bonds)
+            visited_atoms = set()
+            angles = set()
+            dihedrals = set()
+            seed_atom = self._find_seeding_atom(residue)
+            traverse_graph(seed_atom, angles, dihedrals, visited_atoms)
+            self._visited_atoms.extend(list(visited_atoms))
+            self.angles.extend(list(angles))
+            self.dihedrals.extend(list(dihedrals))
+            self.impropers.extend(residue_get_impropers(residue))
+
+    def _find_seeding_atom(self, residue):
+        """Find the first atom to start the search"""
+        for atom in residue.get_atoms():
+            if len(atom.neighbors) > 0:
+                return atom
+
+class ChainTopology(BaseTopology):
+    """A class object that stores topology elements (bond, angles, dihe, etc) 
+    of bio-polymer chains, e.g. Protein, RNA, DNA."""
+    topo_types = [
+        'bonds', 'angles', 'dihedrals', 'impropers', 'cmap'
+    ]
+    def __init__(self):
+        super().__init__()
+        self.cmap = None
 
     def load_chain(self, chain):
         """Find all topology elements from the chain"""
@@ -314,11 +391,6 @@ class ChainTopology:
         self.create_atom_lookup_table()
         return self
 
-    def update(self):
-        """Update the topology elements"""
-        self.find_topo_elements(self.containing_entity)
-        self.create_atom_lookup_table()
-        
     ## Maybe make this a private method?
     def delete_atom_related_elements(self, atom: Entities.Atom):
         """Delete all topology elements related to the atom"""
@@ -374,36 +446,6 @@ class ChainTopology:
         self.angles = list(angles)
         self.dihedrals = list(dihedrals)
         self.impropers = get_impropers(chain) 
-
-    def create_atom_lookup_table(self) -> dict:
-        """Create a lookup table for all topology elements for a given atom in the chain"""
-        atom_lookup = {
-            atom:{
-                'bonds': [],
-                'angles': [],
-                'dihedrals': [],
-                'impropers': []
-            }
-            for atom in self._visited_atoms
-        }
-
-        for bond in self.bonds:
-            for atom in bond:
-                atom_lookup[atom]['bonds'].append(bond)
-            
-        for angle in self.angles:
-            for atom in angle:
-                atom_lookup[atom]['angles'].append(angle)
-
-        for dihedral in self.dihedrals:
-            for atom in dihedral:
-                atom_lookup[atom]['dihedrals'].append(dihedral)
-
-        for improper in self.impropers:
-            for atom in improper:
-                atom_lookup[atom]['impropers'].append(improper)
-
-        self.atom_lookup = atom_lookup
 
 
 class ParameterLoader:
@@ -544,7 +586,7 @@ class ParameterLoader:
     
     def apply(self, topo_element_container: ChainTopology):
         """Apply the parameter for a list of topology element"""
-        if not isinstance(topo_element_container, ChainTopology):
+        if not isinstance(topo_element_container, (ChainTopology, HeterogenTopology)):
             raise TypeError(
                 'Invalid argument type provided! Topology'
                 f' is expected. {type(topo_element_container)} is provided.'
@@ -628,29 +670,25 @@ class ParameterLoader:
         for residue_definition in topology_loader.patched_defs.values():
             self.res_def_fill_ic(residue_definition, preserve)
 
-##TODO: separate this class into two classes: TopologyLoader and TopologyGenerator
 class ResidueTopologySet:
-    """Class for loading topology definition to the residue and find any missing atoms."""
-    def __init__(self, entity_type=None, data_dict_path=None):
+    """Class for loading topology definition to the residue and find any missing atoms.
+    Any HIS will be renamed as HSD for protein."""
+    def __init__(self, entity_type):
         self.rtf_version = None
         self.res_defs = {}
         self.residues = []
         self.patches = []
         self.patched_defs = {}
-        self._raw_data_strings = []
+        self._raw_data_strings = []    
+        self.entity_type = entity_type.lower()
 
-        if data_dict_path is not None:
-            with open(data_dict_path, 'rb') as f:
-                data_dict = pickle.load(f)
-                self.load_data_dict(data_dict)
+        if self.entity_type not in rtf_path_dict:
+            raise ValueError(f'Unknown entity type: {entity_type}')
+        self.is_hetero = self.entity_type not in ('protein', 'nucleic')
 
-        elif entity_type is not None:
-            entity_type = entity_type.lower()
-            if entity_type not in rtf_path_dict:
-                raise ValueError(f'Unknown entity type: {entity_type}')
-            rtf = RTFParser(file_path=rtf_path_dict[entity_type])
-            self._raw_data_strings = rtf.lines
-            self.load_data_dict(rtf.topo_dict, rtf.rtf_version)
+        rtf = RTFParser(file_path=rtf_path_dict[self.entity_type])
+        self._raw_data_strings = rtf.lines
+        self.load_data_dict(rtf.topo_dict, rtf.rtf_version)
 
     def load_data_dict(self, topo_data_dict: dict, rtf_version:str=None):
         """Load topology data from a dictionary. The dictionary should be parsed
@@ -664,12 +702,12 @@ class ResidueTopologySet:
 
             if res_topo_dict['is_patch']:
                 res_def = Entities.PatchDefinition(
-                    self.rtf_version, resname, res_topo_dict
+                    self.rtf_version, resname, res_topo_dict, is_hetero=self.is_hetero
                 )
                 self.patches.append(res_def)
             else:
                 res_def = Entities.ResidueDefinition(
-                    self.rtf_version, resname, res_topo_dict
+                    self.rtf_version, resname, res_topo_dict, is_hetero=self.is_hetero
                 )
                 self.residues.append(res_def)
 
@@ -681,7 +719,7 @@ class ResidueTopologySet:
 
     def __repr__(self):
         return (
-            f'<TopologyLoader Ver={self.rtf_version} '
+            f'<TopologyDefinitions for {self.entity_type.upper()} Ver={self.rtf_version} '
             f'Contains {len(self.residues)} RESIDUE and '
             f'{len(self.patches)} PATCH definitions>'
         )
@@ -712,7 +750,7 @@ class TopologyGenerator:
         entity_type = chain_type_def_lookup.get(chain_type)
         if entity_type is None:
             raise NotImplementedError(
-                f"Topology generation on Chain type {chain_type} is not supported yet!"
+                f"Topology generation on Chain type: {chain_type} is not supported yet!"
             )
         if entity_type not in self.res_def_dict:
             self.res_def_dict[entity_type] = ResidueTopologySet(entity_type)
@@ -873,10 +911,37 @@ class TopologyGenerator:
 
         return True
 
+    def generate_solvent(self, solvent, solvent_model, QUIET=False):
+        """Generate topology elements for solvent molecules"""
+        solvent.undefined_res = []
+        self._load_residue_definitions('Solvent', preserve=False)
+        if solvent_model not in self.cur_defs:
+            raise ValueError(f'Unknown solvent model: {solvent_model}')
+
+        self.cur_defs.res_defs['HOH'] = self.cur_defs[solvent_model]
+
+        for residue in solvent:
+            is_defined = self._generate_residue_topology(
+                residue, coerce=False, QUIET=QUIET
+            )
+            if not is_defined:
+                solvent.undefined_res.append(residue)
+        if (n_undefined:=len(solvent.undefined_res)) > 0 and not QUIET:
+            warnings.warn(
+                f"{n_undefined} residue(s) not defined in the chain!"
+            )
+
+        self.cur_param.fill_ic(self.cur_defs, False)
+        topology = HeterogenTopology()
+        solvent.topology = topology.load_chain(solvent)
+        self.cur_param.apply(solvent.topology)
+        return topology
+
     def generate(
             self, chain: Entities.Chain, coerce: bool = False,
             first_patch: str = None, last_patch: str = None,
-            auto_correct_first_patch=True, preserve_ic = True, QUIET = False
+            auto_correct_first_patch=True, 
+            preserve_ic = True, QUIET = False
         ):
         """Load topology definition into the chain and find any missing atoms.
         Argument:
@@ -910,7 +975,10 @@ class TopologyGenerator:
             )
 
         self.cur_param.fill_ic(self.cur_defs, preserve_ic)
-        topology = ChainTopology()
+        if chain.chain_type in ('Polypeptide(L)', 'Polyribonucleotide', 'Polydeoxyribonucleotide'):
+            topology = ChainTopology()
+        else:
+            topology = HeterogenTopology()
         chain.topology = topology.load_chain(chain)
         self.cur_param.apply(chain.topology)
         return topology

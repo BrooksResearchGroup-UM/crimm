@@ -3,94 +3,108 @@ import requests
 from copy import copy
 import pandas as pd
 from Bio.PDB.Selection import unfold_entities
-from crimm.Data.components_dict import NUCLEOSIDE_PHOS # Nucleoside phosphates and phosphonates
+# Nucleoside phosphates and phosphonates
+from crimm.Data.components_dict import NUCLEOSIDE_PHOS, PDB_CHARMM_ION_NAMES 
 from crimm.Fetchers import query_drugbank_info
 from .Model import Model
 from .Chain import (
     PolymerChain, Heterogens, Solvent, CoSolvent, Ion,
-    Glycosylation, NucleosidePhosphate, Chain
+    Glycosylation, NucleosidePhosphate, Chain, Ligand
 )
+from crimm.Utils.StructureUtils import index_to_letters
 
-class OrganizedChainContainer(list):
-    """The EntityTypeContainer class is a list of chains with the same chain type."""
-    def __init__(self, chain_type):
-        super().__init__()
-        self.chain_type = chain_type
-        
-    def __repr__(self):
-        return f"<{self.chain_type}={len(self)}>"
-    
-    def __str__(self):
-        return f"{self.chain_type}={len(self)}"
-
-class OrganizedModel:
+class OrganizedModel(Model):
     """The OrganizedModel class represents a model in a structure with a specific 
     organization of chains. It is derived from the Model class and is used in the 
     Structure class to organize chains into categories. Require network access to
-    fetch binding affinity and drugbank information."""
+    fetch binding affinity and drugbank information.
+    """
     chain_types = {
         'Polypeptide(L)': PolymerChain,
         'Polyribonucleotide': PolymerChain,
         'Polydeoxyribonucleotide': PolymerChain,
         'Solvent': Solvent,
         'Heterogens': Heterogens,
+        'Ligand': Ligand,
         'CoSolvent': CoSolvent,
         'Ion': Ion,
         'Glycosylation': Glycosylation,
         'NucleosidePhosphate': NucleosidePhosphate,
         'UnknownType': Chain,
     }
-
-    def __init__(self, entity):
+    organized_chains = {
+        'protein': 'Polypeptide(L)',
+        'RNA': 'Polyribonucleotide',
+        'DNA': 'Polydeoxyribonucleotide',
+        'other_polymer': 'PolymerChain',
+        'solvent': 'Solvent',
+        'unknown_type': 'UnknownType',
+        'phos_ligand': 'NucleosidePhosphate',
+        'ligand': 'Ligand',
+        'co_solvent': 'CoSolvent',
+        'ion': 'Ion',
+        'glycosylation': 'Glycosylation',
+    }
+    def __init__(self, entity, rename_ion=True, rename_solvent=True):
         if entity.level == 'M':
-            self._model = entity
+            model = entity
         elif entity.level == 'S':
-            self._model = entity.models[0]
+            model = entity.models[0]
         else:
             raise ValueError(
                 "Only Structure level (S) or Model level (M) entity is accepted for OrganizedModel!"
                 f"{entity}  has level \"{entity.level}\"."
             )
+        super().__init__(model.id)
+        self.connect_atoms = model.connect_atoms
+        self.connect_dict = model.connect_dict
         self.pdb_id = None
         self.rcsb_web_data = None
         # Binding Affinity Information
         self.binding_info = None
         # Biologically Interesting Molecules Information
         self.bio_mol_info = None
-        # Lists of Entity Classifications
-        self.protein = OrganizedChainContainer('Polypeptide(L)')
-        self.RNA = OrganizedChainContainer('Polyribonucleotide')
-        self.DNA = OrganizedChainContainer('Polydeoxyribonucleotide')
-        self.other_polymer = OrganizedChainContainer('UnknownType')
-        self.phos_ligand = OrganizedChainContainer('NucleosidePhosphate')
-        self.ligand = OrganizedChainContainer('Heterogens')
-        self.co_solvent = OrganizedChainContainer('CoSolvent')
-        self.ion = OrganizedChainContainer('Ion')
-        self.solvent = OrganizedChainContainer('Solvent')
-        self.glycosylation = OrganizedChainContainer('Glycosylation')
-        self.unknown_type = OrganizedChainContainer('UnknownType')
         # Names (3-letter code) for ligand with binding affinity information
         self.lig_names = set()
         # Names (descriptor string) for ligand that exists in 
         # Biologically Interesting Molecules databases
         self.bio_mol_names = set()
-
-        if self._model.parent.id is None:
+        
+        if model.pdb_id is not None:
+            self.pdb_id = model.pdb_id
+            self._get_rcsb_web_data()
+            self.binding_info = self._get_keyword_info('rcsb_binding_affinity')
+            self.bio_mol_info = self._get_keyword_info('pdbx_molecule_features')
+        elif model.parent.id is not None:
+            self.pdb_id = model.parent.id
+            self._get_rcsb_web_data()
+            self.binding_info = self._get_keyword_info('rcsb_binding_affinity')
+            self.bio_mol_info = self._get_keyword_info('pdbx_molecule_features')
+        else:
             warnings.warn(
                 "PDB ID not set for this model! "
                 "Binding affinity information will not be fetched. Possible errors "
                 "in ligand classification."
             )
-        else:
-            self.pdb_id = self._model.parent.id
-            self._get_rcsb_web_data()
-            self.binding_info = self._get_keyword_info('rcsb_binding_affinity')
-            self.bio_mol_info = self._get_keyword_info('pdbx_molecule_features')
+
         if self.binding_info is not None:
             self.lig_names = set(self.binding_info.comp_id)
         if self.bio_mol_info is not None:
             self.bio_mol_names = set(self.bio_mol_info.name)
-        self.organize()
+        self.organize(model)
+        if rename_solvent:
+            self.rename_solvent()
+        if rename_ion:
+            self.rename_ion()
+
+    def __getattr__(self, name):
+        if name in self.organized_chains:
+            chains = []
+            for chain in self:
+                if chain.chain_type == self.organized_chains[name]:
+                    chains.append(chain)
+            return chains
+        return getattr(super(), name)
 
     def _get_rcsb_web_data(self):
         query_url = f'https://data.rcsb.org/rest/v1/core/entry/{self.pdb_id}'
@@ -110,9 +124,9 @@ class OrganizedModel:
 
     def is_glycosylation(self, residue):
         """Check if the heterogen is part of glycosylation (covalently bonded sugar)"""
-        if 'covale' not in self._model.connect_atoms:
+        if 'covale' not in self.connect_atoms:
             return False
-        for atom_pair in self._model.connect_atoms['covale']:
+        for atom_pair in self.connect_atoms['covale']:
             if residue in unfold_entities(atom_pair, 'R'):
                 return True
         return False
@@ -125,37 +139,103 @@ class OrganizedModel:
             return residue.pdbx_description in self.bio_mol_names
         else:
             return query_drugbank_info(residue.resname) is not None
+    
+    def create_hetero_chain(
+            self, chain_id, hetero_res_list, chain_type='Heterogens', 
+            reset_resid=True
+        ):
+        """Create a new Heterogens chain from a list of heterogens."""
+        all_description = []
+        hetero_chain = self.chain_types[chain_type](chain_id)
+        for i, res in enumerate(hetero_res_list, start=1):
+            if reset_resid:
+                het_flag, resseq, icode = res.id
+                res.id = (het_flag, i, icode)
+            if (
+                hasattr(res, 'pdbx_description') and 
+                res.pdbx_description not in all_description and
+                res.pdbx_description is not None
+            ):
+                all_description.append(res.pdbx_description)
+            hetero_chain.add(res)
 
-    def organize(self):
-        """Organize the chains in the model into categories."""
-        _temp_ligand = []
-        for chain in self._model.chains:
-            if chain.chain_type == 'Polypeptide(L)':
-                self.protein.append(chain)
-            elif chain.chain_type == 'Polyribonucleotide':
-                self.RNA.append(chain)
-            elif chain.chain_type == 'Polydeoxyribonucleotide':
-                self.DNA.append(chain)
-            elif isinstance(chain, PolymerChain):
-                self.other_polymer.append(chain)
-            elif chain.chain_type == 'Solvent':
-                self.solvent.append(chain)
-            elif chain.chain_type == 'Heterogens':
-                _temp_ligand.extend(chain.residues)
-            else:
-                self.unknown_type.append(chain)
+        hetero_chain.pdbx_description = ', '.join(all_description)
+        if chain_type == 'Solvent':
+            hetero_chain.pdbx_description = 'water'
+        return hetero_chain
 
-        for res in _temp_ligand:
+    def determine_heterogen_type(self, heterogens):
+        """Determine the type of heterogens in the model."""
+        heterogen_type_dict = {
+            'NucleosidePhosphate': [],
+            'Glycosylation': [],
+            'Ligand': [],
+            'CoSolvent': [],
+            'Ion': []
+        }
+
+        for res in heterogens:
             if len(res.resname) <= 2:
-                self.ion.append(res)
+                heterogen_type_dict['Ion'].append(res)
             elif res.resname in NUCLEOSIDE_PHOS:
-                self.phos_ligand.append(res)
+                heterogen_type_dict['NucleosidePhosphate'].append(res)
             elif self.is_glycosylation(res):
-                self.glycosylation.append(res)
+                heterogen_type_dict['Glycosylation'].append(res)
             elif self.is_ligand(res):
-                self.ligand.append(res)
+                heterogen_type_dict['Ligand'].append(res)
             else:
-                self.co_solvent.append(res)
+                heterogen_type_dict['CoSolvent'].append(res)
+        return heterogen_type_dict
+    
+    def organize(self, model: Model):
+        """Organize the chains in the model into categories."""
+        undecided_heterogens = []
+        all_chains = []
+        solvent_entry = {'Solvent': []}
+        for chain in model.chains:
+            if chain.chain_type == 'Solvent':
+                solvent_entry['Solvent'].extend(chain.residues)
+            elif chain.chain_type == 'Heterogens':
+                undecided_heterogens.extend(chain.residues)
+            else:
+                all_chains.append(chain)
+
+        heterogen_type_dict = self.determine_heterogen_type(undecided_heterogens)
+        heterogen_type_dict.update(solvent_entry)
+
+        for i, (chain_type, hetero_res_list) in enumerate(heterogen_type_dict.items()):
+            if len(hetero_res_list) == 0:
+                continue
+            temp_id = index_to_letters(i)
+            hetero_chain = self.create_hetero_chain(
+                f'H{temp_id}', hetero_res_list, chain_type
+            )
+            all_chains.append(hetero_chain)
+
+        for i, chain in enumerate(all_chains):
+            chain.id = index_to_letters(i)
+            self.add(chain)
+            
+    def rename_solvent(self):
+        """Rename the oxygen atom in solvent to OH2."""
+        for chain in self.solvent:
+            for res in chain:
+                if 'O' in res:
+                    atom = res['O']
+                    atom.rename('OH2')
+
+    def rename_ion(self):
+        """Rename the ions to CHARMM naming convention."""
+        for chain in self.ion:
+            for res in chain:
+                res.resname = PDB_CHARMM_ION_NAMES.get(
+                        res.resname.upper(), res.resname
+                    )
+                for atom in res:
+                    atom_name = PDB_CHARMM_ION_NAMES.get(
+                        atom.name.upper(), atom.name
+                    )
+                    atom.rename(atom_name)
 
     def __repr__(self):
         repr_str = f"<OrganizedModel model={self.pdb_id} "
@@ -186,13 +266,11 @@ class OrganizedModel:
 
     def _ipython_display_(self):
         """Return the nglview interactive visualization window"""
-        if len(self._model) == 0:
-            return
-        from crimm.Visualization import show_nglview_multiple
-        from IPython.display import display
-        display(show_nglview_multiple(self._model.child_list))
-        print(repr(self))
-        print(self._model.expanded_view())
+        if len(self) != 0:
+            from crimm.Visualization import show_nglview_multiple
+            from IPython.display import display
+            display(show_nglview_multiple(self.child_list))
+        print(self.expanded_view())
 
     def create_new_model_from_list(self, entity_list):
         new_model = Model(self.pdb_id)

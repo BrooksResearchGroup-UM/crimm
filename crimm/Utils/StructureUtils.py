@@ -1,4 +1,5 @@
 from string import ascii_uppercase
+from crimm.StructEntities.Chain import Solvent, Ion
 import numpy as np
 
 def index_to_letters(index, letter = ''):
@@ -69,3 +70,40 @@ def rename_chains_by_order(entity):
 
     else:
         _rename_chains_by_order(entity.child_list)
+
+def combine_hetero_chains(
+        chains, new_chain_id, enforce_same_type=True, reset_resid=True
+    ):
+    """Combine a list of chains into a single chain with a specified chain ID."""
+    parent = chains[0].parent
+    new_chain = chains[0].get_empty_shell()
+    new_chain.id = new_chain_id
+    all_residues = []
+    all_description = []
+    for chain in chains:
+        if chain.chain_type in (
+            'Polypeptide(L)', 'Polyribonuleotide', 'Polydeoxyribonucleotide'
+        ):
+            raise ValueError(
+                f"Chain {chain.id} is a biopolymer chain and cannot be combined with "
+                "other chains using this function."
+            )
+        if enforce_same_type and chain.chain_type != new_chain.chain_type:
+            raise ValueError(
+                f"Chain {chain.id} has a different chain type {chain.chain_type} "
+                f"from the first chain {new_chain.id} with chain type {new_chain.chain_type}."
+            )
+        parent.detach_child(chain.id)
+        all_residues.extend(chain.residues)
+
+    for i, residue in enumerate(all_residues, start=1):
+        residue.detach_parent()
+        if reset_resid:
+            het_flag, resseq, icode = residue.id
+            residue.id = (het_flag, i, icode)
+        if hasattr(residue, 'pdbx_description') and residue.pdbx_description not in all_description:
+            all_description.append(residue.pdbx_description)
+        new_chain.add(residue)
+    new_chain.pdbx_description = ', '.join(all_description)
+
+    return new_chain

@@ -87,6 +87,16 @@ class Atom(_Atom):
         else:
             top_parent.reset_atom_serial_numbers()
 
+    def rename(self, new_name):
+        """Rename the atom"""
+        old_name = self.name
+        self.name = new_name
+        self.id = new_name
+        self.fullname = f"{new_name:^4}"
+        if self.parent is not None:
+            self.parent.child_dict[new_name] = self
+            del self.parent.child_dict[old_name]
+
     @property
     def topo_definition(self):
         """Topology related definitions and parameters for the atom"""

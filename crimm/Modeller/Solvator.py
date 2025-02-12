@@ -8,7 +8,7 @@ from scipy.spatial import KDTree
 from crimm import Data
 from crimm.Modeller.CoordManipulator import CoordManipulator
 from crimm.StructEntities import Atom, Residue, Model
-from crimm.StructEntities.Chain import Solvent
+from crimm.StructEntities.Chain import Solvent, Ion
 
 WATER_COORD_PATH = os.path.join(os.path.dirname(Data.__file__), 'water_coords.npy')
 BOXWIDTH=18.662 # water unit cube width
@@ -283,6 +283,25 @@ class Solvator:
             cur_water_chain.add(water_res)
 
             
-            
+    def add_ions(self, entity, ion_list):
+        """Add ions to the solvated entity."""
+        raise NotImplementedError('Adding ions to the solvated entity is not yet implemented')
+        solvents = []
+        if entity.level == 'S':
+            model = entity.models[0]
+            solvents = [chain for chain in model if chain.chain_type == 'Solvent']
+        elif entity.level == 'M':
+            model = entity
+            solvents = [chain for chain in model if chain.chain_type == 'Solvent']
+        elif entity.level == 'C' and entity.chain_type == 'Solvent':
+            solvents = [entity]
+
+        if len(solvents) == 0:
+            raise ValueError(
+                'Entity must be a solvated Structure or Model or a Solvent Chain entity'
+            )
+        ions = Ion()
+        
+        
         
 
