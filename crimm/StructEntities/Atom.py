@@ -1,4 +1,5 @@
 import warnings
+from copy import copy
 from Bio.PDB.Atom import Atom as _Atom
 from Bio.PDB.Atom import DisorderedAtom as _DisorderedAtom
 
@@ -94,8 +95,22 @@ class Atom(_Atom):
         self.id = new_name
         self.fullname = f"{new_name:^4}"
         if self.parent is not None:
-            self.parent.child_dict[new_name] = self
             del self.parent.child_dict[old_name]
+            self.parent.child_dict[new_name] = self
+            
+
+    def copy(self):
+        """Create a copy of the Atom. 
+
+        Parent information and neighbors information is lost.
+        """
+        # Do a shallow copy then explicitly copy what needs to be deeper.
+        shallow = copy(self)
+        shallow.detach_parent()
+        shallow.set_coord(copy(self.get_coord()))
+        shallow.xtra = self.xtra.copy()
+        shallow.neighbors = set()
+        return shallow
 
     @property
     def topo_definition(self):

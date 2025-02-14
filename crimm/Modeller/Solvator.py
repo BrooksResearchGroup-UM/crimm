@@ -4,11 +4,15 @@ or Chain level entity with water molecules.
 import os
 import warnings
 import numpy as np
+from random import choices
 from scipy.spatial import KDTree
 from crimm import Data
 from crimm.Modeller.CoordManipulator import CoordManipulator
 from crimm.StructEntities import Atom, Residue, Model
-from crimm.StructEntities.Chain import Solvent, Ion
+from crimm.StructEntities.Chain import Solvent, Ion, PolymerChain
+from crimm.Modeller.TopoLoader import ResidueTopologySet
+from crimm.Utils.StructureUtils import get_charges
+from crimm.Data.components_dict import CHARMM_PDB_ION_NAMES
 
 WATER_COORD_PATH = os.path.join(os.path.dirname(Data.__file__), 'water_coords.npy')
 BOXWIDTH=18.662 # water unit cube width
@@ -66,7 +70,7 @@ class Solvator:
         The entity to solvate. If a Structure level entity is provided, the
         first Model will be solvated. If a Model level entity is provided, all 
         chains in the model will be solvated. If a Chain level entity is 
-        provided, the chain will be solvated.
+        provided, the chain will be solvated. The entity is modified in place.
     cutoff : float, optional
         The distance from the solute at which the water box's boundary extends to.
         The default is 9.0 A.
@@ -111,8 +115,20 @@ class Solvator:
     """
 
     alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-    def __init__(self) -> None:
-        self.solvated_model = None
+    available_ions = CHARMM_PDB_ION_NAMES
+    def __init__(self, entity) -> None:
+        if entity.level == 'S':
+            self.model = entity.models[0]
+        elif entity.level == 'M':
+            self.model = entity
+        elif entity.level == 'C':
+            self.model = Model(1)
+            self.model.add(entity)
+        else:
+            raise ValueError(
+                'Solvator can only take Structure, Model, or Chain level entities'
+            )
+        
         self.cutoff = None
         self.solvcut = None
         self.coords = None
@@ -121,8 +137,11 @@ class Solvator:
         # unit of pre-equilibrated cube of water molecules (18.662 A each side)
         self.water_unit_coords = np.load(WATER_COORD_PATH)
 
+    def get_model(self):
+        return self.model
+
     def solvate(
-            self, entity, cutoff=9.0, solvcut = 2.10,
+            self, cutoff=9.0, solvcut = 2.10,
             remove_existing_water = True
         ) -> Model:
         """Solvates the entity and returns a Model level entity. The solvated
@@ -137,29 +156,19 @@ class Solvator:
 
         self.cutoff = cutoff
         self.solvcut = solvcut
-        if entity.level == 'S':
-            self.solvated_model = entity.models[0]
-        elif entity.level == 'M':
-            self.solvated_model = entity
-        elif entity.level == 'C':
-            self.solvated_model = Model(1)
-            self.solvated_model.add(entity)
-        else:
-            raise ValueError(
-                'Solvator can only take Structure, Model, or Chain level entities'
-            )
+        
         if remove_existing_water:
-            self.remove_existing_water(self.solvated_model)
-        if len(self.solvated_model.chains) == 0:
+            self.remove_existing_water(self.model)
+        if len(self.model.chains) == 0:
             raise ValueError('No chains in model to solvate')
 
         coorman = CoordManipulator()
-        coorman.load_entity(entity)
-        coorman.orient_coords(apply_to_parent=True)
+        coorman.load_entity(self.model)
+        coorman.orient_coords(apply_to_parent=(self.model.parent is not None))
         self.box_dim = (coorman.box_dim+self.cutoff).max() # for cubic box
-        self.coords = self._extract_coords(self.solvated_model)
+        self.coords = self._extract_coords(self.model)
         self._solvate_model()
-        return self.solvated_model
+
 
     def _extract_coords(self, entity) -> np.ndarray:
         """Extracts coordinates from entity. If any altloc atoms are present, 
@@ -264,7 +273,7 @@ class Solvator:
             if resseq == 1:
                 cur_water_chain = self._create_new_water_chain(alphabet_index)
                 alphabet_index += 1
-                self.solvated_model.add(cur_water_chain)
+                self.model.add(cur_water_chain)
 
             water_res = Residue((' ', resseq, ' '), 'HOH', '')
 
@@ -283,24 +292,90 @@ class Solvator:
             cur_water_chain.add(water_res)
 
             
-    def add_ions(self, entity, ion_list):
-        """Add ions to the solvated entity."""
-        raise NotImplementedError('Adding ions to the solvated entity is not yet implemented')
-        solvents = []
-        if entity.level == 'S':
-            model = entity.models[0]
-            solvents = [chain for chain in model if chain.chain_type == 'Solvent']
-        elif entity.level == 'M':
-            model = entity
-            solvents = [chain for chain in model if chain.chain_type == 'Solvent']
-        elif entity.level == 'C' and entity.chain_type == 'Solvent':
-            solvents = [entity]
-
+    def add_balancing_ions(self, present_charge = None, cation='SOD', anion='CLA'):
+        """Add balancing ions to the solvated entity to bring total charge to zero.
+        The default cation is Na+ and the default anion is Cl-. If the entity is
+        not a solvated entity, a ValueError will be raised. Returns a chain containing
+        the balancing ions.
+        
+        Parameters
+        ----------
+        entity : Structure, Model, or Chain level entity
+            The solvated entity to add balancing ions to.
+        present_charge : int, optional
+            The present charge of the solvated entity. If None, the charge will be
+            calculated from the entity.
+        cation : str, optional
+            The cation to use. The default is 'SOD' (Na+).
+        anion : str, optional
+            The anion to use. The default is 'CLA' (Cl-).
+                
+        Returns
+        -------
+        ion_chain : Chain
+            A chain containing the balancing ions.
+        """
+        solvents = [chain for chain in self.model if chain.chain_type == 'Solvent']
         if len(solvents) == 0:
             raise ValueError(
-                'Entity must be a solvated Structure or Model or a Solvent Chain entity'
+                'Entity must be a solvated Structure or Model'
             )
-        ions = Ion()
+        
+        if present_charge is None:
+            total_charges = 0
+            for chain in self.model:
+                if isinstance(chain, (PolymerChain, Ion)):
+                    total_charges+=get_charges(chain)
+        else:
+            total_charges = present_charge
+        print(f'Total charges before adding ions: {total_charges}')
+
+        if total_charges == 0:
+            warnings.warn('No balancing ions needed', UserWarning)
+            return None
+        
+        if abs(int(total_charges)-total_charges) > 1e-2:
+            raise ValueError(
+                f'Invalid total charge {total_charges} for balancing ions! '
+                'Total charge must be an integer.'
+            )
+
+        if total_charges > 0:
+            ion_list = [anion for i in range(int(total_charges))]
+        else:
+            ion_list = [cation for i in range(int(-total_charges))]
+
+        new_ion_chain = self._create_ion_chain(solvents, ion_list)
+        self.model.add(new_ion_chain)
+
+        
+    def _create_ion_chain(self, solvents, ion_list):
+        
+        water_res = [res for chain in solvents for res in chain]
+        chosen_waters = choices(water_res, k=len(ion_list))
+
+        rtf = ResidueTopologySet('water_ions')
+        new_ion_chain = Ion('IA')
+        new_ion_chain.pdbx_description = 'balancing ions (Sodium)'
+        for i, (chosen_water, ion_name) in enumerate(zip(chosen_waters, ion_list), start=1):
+            if 'OH2' in chosen_water:
+                oxy_coord = chosen_water['OH2'].coord
+            elif 'O' in chosen_water:
+                oxy_coord = chosen_water['O'].coord
+            else:
+                raise KeyError(f'No oxygen atom present in water {chosen_water}')
+            if ion_name not in rtf.res_defs:
+                raise ValueError(
+                    f'Ion {ion_name} not exist in water_ions.rtf. Ion names must be '
+                    f'in {CHARMM_PDB_ION_NAMES.keys()}'
+                )
+            ion_res = rtf[ion_name].create_residue(resseq=i)
+            ion_res.atoms[0].coord = oxy_coord
+            new_ion_chain.add(ion_res)
+            if (water_chain:=chosen_water.parent) is not None:
+                water_chain.detach_child(chosen_water.id)
+
+        return new_ion_chain
         
         
         

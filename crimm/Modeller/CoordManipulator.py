@@ -9,6 +9,7 @@ from scipy.spatial.distance import pdist, squareform
 class CoordManipulator:
     def __init__(self) -> None:
         self.entity = None
+        self.include_alt = None
         self._atoms = None
         self.coords = None
         self.dist_matrix = None
@@ -16,21 +17,24 @@ class CoordManipulator:
         self.op_mat = None
         self._convex_hull = None
 
-    def load_entity(self, entity):
+    def load_entity(self, entity, include_alt=False) -> None:
         """Load a structure entity to find translation and rotation operations to
         orient the structure such that the major axis is along the x-axis, and the
         farthest point from the major axis is along the y-axis."""
         self.entity = entity
-        self._atoms, self.coords = self._extract_atoms_and_coords(self.entity)
+        self.include_alt = include_alt
+        self._atoms, self.coords = self._extract_atoms_and_coords(
+            self.entity, include_alt=self.include_alt
+        )
         self.dist_matrix = squareform(pdist(self.coords))
         # pair of indices of the farthest atoms in the structure
         self.end_i, self.end_j = self._find_farthest_atom_indices()
         self.m_translation, self.m_rotation = None, None
 
-    def _extract_atoms_and_coords(self, entity) -> Tuple[List[Atom], np.array]:
+    def _extract_atoms_and_coords(self, entity, include_alt) -> Tuple[List[Atom], np.array]:
         coords = []
         atoms = []
-        for atom in entity.get_atoms(include_alt=True):
+        for atom in entity.get_atoms(include_alt=include_alt):
             coords.append(atom.coord)
             atoms.append(atom)
         return atoms, np.asarray(coords)
@@ -128,7 +132,9 @@ class CoordManipulator:
 
     def apply_entity(self, other_entity) -> None:
         """Apply the same transfermation to another structure entity."""
-        atoms, coords = self._extract_atoms_and_coords(other_entity)
+        atoms, coords = self._extract_atoms_and_coords(
+            other_entity, self.include_alt
+        )
         new_coords = self.apply_coords(coords)
         for i, atom in enumerate(atoms):
             atom.coord = new_coords[i]
@@ -153,7 +159,9 @@ class CoordManipulator:
         elif self.entity.parent is not None:
             self.apply_entity(self.entity.parent)
             # update the coordinates and atoms
-            self._atoms, self.coords = self._extract_atoms_and_coords(self.entity)
+            self._atoms, self.coords = self._extract_atoms_and_coords(
+                self.entity, self.include_alt
+            )
         else:
             self._apply_to_loaded_entity()
             warnings.warn('No parent structure entity exists!')
