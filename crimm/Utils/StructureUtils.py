@@ -107,3 +107,10 @@ def combine_hetero_chains(
     new_chain.pdbx_description = ', '.join(all_description)
 
     return new_chain
+
+def get_charges(chain):
+    """Get the total charge of a generated chain."""
+    total_charge = 0
+    for atom in chain.get_atoms():
+        total_charge += atom.topo_definition.charge
+    return round(total_charge, 3)

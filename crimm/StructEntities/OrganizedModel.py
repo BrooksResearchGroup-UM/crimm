@@ -45,11 +45,11 @@ class OrganizedModel(Model):
         'ion': 'Ion',
         'glycosylation': 'Glycosylation',
     }
-    def __init__(self, entity, rename_ion=True, rename_solvent=True):
+    def __init__(self, entity, rename_ion=True, rename_solvent=True, make_copy=True):
         if entity.level == 'M':
-            model = entity
+            model = entity.copy()
         elif entity.level == 'S':
-            model = entity.models[0]
+            model = entity.models[0].copy()
         else:
             raise ValueError(
                 "Only Structure level (S) or Model level (M) entity is accepted for OrganizedModel!"
@@ -91,7 +91,7 @@ class OrganizedModel(Model):
             self.lig_names = set(self.binding_info.comp_id)
         if self.bio_mol_info is not None:
             self.bio_mol_names = set(self.bio_mol_info.name)
-        self.organize(model)
+        self.organize(model, make_copy=make_copy)
         if rename_solvent:
             self.rename_solvent()
         if rename_ion:
@@ -187,12 +187,17 @@ class OrganizedModel(Model):
                 heterogen_type_dict['CoSolvent'].append(res)
         return heterogen_type_dict
     
-    def organize(self, model: Model):
+    def update(self):
+        self.organize(self, make_copy=False)
+
+    def organize(self, model: Model, make_copy=True):
         """Organize the chains in the model into categories."""
         undecided_heterogens = []
         all_chains = []
         solvent_entry = {'Solvent': []}
         for chain in model.chains:
+            if make_copy:
+                chain = chain.copy()
             if chain.chain_type == 'Solvent':
                 solvent_entry['Solvent'].extend(chain.residues)
             elif chain.chain_type == 'Heterogens':
@@ -228,14 +233,16 @@ class OrganizedModel(Model):
         """Rename the ions to CHARMM naming convention."""
         for chain in self.ion:
             for res in chain:
-                res.resname = PDB_CHARMM_ION_NAMES.get(
+                charmm_name = PDB_CHARMM_ION_NAMES.get(
                         res.resname.upper(), res.resname
                     )
+                if res.resname == charmm_name:
+                    continue
+                res.resname = charmm_name
                 for atom in res:
-                    atom_name = PDB_CHARMM_ION_NAMES.get(
-                        atom.name.upper(), atom.name
-                    )
-                    atom.rename(atom_name)
+                    # Rename the atom to CHARMM naming convention
+                    # atom name should be the same as resname here
+                    atom.rename(charmm_name)
 
     def __repr__(self):
         repr_str = f"<OrganizedModel model={self.pdb_id} "
