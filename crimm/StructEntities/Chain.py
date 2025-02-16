@@ -87,6 +87,8 @@ class BaseChain(_Chain):
     def expanded_view(self):
         """Print the expanded view of the chain."""
         repr_str = repr(self)
+        if (resnames := getattr(self, 'resnames', None)) is not None:
+            repr_str += f"\n  Residue ID(s): {resnames}"
         if (descr := getattr(self, 'pdbx_description', None)) is not None:
             repr_str += f"\n  Description: {descr}"
         return repr_str
@@ -393,6 +395,10 @@ class PolymerChain(Chain):
 class Heterogens(BaseChain):
     """A chain of heterogens."""
     chain_type = 'Heterogens'
+    def __init__(self, chain_id):
+        super().__init__(chain_id)
+        self.resnames = None
+
     def update(self):
         """Update the pdbx_description if only one heterogen exists.
         The description will be assigned directly to that molecule"""

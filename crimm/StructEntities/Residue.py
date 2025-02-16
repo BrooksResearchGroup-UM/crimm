@@ -128,3 +128,9 @@ class Heterogen(Residue):
             self.add(atom)
         else:
             Entity.add(self, atom)
+
+    def copy(self):
+        """Return a copy of the Heterogen object."""
+        new = super().copy()
+        new.pdbx_description = self.pdbx_description
+        return new

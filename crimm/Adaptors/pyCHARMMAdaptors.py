@@ -19,24 +19,42 @@ def empty_charmm():
 
 def load_topology(topo_generator):
     """Load topology and parameter files from a TopoGenerator object."""
-    topo_loaders = topo_generator.res_def_dict.values()
-    param_loaders = topo_generator.param_dict.values()
-    for i, topo_loader in enumerate(topo_loaders):
+    load_water_ions = False
+    for i, (topo_type, topo_loader) in enumerate(topo_generator.res_def_dict.items()):
+        if topo_type == 'water_ions':
+            load_water_ions = True
+            continue
         with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
-            tf.write('*RTF Loaded from crimm\n')
+            tf.write(f'*{topo_type.upper()} RTF Loaded from crimm\n')
             for line in topo_loader._raw_data_strings:
                 if line.upper().startswith('RESI') or line.upper().startswith('PRES'):
                     line = '\n'+line
                 tf.write(line+'\n')
             tf.flush() # has to flush first for long files!
             read.rtf(tf.name, append = bool(i))
-    for i, param_loader in enumerate(param_loaders):
+
+    for i, (param_type, param_loader) in enumerate(topo_generator.param_dict.items()):
+        if param_type == 'water_ions':
+            load_water_ions = True
+            continue
         with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
-            tf.write('*PRM Loaded from crimm\n')
+            tf.write(f'*{param_type.upper()} PRM Loaded from crimm\n')
             for line in param_loader._raw_data_strings:
                 tf.write(line+'\n')
             tf.flush()
             read.prm(tf.name, append = bool(i), flex=True)
+
+    # load water_ions.str at last
+    if load_water_ions:
+        abs_path = Path(__file__).resolve().parent.parent
+        abs_path = abs_path / "Data/toppar/water_ions.str"
+        with open(abs_path, 'r', encoding='utf-8') as f:
+            with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
+                tf.write('*WATER ION TOPPAR Loaded from crimm\n')
+                for line in f.readlines():
+                    tf.write(line)
+                tf.flush()
+                read.stream(tf.name)
 
 def load_chain(chain, hbuild = False, report = False):
     if not chain.is_continuous():
@@ -61,26 +79,51 @@ def load_chain(chain, hbuild = False, report = False):
             tf.name, segnames=[segid], first_patch=first_patch, last_patch=last_patch,
             hbuild=hbuild, report=report
         )
+    return segid
 
 def load_water(water_chains):
     # Currently only supports TIP3 water model
     segids = []
-    abs_path = Path(__file__).resolve().parent.parent
-    abs_path = abs_path / "Data/toppar/water_ions.str"
-    with open(abs_path, 'r', encoding='utf-8') as f:
-        with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
-            tf.write('* WATER ION TOPPAR Loaded from crimm\n')
-            for line in f.readlines():
-                tf.write(line)
-            tf.flush()
-            read.stream(tf.name)
-    
     for i, chain in enumerate(water_chains):
+        chain = chain.copy()
         segid = f'WT{i:02d}'
         print(f"Loading water chain {segid}")
         for res in chain:
             res.segid = segid
-            res.resname = 'TIP3'
+            res.resname = res.topo_definition.resname
+            het_flag, resseq, icode = res.id
+            res.id = (' ', resseq, icode)
+        with tempfile.NamedTemporaryFile('w') as tf:
+            tf.write(get_pdb_str(chain, use_charmm_format=True))
+            tf.write('END\n')
+            tf.flush()
+
+            read.sequence_pdb(tf.name)
+            generate.new_segment(
+                seg_name=segid,
+                first_patch='',
+                last_patch='',
+                angle=False,
+                dihedral=False
+            )
+            read.pdb(tf.name, resid=True)
+        segids.append(segid)
+    return segids
+
+def load_ions(ion_chains):
+    segids = []
+    for i, chain in enumerate(ion_chains):
+        # we need to copy the chain here, since we will modify the het flag
+        # on the ion residues. CHARMM only recognize ION residues as ATOM instead
+        # of HETATM in PDB files 
+        chain = chain.copy()
+        segid = f'IO{i:02d}'
+        print(f"Loading ion chain {segid}")
+        for res in chain:
+            res.segid = segid
+            res.resname = res.resname.upper()
+            het_flag, resseq, icode = res.id
+            res.id = (' ', resseq, icode)
         with tempfile.NamedTemporaryFile('w') as tf:
             tf.write(get_pdb_str(chain, use_charmm_format=True))
             tf.write('END\n')

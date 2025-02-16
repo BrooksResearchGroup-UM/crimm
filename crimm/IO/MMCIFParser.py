@@ -40,6 +40,7 @@ class MMCIFParser:
         self.structure_id = None
         self.assembly_dict = None
         self.symmetry_ops = None
+        self.skipped_chain_id = []
 
     @staticmethod
     def _cif_find_resolution(cifdict):
@@ -438,9 +439,11 @@ class MMCIFParser:
                     ) and (
                         chain_id not in selected_chains
                     ):
+                        self.skipped_chain_id.append(chain_id)
                         continue
                     chain = self.model_template[entity_id].copy()
                     if not self.include_solvent and isinstance(chain, Solvent):
+                        self.skipped_chain_id.append(chain_id)
                         continue
                     sb.model.add(chain)
                     sb.chain = chain
@@ -461,15 +464,16 @@ class MMCIFParser:
                                     anisou.U22, anisou.U23, anisou.U33,
                                 )
                                 atom.set_anisou(np.array(u, "f"))
-                if isinstance(sb.chain, Heterogens):
-                    sb.chain.update()
-                if isinstance(sb.chain, PolymerChain):
-                    sb.chain.reset_disordered_residues()
-                    sb.chain.sort_residues()
-
             if self.use_bio_assembly:
                 self._execute_symmetry_operations(sb.model)
 
+        for model in sb.structure:
+            for chain in model:
+                if isinstance(chain, PolymerChain):
+                    chain.reset_disordered_residues()
+                    chain.sort_residues()
+                elif isinstance(chain, Heterogens):
+                    chain.update()
         sb.structure.set_pdb_id(structure_id)
         self.add_cell_and_symmetry_info()
         self.add_connect_record()
@@ -513,8 +517,12 @@ class MMCIFParser:
             cur_connect = []
             for i in (1,2):
                 cur_label_dict = {k: v.format(i) for k, v in label_dict.items()}
-                cur_connect.append({
+                record_dict = {
                     k: getattr(connect, v) for k, v in cur_label_dict.items()
-                })
-            conn_dict[conn_type].append(tuple(cur_connect))
+                }
+                if record_dict['chain'] in self.skipped_chain_id:
+                    break
+                cur_connect.append(record_dict)
+            else:
+                conn_dict[conn_type].append(tuple(cur_connect))
         self._structure_builder.set_connect(conn_dict)

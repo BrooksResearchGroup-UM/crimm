@@ -4,6 +4,7 @@ import requests
 import warnings
 import pandas as pd
 from Bio.Seq import Seq
+from crimm import StructEntities as Entities
 from crimm.IO import MMCIFParser, PDBParser
 from crimm.IO.MMCIF2Dict import MMCIF2Dict
 from crimm.Superimpose.ChainSuperimposer import ChainSuperimposer
@@ -61,7 +62,7 @@ def _get_alphafold_fh(uniprot_id):
     alphafold_cif_url = response.json()[0]['cifUrl']
     return _file_handle_from_url(alphafold_cif_url)
 
-def fetch_alphafold(uniprot_id):
+def fetch_alphafold(uniprot_id, first_model_only = False):
     """Get a structure from the alphafold database for a given uniprot id"""
     msg = f"AlphaFold DB failed find structure for {uniprot_id}"
     if uniprot_id is None:
@@ -82,6 +83,8 @@ def fetch_alphafold(uniprot_id):
         include_solvent = False
     )
     structure = parser.get_structure(file)
+    if first_model_only:
+        structure = structure.models[0]
     return structure
 
 def _get_mmcif_fh(pdb_id):
@@ -110,8 +113,35 @@ def fetch_rcsb(
         use_bio_assembly = True,
         include_solvent = True,
         include_hydrogens = False,
+        organize = False,
+        rename_charmm_ions=True,
+        rename_solvent_oxygen=True,
     ):
-    """Get a structure from rcsb with a pdb id or from a local mmcif file"""
+    """Get a structure from rcsb with a pdb id or from a local mmcif file
+    Args:
+        pdb_id (str): The pdb id of the structure to fetch
+        local_entry (str): The path to the local mmcif file entry point if the 
+            PDB archive is downloaded. 
+        first_model_only (bool): Whether to return only the first model of the structure.
+            Otherwise, the structure level entity will be returned
+        use_bio_assembly (bool): Whether to use the bio assembly of the structure.
+            See this article for more info for biological assembly: 
+            https://pdb101.rcsb.org/learn/guide-to-understanding-pdb-data/biological-assemblies
+        include_solvent (bool): Whether to include solvent in the structure.
+        include_hydrogens (bool): Whether to include hydrogens in the structure 
+            if they exist.
+        organize (bool): Whether to return an organized model where the chains are
+            identified and grouped by their chain types.
+        rename_charmm_ions (bool): Whether to rename ions in the structure to 
+            CHARMM ion name defined in water_ions.str. This only takes effect 
+            if `organize` is True
+        rename_solvent_oxygen (bool): Whether to rename solvent oxygen to CHARMM 
+        name "OH2" in the crystallographic water. Doing so will allow crimm to 
+         generate topology definitions on the water. This only takeseffect 
+         if `organize` is True
+    Returns:
+        structure (Structure): The structure object
+    """
     if len(pdb_id) == 3:
         raise ValueError("Ligand entries are not supported yet!")
     if local_entry is not None:
@@ -127,9 +157,16 @@ def fetch_rcsb(
         include_solvent=include_solvent
     )
     structure = parser.get_structure(file)
+    if first_model_only:
+        structure = structure.models[0]
+    if organize:
+        structure = Entities.OrganizedModel.OrganizedModel(
+            structure, rename_charmm_ions=rename_charmm_ions, 
+            rename_solvent_oxygen=rename_solvent_oxygen, make_copy=False
+        )
     return structure
 
-def fetch_swiss_model(uniprot_id):
+def fetch_swiss_model(uniprot_id, first_model_only = False):
     """Get the first matching stucuture from the Swiss Model database for a given 
     uniprot id
     """
@@ -163,9 +200,11 @@ def fetch_swiss_model(uniprot_id):
         if str(chain.seq) in can_seq_str:
             chain.can_seq = Seq(can_seq_str)
             chain.pdbx_description = desc
+    if first_model_only:
+        structure = structure.models[0]
     return structure
 
-def fetch_swiss_model_multiple(uniprot_id):
+def fetch_swiss_model_multiple(uniprot_id, first_model_only = False):
     """Get all stucutures from the Swiss Model database for a given uniprot id
     """
     header_url = (
@@ -191,6 +230,8 @@ def fetch_swiss_model_multiple(uniprot_id):
         structures.append(
             _sm_struct_from_info_dict(uniprot_id, info_dict, can_seq_str, desc)
         )
+    if first_model_only:
+        structures = [struct.models[0] for struct in structures]
     return structures
 
 def _sm_struct_from_info_dict(uniprot_id, struct_info_dict, can_seq_str, desc):
