@@ -10,6 +10,8 @@ from crimm import StructEntities as Entities
 from crimm.IO.PRMParser import categorize_lines, parse_line_dict
 from crimm.IO.RTFParser import RTFParser
 from crimm.Modeller import ResidueFixer
+from crimm.Modeller.TopoFixer import fix_chain
+
 
 toppar_dir = os.path.abspath(
     os.path.join(os.path.dirname(__file__), '../Data/toppar')
@@ -940,7 +942,7 @@ class TopologyGenerator:
     def generate(
             self, chain: Entities.Chain, coerce: bool = False,
             first_patch: str = None, last_patch: str = None,
-            auto_correct_first_patch=True, 
+            auto_correct_first_patch=True,
             preserve_ic = True, QUIET = False
         ):
         """Load topology definition into the chain and find any missing atoms.
@@ -1004,6 +1006,8 @@ class TopologyGenerator:
                     f" for the N-terminal residue {chain.residues[0].resname}"
                     f" in chain {chain.id}"
                 )
+            first = corrected_first
+
         if first is not None:
             self.patch_residue(
                 chain.child_list[0], first, patch_loc="NTER", QUIET=QUIET
@@ -1028,20 +1032,99 @@ class TopologyGenerator:
             )
         res_def = residue.topo_definition
         patched_def_name = res_def.resname + "_" + patch
-        if patched_def_name in self.cur_defs.patched_defs:
-            patched_res_def = self.cur_defs.patched_defs[patched_def_name]
+        # if patched_def_name in self.cur_defs.patched_defs:
+        #     patched_res_def = self.cur_defs.patched_defs[patched_def_name]
+        # else:
+        #     patcher = ResiduePatcher()
+        #     patch_def = self.cur_defs[patch]
+        #     patched_res_def = patcher.patch_residue_definition(
+        #         res_def, patch_def, patch_loc=patch_loc
+        #     )
+        #     self.cur_defs.patched_defs[patched_def_name] = patched_res_def
+
+        # find the right residue definition set ('protein', 'nucleic', 'water_ions', etc)
+        for res_def_container in self.res_def_dict.values():
+            if residue.resname in res_def_container:
+                break
+        if patched_def_name in res_def_container.patched_defs:
+            # if the patched residue definition already exists, use it
+            patched_res_def = res_def_container.patched_defs[patched_def_name]
         else:
+            # otherwise, create a new patched residue definition and store it
             patcher = ResiduePatcher()
-            patch_def = self.cur_defs[patch]
+            patch_def = res_def_container[patch]
             patched_res_def = patcher.patch_residue_definition(
                 res_def, patch_def, patch_loc=patch_loc
             )
-            self.cur_defs.patched_defs[patched_def_name] = patched_res_def
-
+            res_def_container.patched_defs[patched_def_name] = patched_res_def
+        
         self.apply_topo_def_on_residue(residue, patched_res_def, QUIET=QUIET)
         fixer = ResidueFixer()
         fixer.load_residue(residue)
         fixer.remove_undefined_atoms()
+
+    def generate_model(
+            self, model: Entities.OrganizedModel.OrganizedModel, coerce: bool = False,
+            prot_first_patch: str = 'ACE', prot_last_patch: str = 'CT3',
+            na_first_patch: str = '5TER', na_last_patch: str = '3PHO',
+            auto_correct_first_patch=True, build_coords = True,
+            preserve_ic = True, solvent_model = 'TIP3', QUIET = False
+        ):
+        """Generate topology for a organized model. 
+        Argument:
+            model: the OrganizedModel object whose topology is to be defined
+            coerce: if True, try to coerce the modified residue name to the canonical name
+                    and load the canonical residue topology definition
+            prot_first_patch: the patch to be applied to the N-terminal residue of the protein.
+                Default is ACE (acetylated N-terminus)
+            prot_last_patch: the patch to be applied to the C-terminal residue of the protein.
+                Default is CT3 (N-Methylamide C-terminus)
+            na_first_patch: the patch to be applied to the 5' terminal residue of the nucleic acid
+                Default is 5TER (5'-terminal HYDROXYL)
+            na_last_patch: the patch to be applied to the 3' terminal residue of the nucleic acid
+                Default is 3PHO (3'-terminal PHOSPHATE)
+            auto_correct_first_patch: if True, automatically correct the first patch
+                of polypeptide chains. Since PRO or GLY needs special treatment when
+                patched at the N-terminus, the first patch will be corrected to PROP
+                or GLYP respectively.
+            build_coords: if True, build the coordinates of the missing atoms
+            preserve_ic: if True, preserve the internal coordinates of the residue
+            solvent_model: the solvent model to be used for the solvent molecules.
+                default is TIP3
+            QUIET: if True, suppress all warnings
+        """
+        if not isinstance(model, Entities.OrganizedModel.OrganizedModel):
+            raise TypeError(
+                "Invalid argument type provided! OrganizedModel"
+                f' is expected. {type(model)} is provided.'
+            )
+        for chain in model.protein:
+            self.generate(
+                chain, coerce=coerce, first_patch=prot_first_patch,
+                last_patch=prot_last_patch,
+                auto_correct_first_patch=auto_correct_first_patch,
+                preserve_ic=preserve_ic, QUIET=QUIET
+            )
+            if build_coords:
+                fix_chain(chain)
+        for chain in (model.RNA + model.DNA):
+            self.generate(
+                chain, coerce=coerce, first_patch=na_first_patch,
+                last_patch=na_last_patch, auto_correct_first_patch=False,
+                preserve_ic=preserve_ic, QUIET=QUIET
+            )
+            if build_coords:
+                fix_chain(chain)
+        for chain in model.ion:
+            self.generate(
+                chain, coerce=coerce, first_patch=None,
+                last_patch=None, auto_correct_first_patch=False,
+                preserve_ic=False, QUIET=QUIET
+            )
+        for chain in model.solvent:
+            self.generate_solvent(chain, solvent_model, QUIET=QUIET)
+
+        model.topology_loader = self
 
 ##TODO: Rewrite TopoDef and this class to use the Topology instead
 ## of removing entries one by one here

@@ -136,6 +136,7 @@ class Solvator:
         self.water_box_coords = None
         # unit of pre-equilibrated cube of water molecules (18.662 A each side)
         self.water_unit_coords = np.load(WATER_COORD_PATH)
+        self._topo_loader = self.model.topology_loader
 
     def get_model(self):
         return self.model
@@ -265,7 +266,7 @@ class Solvator:
         alphabet_index = 0
         assert self.water_box_coords.shape[1:] == (3, 3), \
         f'Invalid water box coords shape {self.water_box_coords.shape}'
-        
+        water_chains = []
         for i, res_coords in enumerate(self.water_box_coords):
             # split water molecules into chains of 9999 residues for PDB format
             # compliance
@@ -273,7 +274,7 @@ class Solvator:
             if resseq == 1:
                 cur_water_chain = self._create_new_water_chain(alphabet_index)
                 alphabet_index += 1
-                self.model.add(cur_water_chain)
+                water_chains.append(cur_water_chain)
 
             water_res = Residue((' ', resseq, ' '), 'HOH', '')
 
@@ -291,8 +292,17 @@ class Solvator:
             water_res.add(cur_h2)
             cur_water_chain.add(water_res)
 
+        for water_chain in water_chains:
+            self.model.add(water_chain)
+            if self._topo_loader is not None:
+                self._topo_loader.generate_solvent(
+                    water_chain, solvent_model='TIP3'
+                )
+
             
-    def add_balancing_ions(self, present_charge = None, cation='SOD', anion='CLA'):
+    def add_balancing_ions(
+            self, present_charge = None, cation='SOD', anion='CLA'
+        ):
         """Add balancing ions to the solvated entity to bring total charge to zero.
         The default cation is Na+ and the default anion is Cl-. If the entity is
         not a solvated entity, a ValueError will be raised. Returns a chain containing
@@ -347,16 +357,18 @@ class Solvator:
 
         new_ion_chain = self._create_ion_chain(solvents, ion_list)
         self.model.add(new_ion_chain)
+        if self._topo_loader is not None:
+            self._topo_loader.generate(new_ion_chain)
 
         
     def _create_ion_chain(self, solvents, ion_list):
         
         water_res = [res for chain in solvents for res in chain]
         chosen_waters = choices(water_res, k=len(ion_list))
-
         rtf = ResidueTopologySet('water_ions')
         new_ion_chain = Ion('IA')
-        new_ion_chain.pdbx_description = 'balancing ions (Sodium)'
+        ion_names = ', '.join(set(ion_list))
+        new_ion_chain.pdbx_description = f"balancing ions ({ion_names})"
         for i, (chosen_water, ion_name) in enumerate(zip(chosen_waters, ion_list), start=1):
             if 'OH2' in chosen_water:
                 oxy_coord = chosen_water['OH2'].coord

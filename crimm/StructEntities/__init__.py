@@ -5,6 +5,7 @@ from crimm.StructEntities.Residue import Residue, Heterogen, DisorderedResidue
 from crimm.StructEntities.TopoDefinitions import ResidueDefinition, AtomDefinition, PatchDefinition
 from crimm.StructEntities.Structure import Structure
 from crimm.StructEntities.Model import Model
+from crimm.StructEntities import OrganizedModel
 
 
 

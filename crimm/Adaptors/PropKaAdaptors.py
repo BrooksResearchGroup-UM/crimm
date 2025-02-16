@@ -11,7 +11,8 @@ from propka.conformation_container import ConformationContainer
 from propka.hydrogens import setup_bonding_and_protonation
 from propka.atom import Atom as _ppAtom
 from crimm.Modeller import TopologyGenerator
-from crimm.Modeller.TopoFixer import ResidueFixer
+from crimm.Modeller.TopoFixer import ResidueFixer, fix_chain
+
 from crimm import Data
 
 dir_path = os.path.dirname(os.path.realpath(Data.__file__))
@@ -171,7 +172,7 @@ class PropKaProtonator:
         self.conf_container = None
         self.reportable_groups = None
         self.topo = topology_loader
-        self.param = self.topo.cur_param
+        self.param = self.topo.param_dict['protein']
 
     def load_model(self, model):
         """Load a list of PolymerChains to propKa MolecularContainer for pKa 
@@ -252,7 +253,7 @@ class PropKaProtonator:
 
     def _patch_residue(self, residue, patch_name:str):
         fixer = ResidueFixer()
-        topo_def = self.topo.cur_defs[patch_name]
+        topo_def = self.topo.res_def_dict['protein'][patch_name]
         if topo_def.is_patch:
             self.topo.patch_residue(residue, patch_name)
         else:
@@ -265,17 +266,21 @@ class PropKaProtonator:
 
     def apply_patches(self):
         """Apply patches to the model."""
-        if len(self.patches) == 0:
-            warnings.warn("No patches to apply.")
-            return
         for chain_id, patches in self.patches.items():
+            if len(patches) == 0:
+                print(f"No protonation patches to apply on chain {chain_id}.")
+                continue
             for resseq, patch_name in patches.items():
                 residue = self.model[chain_id][resseq]
                 self._patch_residue(residue, patch_name)
+                # Update residue name for HIS
+                if residue.resname == 'HIS':
+                    residue.resname = residue.topo_definition.resname
             chain = self.model[chain_id]
-            if chain.topo_elements is not None:
+            if chain.topology is not None:
                 # Update topology elements if they are already defined
-                chain.topo_elements.update()
+                chain.topology.update()
+            print(f"Protonation patches applied on chain {chain_id}:\n{patches}")
 
     def report(self):
         fmt = (

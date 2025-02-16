@@ -129,3 +129,15 @@ class Model(_Model):
             atom_pairs.append(atom)
         return tuple(atom_pairs)
         
+    def remove_chains(self, chain_ids):
+        """Remove the chains with the given IDs."""
+        for chain_id in chain_ids:
+            self.detach_child(chain_id)
+
+    def keep_chains(self, chain_ids):
+        """Keep only the chains with the given IDs."""
+        remove_chains = []
+        for chain in self.child_list:
+            if chain.id not in chain_ids:
+                remove_chains.append(chain.id)
+        self.remove_chains(remove_chains)
