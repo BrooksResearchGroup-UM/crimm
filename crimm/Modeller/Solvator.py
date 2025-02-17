@@ -301,7 +301,7 @@ class Solvator:
 
             
     def add_balancing_ions(
-            self, present_charge = None, cation='SOD', anion='CLA'
+            self, present_charge = None, cation='SOD', anion='CLA', skip_undefined=True
         ):
         """Add balancing ions to the solvated entity to bring total charge to zero.
         The default cation is Na+ and the default anion is Cl-. If the entity is
@@ -334,8 +334,20 @@ class Solvator:
         if present_charge is None:
             total_charges = 0
             for chain in self.model:
-                if isinstance(chain, (PolymerChain, Ion)):
-                    total_charges+=get_charges(chain)
+                if chain.chain_type == 'Solvent':
+                    continue
+                if chain.total_charge is None:
+                    if not skip_undefined:
+                        raise ValueError(
+                            'Chain {chain.id} has no topology definition for atom charge! '
+                            'Cannot calculate total charge.'
+                        )
+                    
+                    warnings.warn(
+                        'Chain {chain.id} has no topology definition for atom charge! '
+                        'Assume zero charge.',
+                    )
+                total_charges+=chain.total_charge
         else:
             total_charges = present_charge
         print(f'Total charges before adding ions: {total_charges}')

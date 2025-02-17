@@ -15,7 +15,6 @@ class Residue(_Residue):
         self.missing_atoms = None
         self.missing_hydrogens = None
         self.atom_groups = None
-        self.total_charge = None
         self.impropers = None
         self.cmap = None
         self.H_donors = None
@@ -24,6 +23,16 @@ class Residue(_Residue):
         self.param_desc = None
         self.undefined_atoms = None
     
+    @property
+    def total_charge(self):
+        """Return the total charge of the residue."""
+        total_charge = 0
+        for atom in self.child_list:
+            if atom.topo_definition is None:
+                return None
+            total_charge += atom.topo_definition.charge
+        return round(total_charge, 2)
+
     @property
     def atoms(self):
         """Alias for child_list. Return the list of atoms in the residue."""

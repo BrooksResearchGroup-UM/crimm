@@ -2,6 +2,7 @@ import tempfile
 import pycharmm as chm
 from pycharmm import read, psf, coor
 from pycharmm import generate
+import pycharmm.settings as pcm_settings
 from pycharmm import ic, cons_harm
 from pycharmm import minimize as _minimize
 from pycharmm.psf import get_natom, delete_atoms
@@ -20,9 +21,19 @@ def empty_charmm():
 def load_topology(topo_generator):
     """Load topology and parameter files from a TopoGenerator object."""
     load_water_ions = False
+    load_cgenff = False
+    if 'cgenff' in topo_generator.res_def_dict:
+        load_cgenff = True
+        # rearrange the order of cgenff
+        topo_generator.res_def_dict['cgenff'] = topo_generator.res_def_dict.pop('cgenff')
+    if 'cgenff' in topo_generator.param_dict:
+        topo_generator.param_dict['cgenff'] = topo_generator.param_dict.pop('cgenff')
+
     for i, (topo_type, topo_loader) in enumerate(topo_generator.res_def_dict.items()):
         if topo_type == 'water_ions':
             load_water_ions = True
+            continue
+        if topo_type == 'cgenff':
             continue
         with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
             tf.write(f'*{topo_type.upper()} RTF Loaded from crimm\n')
@@ -37,6 +48,8 @@ def load_topology(topo_generator):
         if param_type == 'water_ions':
             load_water_ions = True
             continue
+        if param_type == 'cgenff':
+            continue
         with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
             tf.write(f'*{param_type.upper()} PRM Loaded from crimm\n')
             for line in param_loader._raw_data_strings:
@@ -44,7 +57,36 @@ def load_topology(topo_generator):
             tf.flush()
             read.prm(tf.name, append = bool(i), flex=True)
 
-    # load water_ions.str at last
+    # load cgenff.rtf and cgenff.prm after all bio polymers
+    if load_cgenff:
+        abs_path = Path(__file__).resolve().parent.parent
+        rtf_abs_path = abs_path / "Data/toppar/cgenff.rtf"
+        prm_abs_path = abs_path / "Data/toppar/cgenff.prm"
+        with open(rtf_abs_path, 'r', encoding='utf-8') as f:
+            with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
+                tf.write('*CGENFF RTF Loaded from crimm\n')
+                tf.write(f.read())
+                tf.flush() # has to flush first for long files!
+                read.rtf(tf.name, append = True)
+
+        pcm_settings.set_bomb_level(-1)
+        with open(prm_abs_path, 'r', encoding='utf-8') as f:
+            with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
+                tf.write('*CGENFF PRM Loaded from crimm\n')
+                tf.write(f.read())
+                tf.flush() # has to flush first for long files!
+                read.prm(tf.name, append=True, flex=True)
+        pcm_settings.set_bomb_level(0)
+
+        ligandrtf_blocks = topo_generator.cgenff_loader._raw_data_blocks
+        for data_block in ligandrtf_blocks:
+            with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
+                tf.write(f'* CGENFF LIGAND RTF Loaded from crimm\n')
+                tf.write(data_block)
+                tf.flush() # has to flush first for long files!
+                read.stream(tf.name)
+        
+    # load water_ions.str at the end
     if load_water_ions:
         abs_path = Path(__file__).resolve().parent.parent
         abs_path = abs_path / "Data/toppar/water_ions.str"
@@ -81,6 +123,29 @@ def load_chain(chain, hbuild = False, report = False):
         )
     return segid
 
+def load_ligands(ligand_chains):
+    segids = []
+    all_ligands = [res for chain in ligand_chains for res in chain] 
+    for i, lig_res in enumerate(all_ligands, start=1):
+        segid = f'LG{i:02d}'
+        lig_res.segid = segid
+        print(f"Loading ligand {lig_res.resname} SEG: {segid}")
+        with tempfile.NamedTemporaryFile('w') as tf:
+            tf.write(get_pdb_str(lig_res, use_charmm_format=True))
+            tf.write('END\n')
+            tf.flush()
+            read.sequence_pdb(tf.name)
+            generate.new_segment(
+                seg_name=segid,
+                first_patch='',
+                last_patch='',
+                angle=False,
+                dihedral=False
+            )
+            read.pdb(tf.name, resid=True)
+        segids.append(segid)
+    return segids
+
 def load_water(water_chains):
     # Currently only supports TIP3 water model
     segids = []
@@ -91,8 +156,6 @@ def load_water(water_chains):
         for res in chain:
             res.segid = segid
             res.resname = res.topo_definition.resname
-            het_flag, resseq, icode = res.id
-            res.id = (' ', resseq, icode)
         with tempfile.NamedTemporaryFile('w') as tf:
             tf.write(get_pdb_str(chain, use_charmm_format=True))
             tf.write('END\n')
@@ -113,17 +176,13 @@ def load_water(water_chains):
 def load_ions(ion_chains):
     segids = []
     for i, chain in enumerate(ion_chains):
-        # we need to copy the chain here, since we will modify the het flag
-        # on the ion residues. CHARMM only recognize ION residues as ATOM instead
-        # of HETATM in PDB files 
+        # we need to copy the chain here, since we might modify the resname and segid
         chain = chain.copy()
         segid = f'IO{i:02d}'
         print(f"Loading ion chain {segid}")
         for res in chain:
             res.segid = segid
             res.resname = res.resname.upper()
-            het_flag, resseq, icode = res.id
-            res.id = (' ', resseq, icode)
         with tempfile.NamedTemporaryFile('w') as tf:
             tf.write(get_pdb_str(chain, use_charmm_format=True))
             tf.write('END\n')

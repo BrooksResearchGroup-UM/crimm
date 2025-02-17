@@ -77,15 +77,17 @@ def _get_atom_line(
     use_charmm_format=False,
 ):
     """Return an ATOM PDB string (PRIVATE)."""
-    if use_charmm_format:
-        format_string = _CHARMM_ATOM_FORMAT_STRING
-    else:
-        format_string = _ATOM_FORMAT_STRING
-    
     if hetfield != " ":
         record_type = "HETATM"
     else:
         record_type = "ATOM  "
+
+    if use_charmm_format:
+        # CHARMM format does not have chain id and record type is always ATOM
+        format_string = _CHARMM_ATOM_FORMAT_STRING
+        record_type = "ATOM  "
+    else:
+        format_string = _ATOM_FORMAT_STRING
 
     if len(resname) > 3 and trunc_resname:
         # Truncate residue name to 3 characters so it does not mess up
