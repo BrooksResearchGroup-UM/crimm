@@ -35,6 +35,7 @@ import requests, json
 from crimm.Fetchers import fetch_rcsb_as_dict
 from crimm import StructEntities
 from crimm.IO import get_pdb_str
+from crimm.StructEntities import Atom
 import numpy as np
 from rdkit import Chem
 from rdkit.Chem import AllChem
@@ -320,8 +321,17 @@ class RDKitHetConverter:
         self._sanitize = True # determine if sanitization can be performed
         self.mol = None
 
-    def load_heterogen(self, lig):
-        """Load a heterogen object and create the rdkit mol object."""
+    def load_heterogen(self, lig, update_hydrogens = True):
+        """Load a heterogen object and create the rdkit mol object. If the
+        heterogen contains metal atoms, the mol object will not be sanitized.
+        Hydrogens will not be added to the mol object if the heterogen contains
+        metal atoms. If the heterogen does not contain metal atoms, the mol
+        object will be sanitized and hydrogens will be added to the mol object.
+        Args:
+            lig (StructEntities.Heterogen): The heterogen residue object to be converted.
+            update_hydrogens (bool): If True, hydrogens positions calculted by rdkit
+                will be updated on the crimm ligand residue. Defaults to True.
+        """
         if isinstance(lig, StructEntities.Heterogen):
             self.lig = lig
         else:
@@ -356,6 +366,9 @@ class RDKitHetConverter:
         bond_order = bond_info['value_order']
         aro_flag = [flag == 'Y' for flag in bond_info['pdbx_aromatic_flag']]
         self.bond_dict = list(zip(a1, a2, bond_order, aro_flag))
+        self._create_rdkit_mol()
+        if update_hydrogens:
+            self.update_hydrogens()
 
     def _create_rdkit_PDBinfo(self, pdb_atom_name, altloc):
         serial_number = self.element_dict[pdb_atom_name][0]
@@ -466,6 +479,35 @@ class RDKitHetConverter:
     def write_mol2(self, filename = None):
         """Write the mol2 file of the loaded heterogen."""
         MolToMol2File(self.mol, self.resname, filename)
+
+    def get_mol2_block(self):
+        """Return the mol2 block of the loaded heterogen."""
+        return MolToMol2Block(self.mol, self.resname)
+
+    def update_hydrogens(self):
+        """Add hydrogens to the ligand residue object."""
+        if self.mol is None:
+            self._create_rdkit_mol()
+        last_serial = list(self.lig.get_atoms())[0].serial_number+1
+        for atom, coord in zip(
+            self.mol.GetAtoms(), self.mol.GetConformer(0).GetPositions()
+        ):
+            atom_name = atom.GetPDBResidueInfo().GetName()
+
+            if atom.GetSymbol() == 'H' and atom_name not in self.lig:
+                new_atom = Atom(
+                    name = atom_name,
+                    coord=coord,
+                    bfactor=0.0,
+                    occupancy=1.0,
+                    altloc=' ',
+                    serial_number=last_serial,
+                    element=atom.GetSymbol(),
+                    fullname=f"{atom_name:^4}",
+                    topo_definition=None
+                )
+                self.lig.add(new_atom)
+                last_serial+=1
 
 def _build_smiles_query(resname):
     query = '''

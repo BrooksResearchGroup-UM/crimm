@@ -3,7 +3,7 @@ import warnings
 def skip_line(l):
     """Return if the line should be skipped (empty lines or comment only)"""
     x = l.strip()
-    return (x.startswith('!') or x.startswith('*') or x == '')
+    return (x.startswith('!') or x.startswith('*') or x.startswith('read rtf') or x == '')
 
 def comment_parser(line):
     """Parse and separate data fields and comments"""
@@ -183,6 +183,7 @@ class RTFParser:
         self.default_patchs = {'FIRST':None,'LAST':None}
         self.default_autogen = None
         self.unparsed_lines = []
+        self.mass_dict = {}
         if rtf_block is not None:
             self.lines = [l.strip() for l in rtf_block.split('\n') if not skip_line(l)]
         elif file_path is not None:
@@ -201,12 +202,11 @@ class RTFParser:
         ##TODO: Need to handle keywords DIHE, ANGLE, and PATCH
         self.rtf_version = '.'.join(self.lines[0].strip().split())
         self.topo_dict = {}
-        mass_dict = {}
         for l in self.lines[1:]:
             l = l.upper()
             if l.startswith('MASS'):
                 symbol, mass, desc, element = mass_parser(l)
-                mass_dict.update({symbol: (float(mass), desc, element)})
+                self.mass_dict.update({symbol: (float(mass), desc, element)})
             elif l.startswith('DECL'):
                 atom = decl_parser(l)
                 self.decl_peptide_atoms.append(atom)
@@ -250,16 +250,26 @@ class RTFParser:
                     cur_atom_group = {cur_group_i: {}}
                     cur_res['atoms'].update(cur_atom_group)
                 atom_name, atom_type, atom_charge = atom_parser(l)
-                cur_atom_dict = {
-                    atom_name: 
-                    {
-                        'atom_type': atom_type, 
-                        'charge': float(atom_charge), 
-                        'mass': mass_dict[atom_type][0],
-                        'desc': mass_dict[atom_type][1],
-                        'element': mass_dict[atom_type][2]
+                if atom_type not in self.mass_dict:
+                    # CGENFF rtf files do not have MASS table
+                    cur_atom_dict = {
+                        atom_name:
+                        {
+                            'atom_type': atom_type, 
+                            'charge': float(atom_charge), 
+                        }
                     }
-                }
+                else:
+                    cur_atom_dict = {
+                        atom_name: 
+                        {
+                            'atom_type': atom_type, 
+                            'charge': float(atom_charge), 
+                            'mass': self.mass_dict[atom_type][0],
+                            'desc': self.mass_dict[atom_type][1],
+                            'element': self.mass_dict[atom_type][2]
+                        }
+                    }
                 cur_atom_group[cur_group_i].update(cur_atom_dict)
             elif l.startswith('DONO'):
                 if 'H_donors' not in cur_res:

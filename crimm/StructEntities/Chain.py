@@ -27,6 +27,16 @@ class BaseChain(_Chain):
         """Alias for child_list. Returns the list of residues in this chain."""
         return self.child_list
 
+    @property
+    def total_charge(self):
+        """Return the total charge of the chain."""
+        total_charge = 0
+        for res in self:
+            if res.total_charge is None:
+                return None
+            total_charge += res.total_charge
+        return round(total_charge, 2)
+
     def get_empty_shell(self):
         """Remove all residues from the chain."""
         new_chain = copy(self)
