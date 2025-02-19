@@ -71,21 +71,7 @@ class Solvator:
         first Model will be solvated. If a Model level entity is provided, all 
         chains in the model will be solvated. If a Chain level entity is 
         provided, the chain will be solvated. The entity is modified in place.
-    cutoff : float, optional
-        The distance from the solute at which the water box's boundary extends to.
-        The default is 9.0 A.
-    solvcut : float, optional
-        The distance from the solute at which water molecules will be removed.
-        The default is 2.10 A.
-    remove_existing_water : bool, optional
-        If True, any existing water molecules in the entity will be removed.
-        The default is True.
-    
-    Returns
-    -------
-    solvated_entity : Model level entity
-        The solvated entity.
-    
+
     Examples
     --------
     >>> from crimm import fetch_rcsb
@@ -94,7 +80,9 @@ class Solvator:
     >>> structure = fetch_rcsb('5igv')
     >>> fisrt_model = structure.models[0]
     >>> solvator = Solvator()
-    >>> solvated_model = solvator.solvate(fisrt_model)
+    >>> solvated_model = solvator.solvate(
+            fisrt_model, cutoff=8.0, solvcut=2.1, remove_existing_water=True
+        )
     >>> water_chains = [
         chain for chain in solvated if chain.chain_type == 'Solvent'
     ]
@@ -153,7 +141,20 @@ class Solvator:
         at which water molecules will be removed. The solvcut distance is used
         to remove water molecules that are too close to the solute. If altloc
         atoms exist in the entity, the first altloc atoms will be used to
-        determine water molecules location during solvation."""
+        determine water molecules location during solvation.
+        
+        Parameters
+        ----------
+        cutoff : float, optional
+            The distance from the solute to the edge of the cubic box. The
+            default is 9.0.
+        solvcut : float, optional
+            The distance from the solute at which water molecules will be
+            removed. The default is 2.10.
+        remove_existing_water : bool, optional
+            If True, remove existing water molecules from the entity. The default
+            is True.
+        """
 
         self.cutoff = cutoff
         self.solvcut = solvcut
@@ -166,9 +167,14 @@ class Solvator:
         coorman = CoordManipulator()
         coorman.load_entity(self.model)
         coorman.orient_coords(apply_to_parent=(self.model.parent is not None))
+        warnings.warn(
+            'Orienting coordinates before solvation. This may change the '
+            'atom coordinates of the entity in the structure.',
+            UserWarning
+        )
         self.box_dim = (coorman.box_dim+self.cutoff).max() # for cubic box
         self.coords = self._extract_coords(self.model)
-        self._solvate_model()
+        return self._solvate_model()
 
 
     def _extract_coords(self, entity) -> np.ndarray:
@@ -259,6 +265,7 @@ class Solvator:
         chain_id = 'W'+self.alphabet[alphabet_index]
         water_chain = Solvent(chain_id)
         water_chain.pdbx_description = 'water'
+        water_chain.source = 'generated'
         return water_chain
 
     def _solvate_model(self):
@@ -299,14 +306,17 @@ class Solvator:
                     water_chain, solvent_model='TIP3'
                 )
 
+        return water_chains
+
             
     def add_balancing_ions(
             self, present_charge = None, cation='SOD', anion='CLA', skip_undefined=True
-        ):
+        ) -> Ion:
         """Add balancing ions to the solvated entity to bring total charge to zero.
         The default cation is Na+ and the default anion is Cl-. If the entity is
-        not a solvated entity, a ValueError will be raised. Returns a chain containing
-        the balancing ions.
+        not a solvated entity, a ValueError will be raised. A random selection of
+        water molecules in the water box will be replaced with balancing ions.
+        Returns a chain containing the balancing ions.
         
         Parameters
         ----------
@@ -314,7 +324,8 @@ class Solvator:
             The solvated entity to add balancing ions to.
         present_charge : int, optional
             The present charge of the solvated entity. If None, the charge will be
-            calculated from the entity.
+            calculated from the entity. The default is None. If for any reason you
+            want to balance the charge to a non-zero value, you can specify it here.
         cation : str, optional
             The cation to use. The default is 'SOD' (Na+).
         anion : str, optional
@@ -332,6 +343,7 @@ class Solvator:
             )
         
         if present_charge is None:
+            charge_dict = {}
             total_charges = 0
             for chain in self.model:
                 if chain.chain_type == 'Solvent':
@@ -347,10 +359,14 @@ class Solvator:
                         'Chain {chain.id} has no topology definition for atom charge! '
                         'Assume zero charge.',
                     )
+                charge_dict[chain.id] = chain.total_charge
                 total_charges+=chain.total_charge
+            print(f'Total charges before adding ions: {total_charges}')
+            for chain_id, charge in charge_dict.items():
+                print(f'  [Chain {chain_id}] {charge}')
         else:
             total_charges = present_charge
-        print(f'Total charges before adding ions: {total_charges}')
+            print(f'Total charges before adding ions: {total_charges}')
 
         if total_charges == 0:
             warnings.warn('No balancing ions needed', UserWarning)
@@ -372,6 +388,7 @@ class Solvator:
         if self._topo_loader is not None:
             self._topo_loader.generate(new_ion_chain)
 
+        return new_ion_chain
         
     def _create_ion_chain(self, solvents, ion_list):
         

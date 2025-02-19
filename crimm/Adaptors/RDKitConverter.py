@@ -35,7 +35,7 @@ import requests, json
 from crimm.Fetchers import fetch_rcsb_as_dict
 from crimm import StructEntities
 from crimm.IO import get_pdb_str
-from crimm.StructEntities import Atom
+from crimm.StructEntities import Atom, Heterogen
 import numpy as np
 from rdkit import Chem
 from rdkit.Chem import AllChem
@@ -192,6 +192,18 @@ def _determine_ligname(mol):
         ligname = 'LIG'
     return ligname.upper()[:3]
 
+def _generate_mol2_atom_name(atom, atom_counts: dict):
+    """Generate the mol2 atom name for the atom."""
+    symbol = atom.GetSymbol()
+    if symbol not in atom_counts:
+        atom_counts[symbol] = 1
+    else:
+        atom_counts[symbol] += 1
+    
+    # PDB-style naming (Element + Number)
+    atom_name = f"{symbol}{atom_counts[symbol]}"
+    return atom_name
+
 def MolToMol2Block(mol, ligname = None):
     """Write a mol2 block string from a RDKit Mol Object."""
     if ligname is None:
@@ -210,11 +222,12 @@ def MolToMol2Block(mol, ligname = None):
     tripos_bond_format = '{:<5} {:<5} {:<5} {:<2}'
     atom_lines = []
     bond_lines = []
+    atom_counts={}
     for i, (atom, coords) in enumerate(zip(atoms, pos), start=1):
         if pdbinfo := atom.GetPDBResidueInfo():
             name = pdbinfo.GetName()
         else:
-            name = atom.GetSymbol()+str(i)
+            name = _generate_mol2_atom_name(atom, atom_counts)
         sybyl_type = _sybyl_atom_type(atom)
         charge = atom.GetDoubleProp('_GasteigerCharge')
         atom_lines.append(
@@ -320,6 +333,7 @@ class RDKitHetConverter:
         self._rd_atoms = None
         self._sanitize = True # determine if sanitization can be performed
         self.mol = None
+        self._atom_counts = None
 
     def load_heterogen(self, lig, update_hydrogens = True):
         """Load a heterogen object and create the rdkit mol object. If the
@@ -369,6 +383,72 @@ class RDKitHetConverter:
         self._create_rdkit_mol()
         if update_hydrogens:
             self.update_hydrogens()
+    
+    def load_rdkit_mol(self, mol, ligand_resname = None):
+        """Load a rdkit mol object and create the crimm heterogen object.
+        Args:
+            mol (rdkit.Chem.rdchem.Mol): The rdkit mol object to be converted.
+        """
+        self.mol = mol
+        
+        if ligand_resname is None:
+            self.lig_pdbid = _determine_ligname(mol)
+        else:
+            self.lig_pdbid = ligand_resname
+        self.resname = self.lig_pdbid
+        self.resnum = 1
+        res_id = (f'H_{self.resname}', self.resnum, ' ')
+        self.lig = Heterogen(res_id, self.resname, ' ')
+        self._sanitize = True
+
+        if len(mol.GetConformers()) == 0:
+            # Generate conformer if not present
+            params = AllChem.ETKDGv3()
+            AllChem.EmbedMolecule(mol, params)
+
+        pos = mol.GetConformer().GetPositions()
+        atoms = list(mol.GetAtoms())
+        
+
+        atom_counts = {}
+        atom_mapping = {}
+        for i, (atom, coords) in enumerate(zip(atoms, pos), start=1):
+            atom_id = atom.GetIdx()
+            if pdbinfo := atom.GetPDBResidueInfo():
+                name = pdbinfo.GetName()
+            else:
+                name = _generate_mol2_atom_name(atom, atom_counts)
+                pdb_info = Chem.AtomPDBResidueInfo(
+                    name, i, ' ', 
+                    residueName = self.resname,
+                    residueNumber = self.resnum,
+                    isHeteroAtom = True
+                )
+                atom.SetPDBResidueInfo(pdb_info)
+
+            new_atom = Atom(
+                name = name,
+                coord=coords,
+                bfactor=0.0,
+                occupancy=1.0,
+                altloc=' ',
+                serial_number=i,
+                element=atom.GetSymbol(),
+                fullname=f"{name:^4}",
+                topo_definition=None
+            )
+            self.lig.add(new_atom)
+            atom_mapping[atom_id] = name
+
+        bond_dict = {}
+        for bond in mol.GetBonds():
+            st = atom_mapping[bond.GetBeginAtomIdx()]
+            end = atom_mapping[bond.GetEndAtomIdx()]
+
+            bo_name = str(bond.GetBondType()).lower()
+            bond_dict[bo_name] = (st, end)
+
+        self.lig.bonds = bond_dict
 
     def _create_rdkit_PDBinfo(self, pdb_atom_name, altloc):
         serial_number = self.element_dict[pdb_atom_name][0]
@@ -476,6 +556,10 @@ class RDKitHetConverter:
             self._create_rdkit_mol()
         return self.mol
 
+    def get_ligand(self):
+        """Return the crimm heterogen object."""
+        return self.lig
+    
     def write_mol2(self, filename = None):
         """Write the mol2 file of the loaded heterogen."""
         MolToMol2File(self.mol, self.resname, filename)

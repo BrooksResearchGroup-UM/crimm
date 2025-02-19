@@ -118,6 +118,26 @@ class Heterogen(Residue):
     def __init__(self, res_id, resname, segid):
         super().__init__(res_id, resname, segid)
         self.pdbx_description = None
+        # This is for the purpose of visualization and rdkit mol conversion. 
+        # The actual bond information should stored in the topo_definition attribute.
+        self._bonds = None
+
+    @property
+    def bonds(self):
+        """Return the list of bonds in the residue."""
+        if self.topo_definition is not None:
+            return self.topo_definition.bonds
+        return self._bonds
+
+    @bonds.setter
+    def bonds(self, value):
+        if self.topo_definition is not None:
+            raise ValueError(
+                'Bonds information already exists in the topo_definition attribute!'
+                'Remove and/or regenerate the topology definition if you want to change' 
+                'the bonds.'
+            )
+        self._bonds = value
 
     def add(self, atom):
         """Special method for Add an Atom object to Heterogen. Any duplicated 

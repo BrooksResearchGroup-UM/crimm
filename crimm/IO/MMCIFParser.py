@@ -442,9 +442,11 @@ class MMCIFParser:
                         self.skipped_chain_id.append(chain_id)
                         continue
                     chain = self.model_template[entity_id].copy()
-                    if not self.include_solvent and isinstance(chain, Solvent):
-                        self.skipped_chain_id.append(chain_id)
-                        continue
+                    if isinstance(chain, Solvent):
+                        if not self.include_solvent:
+                            self.skipped_chain_id.append(chain_id)
+                            continue
+                        chain.source = 'PDB'
                     sb.model.add(chain)
                     sb.chain = chain
                     # This is the mmCIF label chain id

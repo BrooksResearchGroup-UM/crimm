@@ -477,3 +477,20 @@ def fix_chain(chain):
             res_builder.load_residue(res)
             res_builder.remove_undefined_atoms()
     return built_atoms
+
+def build_water_hs(water):
+    """Build missing hydrogens for a water molecule. The water molecule must have
+    a topology definition loaded.
+    
+    Args:
+        water: Water molecule with topology definition loaded.
+    
+    Returns:
+        A list of built hydrogen atoms.
+    """
+    if water.topo_definition is None:
+        warnings.warn(f'No topology definition on {water}! Skipped')
+        return []
+    res_builder = ResidueFixer()
+    res_builder.load_residue(water)
+    return res_builder.build_hydrogens()

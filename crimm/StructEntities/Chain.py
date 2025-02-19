@@ -432,6 +432,8 @@ class Oligosaccharide(BaseChain):
 
 class Solvent(BaseChain):
     chain_type = 'Solvent'
+    # The source of the solvent, e.g. PDB (crystallographic) or generated (modeled).
+    source = None 
 
 class CoSolvent(BaseChain):
     chain_type = 'CoSolvent'
