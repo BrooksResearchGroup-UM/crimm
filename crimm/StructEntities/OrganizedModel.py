@@ -5,12 +5,13 @@ from Bio.PDB.Selection import unfold_entities
 # Nucleoside phosphates and phosphonates
 from crimm.Data.components_dict import NUCLEOSIDE_PHOS, PDB_CHARMM_ION_NAMES 
 from crimm.Fetchers import query_drugbank_info
-from crimm.Utils.StructureUtils import index_to_letters
+from crimm.Utils.StructureUtils import index_to_letters, letters_to_index
 from .Model import Model
 from .Chain import (
     PolymerChain, Heterogens, Solvent, CoSolvent, Ion,
     Glycosylation, NucleosidePhosphate, Chain, Ligand
 )
+from .Residue import Residue
 
 class OrganizedModel(Model):
     """The OrganizedModel class represents a model in a structure with a specific 
@@ -85,7 +86,6 @@ class OrganizedModel(Model):
         super().__init__(model.id)
         self.connect_atoms = model.connect_atoms
         self.connect_dict = model.connect_dict
-        self.pdb_id = None
         self.rcsb_web_data = None
         # Binding Affinity Information
         self.binding_info = None
@@ -169,6 +169,15 @@ class OrganizedModel(Model):
     @property
     def glycosylation(self):
         return self.filter('glycosylation')
+    
+    @property
+    def non_solvent(self):
+        """Return all chains that are not solvent chains."""
+        non_solvent = []
+        for chain in self:
+            if chain.chain_type != 'Solvent':
+                non_solvent.append(chain)
+        return non_solvent
     
     def _get_rcsb_web_data(self):
         query_url = f'https://data.rcsb.org/rest/v1/core/entry/{self.pdb_id}'
@@ -259,22 +268,6 @@ class OrganizedModel(Model):
     
     def update(self):
         self.organize(self, make_copy=False)
-
-    def correct_chain_type(self, chain_id, chain_type):
-        """Reassign the chain type of a chain in the model."""
-        if (general_name:=chain_type.rstrip('s').lower()) in self.organized_chains:
-            ## Use the actual chain class name if user provides the organized_chains name
-            chain_type = self.organized_chains[general_name]
-        if chain_type not in self.chain_types:
-            raise ValueError(f"Invalid chain type {chain_type}!")
-        old_chain = self[chain_id]
-        if chain_type == old_chain.chain_type:
-            return
-        self.detach_child(chain_id)
-        new_chain = self.create_hetero_chain(
-            old_chain.id, old_chain.residues, chain_type
-        )
-        self.add(new_chain)
 
     def organize(self, model: Model, make_copy=True):
         """Organize the chains in the model into categories."""
@@ -367,3 +360,99 @@ class OrganizedModel(Model):
             display(show_nglview_multiple(self.child_list))
         print(self.expanded_view())
         
+    def correct_chain_type(self, chain_id, chain_type):
+        """Reassign the chain type of a chain in the model."""
+        if (general_name:=chain_type.rstrip('s').lower()) in self.organized_chains:
+            ## Use the actual chain class name if user provides the organized_chains name
+            chain_type = self.organized_chains[general_name]
+        if chain_type not in self.chain_types:
+            raise ValueError(f"Invalid chain type {chain_type}!")
+        old_chain = self[chain_id]
+        if chain_type == old_chain.chain_type:
+            return
+        self.detach_child(chain_id)
+        new_chain = self.create_hetero_chain(
+            old_chain.id, old_chain.residues, chain_type
+        )
+        self.add(new_chain)
+
+    def combine_chains_by_id(self, chain_ids, new_id=None):
+        """Combine the chains in the model into a single chain."""
+        if len(chain_ids) == 0:
+            return
+        chains = [self[chain_id] for chain_id in chain_ids]
+        self.combine_chains(chains, new_id)
+
+
+    def combine_chains(self, chains, new_id=None):
+        """Combine a list of chains into a single chain."""
+        if len(chains) == 0:
+            return
+        chain_types = set(c.chain_type for c in chains)
+        if len(chain_types) > 1:
+            raise ValueError(
+                f"Cannot combine chains with different chain types! {chain_types}"
+                "found in the chain list."
+            )
+        chain_type = chain_types.pop()
+        if new_id is None:
+            new_id = self[0].id
+        new_chain = self.chain_types[chain_type](new_id)
+        all_res = [res for chain in chains for res in chain]
+        for i, res in enumerate(all_res, start=1):
+            het_flag, resseq, icode = res.id
+            res.id = (het_flag, i, icode)
+            new_chain.add(res)
+
+        for chain in chains:
+            self.detach_child(chain.id)
+        self.add(new_chain)
+
+    def _add_ligand_residue(self, res, chain_id=None, description=None):
+        """Add a ligand residue to the model."""
+        self.sort_chains(reset_id=False)
+        if description is not None:
+            res.pdbx_description = description
+        if chain_id in self:
+            chain = self[chain_id]
+            chain.add(res)
+            all_descriptions = set(res.pdbx_description for res in chain if res.pdbx_description is not None)
+            if len(all_descriptions) > 0:
+                chain.pdbx_description = ', '.join(all_descriptions)
+            else:
+                chain.pdbx_description = None
+            return
+
+        if chain_id is None:
+            chain_id = index_to_letters(letters_to_index(self.chains[-1].id)+1)
+            assert chain_id not in self
+        
+        chain = self.chain_types['Ligand'](chain_id)
+        chain.pdbx_description = res.pdbx_description
+        chain.resnames = [res.resname]
+        self.add(chain)
+        chain.add(res)
+        
+    def _add_ligand_chain(self, chain, description=None):
+        """Add a ligand chain to the model."""
+        self.sort_chains(reset_id=False)
+        if chain.id in self:
+            new_id = index_to_letters(letters_to_index(self.chains[-1].id)+1)
+            warnings.warn(
+                f"Chain {chain.id} already exists in the model! "
+                f"Ligand chain id will be renamed to {new_id}."
+            )
+            chain.id = new_id
+        self.add(chain)
+        if description is not None:
+            chain.pdbx_description = description
+
+    def add_ligand(self, ligand, chain_id=None, description=None):
+        """Add a ligand to the model."""
+        if isinstance(ligand, Residue):
+            self._add_ligand_residue(ligand, chain_id, description)
+        elif isinstance(ligand, Chain):
+            ligand.id = chain_id
+            self._add_ligand_chain(ligand, description)
+        else:
+            raise ValueError(f"Invalid ligand type {type(ligand)}!")

@@ -1,6 +1,7 @@
 """Model class, used in Structure objects."""
 import warnings
 from Bio.PDB.Model import Model as _Model
+from crimm.Utils.StructureUtils import index_to_letters
 
 class Model(_Model):
     """The extended Model class representing a model in a structure.
@@ -128,16 +129,43 @@ class Model(_Model):
                 atom = atom.child_dict[altloc]
             atom_pairs.append(atom)
         return tuple(atom_pairs)
+    
+    def replace_chain(self, in_chain, out_chain_id):
+        """Swap the chain in this model with the given chain."""
+        if out_chain_id not in self:
+            raise ValueError(f"Model {self} does not have chain {out_chain_id}")
+        if in_chain in self.child_list:
+            raise ValueError(f"Chain {in_chain} already in model {self}")
+        if in_chain.id != out_chain_id:
+            warnings.warn(
+                f"Renaming chain ID: {in_chain.id} to {out_chain_id} for"
+                f"{in_chain}"
+            )
+            in_chain.id = out_chain_id
+        self.detach_child(out_chain_id)
+        self.add(in_chain)
         
     def remove_chains(self, chain_ids):
         """Remove the chains with the given IDs."""
+        removed_chains = []
         for chain_id in chain_ids:
-            self.detach_child(chain_id)
+            if chain_id in self:
+                removed_chains.append(self[chain_id])
+                self.detach_child(chain_id)
+        return removed_chains
 
     def keep_chains(self, chain_ids):
         """Keep only the chains with the given IDs."""
-        remove_chains = []
+        remove_chain_ids = []
         for chain in self.child_list:
             if chain.id not in chain_ids:
-                remove_chains.append(chain.id)
-        self.remove_chains(remove_chains)
+                remove_chain_ids.append(chain.id)
+        return self.remove_chains(remove_chain_ids)
+    
+    def sort_chains(self, reset_id=False):
+        """Sort the chains in this model by chain ID."""
+        self.child_list.sort(key=lambda x: x.id)
+        self.child_dict = {chain.id: chain for chain in self.child_list}
+        if reset_id:
+            for i, chain in enumerate(self.child_list):
+                chain.id = index_to_letters(i)

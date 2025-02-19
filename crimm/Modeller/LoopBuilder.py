@@ -120,9 +120,25 @@ class ChainLoopBuilder:
     def __init__(
             self, model_chain: Entities.PolymerChain, 
             model_can_seq = None,
-            pdbid = None
+            pdbid = None,
+            inplace = False,
         ):
-        self.model_chain = model_chain.copy()
+        """
+        Args:
+            model_chain: the chain to be repaired
+            model_can_seq (optional): the canonical sequence of the chain.
+                If not provided, it will be assumed to be the canonical sequence
+                parsed from mmcif file.
+            pdbid (optional): the PDB ID of the chain. If not provided, it will
+                look up the PDB ID from the chain's top parent 
+                (model or structure containing the chain).
+            inplace: if True, the model_chain will be modified in place. Default
+                is False.
+        """
+        if not inplace:
+            self.model_chain = model_chain.copy()
+        else:
+            self.model_chain = model_chain
         if model_can_seq is not None:
             self.model_can_seq = model_can_seq
         else:
@@ -136,8 +152,10 @@ class ChainLoopBuilder:
         self.query_results = None
         self.pdbid = pdbid
         if self.pdbid is None:
-            if model_chain.get_top_parent().level == 'S':
-                self.pdbid = model_chain.get_top_parent().id
+            if parent:=(model_chain.get_top_parent()).level == 'S':
+                self.pdbid = parent.id
+            elif (parent:=model_chain.get_top_parent()).level == 'M' and parent.pdb_id is not None:
+                self.pdbid = parent.pdb_id
             else:
                 warnings.warn(
                     f'PDB ID not set for {model_chain}! '
