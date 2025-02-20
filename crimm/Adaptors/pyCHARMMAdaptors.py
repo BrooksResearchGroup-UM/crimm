@@ -135,9 +135,11 @@ def load_chain(chain, hbuild = False, report = False):
         )
     if len(other_patches) > 0:
         for patch_loc, patch_name in other_patches.items():
+            resseq = int(patch_loc.split()[1])
             charmm_patch(patch_name, patch_sites=patch_loc)
             pcm.lingo.charmm_script(
-                f'hbuild sele segid {segid} .and. resi {patch_loc} end'
+                f'hbuild sele segid {segid} .and. resi {resseq} '
+                '.and. hydrogen end'
             )
     return segid
 
@@ -165,7 +167,6 @@ def load_ligands(ligand_chains, segids=None):
                 dihedral=True
             )
             read.pdb(tf.name, resid=True)
-        segids.append(segid)
     return segids
 
 def load_water(water_chains, segids=None):
@@ -180,10 +181,11 @@ def load_water(water_chains, segids=None):
             res.segid = segid
         print(f"Loading water chain {segid}")
         chain = chain.copy()
+        chain.reset_atom_serial_numbers(reset_current_only=True)
         for res in chain:
             res.resname = res.topo_definition.resname
         with tempfile.NamedTemporaryFile('w') as tf:
-            tf.write(get_pdb_str(chain, use_charmm_format=True))
+            tf.write(get_pdb_str(chain, use_charmm_format=True, reset_serial=False))
             tf.write('END\n')
             tf.flush()
 
@@ -202,15 +204,17 @@ def load_water(water_chains, segids=None):
 def load_ions(ion_chains):
     segids = []
     for i, chain in enumerate(ion_chains):
-        # we need to copy the chain here, since we might modify the resname and segid
-        # chain = chain.copy()
         segid = f'IO{i:02d}'
         print(f"Loading ion chain {segid}")
         for res in chain:
             res.segid = segid
+        # we need to copy the chain here, since we might modify atom_serial_number
+        chain = chain.copy()
+        chain.reset_atom_serial_numbers(reset_current_only=True)
+        
             # res.resname = res.resname.upper()
         with tempfile.NamedTemporaryFile('w') as tf:
-            tf.write(get_pdb_str(chain, use_charmm_format=True))
+            tf.write(get_pdb_str(chain, use_charmm_format=True, reset_serial=False))
             tf.write('END\n')
             tf.flush()
 
