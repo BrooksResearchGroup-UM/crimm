@@ -1,10 +1,12 @@
 import tempfile
+import warnings
 import numpy as np
 import pycharmm as pcm
 from pycharmm import read, psf, coor
 from pycharmm import generate
 import pycharmm.settings as pcm_settings
-from pycharmm import ic, cons_harm
+from pycharmm import ic, cons_harm, cons_fix
+from pycharmm import energy
 from pycharmm import minimize as _minimize
 from pycharmm.generate import patch as charmm_patch
 from pycharmm.psf import get_natom, delete_atoms
@@ -417,4 +419,45 @@ def fetch_coords_from_charmm(entity):
             )
         atom.coord = charmm_coord_dict[segid][atom_key]
 
-        
+def sd_minimize(
+    nstep, non_bonded_script, tolenr=1e-3, tolgrd=1e-3, 
+    cons_harm_selection=None, cons_fix_selection=None
+):
+    """Perform steepest-descent minimization in CHARMM."""
+    # Implement the non-bonded parameters by "running" them.
+    non_bonded_script.run()
+    # equivalent to: 
+    # cons harm force 20 select type ca end
+    has_cons_harm = False
+    has_cons_fix = False
+    if cons_harm_selection is not None:
+        if cons_harm_selection.get_n_selected() == 0:
+            warnings.warn(
+                "Atom selection resulted zero atoms for CONS HARM! Skip CONS HARM setup"
+            )
+        else:
+            status = cons_harm.setup_absolute(
+                selection=cons_harm_selection,
+                force_const=20
+            )
+            has_cons_harm = not status
+            # The status would return False if success
+            warnings.warn(f"Absolute harmonic restraints setup success: {has_cons_harm}")
+    if cons_fix_selection is not None:
+        if cons_fix_selection.get_n_selected() == 0:
+            warnings.warn(
+                "Atom selection resulted zero atoms for CONS FIX! Skip CONS FIX setup"
+            )
+        else:
+            has_cons_fix = cons_fix.setup(cons_fix_selection)
+            warnings.warn(f"Atom fix constraint setup success: {has_cons_fix}")
+    # equivalent CHARMM scripting command: 
+    # minimize abnr nstep 1000 tole 1e-3 tolgr 1e-3
+    _minimize.run_sd(nstep=nstep, tolenr=tolenr, tolgrd=tolgrd)
+    if has_cons_harm:
+        cons_harm.turn_off()
+    if has_cons_fix:
+        cons_fix.turn_off()
+    # equivalent CHARMM scripting command: energy
+    ener_df = energy.get_energy()
+    return ener_df.iloc[0].to_dict()
