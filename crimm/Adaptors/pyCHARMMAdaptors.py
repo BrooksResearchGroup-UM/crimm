@@ -161,8 +161,8 @@ def load_ligands(ligand_chains, segids=None):
                 seg_name=segid,
                 first_patch='',
                 last_patch='',
-                angle=False,
-                dihedral=False
+                angle=True,
+                dihedral=True
             )
             read.pdb(tf.name, resid=True)
         segids.append(segid)
