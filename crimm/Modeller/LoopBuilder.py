@@ -152,7 +152,7 @@ class ChainLoopBuilder:
         self.query_results = None
         self.pdbid = pdbid
         if self.pdbid is None:
-            if parent:=(model_chain.get_top_parent()).level == 'S':
+            if (parent:=(model_chain.get_top_parent())).level == 'S':
                 self.pdbid = parent.id
             elif (parent:=model_chain.get_top_parent()).level == 'M' and parent.pdb_id is not None:
                 self.pdbid = parent.pdb_id
@@ -405,11 +405,12 @@ class ChainLoopBuilder:
         """
         for entity_dict in query_results.values():
             for pdbid, chain_ids in entity_dict.items():
-                structure = fetch_rcsb(
+                first_model = fetch_rcsb(
                     pdbid, use_bio_assembly = False,
-                    include_solvent = False, local_entry=local_entry_point
+                    include_solvent = False, 
+                    local_entry=local_entry_point,
+                    first_model_only=True
                 )
-                first_model = structure.child_list[0]
                 for chain_id in chain_ids:
                     template_chain = first_model[chain_id]
                     yield (pdbid, template_chain)
