@@ -1,5 +1,6 @@
 from string import ascii_uppercase
 from crimm.StructEntities.Chain import Solvent, Ion
+from copy import copy
 import numpy as np
 
 def index_to_letters(index, letter = ''):
@@ -76,7 +77,11 @@ def combine_hetero_chains(
     ):
     """Combine a list of chains into a single chain with a specified chain ID."""
     parent = chains[0].parent
-    new_chain = chains[0].get_empty_shell()
+    # get an empty chain but retain the chain type of the first chain
+    new_chain = copy(chains[0])
+    new_chain.child_list = []
+    new_chain.child_dict = {}
+    new_chain.detach_parent()
     new_chain.id = new_chain_id
     all_residues = []
     all_description = []

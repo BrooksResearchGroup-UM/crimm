@@ -77,8 +77,7 @@ class Solvator:
     >>> from crimm import fetch_rcsb
     >>> from crimm.Modeller.Solvator import Solvator
 
-    >>> structure = fetch_rcsb('5igv')
-    >>> fisrt_model = structure.models[0]
+    >>> fisrt_model = fetch_rcsb('5igv')
     >>> solvator = Solvator()
     >>> solvated_model = solvator.solvate(
             fisrt_model, cutoff=8.0, solvcut=2.1, remove_existing_water=True

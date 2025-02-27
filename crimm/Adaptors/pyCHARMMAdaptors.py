@@ -116,6 +116,9 @@ def load_chain(chain, hbuild = False, report = False):
         # iterate over all residues except the first and last to find 
         # if any residue has been patched
         if (patch_name:=res.topo_definition.patch_with) is not None:
+            if patch_name == 'DISU':
+                # skip disulfide bond patch in this step
+                continue
             resseq = res.id[1]
             # CHARMM requires the patch location to be in the format of
             # SEGID RESSEQ
@@ -272,25 +275,15 @@ def _load_chain(
     if hbuild:
         pcm.lingo.charmm_script("hbuild sele type H* end")
 
-def minimize(
-        constrained_atoms='CA', 
-        sd_nstep=1000,
-        abnr_nstep=500,
-    ):
-
-    cons_harm.setup_absolute(
-        selection=pcm.SelectAtoms(atom_type=constrained_atoms),
-        force_constant=50
-        )
-    if int(sd_nstep) > 0:
-        _minimize.run_sd(nstep=int(sd_nstep))
-    else:
-        print('Steepest-descend minimization not performed')
-    if int(abnr_nstep) > 0:
-        _minimize.run_abnr(nstep=int(abnr_nstep), tolenr=1e-3, tolgrd=1e-3)
-    else:
-        print('Adopted Basis Newton-Raphson minimization not performed')
-    cons_harm.turn_off()
+def patch_disu_from_model(model):
+    """Patch disulfide bonds found in a model object."""
+    if 'disulf' in model.connect_dict:
+        for res1, res2 in model.connect_dict['disulf']:
+            seg1, seg2 = res1['chain'], res2['chain']
+            seq1, seq2 = res1['resseq'], res2['resseq']
+            patch_arg = f'PRO{seg1} {seq1} PRO{seg2} {seq2}'
+            print('[Excuting CHARMM Command] patch DISU', patch_arg)
+            generate.patch('DISU', patch_arg)
 
 def ok_to_sync(chain):
     """DEPRECATED: Use fetch_coords_from_charmm instead."""

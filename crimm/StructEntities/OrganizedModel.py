@@ -84,7 +84,6 @@ class OrganizedModel(Model):
                 f"{entity}  has level \"{entity.level}\"."
             )
         super().__init__(model.id)
-        self.connect_atoms = model.connect_atoms
         self.connect_dict = model.connect_dict
         self.rcsb_web_data = None
         # Binding Affinity Information
@@ -124,6 +123,8 @@ class OrganizedModel(Model):
             self.rename_solvent_oxygen()
         if rename_charmm_ions:
             self.rename_charmm_ions()
+        
+        
     
     def filter(self, name):
         """Return the type of the chain with the given name."""
@@ -229,6 +230,7 @@ class OrganizedModel(Model):
                 description  = res.parent.pdbx_description
             if description not in all_description and description is not None:
                 all_description.append(description)
+            res.detach_parent()
             if reset_resid:
                 het_flag, resseq, icode = res.id
                 res.id = (het_flag, i, icode)
@@ -299,6 +301,8 @@ class OrganizedModel(Model):
         for i, chain in enumerate(all_chains):
             chain.id = index_to_letters(i)
             self.add(chain)
+        # update the connected atoms in the model level bonds (e.g. disulfide bonds)
+        self.set_connect(self.connect_dict)
             
     def rename_solvent_oxygen(self):
         """Rename oxygen atom in solvent to OH2."""
@@ -307,6 +311,8 @@ class OrganizedModel(Model):
                 if 'O' in res:
                     atom = res['O']
                     atom.rename('OH2')
+                    if res.is_disordered():
+                        res.child_dict['OH2'] = res.child_dict.pop('O')
 
     def replace_ion(self, res, new_ion_name):
         """Replace the ion residue by changing its name."""

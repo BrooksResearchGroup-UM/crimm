@@ -36,15 +36,62 @@ class BaseChain(_Chain):
                 return None
             total_charge += res.total_charge
         return round(total_charge, 2)
-
-    def get_empty_shell(self):
-        """Remove all residues from the chain."""
-        new_chain = copy(self)
-        new_chain.child_list = []
-        new_chain.child_dict = {}
-        new_chain.detach_parent()
-        return new_chain
     
+    def sort_residues(self):
+        """Update the ordering of the residues in child list by resseq
+        """
+        self.child_list = sorted(self.child_list, key=lambda x: x.id[1:])
+        self.child_dict = {res.id: res for res in self.child_list}
+
+    def truncate(self, start=None, end=None):
+        """Truncate the chain to the specified start and end residue id in the 
+        residue list (0-indexed). If start is None, the first residue will be used.
+        If end is None, the last residue will be used."""
+        if start is None:
+            start = 0
+        if end is None:
+            end = len(self)
+        self.sort_residues()
+        remove_list = []
+        remove_list.extend(self.child_list[:start])
+        remove_list.extend(self.child_list[end:])
+        for res in remove_list:
+            res.detach_parent()
+            self.detach_child(res.id)
+            if hasattr(self, 'het_resseq_lookup'):
+                if res.id[1] in self.het_resseq_lookup:
+                    self.het_resseq_lookup.pop(res.id[1])
+        self.sort_residues()
+        
+
+    def truncate_by_seqid(self, start=None, end=None):
+        """Truncate the chain to the specified start and end residue sequence number."""
+        if start is None:
+            start = self.residues[0].id[1]
+        if end is None:
+            end = self.residues[-1].id[1]
+        start = self._translate_id(start)
+        end = self._translate_id(end)
+        if start not in self.child_dict:
+            raise ValueError(f"Start residue {start} not found in the chain.")
+        if end not in self.child_dict:
+            raise ValueError(f"End residue {end} not found in the chain.")
+        start = self.child_dict[start].id
+        end = self.child_dict[end].id
+        if start > end:
+            raise ValueError(f"Start residue {start} is greater than end residue {end}.")
+        remove_list = []
+        for res in self.child_list:
+            if res.id < start or res.id > end:
+                remove_list.append(res)
+        for res in remove_list:
+            res.detach_parent()
+            self.detach_child(res.id)
+            if hasattr(self, 'het_resseq_lookup'):
+                if res.id[1] in self.het_resseq_lookup:
+                    self.het_resseq_lookup.pop(res.id[1])
+        self.sort_residues()
+
     def get_top_parent(self):
         if self.parent is None:
             return self
@@ -350,11 +397,7 @@ class PolymerChain(Chain):
         cur_set.add(prev_idx)
         gaps.append(cur_set)
         return gaps
-    
-    def sort_residues(self):
-        """Update the ordering of the residues in child list by resseq
-        """
-        self.child_list = sorted(self.child_list, key=lambda x: x.id[1:])
+
 
     def find_het_by_resseq(self, resseq):
         """Return a list of heterogens for a residue seq id."""
