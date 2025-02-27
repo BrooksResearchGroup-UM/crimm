@@ -88,7 +88,7 @@ def load_pdbid_in_charmm(
     charmm_verbosity_level = 0,
 ):
 
-    structure = fetch_rcsb(
+    model = fetch_rcsb(
         pdb_id,
         include_solvent=False,
         # any existing hydrogen will be removed and rebuilt later
@@ -99,7 +99,7 @@ def load_pdbid_in_charmm(
     prot_chains = {}
     na_chains = {} 
     # get the first model's id
-    model_id = structure.models[0].id
+    model_id = model.id
     # create a new empty model to store chains of interests
     new_model = Model(model_id)
     rtf_loader, param_loader = get_param_loaders()

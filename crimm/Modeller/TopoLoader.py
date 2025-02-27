@@ -3,7 +3,7 @@ import warnings
 import pickle
 import subprocess
 from typing import List, Tuple
-from copy import deepcopy
+from copy import deepcopy, copy
 from Bio.Data.PDBData import protein_letters_3to1_extended
 from Bio.Data.PDBData import protein_letters_1to3
 
@@ -307,7 +307,7 @@ class BaseTopology:
     def __repr__(self) -> str:
         if self.containing_entity is None:
             return "<EmptyTopology>"
-        s = f"<Topology for {self.containing_entity} with "
+        s = f"<Topology of {self.containing_entity} with "
         for attr, value in self:
             if value is None:
                 n = 0
@@ -316,7 +316,19 @@ class BaseTopology:
             s += f"{attr}={n}, "
         s = s[:-2] + ">"
         return s
-    
+
+    def delete_atom_related_elements(self, atom: Entities.Atom):
+        """Delete all topology elements related to the atom"""
+        for topo_type_name, topo_list in self:
+            if topo_list is None:
+                continue
+            remove_list = []
+            for topo in topo_list:
+                if atom in topo:
+                    remove_list.append(topo)
+            for topo in remove_list:
+                topo_list.remove(topo)
+
     def update(self):
         """Update the topology elements"""
         self.find_topo_elements(self.containing_entity)
@@ -356,6 +368,119 @@ class BaseTopology:
         """Find all topology elements in the entity"""
         raise NotImplementedError
 
+class ModelTopology:
+    """A class object that stores topology elements (bond, angles, dihe, etc) 
+    for a model."""
+    topo_types = [
+        'bonds', 'angles', 'dihedrals', 'impropers', 'cmap'
+    ]
+    def __init__(self, model):
+        """Find all topology elements from the model"""
+        if not isinstance(model, Entities.Model):
+            raise ValueError(
+                'Model is not an instance of Model!'
+                f' {type(model)} is provided.'
+            )
+        self.disu_bonds = []
+        self.containing_entity = model
+        self._create_disu_bonds(model)
+
+    def __iter__(self):
+        for topo_type_name in self.topo_types:
+            yield topo_type_name, getattr(self, topo_type_name)
+
+    def _gather_topo(self, element_name):
+        elements = []
+        for chain in self.containing_entity:
+            if chain.topology is None:
+                continue
+            if hasattr(chain.topology, element_name):
+                chain_elements = getattr(chain.topology, element_name)
+                if chain_elements is not None:
+                    elements.extend(chain_elements)
+        return elements
+            
+    @property
+    def bonds(self):
+        return self.disu_bonds+self._gather_topo('bonds')
+    @property
+    def angles(self):
+        return self._gather_topo('angles')
+    @property
+    def dihedrals(self):
+        return self._gather_topo('dihedrals')
+    @property
+    def impropers(self):
+        return self._gather_topo('impropers')
+    @property
+    def cmap(self):
+        return self._gather_topo('cmap')
+    # @property
+    # def nonbonded(self):
+    #     return self._gather_topo('nonbonded')
+    
+    def __repr__(self):
+        repr_str = ''
+        if self.containing_entity is None:
+            return "<EmptyTopology>"
+        s = f"<Topology of {self.containing_entity} with "
+        for attr, value in self:    
+            if value is None:
+                n = 0
+            else:
+                n = len(value)
+            s += f"{attr}={n}, "
+        if self.disu_bonds:
+            s += f'(disulfide bonds={len(self.disu_bonds)}), '
+        s = s[:-2] + ">"
+        repr_str += s + '\nTopology by Chains:\n'
+        
+        for chain in self.containing_entity:
+            if chain.topology is None:
+                repr_str += f'<Topology of {chain} not generated!>\n'
+            else:
+                repr_str += repr(chain.topology) + '\n'
+        return repr_str
+                        
+    def _create_disu_bonds(self, model: Entities.Model):
+        if 'disulf' in model.connect_atoms:
+            patcher = ResiduePatcher()
+            for (a1, a2) in model.connect_atoms['disulf']:
+                res1 = a1.parent
+                res2 = a2.parent
+                chain1 = res1.parent
+                chain2 = res2.parent
+                if chain1.topology is None or chain2.topology is None:
+                    warnings.warn(
+                        f'Disulfide bond found between {res1} and {res2}! '
+                        'But topology not generated for the chains.'
+                    )
+                    continue
+                if 'HG1' in res1:
+                    chain1.topology.delete_atom_related_elements(res1['HG1'])
+                    res1.detach_child('HG1')
+                if 'HG1' in res2:
+                    chain2.topology.delete_atom_related_elements(res2['HG1'])
+                    res2.detach_child('HG1')
+                warnings.warn(
+                    f'Disulfide bond found between {res1} and {res2}! '
+                    'Removing hydrogen HG1 from the residues.'
+                )
+                cys_def = patcher.patch_disulfide(
+                    res1.topo_definition, res2.topo_definition
+                )
+                res1.topo_definition = cys_def
+                res2.topo_definition = cys_def
+                res1['SG'].topo_definition = cys_def['SG']
+                res2['SG'].topo_definition = cys_def['SG']
+                res1['CB'].topo_definition = cys_def['CB']
+                res2['CB'].topo_definition = cys_def['CB']
+                chain1.topology.update()
+                chain2.topology.update()
+                disu_bond = Entities.Bond(a1, a2, 'single')
+                self.disu_bonds.append(disu_bond)
+    
+    
 class HeterogenTopology(BaseTopology):
     """A class object that stores topology elements (bond, angles, dihe, etc) 
     for a heterogen residue, e.g. ligand, water, ions, etc."""
@@ -396,6 +521,11 @@ class HeterogenTopology(BaseTopology):
         for atom in residue.get_atoms():
             if len(atom.neighbors) > 0:
                 return atom
+        raise ValueError(
+            f'No seeding atom found in residue {residue}!'
+            'This is possibly due to the heterogen residue '
+            'not being defined in the topology file.'
+        )
 
 class ChainTopology(BaseTopology):
     """A class object that stores topology elements (bond, angles, dihe, etc) 
@@ -413,19 +543,6 @@ class ChainTopology(BaseTopology):
         self.find_topo_elements(chain)
         self.create_atom_lookup_table()
         return self
-
-    ## Maybe make this a private method?
-    def delete_atom_related_elements(self, atom: Entities.Atom):
-        """Delete all topology elements related to the atom"""
-        for topo_type_name, topo_list in self:
-            if topo_list is None:
-                continue
-            remove_list = []
-            for topo in topo_list:
-                if atom in topo:
-                    remove_list.append(topo)
-            for topo in remove_list:
-                topo_list.remove(topo)
 
     def _find_seeding_atom(self):
         """Find the first atom to start the search"""
@@ -852,6 +969,10 @@ class CGENFFTopologyLoader:
         residue_definition = self.cgenff_topo_set.res_defs[lig_res.resname]
         for atom_def in residue_definition:
             atom_def_name = atom_def.name
+            if atom_def_name.startswith('LP'):
+                ## TODO: Need to incorporate lone pairs in the future
+                # skip lone pairs for now
+                continue
             if atom_def_name not in lig_res:
                 raise ValueError(
                     f'Atom {atom_def_name} not found in the residue {lig_res}!'
@@ -1104,7 +1225,8 @@ class TopologyGenerator:
             return True
 
         chain = residue.parent
-        chain.het_resseq_lookup.pop(resseq)
+        if resseq in chain.het_resseq_lookup:
+            chain.het_resseq_lookup.pop(resseq)
 
         if hasattr(chain, "reported_res"):
             # if the chain has reported_res attribute, update it
@@ -1160,7 +1282,10 @@ class TopologyGenerator:
                     and load the canonical residue topology definition
             QUIET: if True, suppress all warnings
         """
-
+        chain.sort_residues()
+        if chain.residues[0].resname == 'ACE':
+            # if the first residue is ACE, remove it
+            chain.truncate(start = 1)
         chain.undefined_res = []
         self._load_residue_definitions(chain.chain_type, preserve_ic)
         for residue in chain:
@@ -1272,7 +1397,8 @@ class TopologyGenerator:
             prot_first_patch: str = 'ACE', prot_last_patch: str = 'CT3',
             na_first_patch: str = '5TER', na_last_patch: str = '3PHO',
             auto_correct_first_patch=True, build_coords = True,
-            preserve_ic = True, solvent_model = 'TIP3', QUIET = False
+            preserve_ic = True, solvent_model = 'TIP3', 
+            QUIET = False
         ):
         """Generate topology for a organized model. Protein, nucleic acid, ion and solvent will
         be generated separately. If cgenff executable path is provided, cgenff will be used to
@@ -1337,6 +1463,7 @@ class TopologyGenerator:
             if self.save_cgenff_output:
                 self.cgenff_loader.write_all()
         model.topology_loader = self
+        model.topology = ModelTopology(model)
 
 ##TODO: Rewrite TopoDef and this class to use the Topology instead
 ## of removing entries one by one here
@@ -1486,4 +1613,55 @@ class ResiduePatcher:
         self.res.assign_donor_acceptor()
         self.res.create_atom_lookup_dict()
         self.res.patch_with = self.patch.resname
+        return self.res
+    
+    def patch_disulfide(
+            self, res1: Entities.ResidueDefinition, res2: Entities.ResidueDefinition
+        ):
+        """Patch the disulfide bond between two cysteine residues"""
+        ## Disulfide bond patching is hard coded. The residue and atom definitions
+        ## are modified here directly without using the DISU patch definition.
+        ## Dihedrals and impropers are not generated.
+        ## TODO: fully implement the DISU patch definition to the topology definition
+        ## and parameters
+        if not isinstance(res1, Entities.ResidueDefinition) or not isinstance(res2, Entities.ResidueDefinition):
+            raise TypeError("res1 and res2 must be ResidueDefinition objects")
+        if res1.resname != 'CYS' or res2.resname != 'CYS':
+            raise ValueError("res1 and res2 must be CYS residues")
+        if res1.is_modified or res2.is_modified:
+            raise ValueError("res1 and res2 must not be modified")
+        
+        self.res = deepcopy(res1)
+        remove_name = 'HG1'
+        self.res.removed_atom_dict[remove_name] = self.res.atom_dict.pop(remove_name)
+        self._remove_atom_from_bonds(remove_name)
+        self._remove_atom_from_ic(remove_name)
+        for param_attr in (
+            self.res.impropers, self.res.H_donors,
+            self.res.H_acceptors, self.res.atom_groups
+        ):
+            self._remove_atom_from_param(param_attr, remove_name)
+        self._remove_atom_from_cmap(self.res.cmap, remove_name)
+        self.res.assign_donor_acceptor()
+        self.res.create_atom_lookup_dict()
+        self.res.patch_with = 'DISU'
+        sulfur_def = self.res['SG']
+        sulfur_def.atom_type = 'SM'
+        sulfur_def.charge = -0.08
+        CB_def = self.res['CB']
+        CB_def.charge = -0.10
+
+        # for bond_type in self.res.bonds:
+        #     self.res.bonds[bond_type].extend(('SG1','SG2'))
+
+        # self.res.atom_groups.extend(self.patch.atom_groups)
+
+        # self.res.ic = {**self.res.ic, **self.patch.ic}
+        # if self.remove_nei_ic_prefix is not None:
+        #     self._remove_neighbor_atom_from_ic()
+        #     self._remove_neighbor_atom_from_improper()
+        #     self._remove_neighbor_atom_from_cmap()
+
+        self.res.is_modified = True
+
         return self.res
