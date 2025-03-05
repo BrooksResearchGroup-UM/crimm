@@ -118,9 +118,30 @@ class Heterogen(Residue):
     def __init__(self, res_id, resname, segid):
         super().__init__(res_id, resname, segid)
         self.pdbx_description = None
+        self.lone_pair_dict = {}
         # This is for the purpose of visualization and rdkit mol conversion. 
         # The actual bond information should stored in the topo_definition attribute.
         self._bonds = None
+
+    def __getitem__(self, id):
+        """Return the child with given id."""
+        return {**self.child_dict, **self.lone_pair_dict}[id]
+    
+    def __contains__(self, id):
+        return super().__contains__(id) or id in self.lone_pair_dict
+    
+    @property
+    def lone_pairs(self):
+        """Return the list of lone pairs in the residue."""
+        return list(self.lone_pair_dict.values())
+
+    @property
+    def total_charge(self):
+        """Return the total charge of the residue."""
+        total_charge = super().total_charge
+        for lp in self.lone_pairs:
+            total_charge += lp.topo_definition.charge
+        return round(total_charge, 2)
 
     @property
     def bonds(self):
