@@ -958,7 +958,7 @@ class CGENFFTopologyLoader:
     
     ## TODO: need to find topology element from rtf. Currently only add 
     ## topology definition to the atom
-    def generate(self, lig_res: Entities.Residue, ligand_toppar_file=None):
+    def generate(self, lig_res: Entities.Heterogen, ligand_toppar_file=None):
         """Generate topology definition for the ligand residue using cgenff."""
         self.rdconvert.load_heterogen(lig_res)
         self.rdkit_mols[lig_res.resname] = self.rdconvert.get_mol()
@@ -970,9 +970,9 @@ class CGENFFTopologyLoader:
         for atom_def in residue_definition:
             atom_def_name = atom_def.name
             if atom_def_name.startswith('LP'):
-                ## TODO: Need to incorporate lone pairs in the future
-                # skip lone pairs for now
-                continue
+                lp = atom_def.create_new_atom()
+                lig_res.lone_pair_dict[atom_def_name] = lp
+                lp.parent = lig_res
             if atom_def_name not in lig_res:
                 raise ValueError(
                     f'Atom {atom_def_name} not found in the residue {lig_res}!'

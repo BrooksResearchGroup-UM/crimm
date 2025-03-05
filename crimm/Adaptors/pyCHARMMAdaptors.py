@@ -10,7 +10,9 @@ from pycharmm import energy
 from pycharmm import minimize as _minimize
 from pycharmm.generate import patch as charmm_patch
 from pycharmm.psf import get_natom, delete_atoms
+from Bio.PDB.Selection import unfold_entities
 from crimm.IO import get_pdb_str
+from crimm import StructEntities as Entities
 from pathlib import Path
 
 nucleic_letters_1to3 = {
@@ -40,7 +42,7 @@ def load_topology(topo_generator):
         if topo_type == 'cgenff':
             continue
         with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
-            tf.write(f'*{topo_type.upper()} RTF Loaded from crimm\n')
+            tf.write(f'* {topo_type.upper()} RTF Loaded from crimm\n')
             for line in topo_loader._raw_data_strings:
                 if line.upper().startswith('RESI') or line.upper().startswith('PRES'):
                     line = '\n'+line
@@ -55,7 +57,7 @@ def load_topology(topo_generator):
         if param_type == 'cgenff':
             continue
         with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
-            tf.write(f'*{param_type.upper()} PRM Loaded from crimm\n')
+            tf.write(f'* {param_type.upper()} PRM Loaded from crimm\n')
             for line in param_loader._raw_data_strings:
                 tf.write(line+'\n')
             tf.flush()
@@ -68,7 +70,7 @@ def load_topology(topo_generator):
         prm_abs_path = abs_path / "Data/toppar/cgenff.prm"
         with open(rtf_abs_path, 'r', encoding='utf-8') as f:
             with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
-                tf.write('*CGENFF RTF Loaded from crimm\n')
+                tf.write('* CGENFF RTF Loaded from crimm\n')
                 tf.write(f.read())
                 tf.flush() # has to flush first for long files!
                 read.rtf(tf.name, append = True)
@@ -76,7 +78,7 @@ def load_topology(topo_generator):
         pcm_settings.set_bomb_level(-1)
         with open(prm_abs_path, 'r', encoding='utf-8') as f:
             with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
-                tf.write('*CGENFF PRM Loaded from crimm\n')
+                tf.write('* CGENFF PRM Loaded from crimm\n')
                 tf.write(f.read())
                 tf.flush() # has to flush first for long files!
                 read.prm(tf.name, append=True, flex=True)
@@ -96,7 +98,7 @@ def load_topology(topo_generator):
         abs_path = abs_path / "Data/toppar/water_ions.str"
         with open(abs_path, 'r', encoding='utf-8') as f:
             with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
-                tf.write('*WATER ION TOPPAR Loaded from crimm\n')
+                tf.write('* WATER ION TOPPAR Loaded from crimm\n')
                 for line in f.readlines():
                     tf.write(line)
                 tf.flush()
@@ -158,7 +160,7 @@ def load_ligands(ligand_chains, segids=None):
 
     for segid, lig_res in zip(segids, all_ligands):
         lig_res.segid = segid
-        print(f"Loading ligand {lig_res.resname} SEG: {segid}")
+        print(f"[crimm] Loading ligand {lig_res.resname} SEG: {segid}")
         with tempfile.NamedTemporaryFile('w') as tf:
             tf.write(get_pdb_str(lig_res, use_charmm_format=True))
             tf.write('END\n')
@@ -172,6 +174,16 @@ def load_ligands(ligand_chains, segids=None):
                 dihedral=True
             )
             read.pdb(tf.name, resid=True)
+    
+    lone_pair_ligands = [lig.resname for lig in all_ligands if len(lig.lone_pairs) > 0]
+
+    if len(lone_pair_ligands) > 0:
+        print(
+            "[crimm] Creating lone pair coordinates for ligands "
+            f"{','.join(lone_pair_ligands)} using CHARMM command COOR SHAKE"
+        )
+        pcm.lingo.charmm_script("coor shake")
+
     return segids
 
 def load_water(water_chains, segids=None):
@@ -184,7 +196,7 @@ def load_water(water_chains, segids=None):
     for segid, chain in zip(segids, water_chains):
         for res in chain:
             res.segid = segid
-        print(f"Loading water chain {segid}")
+        print(f"[crimm] Loading water chain {segid}")
         chain = chain.copy()
         chain.reset_atom_serial_numbers(reset_current_only=True)
         for res in chain:
@@ -210,7 +222,7 @@ def load_ions(ion_chains):
     segids = []
     for i, chain in enumerate(ion_chains):
         segid = f'IO{i:02d}'
-        print(f"Loading ion chain {segid}")
+        print(f"[crimm] Loading ion chain {segid}")
         for res in chain:
             res.segid = segid
         # we need to copy the chain here, since we might modify atom_serial_number
@@ -301,7 +313,7 @@ def ok_to_sync(chain):
 def sync_coords(chain):
     """DEPRECATED: Use fetch_coords_from_charmm instead."""
     if not ok_to_sync(chain):
-        print("[Abort] Possible residue sequences mismatch!")
+        print("[crimm] ABORT: Possible residue sequences mismatch!")
         return
     ibase = list(psf.get_ibase())
     new_coord_df = coor.get_positions()
@@ -311,7 +323,7 @@ def sync_coords(chain):
         for atom_name, coordinate in atom_coords[st:end]:
             if atom_name in cur_res:
                 cur_res[atom_name].coord = coordinate
-    print(f'Synchronized: {chain}')
+    print(f'[crimm] Synchronized: {chain}')
 
 def get_charmm_coord_dict(selected_atoms, include_resname = True):
     """Get a dictionary of coordinates of selected atoms from CHARMM.
@@ -382,15 +394,14 @@ def create_water_hs_from_charmm(model):
 
 def fetch_coords_from_charmm(entity):
     """Fetch coordinates from CHARMM to the entity."""
-    if isinstance(entity, list):
-        for chain in entity:
-            fetch_coords_from_charmm(chain)
-        return
-    all_atoms = list(entity.get_atoms())
+    res_list = unfold_entities(entity, 'R')
     all_charmm_atoms = pcm.SelectAtoms().all_atoms()
     charmm_coord_dict = get_charmm_coord_dict(all_charmm_atoms)
-    for atom in all_atoms:
-        residue = atom.parent
+    for residue in res_list:
+        atoms = list(residue.get_atoms())
+        # Update lone pairs coordinates for heterogens too
+        if isinstance(residue, Entities.Heterogen):
+            atoms.extend(residue.lone_pairs)
         resname = residue.resname
         if resname == 'HIS':
             # use histidine's CHARMM name
@@ -401,16 +412,19 @@ def fetch_coords_from_charmm(entity):
         if segid == ' ':
             raise ValueError(f'No SEGID assigned to {residue}')
         resseq = residue.id[1]
-        atom_name = atom.name
-        atom_key = (resname, resseq, atom_name)
-        if segid not in charmm_coord_dict:
-            raise KeyError(f'{atom} in {residue} with SEGID {segid} not found in CHARMM')
-        if atom_key not in charmm_coord_dict[segid]:
-            raise KeyError(
-                f'{atom} in {residue} not found in CHARMM SEGMENT {segid}'
-                f' with RESNAME {resname} RESID {resseq} ATOM NAME {atom_name}'
-            )
-        atom.coord = charmm_coord_dict[segid][atom_key]
+        for atom in atoms:
+            atom_name = atom.name
+            atom_key = (resname, resseq, atom_name)
+            if segid not in charmm_coord_dict:
+                raise KeyError(
+                    f'{atom} in {residue} with SEGID {segid} not found in CHARMM'
+                )
+            if atom_key not in charmm_coord_dict[segid]:
+                raise KeyError(
+                    f'{atom} in {residue} not found in CHARMM SEGMENT {segid}'
+                    f' with RESNAME {resname} RESID {resseq} ATOM NAME {atom_name}'
+                )
+            atom.coord = charmm_coord_dict[segid][atom_key]
 
 def sd_minimize(
     nstep, non_bonded_script, tolenr=1e-3, tolgrd=1e-3, 

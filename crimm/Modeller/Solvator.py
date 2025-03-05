@@ -130,7 +130,8 @@ class Solvator:
 
     def solvate(
             self, cutoff=9.0, solvcut = 2.10,
-            remove_existing_water = True
+            remove_existing_water = True,
+            orient_coords = True
         ) -> Model:
         """Solvates the entity and returns a Model level entity. The solvated
         entity will be centered in a cubic box with side length equal to the
@@ -162,17 +163,18 @@ class Solvator:
             self.remove_existing_water(self.model)
         if len(self.model.chains) == 0:
             raise ValueError('No chains in model to solvate')
-
-        coorman = CoordManipulator()
-        coorman.load_entity(self.model)
-        coorman.orient_coords(apply_to_parent=(self.model.parent is not None))
-        warnings.warn(
-            'Orienting coordinates before solvation. This may change the '
-            'atom coordinates of the entity in the structure.',
-            UserWarning
-        )
-        self.box_dim = (coorman.box_dim+self.cutoff).max() # for cubic box
+        if orient_coords:
+            coorman = CoordManipulator()
+            coorman.load_entity(self.model)
+            coorman.orient_coords(apply_to_parent=(self.model.parent is not None))
+            warnings.warn(
+                'Orienting coordinates before solvation. This may change the '
+                'atom coordinates of the entity in the structure.',
+                UserWarning
+            )
         self.coords = self._extract_coords(self.model)
+        self.box_dim = (self.coords.ptp(0)+self.cutoff).max() # for cubic box
+
         return self._solvate_model()
 
 
@@ -181,7 +183,7 @@ class Solvator:
         only the first altloc atoms will be included in the returned array."""
         coords = []
         for atom in entity.get_atoms(include_alt=False):
-            coords.append(atom.get_coord())
+            coords.append(atom.coord)
         return np.array(coords)
 
     def remove_existing_water(self, model: Model) -> Model:

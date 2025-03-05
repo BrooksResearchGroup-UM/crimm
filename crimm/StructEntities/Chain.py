@@ -478,7 +478,7 @@ class Solvent(BaseChain):
     # The source of the solvent, e.g. PDB (crystallographic) or generated (modeled).
     source = None 
 
-class CoSolvent(BaseChain):
+class CoSolvent(Heterogens):
     chain_type = 'CoSolvent'
 
 class Ion(BaseChain):
@@ -487,7 +487,7 @@ class Ion(BaseChain):
 class Glycosylation(BaseChain):
     chain_type = 'Glycosylation'
 
-class NucleosidePhosphate(BaseChain):
+class NucleosidePhosphate(Heterogens):
     chain_type = 'NucleosidePhosphate'
 
 
