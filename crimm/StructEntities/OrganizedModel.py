@@ -1,4 +1,5 @@
 import warnings
+from copy import copy
 import requests
 import pandas as pd
 from Bio.PDB.Selection import unfold_entities
@@ -76,15 +77,18 @@ class OrganizedModel(Model):
         """
         if entity.level == 'M':
             model = entity.copy()
+            pdbx_description = entity.pdbx_description
         elif entity.level == 'S':
             model = entity.models[0].copy()
+            pdbx_description = entity.models[0].pdbx_description
         else:
             raise ValueError(
                 "Only Structure level (S) or Model level (M) entity is accepted for OrganizedModel!"
                 f"{entity}  has level \"{entity.level}\"."
             )
         super().__init__(model.id)
-        self.connect_dict = model.connect_dict
+        self.pdbx_description = pdbx_description
+        self.connect_dict = copy(model.connect_dict)
         self.rcsb_web_data = None
         # Binding Affinity Information
         self.binding_info = None
@@ -276,6 +280,7 @@ class OrganizedModel(Model):
         undecided_heterogens = []
         all_chains = []
         solvent_entry = {'Solvent': []}
+        chain_id_map = {}
         for chain in model.chains:
             if make_copy:
                 chain = chain.copy()
@@ -293,17 +298,35 @@ class OrganizedModel(Model):
             if len(hetero_res_list) == 0:
                 continue
             temp_id = index_to_letters(i)
+            for res in hetero_res_list:
+                chain_id_map[res.parent.id] = temp_id
             hetero_chain = self.create_hetero_chain(
-                f'H{temp_id}', hetero_res_list, chain_type
+                f'__{temp_id}', hetero_res_list, chain_type
             )
             all_chains.append(hetero_chain)
 
+        all_chains.sort(key=lambda x: x.id)
+        
         for i, chain in enumerate(all_chains):
-            chain.id = index_to_letters(i)
+            chain.detach_parent()
+            new_id = index_to_letters(i)
+            chain_id_map[chain.id] = new_id
+            chain.id = new_id
             self.add(chain)
         # update the connected atoms in the model level bonds (e.g. disulfide bonds)
+        self._update_connect_dict_chain_id(chain_id_map)
         self.set_connect(self.connect_dict)
             
+    def _update_connect_dict_chain_id(self, id_map: dict):
+        """Update the chain ID in the connect_dict."""
+        for entries in self.connect_dict.values():
+            for atom_pair_dicts in entries:
+                for atom_info in atom_pair_dicts:
+                    if atom_info['chain'] in id_map:
+                        atom_info['chain'] = id_map[atom_info['chain']]
+                    else:
+                        print(f"Chain {atom_info['chain']} not found in the model!")
+
     def rename_solvent_oxygen(self):
         """Rename oxygen atom in solvent to OH2."""
         for chain in self.solvent:

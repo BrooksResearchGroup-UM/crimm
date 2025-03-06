@@ -14,6 +14,7 @@ class Model(_Model):
     def __init__(self, id, serial_num=None):
         super().__init__(id, serial_num=serial_num)
         self.pdb_id = None
+        self.pdbx_description = None
         self.connect_dict = {}
         self.connect_atoms = {}
 

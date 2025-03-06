@@ -10,11 +10,24 @@ class Structure(_Structure):
     def __init__(self, id) -> None:
         super().__init__(id)
         self.pdb_id = None
-        self.header = None
+        self._header = None
         self.resolution = None
         self.method = None
         self.assemblies = None
         self.cell_info = None
+
+    @property
+    def header(self):
+        """Return the header information of the structure."""
+        return self._header
+    
+    @header.setter
+    def header(self, header_dict):
+        """Set the header information of the structure."""
+        self._header = header_dict
+        if 'idcode' in header_dict:
+            for model in self.get_models():
+                model.pdbx_description = header_dict['idcode']['title']
 
     def set_pdb_id(self, pdb_id):
         """Set the PDB ID of this structure."""
@@ -29,7 +42,7 @@ class Structure(_Structure):
 
     def __repr__(self):
         return f"<Structure id={self.get_id()} Models={len(self)}>"
-    
+
     def expanded_view(self):
         """Print the hierarchy tree of this model."""
         hierarchy_str = repr(self)

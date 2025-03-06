@@ -131,7 +131,9 @@ def fetch_rcsb(
         include_hydrogens (bool): Whether to include hydrogens in the structure 
             if they exist.
         organize (bool): Whether to return an organized model where the chains are
-            identified and grouped by their chain types.
+            identified and grouped by their chain types. This is useful for
+            generating topology defined by CHARMM force field. Only takes effect
+            if `first_model_only` is True
         rename_charmm_ions (bool): Whether to rename ions in the structure to 
             CHARMM ion name defined in water_ions.str. This only takes effect 
             if `organize` is True
@@ -159,11 +161,11 @@ def fetch_rcsb(
     structure = parser.get_structure(file)
     if first_model_only:
         structure = structure.models[0]
-    if organize:
-        structure = Entities.OrganizedModel.OrganizedModel(
-            structure, rename_charmm_ions=rename_charmm_ions, 
-            rename_solvent_oxygen=rename_solvent_oxygen, make_copy=False
-        )
+        if organize:
+            structure = Entities.OrganizedModel.OrganizedModel(
+                structure, rename_charmm_ions=rename_charmm_ions, 
+                rename_solvent_oxygen=rename_solvent_oxygen, make_copy=False
+            )
     return structure
 
 def fetch_swiss_model(uniprot_id, first_model_only = False):

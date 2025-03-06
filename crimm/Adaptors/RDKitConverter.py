@@ -385,7 +385,12 @@ class RDKitHetConverter:
             self.update_hydrogens()
     
     def load_rdkit_mol(self, mol, ligand_resname = None):
-        """Load a rdkit mol object and create the crimm heterogen object.
+        """Load a rdkit mol object and create the crimm heterogen object. If the
+        mol is 2D, a 3D conformer will be generated. The heterogen object will
+        be created with the atom information from the mol object. The bond
+        information will be stored in the topo_definition attribute of the
+        heterogen object.
+        
         Args:
             mol (rdkit.Chem.rdchem.Mol): The rdkit mol object to be converted.
         """
