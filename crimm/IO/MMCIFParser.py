@@ -379,7 +379,7 @@ class MMCIFParser:
             return
         reference_model = deepcopy(model)
         reference_model.detach_parent()
-
+        
         for op_id in self._find_first_assembly_ops():
             if op_id not in self.symmetry_ops:
                 raise ValueError(
@@ -398,6 +398,7 @@ class MMCIFParser:
             for i, atom in enumerate(copy_model.get_atoms()):
                 atom.coord = new_coords[i]
             for i, chain in enumerate(copy_model):
+                chain.detach_parent()
                 chain.id = index_to_letters(len(model)+i)
             for chain in copy_model:
                 model.add(chain)
