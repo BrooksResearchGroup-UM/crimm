@@ -331,8 +331,6 @@ class OrganizedModel(Model):
                 if 'O' in res:
                     atom = res['O']
                     atom.rename('OH2')
-                    if res.is_disordered():
-                        res.child_dict['OH2'] = res.child_dict.pop('O')
 
     def replace_ion(self, res, new_ion_name):
         """Replace the ion residue by changing its name."""
