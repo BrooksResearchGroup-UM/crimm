@@ -454,6 +454,7 @@ class RDKitHetConverter:
             bond_dict[bo_name] = (st, end)
 
         self.lig.bonds = bond_dict
+        self.lig._rdkit_mol = mol
 
     def _create_rdkit_PDBinfo(self, pdb_atom_name, altloc):
         serial_number = self.element_dict[pdb_atom_name][0]

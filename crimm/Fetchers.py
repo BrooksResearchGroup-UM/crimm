@@ -164,7 +164,7 @@ def fetch_rcsb(
         if organize:
             structure = Entities.OrganizedModel.OrganizedModel(
                 structure, rename_charmm_ions=rename_charmm_ions, 
-                rename_solvent_oxygen=rename_solvent_oxygen, make_copy=False
+                rename_solvent_oxygen=rename_solvent_oxygen
             )
     return structure
 

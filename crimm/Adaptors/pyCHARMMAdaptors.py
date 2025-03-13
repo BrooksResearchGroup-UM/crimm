@@ -13,11 +13,8 @@ from pycharmm.psf import get_natom, delete_atoms
 from Bio.PDB.Selection import unfold_entities
 from crimm.IO import get_pdb_str
 from crimm import StructEntities as Entities
+from crimm.Data.components_dict import nucleic_letters_1to3
 from pathlib import Path
-
-nucleic_letters_1to3 = {
-    'A': 'ADE', 'C': 'CYT', 'G': 'GUA', 'T': 'THY', 'U': 'URA',
-}
 
 def empty_charmm():
     """If any atom exists in current CHARMM runtime, remove them."""

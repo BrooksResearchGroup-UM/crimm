@@ -5,16 +5,42 @@ from Bio.PDB.Atom import DisorderedAtom as _DisorderedAtom
 
 class Atom(_Atom):
     """Atom class derived from Biopython Residue and made compatible with
-    CHARMM"""
+    CHARMM
+    
+    init args:
+    name: str
+        Atom name.
+    coord: numpy.ndarray
+        Atom coordinates. in the form of np.array([x, y, z])
+    bfactor: float, optional
+        B-factor value. Default to 0.0.
+    occupancy: float, optional
+        Occupancy value. Default to 1.0.
+    altloc: str, optional
+        Alternate location indicator. Default to ' '.
+    fullname: str, optional
+        Full atom name. Should be four character long, e.g, ' CA ' for 'CA' (alpha carbon).
+        Default to f"{name:^4}".
+    serial_number: int, optional
+        Atom serial number. Default to 0. This will be automatically updated as structure is built.
+    element: str, optional
+        Element symbol.
+    pqr_charge: float, optional
+        Charge value from PQR file.
+    radius: float, optional
+        Atom radius.
+    topo_definition: TopoAtom, optional
+        Topology definition for the atom.
+    """
     def __init__(
         self,
         name,
         coord,
-        bfactor,
-        occupancy,
-        altloc,
-        fullname,
-        serial_number,
+        bfactor=0.0,
+        occupancy=1.0,
+        altloc=' ',
+        fullname=None,
+        serial_number=0,
         element=None,
         pqr_charge=None,
         radius=None,
@@ -25,6 +51,8 @@ class Atom(_Atom):
         self.parent = None
         # the atomic data
         self.name = name  # eg. CA, spaces are removed from atom name
+        if fullname is None:
+            fullname = f"{name:^4}"
         self.fullname = fullname  # e.g. " CA ", spaces included
         self.coord = coord
         self.bfactor = bfactor
@@ -150,7 +178,7 @@ class DisorderedAtom(_DisorderedAtom):
     def __setstate__(self, state):
         """Set state of the atom object for pickling"""
         self.__dict__.update(state)
-
+    
     @property
     def topo_definition(self):
         """Topology related parameters for the atom. This returns the selected 

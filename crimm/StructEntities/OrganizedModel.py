@@ -18,7 +18,8 @@ class OrganizedModel(Model):
     """The OrganizedModel class represents a model in a structure with a specific 
     organization of chains. It is derived from the Model class and is used in the 
     Structure class to organize chains into categories. Require network access to
-    fetch binding affinity and drugbank information.
+    fetch binding affinity and drugbank information. Alt locs will be removed and only 
+    the selected alt loc atom in disordered residues will be kept in the model.
     The following chain types are supported:
     - protein: Polypeptide(L)
     - rna: Polyribonucleotide
@@ -62,8 +63,7 @@ class OrganizedModel(Model):
         'glycosylation': 'Glycosylation',
     }
     def __init__(
-            self, entity, rename_charmm_ions=True, rename_solvent_oxygen=True, 
-            make_copy=True
+            self, entity, rename_charmm_ions=True, rename_solvent_oxygen=True,
         ):
         """Initialize the OrganizedModel object.
         Args:
@@ -73,13 +73,12 @@ class OrganizedModel(Model):
             rename_solvent_oxygen (bool): Whether to rename solvent oxygen to CHARMM 
             name "OH2" in the crystallographic water. Doing so will allow crimm to 
             generate topology definitions on the water
-            make_copy (bool): Whether to make a copy of the entity. Default is True.
         """
         if entity.level == 'M':
-            model = entity.copy()
+            model = entity
             pdbx_description = entity.pdbx_description
         elif entity.level == 'S':
-            model = entity.models[0].copy()
+            model = entity.models[0]
             pdbx_description = entity.models[0].pdbx_description
         else:
             raise ValueError(
@@ -122,7 +121,7 @@ class OrganizedModel(Model):
             self.lig_names = set(self.binding_info.comp_id)
         if self.bio_mol_info is not None:
             self.bio_mol_names = set(self.bio_mol_info.name)
-        self.organize(model, make_copy=make_copy)
+        self.organize(model)
         if rename_solvent_oxygen:
             self.rename_solvent_oxygen()
         if rename_charmm_ions:
@@ -273,17 +272,15 @@ class OrganizedModel(Model):
         return heterogen_type_dict
     
     def update(self):
-        self.organize(self, make_copy=False)
+        self.organize(self)
 
-    def organize(self, model: Model, make_copy=True):
+    def organize(self, model: Model):
         """Organize the chains in the model into categories."""
         undecided_heterogens = []
         all_chains = []
         solvent_entry = {'Solvent': []}
         chain_id_map = {}
         for chain in model.chains:
-            if make_copy:
-                chain = chain.copy()
             if chain.chain_type == 'Solvent':
                 solvent_entry['Solvent'].extend(chain.residues)
             elif chain.chain_type == 'Heterogens':
@@ -359,7 +356,7 @@ class OrganizedModel(Model):
         new_ion_name = new_ion_name.upper()
         for res in ion_chain:
             self.replace_ion(res, new_ion_name)
-        ion_chain.renames = new_ion_name
+        ion_chain.resnames = new_ion_name
         ion_chain.pdbx_description = new_ion_name
 
     def rename_charmm_ions(self):
@@ -369,7 +366,10 @@ class OrganizedModel(Model):
                 charmm_name = PDB_CHARMM_ION_NAMES.get(
                         res.resname.upper(), res.resname
                     )
-                if res.resname == charmm_name:
+                if res.resname == 'ZN':
+                    res.resname = 'ZN2'
+                    continue
+                elif res.resname == charmm_name:
                     continue
                 self.replace_ion(res, charmm_name)
 
