@@ -14,7 +14,7 @@ from crimm.Modeller import ResidueFixer
 from crimm.Modeller.TopoFixer import fix_chain
 from crimm.Data.cgenff_mass_dict import CGENFF_MASS_TABLE
 
-from crimm.Adaptors.RDKitConverter import RDKitHetConverter
+from crimm.Adaptors.RDKitConverter import RDKitHetConverter, MolToMol2Block
 
 toppar_dir = os.path.abspath(
     os.path.join(os.path.dirname(__file__), '../Data/toppar')
@@ -960,9 +960,15 @@ class CGENFFTopologyLoader:
     ## topology definition to the atom
     def generate(self, lig_res: Entities.Heterogen, ligand_toppar_file=None):
         """Generate topology definition for the ligand residue using cgenff."""
-        self.rdconvert.load_heterogen(lig_res)
-        self.rdkit_mols[lig_res.resname] = self.rdconvert.get_mol()
-        mol2_block = self.rdconvert.get_mol2_block()
+        rdk_mol = lig_res.rdkit_mol
+        if rdk_mol is None:
+            self.rdconvert.load_heterogen(lig_res)
+            rdk_mol = self.rdconvert.get_mol()
+            lig_res._rdkit_mol = rdk_mol
+            mol2_block = self.rdconvert.get_mol2_block()
+
+        self.rdkit_mols[lig_res.resname] = rdk_mol
+        mol2_block = MolToMol2Block(rdk_mol)
         toppar_block = self._get_cgenff_topology(mol2_block, ligand_toppar_file)
         self.mol2_blocks[lig_res.resname] = mol2_block
         self.toppar_blocks[lig_res.resname] = toppar_block

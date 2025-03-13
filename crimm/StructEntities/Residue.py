@@ -3,11 +3,33 @@ from Bio.PDB.Residue import Residue as _Residue
 from Bio.PDB.Entity import Entity
 from Bio.PDB.Residue import DisorderedResidue as _DisorderedResidue
 from crimm.StructEntities.TopoElements import Bond
+from crimm.Utils.StructureUtils import get_coords
 
 class Residue(_Residue):
     """Residue class derived from Biopython Residue and made compatible with
-    CHARMM Topology."""
+    CHARMM Topology.
+    
+    init args:
+    res_id: int or (str, int, str)
+        Residue id can be either residue sequence number (int) or a Biopython style
+        resid tuple with (hetfield:str, resseq:int, icode:str). If only residue
+        sequence number is given, the residue is assumed to be a canonical residue.
+    resname: str
+        Residue name.
+    segid: str
+        Segment identifier.
+    author_seq_id: int, optional
+        Author sequence number.
+    """
     def __init__(self, res_id, resname, segid, author_seq_id=None):
+        if isinstance(res_id, int):
+            # Biopython Residue class requires a tuple of (hetfield, resseq, icode)
+            # assume canonical residue if res_id is given as an integer
+            res_id = (' ', res_id, ' ')
+        elif not isinstance(res_id, tuple):
+            raise ValueError(
+                'res_id must be either an integer or a tuple of (str, int, str)'
+            )
         super().__init__(res_id, resname, segid)
         self.author_seq_id = author_seq_id
         # Forcefield Parameters
@@ -115,9 +137,19 @@ class DisorderedResidue(_DisorderedResidue):
 
 
 class Heterogen(Residue):
-    def __init__(self, res_id, resname, segid):
+    def __init__(self, res_id, resname, segid, rdkit_mol=None):
+        if rdkit_mol is not None:
+            from crimm.Adaptors.RDKitConverter import RDKitHetConverter
+            rd_converter = RDKitHetConverter()
+            rd_converter.load_rdkit_mol(rdkit_mol, resname)
+            self = rd_converter.get_heterogen()
+            self.res_id = res_id
+            self.segid = segid
+            self.pdbx_description = None
+            return
         super().__init__(res_id, resname, segid)
         self.pdbx_description = None
+        self._rdkit_mol = rdkit_mol
         self.lone_pair_dict = {}
         # This is for the purpose of visualization and rdkit mol conversion. 
         # The actual bond information should stored in the topo_definition attribute.
@@ -159,6 +191,16 @@ class Heterogen(Residue):
                 'the bonds.'
             )
         self._bonds = value
+
+    @property
+    def rdkit_mol(self):
+        """Return the RDKit molecule object."""
+        if self._rdkit_mol is None:
+            return
+        conf = self._rdkit_mol.GetConformer(0)
+        for i, atom in enumerate(self.atoms):
+            conf.SetAtomPosition(i, atom.get_coord())
+        return self._rdkit_mol
 
     def add(self, atom):
         """Special method for Add an Atom object to Heterogen. Any duplicated 

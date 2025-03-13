@@ -6,10 +6,30 @@ from Bio.PDB import Superimposer
 from crimm.StructEntities.Chain import PolymerChain
 from crimm.Visualization.NGLVisualization import show_nglview_multiple
 
-##TODO: Refactor this!!
+##TODO: Refactor this!! Add examples to docstrings
 class ChainSuperimposer(Superimposer):
-    """Superimpose two chains using their canonical sequences if available"""
+    """Superimpose two chains using their canonical sequences if available
+    or align them first to find the common segments. The superposition can be
+    performed on CA atoms, backbone atoms, or all atoms. The class is derived
+    from Biopython's Superimposer class.
+    """
     def __init__(self) -> None:
+        """Initialize the ChainSuperimposer
+        
+        Attributes:
+        ref_chain: PolymerChain
+            Reference chain for superposition
+        mov_chain: PolymerChain
+            Chain to be superimposed
+        aligner: PairwiseAligner
+            PairwiseAligner object from Biopython
+        alignments: list
+            List of alignments from the aligner
+        ref_ranges: list
+            List of aligned residue ranges from the reference chain
+        mov_ranges: list
+            List of aligned residue ranges from the move chain
+        """
         super().__init__()
         self.ref_chain: PolymerChain = None
         self.mov_chain: PolymerChain = None
@@ -213,7 +233,7 @@ class ChainSuperimposer(Superimposer):
     def apply_transform(self, entity: PolymerChain=None):
         if entity is None:
             entity = self.mov_chain
-        self.apply(entity.get_atoms())
+        self.apply(list(entity.get_atoms(include_alt=True)))
 
     def show(self):
         return show_nglview_multiple([self.ref_chain, self.mov_chain])

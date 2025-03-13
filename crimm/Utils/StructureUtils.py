@@ -1,5 +1,8 @@
 from string import ascii_uppercase
-from crimm.StructEntities.Chain import Solvent, Ion
+from Bio.Data.PDBData import protein_letters_3to1_extended
+from Bio.Data.PDBData import nucleic_letters_3to1_extended
+from crimm.Data.components_dict import nucleic_letters_1to3
+from crimm.StructEntities.Chain import Solvent, Ion, PolymerChain
 from copy import copy
 import numpy as np
 
@@ -119,3 +122,59 @@ def get_charges(chain):
     for atom in chain.get_atoms():
         total_charge += atom.topo_definition.charge
     return round(total_charge, 3)
+
+def chain_to_polymerchain(chain, reset_resid=True):
+    """Convert a chain to a PolymerChain object. The chain type is determined based on
+    the resnames of the residues in the chain. It will be assumed that no missing residues
+    are present in the chain, and the canonical sequence will be generated based on the resnames.
+    """
+    resnames = set(res.resname for res in chain.residues)
+    if resnames.issubset(protein_letters_3to1_extended):
+        seq_dict = protein_letters_3to1_extended
+        chain_type = 'Polypeptide(L)'
+    ## TODO: Need to distinguish between DNA and RNA. It's all RNA for now.
+    elif resnames.issubset(nucleic_letters_3to1_extended):
+        seq_dict = nucleic_letters_3to1_extended
+        chain_type = 'Polyribonucleotide'
+    elif resnames.issubset(nucleic_letters_1to3.values()):
+        seq_dict = {k: k for k in nucleic_letters_1to3}
+        chain_type = 'Polyribonucleotide'
+    else:
+        all_names = (
+            set(protein_letters_3to1_extended) | 
+            set(nucleic_letters_3to1_extended) | 
+            set(nucleic_letters_1to3.values())
+        )
+        unknown_resnames = resnames - all_names
+        raise ValueError(
+            f"Chain {chain.id} has residues with unknown resnames {unknown_resnames}. "
+            "Cannot determine the chain type."
+        )
+    sequence = ''.join(seq_dict[res.resname] for res in chain.residues)
+    if not reset_resid:
+        first_seq_num = chain.residues[0].id[1]
+        # Fill in the missing residues at the beginning of the chain
+        # with 'X' to match the sequence numbering. This is to ensure superimposition
+        # is correct, which is based on the sequence alignment
+        starting_seq = 'X' * (first_seq_num - 1)
+        sequence = starting_seq + sequence
+
+    reported_res = [(res.id[1], res.resname) for res in chain.residues]
+    polymer_chain = PolymerChain(
+        chain.id,
+        entity_id=1,
+        author_chain_id=chain.id,
+        chain_type=chain_type,
+        known_sequence=sequence,
+        canon_sequence=sequence,
+        reported_missing_res=[],
+        reported_res=reported_res
+    )
+    for i, residue in enumerate(chain.residues, start=1):
+        residue.detach_parent()
+        if reset_resid:
+            het_flag, resseq, icode = residue.id
+            resseq = i
+            residue.id = (het_flag, resseq, icode)
+        polymer_chain.add(residue)
+    return polymer_chain

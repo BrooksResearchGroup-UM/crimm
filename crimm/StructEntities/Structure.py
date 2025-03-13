@@ -25,7 +25,9 @@ class Structure(_Structure):
     def header(self, header_dict):
         """Set the header information of the structure."""
         self._header = header_dict
-        if 'idcode' in header_dict:
+        if ('idcode' in header_dict) and (
+            header_dict['idcode'] is not None
+            ) and ('title' in header_dict['idcode']):
             for model in self.get_models():
                 model.pdbx_description = header_dict['idcode']['title']
 

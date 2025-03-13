@@ -1,3 +1,8 @@
+## for charmm pdb files
+nucleic_letters_1to3 = {
+    'A': 'ADE', 'C': 'CYT', 'G': 'GUA', 'T': 'THY', 'U': 'URA',
+}
+
 NUCLEOSIDE_PHOS = ( # Nucleoside phosphates and phosphonates
     'ATP', 'ADP', 'AMP', 'ANP', 'ACP', 
     'CTP', 'CDP', 'CMP',
@@ -38,7 +43,7 @@ PDB_CHARMM_ION_NAMES = {
     "RB": "RUB",
     "CS": "CES",
     "BA": "BAR",
-    "ZN": "ZN",
+    "ZN": "ZN", # However, ZN2 is the resname used in CHARMM
     "CD": "CAD",
     "CL": "CLA",
 }
