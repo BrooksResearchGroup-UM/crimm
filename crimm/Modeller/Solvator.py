@@ -124,14 +124,17 @@ class Solvator:
         # unit of pre-equilibrated cube of water molecules (18.662 A each side)
         self.water_unit_coords = np.load(WATER_COORD_PATH)
         self._topo_loader = self.model.topology_loader
-
+        # Default box type is cube; other option is 'octa'
+        self.box_type = None
+        
     def get_model(self):
         return self.model
 
     def solvate(
             self, cutoff=9.0, solvcut = 2.10,
             remove_existing_water = True,
-            orient_coords = True
+            orient_coords = True,
+            box_type = 'cube'
         ) -> Model:
         """Solvates the entity and returns a Model level entity. The solvated
         entity will be centered in a cubic box with side length equal to the
@@ -158,6 +161,7 @@ class Solvator:
 
         self.cutoff = cutoff
         self.solvcut = solvcut
+        self.box_type = box_type
         
         if remove_existing_water:
             self.remove_existing_water(self.model)
@@ -173,7 +177,7 @@ class Solvator:
                 UserWarning
             )
         self.coords = self._extract_coords(self.model)
-        self.box_dim = (self.coords.ptp(0)+self.cutoff).max() # for cubic box
+        self.box_dim = (self.coords.ptp(0)+self.cutoff).max()
 
         return self._solvate_model()
 
@@ -201,66 +205,125 @@ class Solvator:
     
     def create_water_box_coords(self) -> np.ndarray:
         """
-        Creates a cubic box of water molecules centered at the origin (0, 0, 0).
+        Creates a water box grid based on the chosen box type.
+          - For 'cube': builds a cubic grid with side length = box_dim.
+          - For 'octa': builds a grid over a cube of side length = box_dim * sqrt(4/3)
+            (the bounding cube of a truncated octahedron) and then selects only those
+            water molecules whose oxygen atom is at least 'solvcut' inside the octahedron.
         """
-        n_water_cubes = int(np.ceil(self.box_dim / BOXWIDTH))
-        water_coords_expanded = self.water_unit_coords.reshape(-1,3)
-        n_atoms = water_coords_expanded.shape[0]
-        x_coords = water_coords_expanded[:,0]
-        water_line = np.empty((n_atoms*n_water_cubes, 3)) # stride along x-axis
-        water_plane = np.empty((n_atoms*n_water_cubes**2, 3)) # stride along y-axis
-        water_box = np.empty((n_atoms*n_water_cubes**3, 3)) # stride along z-axis
-        
-        for i in range(n_water_cubes):
-            st, end = i*n_atoms, (i+1)*n_atoms
-            water_line[st:end,0] = x_coords+i*BOXWIDTH
-            water_line[st:end,1:] = water_coords_expanded[:,1:]
-
-        n_atoms_per_line = water_line.shape[0]
-        for i in range(n_water_cubes):
-            st, end = i*n_atoms_per_line, (i+1)*n_atoms_per_line
-            water_plane[st:end] = water_line
-            water_plane[st:end,1] += i*BOXWIDTH
-
-        n_atoms_per_plane = water_plane.shape[0]
-        for i in range(n_water_cubes):
-            st, end = i*n_atoms_per_plane, (i+1)*n_atoms_per_plane
-            water_box[st:end] = water_plane
-            water_box[st:end,2] += i*BOXWIDTH
-
-        # recenter the box
-        translation_vec = -water_box.ptp(0)/2 - water_box.min(0)
-        water_box += translation_vec
-
-        return water_box
+        if self.box_type == "cube":
+            n_water_cubes = int(np.ceil(self.box_dim / BOXWIDTH))
+            water_coords_expanded = self.water_unit_coords.reshape(-1, 3)
+            n_atoms = water_coords_expanded.shape[0]
+            water_line = np.empty((n_atoms * n_water_cubes, 3))
+            water_plane = np.empty((n_atoms * n_water_cubes ** 2, 3))
+            water_box = np.empty((n_atoms * n_water_cubes ** 3, 3))
+            
+            for i in range(n_water_cubes):
+                st, end = i * n_atoms, (i + 1) * n_atoms
+                water_line[st:end, 0] = water_coords_expanded[:, 0] + i * BOXWIDTH
+                water_line[st:end, 1:] = water_coords_expanded[:, 1:]
+            
+            n_atoms_per_line = water_line.shape[0]
+            for i in range(n_water_cubes):
+                st, end = i * n_atoms_per_line, (i + 1) * n_atoms_per_line
+                water_plane[st:end] = water_line
+                water_plane[st:end, 1] += i * BOXWIDTH
+            
+            n_atoms_per_plane = water_plane.shape[0]
+            for i in range(n_water_cubes):
+                st, end = i * n_atoms_per_plane, (i + 1) * n_atoms_per_plane
+                water_box[st:end] = water_plane
+                water_box[st:end, 2] += i * BOXWIDTH
+            
+            # Recenter the box
+            translation_vec = -water_box.ptp(0) / 2 - water_box.min(0)
+            water_box += translation_vec
+            return water_box
+        elif self.box_type == "octa":
+            # Bounding cube side length for the octahedron is box_dim * sqrt(4/3)
+            grid_length = self.box_dim * math.sqrt(4 / 3)
+            n_units = int(math.ceil(grid_length / BOXWIDTH))
+            water_coords_expanded = self.water_unit_coords.reshape(-1, 3)
+            n_atoms = water_coords_expanded.shape[0]
+            water_points = []
+            for i in range(n_units):
+                for j in range(n_units):
+                    for k in range(n_units):
+                        translation = np.array([i * BOXWIDTH, j * BOXWIDTH, k * BOXWIDTH])
+                        for atom in water_coords_expanded:
+                            water_points.append(atom + translation)
+            water_points = np.array(water_points)
+            # Recenter the grid so that its bounding box is centered at the origin
+            translation_vec = -water_points.ptp(0) / 2 - water_points.min(0)
+            water_points += translation_vec
+            # Reshape into water molecules (each with 3 atoms)
+            water_box = water_points.reshape(-1, 3, 3)
+            # Filter water molecules by testing that the oxygen atom (first atom)
+            # is at least 'solvcut' inside the truncated octahedron.
+            selected_waters = []
+            for water in water_box:
+                oxygen = water[0]
+                x, y, z = oxygen
+                d = self.box_dim / math.sqrt(3)
+                # Compute differences for the square faces:
+                dist1 = abs(x) - d
+                dist2 = abs(y) - d
+                dist3 = abs(z) - d
+                # Compute differences for the hexagonal faces:
+                dist4 = (abs(x + y + z) - self.box_dim) / math.sqrt(3)
+                dist5 = (abs(x + y - z) - self.box_dim) / math.sqrt(3)
+                dist6 = (abs(x - y + z) - self.box_dim) / math.sqrt(3)
+                dist7 = (abs(x - y - z) - self.box_dim) / math.sqrt(3)
+                sdf_value = max(dist1, dist2, dist3, dist4, dist5, dist6, dist7)
+                if sdf_value <= -self.solvcut:
+                    selected_waters.append(water)
+            return np.array(selected_waters)
+        else:
+            raise ValueError("Unsupported box type")
 
     def get_expelled_water_box_coords(self) -> np.ndarray:
-        """Returns water molecules that are outside the solvcut distance from
-        the solute."""
-        water_box = self.create_water_box_coords() # (N_atoms, 3)
-        c1 = water_box > self.box_dim/2
-        c2 = water_box < -self.box_dim/2
-        boundary_select = np.logical_not(
-            np.any((c1 | c2).reshape(-1,3,3), axis=(1,2))
-        ) # (N_waters,)
-        
-        kd_tree = KDTree(self.coords)
-        water_kd_tree = KDTree(water_box)
-
-        r = water_kd_tree.query_ball_tree(kd_tree, self.solvcut)
-
-        within_cutoff = np.empty(len(r), dtype = bool)
-        for i, nei_list in enumerate(r):
-            within_cutoff[i] = bool(len(nei_list))
-        cutoff_select = np.logical_not(
-            np.any(within_cutoff.reshape(-1,3), axis=1)
-        ) # (N_waters,)
-
-        water_box = water_box.reshape((-1,3,3))[
-            boundary_select & cutoff_select
-        ] # (N_waters, 3, 3)
-
-        return water_box
+        """
+        Returns water molecules that are outside the solvcut distance from the solute.
+        For the cubic box the original boundary selection is applied; for the
+        octahedral box, the grid (already filtered by the truncated octahedron
+        condition) is further filtered by ensuring that water oxygens are not within
+        solvcut of the solute.
+        """
+        if self.box_type == "cube":
+            water_box = self.create_water_box_coords()  # shape (N_points, 3)
+            # Select water molecules fully within the cubic boundary.
+            c1 = water_box > self.box_dim / 2
+            c2 = water_box < -self.box_dim / 2
+            boundary_select = np.logical_not(
+                np.any((c1 | c2).reshape(-1, 3, 3), axis=(1, 2))
+            )
+            kd_tree = KDTree(self.coords)
+            water_kd_tree = KDTree(water_box)
+            r = water_kd_tree.query_ball_tree(kd_tree, self.solvcut)
+            within_cutoff = np.empty(len(r), dtype=bool)
+            for i, nei_list in enumerate(r):
+                within_cutoff[i] = bool(len(nei_list))
+            cutoff_select = np.logical_not(
+                np.any(within_cutoff.reshape(-1, 3), axis=1)
+            )
+            water_box = water_box.reshape((-1, 3, 3))[boundary_select & cutoff_select]
+            return water_box
+        elif self.box_type == "octa":
+            water_box = self.create_water_box_coords()  # Already shape (N_waters, 3, 3)
+            # Use the oxygen atom (first atom) of each water for KDTree filtering.
+            oxy_coords = np.array([water[0] for water in water_box])
+            kd_tree = KDTree(self.coords)
+            water_kd_tree = KDTree(oxy_coords)
+            r = water_kd_tree.query_ball_tree(kd_tree, self.solvcut)
+            cutoff_select = []
+            for nei_list in r:
+                cutoff_select.append(not bool(len(nei_list)))
+            cutoff_select = np.array(cutoff_select)
+            water_box = water_box[cutoff_select]
+            return water_box
+        else:
+            raise ValueError("Unsupported box type")
 
     def _create_new_water_chain(self, alphabet_index) -> Solvent:
         chain_id = 'W'+self.alphabet[alphabet_index]
