@@ -125,9 +125,8 @@ class Solvator:
         # unit of pre-equilibrated cube of water molecules (18.662 A each side)
         self.water_unit_coords = np.load(WATER_COORD_PATH)
         self._topo_loader = self.model.topology_loader
-        # Default box type is cube; other option is 'octa'
-        self.box_type = 'cube'  # Default water box shape
-        self.orient_method = 'default'  # 'default' or 'octa'
+        self.box_type = None
+        self.orient_method = None
         
     def get_model(self):
         return self.model
@@ -175,7 +174,8 @@ class Solvator:
         self.orient_method = orient_method
         if self.orient_method is None and self.box_type == "octa": 
             self.orient_method = "octa"
-        else:        self.orient_method = "default"
+        else:
+            self.orient_method = "default"
         
         if remove_existing_water:
             self.remove_existing_water(self.model)
