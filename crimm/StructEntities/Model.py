@@ -127,7 +127,17 @@ class Model(_Model):
                 continue
             atom = residue[atom_id]
             if altloc:
-                atom = atom.child_dict[altloc]
+                if atom.is_disordered() and altloc in atom.child_dict:
+                # If altloc is specified and the atom is disordered, select the correct altloc
+                # Note: some altloc might not exist for a single model. 
+                # E.g. 2GRZ's altloc B reflects a completely different model (model 1 is A and model 2 is B)
+                    atom = atom.child_dict[altloc]
+                else:
+                    warnings.warn(
+                        f"Altloc {altloc} not found for atom {atom_id} in "
+                        f"residue {resseq} of chain {chain_id} from model {self.get_id()}"
+                    )
+                    continue
             atom_pairs.append(atom)
         return tuple(atom_pairs)
     
