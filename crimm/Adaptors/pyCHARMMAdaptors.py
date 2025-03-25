@@ -330,7 +330,13 @@ def get_charmm_coord_dict(selected_atoms, include_resname = True):
     atom_idx = np.array(selected_atoms.get_atom_indexes()) 
     pos = pcm.coor.get_positions().to_numpy()
     atom_pos = pos[atom_idx]
-    resseq = [int(i) for i in selected_atoms.get_res_ids()]
+    resseq = []
+    for id_str in selected_atoms.get_res_ids():
+        if not id_str.isdigit():
+            ## CHARMM's residue ID can be in the format of "1A", "1B", etc.
+            id_str = ''.join([c for c in id_str if c.isdigit()])
+        resseq.append(int(id_str))
+    
     resnames = selected_atoms.get_res_names()
     a_types = selected_atoms.get_atom_types()
     segids = selected_atoms.get_seg_ids()
