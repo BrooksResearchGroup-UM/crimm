@@ -1,4 +1,5 @@
 import warnings
+import numpy as np
 from Bio.PDB.Residue import Residue as _Residue
 from Bio.PDB.Entity import Entity
 from Bio.PDB.Residue import DisorderedResidue as _DisorderedResidue
@@ -199,7 +200,7 @@ class Heterogen(Residue):
             return
         conf = self._rdkit_mol.GetConformer(0)
         for i, atom in enumerate(self.atoms):
-            conf.SetAtomPosition(i, atom.get_coord())
+            conf.SetAtomPosition(i, atom.get_coord().astype(np.float64))
         return self._rdkit_mol
 
     def add(self, atom):
