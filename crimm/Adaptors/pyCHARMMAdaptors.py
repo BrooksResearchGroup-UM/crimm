@@ -2,16 +2,26 @@ import tempfile
 import warnings
 import numpy as np
 import pycharmm as pcm
+import warnings
+import numpy as np
+import pycharmm as pcm
 from pycharmm import read, psf, coor
 from pycharmm import generate
 import pycharmm.settings as pcm_settings
+import pycharmm.settings as pcm_settings
 from pycharmm import ic, cons_harm, cons_fix
+from pycharmm import energy, cons_fix
 from pycharmm import energy
 from pycharmm import minimize as _minimize
 from pycharmm.generate import patch as charmm_patch
+from pycharmm.generate import patch as charmm_patch
 from pycharmm.psf import get_natom, delete_atoms
 from Bio.PDB.Selection import unfold_entities
+from Bio.PDB.Selection import unfold_entities
 from crimm.IO import get_pdb_str
+from crimm import StructEntities as Entities
+from crimm.Data.components_dict import nucleic_letters_1to3
+from pathlib import Path
 from crimm import StructEntities as Entities
 from crimm.Data.components_dict import nucleic_letters_1to3
 from pathlib import Path
@@ -321,147 +331,3 @@ def sync_coords(chain):
             if atom_name in cur_res:
                 cur_res[atom_name].coord = coordinate
     print(f'[crimm] Synchronized: {chain}')
-
-def get_charmm_coord_dict(selected_atoms, include_resname = True):
-    """Get a dictionary of coordinates of selected atoms from CHARMM.
-    The dictionary is organized by SEGID, and then by residue sequence and atom name.
-    """
-    # atom_idx from CHARMM is zero-indexed
-    atom_idx = np.array(selected_atoms.get_atom_indexes()) 
-    pos = pcm.coor.get_positions().to_numpy()
-    atom_pos = pos[atom_idx]
-    resseq = [int(i) for i in selected_atoms.get_res_ids()]
-    resnames = selected_atoms.get_res_names()
-    a_types = selected_atoms.get_atom_types()
-    segids = selected_atoms.get_seg_ids()
-    
-    coords_dict = {}
-    for segid, resseq, resname, a_name, coords in zip(
-        segids, resseq, resnames, a_types, atom_pos
-    ):
-        if segid not in coords_dict:
-            coords_dict[segid] = {}
-        if not include_resname:
-            coords_dict[segid][(resseq, a_name)] = coords
-        else:
-            coords_dict[segid][(resname, resseq, a_name)] = coords
-    return coords_dict
-
-def get_missing_water_h_dict(model):
-    missing_hydrogen_dict = {}
-    for water_chain in model.solvent:
-        for water in water_chain:
-            if len(water.missing_hydrogens) == 0:
-                continue
-            if water.segid not in missing_hydrogen_dict:
-                missing_hydrogen_dict[water.segid] = {}
-            for atom_name, missing_h in water.missing_hydrogens.items():
-                missing_h_key = (water.id[1], atom_name)
-                missing_hydrogen_dict[water.segid][missing_h_key] = missing_h
-    return missing_hydrogen_dict
-
-def _build_water_with_dicts(missing_water_h_dict, h_coords_dict):
-    for h_key, missing_h in missing_water_h_dict.items():
-        water_res = missing_h.parent
-        if h_key not in h_coords_dict:
-            raise KeyError(
-                f'Corresponding hydrogen coordinates for {missing_h} in {water_res} not found in CHARMM'
-            )
-        missing_h.coord = h_coords_dict[h_key]
-        h_name = h_key[-1]
-        water_res.missing_hydrogens.pop(h_name)
-        water_res.add(missing_h)
-
-def create_water_hs_from_charmm(model):
-    """Create missing hydrogen atoms in water residues from CHARMM."""
-    missing_water_h_dicts = get_missing_water_h_dict(model)
-    for segid, missing_h_dict in missing_water_h_dicts.items():
-        # build water hydrogen atoms in CHARMM
-        pcm.lingo.charmm_script(
-            f'hbuild sele SEGI {segid} .and. .not. TYPE O* end'
-        )
-        charmm_water_hs = (
-            pcm.SelectAtoms().by_seg_id(segid) & 
-            pcm.SelectAtoms().all_hydrogen_atoms()
-        )
-        h_coords_dict = get_charmm_coord_dict(
-            charmm_water_hs, include_resname=False
-        )
-        _build_water_with_dicts(missing_h_dict, h_coords_dict[segid])
-
-def fetch_coords_from_charmm(entity):
-    """Fetch coordinates from CHARMM to the entity."""
-    res_list = unfold_entities(entity, 'R')
-    all_charmm_atoms = pcm.SelectAtoms().all_atoms()
-    charmm_coord_dict = get_charmm_coord_dict(all_charmm_atoms)
-    for residue in res_list:
-        atoms = list(residue.get_atoms())
-        # Update lone pairs coordinates for heterogens too
-        if isinstance(residue, Entities.Heterogen):
-            atoms.extend(residue.lone_pairs)
-        resname = residue.resname
-        if resname == 'HIS':
-            # use histidine's CHARMM name
-            resname = residue.topo_definition.resname
-        if resname == 'HOH':
-            resname = 'TIP3'
-        segid = residue.segid
-        if segid == ' ':
-            raise ValueError(f'No SEGID assigned to {residue}')
-        resseq = residue.id[1]
-        for atom in atoms:
-            atom_name = atom.name
-            atom_key = (resname, resseq, atom_name)
-            if segid not in charmm_coord_dict:
-                raise KeyError(
-                    f'{atom} in {residue} with SEGID {segid} not found in CHARMM'
-                )
-            if atom_key not in charmm_coord_dict[segid]:
-                raise KeyError(
-                    f'{atom} in {residue} not found in CHARMM SEGMENT {segid}'
-                    f' with RESNAME {resname} RESID {resseq} ATOM NAME {atom_name}'
-                )
-            atom.coord = charmm_coord_dict[segid][atom_key]
-
-def sd_minimize(
-    nstep, non_bonded_script, tolenr=1e-3, tolgrd=1e-3, 
-    cons_harm_selection=None, cons_fix_selection=None
-):
-    """Perform steepest-descent minimization in CHARMM."""
-    # Implement the non-bonded parameters by "running" them.
-    non_bonded_script.run()
-    # equivalent to: 
-    # cons harm force 20 select type ca end
-    has_cons_harm = False
-    has_cons_fix = False
-    if cons_harm_selection is not None:
-        if cons_harm_selection.get_n_selected() == 0:
-            warnings.warn(
-                "Atom selection resulted zero atoms for CONS HARM! Skip CONS HARM setup"
-            )
-        else:
-            status = cons_harm.setup_absolute(
-                selection=cons_harm_selection,
-                force_const=20
-            )
-            has_cons_harm = not status
-            # The status would return False if success
-            warnings.warn(f"Absolute harmonic restraints setup success: {has_cons_harm}")
-    if cons_fix_selection is not None:
-        if cons_fix_selection.get_n_selected() == 0:
-            warnings.warn(
-                "Atom selection resulted zero atoms for CONS FIX! Skip CONS FIX setup"
-            )
-        else:
-            has_cons_fix = cons_fix.setup(cons_fix_selection)
-            warnings.warn(f"Atom fix constraint setup success: {has_cons_fix}")
-    # equivalent CHARMM scripting command: 
-    # minimize abnr nstep 1000 tole 1e-3 tolgr 1e-3
-    _minimize.run_sd(nstep=nstep, tolenr=tolenr, tolgrd=tolgrd)
-    if has_cons_harm:
-        cons_harm.turn_off()
-    if has_cons_fix:
-        cons_fix.turn_off()
-    # equivalent CHARMM scripting command: energy
-    ener_df = energy.get_energy()
-    return ener_df.iloc[0].to_dict()

@@ -1,12 +1,28 @@
 import warnings
+import numpy as np
 from Bio.PDB.Residue import Residue as _Residue
 from Bio.PDB.Entity import Entity
 from Bio.PDB.Residue import DisorderedResidue as _DisorderedResidue
 from crimm.StructEntities.TopoElements import Bond
 from crimm.Utils.StructureUtils import get_coords
+from crimm.Utils.StructureUtils import get_coords
 
 class Residue(_Residue):
     """Residue class derived from Biopython Residue and made compatible with
+    CHARMM Topology.
+    
+    init args:
+    res_id: int or (str, int, str)
+        Residue id can be either residue sequence number (int) or a Biopython style
+        resid tuple with (hetfield:str, resseq:int, icode:str). If only residue
+        sequence number is given, the residue is assumed to be a canonical residue.
+    resname: str
+        Residue name.
+    segid: str
+        Segment identifier.
+    author_seq_id: int, optional
+        Author sequence number.
+    """
     CHARMM Topology.
     
     init args:
@@ -149,58 +165,6 @@ class Heterogen(Residue):
             return
         super().__init__(res_id, resname, segid)
         self.pdbx_description = None
-        self._rdkit_mol = rdkit_mol
-        self.lone_pair_dict = {}
-        # This is for the purpose of visualization and rdkit mol conversion. 
-        # The actual bond information should stored in the topo_definition attribute.
-        self._bonds = None
-
-    def __getitem__(self, id):
-        """Return the child with given id."""
-        return {**self.child_dict, **self.lone_pair_dict}[id]
-    
-    def __contains__(self, id):
-        return super().__contains__(id) or id in self.lone_pair_dict
-    
-    @property
-    def lone_pairs(self):
-        """Return the list of lone pairs in the residue."""
-        return list(self.lone_pair_dict.values())
-
-    @property
-    def total_charge(self):
-        """Return the total charge of the residue."""
-        total_charge = super().total_charge
-        for lp in self.lone_pairs:
-            total_charge += lp.topo_definition.charge
-        return round(total_charge, 2)
-
-    @property
-    def bonds(self):
-        """Return the list of bonds in the residue."""
-        if self.topo_definition is not None:
-            return self.topo_definition.bonds
-        return self._bonds
-
-    @bonds.setter
-    def bonds(self, value):
-        if self.topo_definition is not None:
-            raise ValueError(
-                'Bonds information already exists in the topo_definition attribute!'
-                'Remove and/or regenerate the topology definition if you want to change' 
-                'the bonds.'
-            )
-        self._bonds = value
-
-    @property
-    def rdkit_mol(self):
-        """Return the RDKit molecule object."""
-        if self._rdkit_mol is None:
-            return
-        conf = self._rdkit_mol.GetConformer(0)
-        for i, atom in enumerate(self.atoms):
-            conf.SetAtomPosition(i, atom.get_coord())
-        return self._rdkit_mol
 
     def add(self, atom):
         """Special method for Add an Atom object to Heterogen. Any duplicated 
