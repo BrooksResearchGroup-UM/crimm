@@ -137,6 +137,7 @@ class Solvator:
             orient_coords = True,
             box_type = 'cube',
             orient_method = None
+
         ) -> Model:
         """Solvates the entity and returns a Model level entity. The solvated
         entity will be centered in a cubic box with side length equal to the

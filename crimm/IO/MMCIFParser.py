@@ -16,7 +16,9 @@ from crimm.StructEntities.Chain import (
     Chain, PolymerChain, Heterogens, Oligosaccharide, Solvent, Macrolide
 )
 from crimm.StructEntities.Model import Model
-from crimm.Utils.StructureUtils import get_coords, index_to_letters, rename_chains_by_order
+from crimm.Utils.StructureUtils import (
+    get_coords, index_to_letters, letters_to_index
+)
 class MMCIFParser:
     """Parser class for standard mmCIF files from PDB"""
     def __init__(
@@ -201,6 +203,8 @@ class MMCIFParser:
         altloc = atom_entry.label_alt_id
         if altloc is None:
             altloc = ' '
+        else:
+            altloc = str(atom_entry.label_alt_id)
 
         atom = Atom(
             name = atom_entry.label_atom_id,
@@ -379,7 +383,8 @@ class MMCIFParser:
             return
         reference_model = deepcopy(model)
         reference_model.detach_parent()
-        
+        idx_translations = [letters_to_index(chain.id) for chain in model]
+        last_idx = max(idx_translations)
         for op_id in self._find_first_assembly_ops():
             if op_id not in self.symmetry_ops:
                 raise ValueError(
@@ -397,9 +402,10 @@ class MMCIFParser:
             new_coords = copy_coords @ matrix + vector
             for i, atom in enumerate(copy_model.get_atoms()):
                 atom.coord = new_coords[i]
-            for i, chain in enumerate(copy_model):
+            for chain in copy_model:
+                last_idx += 1
                 chain.detach_parent()
-                chain.id = index_to_letters(len(model)+i)
+                chain.id = index_to_letters(last_idx)
             for chain in copy_model:
                 model.add(chain)
         

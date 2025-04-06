@@ -354,8 +354,15 @@ class PolymerChain(Chain):
                     _, resseq, _ = child_res.get_id()
                     present_res.add((resseq, resname))
             else:
+                if res.resname in ('HSP', 'HSE', 'HSD'):
+                    # HIS residues are reported as HSP, HSE, HSD in CHARMM force field
+                    resname = 'HIS'
+                else:
+                    resname = res.resname
                 _, resseq, _ = res.get_id()
-                present_res.add((resseq, res.resname))
+                present_res.add((resseq, resname))
+
+
 
         missing_res = []
         for i, reported in self.reported_res:
