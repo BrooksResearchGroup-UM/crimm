@@ -430,7 +430,7 @@ class RDKitHetConverter:
                     isHeteroAtom = True
                 )
                 atom.SetPDBResidueInfo(pdb_info)
-
+            name = name.strip()
             new_atom = Atom(
                 name = name,
                 coord=coords,

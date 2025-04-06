@@ -10,7 +10,7 @@ from crimm.Utils.StructureUtils import index_to_letters, letters_to_index
 from .Model import Model
 from .Chain import (
     PolymerChain, Heterogens, Solvent, CoSolvent, Ion,
-    Glycosylation, NucleosidePhosphate, Chain, Ligand
+    Glycosylation, NucleosidePhosphate, Chain, Ligand, Oligosaccharide, Macrolide
 )
 from .Residue import Residue
 
@@ -40,6 +40,8 @@ class OrganizedModel(Model):
         'Polypeptide(L)': PolymerChain,
         'Polyribonucleotide': PolymerChain,
         'Polydeoxyribonucleotide': PolymerChain,
+        'Oligosaccharide': Oligosaccharide,
+        'Macrolide': Macrolide,
         'Solvent': Solvent,
         'Heterogens': Heterogens,
         'Ligand': Ligand,
@@ -53,6 +55,8 @@ class OrganizedModel(Model):
         'protein': 'Polypeptide(L)',
         'rna': 'Polyribonucleotide',
         'dna': 'Polydeoxyribonucleotide',
+        'oligosaccharide': 'Oligosaccharide',
+        'macrolide': 'Macrolide',
         'other_polymer': 'PolymerChain',
         'solvent': 'Solvent',
         'unknown_type': 'UnknownType',
@@ -64,6 +68,7 @@ class OrganizedModel(Model):
     }
     def __init__(
             self, entity, rename_charmm_ions=True, rename_solvent_oxygen=True,
+            identify_ligands=False
         ):
         """Initialize the OrganizedModel object.
         Args:
@@ -88,6 +93,10 @@ class OrganizedModel(Model):
         super().__init__(model.id)
         self.pdbx_description = pdbx_description
         self.connect_dict = copy(model.connect_dict)
+        ## keep original model's connect atoms for looking up covalent bonds
+        ## for glycosylation
+        self._ref_connect_atoms = model.connect_atoms
+        self.identify_ligands = identify_ligands
         self.rcsb_web_data = None
         # Binding Affinity Information
         self.binding_info = None
@@ -121,7 +130,7 @@ class OrganizedModel(Model):
             self.lig_names = set(self.binding_info.comp_id)
         if self.bio_mol_info is not None:
             self.bio_mol_names = set(self.bio_mol_info.name)
-        self.organize(model)
+        self.organize(model, identify_ligands=self.identify_ligands)
         if rename_solvent_oxygen:
             self.rename_solvent_oxygen()
         if rename_charmm_ions:
@@ -149,6 +158,12 @@ class OrganizedModel(Model):
     @property
     def DNA(self):
         return self.filter('dna')
+    @property
+    def oligosaccharide(self):
+        return self.filter('oligosaccharide')
+    @property
+    def macrolide(self):
+        return self.filter('macrolide')
     @property
     def other_polymer(self):
         return self.filter('other_polymer')
@@ -201,9 +216,11 @@ class OrganizedModel(Model):
 
     def is_glycosylation(self, residue):
         """Check if the heterogen is part of glycosylation (covalently bonded sugar)"""
-        if 'covale' not in self.connect_atoms:
+        if self._ref_connect_atoms is None:
             return False
-        for atom_pair in self.connect_atoms['covale']:
+        if 'covale' not in self._ref_connect_atoms:
+            return False
+        for atom_pair in self._ref_connect_atoms['covale']:
             if residue in unfold_entities(atom_pair, 'R'):
                 return True
         return False
@@ -245,26 +262,29 @@ class OrganizedModel(Model):
         elif len(all_description) > 0:
             hetero_chain.pdbx_description = ', '.join(all_description)
         hetero_chain.resnames = ', '.join(resnames)
-
         return hetero_chain
 
-    def determine_heterogen_type(self, heterogens):
+    def determine_heterogen_type(self, heterogens, identify_ligands=False):
         """Determine the type of heterogens in the model."""
         heterogen_type_dict = {
-            'NucleosidePhosphate': [],
+            'Ion': [],
             'Glycosylation': [],
             'Ligand': [],
-            'CoSolvent': [],
-            'Ion': []
+            'NucleosidePhosphate': [],
+            'CoSolvent': []   
         }
-
+        
         for res in heterogens:
             if len(res.resname) <= 2:
                 heterogen_type_dict['Ion'].append(res)
-            elif res.resname in NUCLEOSIDE_PHOS:
-                heterogen_type_dict['NucleosidePhosphate'].append(res)
             elif self.is_glycosylation(res):
                 heterogen_type_dict['Glycosylation'].append(res)
+            elif not identify_ligands:
+                # If the ligand is not guessed, all heterogens except ions and
+                # identified glycosylation will be considered ligands
+                heterogen_type_dict['Ligand'].append(res)
+            elif res.resname in NUCLEOSIDE_PHOS:
+                heterogen_type_dict['NucleosidePhosphate'].append(res)
             elif self.is_ligand(res):
                 heterogen_type_dict['Ligand'].append(res)
             else:
@@ -272,9 +292,9 @@ class OrganizedModel(Model):
         return heterogen_type_dict
     
     def update(self):
-        self.organize(self)
+        self.organize(self, identify_ligands=self.identify_ligands)
 
-    def organize(self, model: Model):
+    def organize(self, model: Model, identify_ligands=False):
         """Organize the chains in the model into categories."""
         undecided_heterogens = []
         all_chains = []
@@ -286,30 +306,43 @@ class OrganizedModel(Model):
             elif chain.chain_type == 'Heterogens':
                 undecided_heterogens.extend(chain.residues)
             else:
+                chain_id_map[chain.id] = chain.id
                 all_chains.append(chain)
 
-        heterogen_type_dict = self.determine_heterogen_type(undecided_heterogens)
+        heterogen_type_dict = self.determine_heterogen_type(
+            undecided_heterogens, identify_ligands=identify_ligands
+        )
         heterogen_type_dict.update(solvent_entry)
-
-        for i, (chain_type, hetero_res_list) in enumerate(heterogen_type_dict.items()):
-            if len(hetero_res_list) == 0:
-                continue
-            temp_id = index_to_letters(i)
+        named_hetero_chains = {}
+        for chain_type, hetero_res_list in heterogen_type_dict.items():
+            named_hetero_chains[chain_type] = {}
+            cur_chain_type = named_hetero_chains[chain_type]
             for res in hetero_res_list:
+                temp_id = f'_{res.resname}'
                 chain_id_map[res.parent.id] = temp_id
-            hetero_chain = self.create_hetero_chain(
-                f'__{temp_id}', hetero_res_list, chain_type
-            )
-            all_chains.append(hetero_chain)
+                if temp_id in cur_chain_type:
+                    cur_chain_type[temp_id].append(res)
+                else:
+                    cur_chain_type[temp_id] = [res]
+        for chain_type, resname_dict in named_hetero_chains.items():
+            if len(resname_dict) == 0:
+                continue
+            for temp_id, hetero_res_list in resname_dict.items():
+                hetero_chain = self.create_hetero_chain(
+                    temp_id, hetero_res_list, chain_type
+                )
+                all_chains.append(hetero_chain)
 
         all_chains.sort(key=lambda x: x.id)
-        
+        temp_id_map = {}
         for i, chain in enumerate(all_chains):
             chain.detach_parent()
+            temp_id = chain.id
             new_id = index_to_letters(i)
-            chain_id_map[chain.id] = new_id
+            temp_id_map[temp_id] = new_id
             chain.id = new_id
             self.add(chain)
+        chain_id_map = {k: temp_id_map[v] for k, v in chain_id_map.items()}
         # update the connected atoms in the model level bonds (e.g. disulfide bonds)
         self._update_connect_dict_chain_id(chain_id_map)
         self.set_connect(self.connect_dict)

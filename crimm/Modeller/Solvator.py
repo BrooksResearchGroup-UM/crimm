@@ -137,6 +137,7 @@ class Solvator:
             orient_coords = True,
             box_type = 'cube',
             orient_method = None
+
         ) -> Model:
         """Solvates the entity and returns a Model level entity. The solvated
         entity will be centered in a cubic box with side length equal to the
@@ -190,6 +191,7 @@ class Solvator:
             else:
                 coorman.orient_coords(apply_to_parent=(self.model.parent is not None))
                 warnings.warn("Using default orientation for solvation.", UserWarning)
+
             warnings.warn(
                 'Orienting coordinates before solvation. This may change the '
                 'atom coordinates of the entity in the structure.',
@@ -500,10 +502,5 @@ class Solvator:
                 water_chain.detach_child(chosen_water.id)
 
         return new_ion_chain
-        
-        
-        
-        
-        
-        
+
 
