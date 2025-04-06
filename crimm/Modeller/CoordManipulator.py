@@ -165,3 +165,27 @@ class CoordManipulator:
         else:
             self._apply_to_loaded_entity()
             warnings.warn('No parent structure entity exists!')
+            
+    def orient_coords_octa(self, apply_to_parent=False) -> None:
+        """
+        Apply an alternative orientation aimed at minimizing the bounding
+        truncated octahedron. This implementation uses a PCA-based approach to
+        align the principal axes with the coordinate axes.
+        """
+        if self.entity is None:
+            raise ValueError('No structure entity loaded!')
+        # Center the coordinates
+        center = self.coords.mean(axis=0)
+        centered_coords = self.coords - center
+        # Compute PCA (using SVD)
+        U, S, Vt = np.linalg.svd(centered_coords, full_matrices=False)
+        rotation = Vt.T  # principal axes
+        new_coords = centered_coords @ rotation
+        # Re-center the new coordinates around the origin
+        new_center = new_coords.mean(axis=0)
+        new_coords -= new_center
+        self.coords = new_coords
+        for i, atom in enumerate(self._atoms):
+            atom.coord = new_coords[i]
+        if apply_to_parent and self.entity.parent is not None:
+            self.apply_entity(self.entity.parent)

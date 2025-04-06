@@ -262,7 +262,6 @@ class OrganizedModel(Model):
         elif len(all_description) > 0:
             hetero_chain.pdbx_description = ', '.join(all_description)
         hetero_chain.resnames = ', '.join(resnames)
-
         return hetero_chain
 
     def determine_heterogen_type(self, heterogens, identify_ligands=False):

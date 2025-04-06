@@ -336,7 +336,6 @@ def get_charmm_coord_dict(selected_atoms, include_resname = True):
             ## CHARMM's residue ID can be in the format of "1A", "1B", etc.
             id_str = ''.join([c for c in id_str if c.isdigit()])
         resseq.append(int(id_str))
-    
     resnames = selected_atoms.get_res_names()
     a_types = selected_atoms.get_atom_types()
     segids = selected_atoms.get_seg_ids()

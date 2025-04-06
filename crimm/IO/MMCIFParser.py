@@ -19,6 +19,7 @@ from crimm.StructEntities.Model import Model
 from crimm.Utils.StructureUtils import (
     get_coords, index_to_letters, letters_to_index
 )
+
 class MMCIFParser:
     """Parser class for standard mmCIF files from PDB"""
     def __init__(

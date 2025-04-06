@@ -4,6 +4,7 @@ or Chain level entity with water molecules.
 import os
 import warnings
 import numpy as np
+import math
 from random import choices
 from scipy.spatial import KDTree
 from crimm import Data
@@ -124,8 +125,8 @@ class Solvator:
         # unit of pre-equilibrated cube of water molecules (18.662 A each side)
         self.water_unit_coords = np.load(WATER_COORD_PATH)
         self._topo_loader = self.model.topology_loader
-        # Default box type is cube; other option is 'octa'
         self.box_type = None
+        self.orient_method = None
         
     def get_model(self):
         return self.model
@@ -134,7 +135,9 @@ class Solvator:
             self, cutoff=9.0, solvcut = 2.10,
             remove_existing_water = True,
             orient_coords = True,
-            box_type = 'cube'
+            box_type = 'cube',
+            orient_method = None
+
         ) -> Model:
         """Solvates the entity and returns a Model level entity. The solvated
         entity will be centered in a cubic box with side length equal to the
@@ -157,11 +160,23 @@ class Solvator:
         remove_existing_water : bool, optional
             If True, remove existing water molecules from the entity. The default
             is True.
+        box_type : str, optional
+            The shape of the water box. The default is'cube' (default) or 'octa' 
+            to choose the water box shape.
+        orient_method : str, optional
+            The method to orient the coordinates before solvation. The 'default'
+            (default) uses the usual orientation; octa' uses an alternative 
+            orientation aiming to minimize the octahedral box.
         """
 
         self.cutoff = cutoff
         self.solvcut = solvcut
         self.box_type = box_type
+        self.orient_method = orient_method
+        if self.orient_method is None and self.box_type == "octa": 
+            self.orient_method = "octa"
+        else:
+            self.orient_method = "default"
         
         if remove_existing_water:
             self.remove_existing_water(self.model)
@@ -170,7 +185,13 @@ class Solvator:
         if orient_coords:
             coorman = CoordManipulator()
             coorman.load_entity(self.model)
-            coorman.orient_coords(apply_to_parent=(self.model.parent is not None))
+            if self.orient_method == "octa":
+                coorman.orient_coords_octa(apply_to_parent=(self.model.parent is not None))
+                warnings.warn("Using octahedral orientation for solvation.", UserWarning)
+            else:
+                coorman.orient_coords(apply_to_parent=(self.model.parent is not None))
+                warnings.warn("Using default orientation for solvation.", UserWarning)
+
             warnings.warn(
                 'Orienting coordinates before solvation. This may change the '
                 'atom coordinates of the entity in the structure.',
@@ -481,7 +502,5 @@ class Solvator:
                 water_chain.detach_child(chosen_water.id)
 
         return new_ion_chain
-        
-        
-        
+
 
