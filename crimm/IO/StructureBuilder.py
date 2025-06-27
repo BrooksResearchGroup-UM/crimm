@@ -10,11 +10,11 @@ This is used by the MMCIFparser classes.
 # SMCRA hierarchy
 import warnings
 
-from crimm.StructEntities import Structure
-from crimm.StructEntities import Model
-from crimm.StructEntities import Chain, PolymerChain, Heterogens
-from crimm.StructEntities import Residue, DisorderedResidue, Heterogen
-from crimm.StructEntities import Atom, DisorderedAtom
+from crimm.StructEntities.Structure import Structure
+from crimm.StructEntities.Model import Model
+from crimm.StructEntities.Chain import Chain, PolymerChain, Heterogens
+from crimm.StructEntities.Residue import Residue, DisorderedResidue, Heterogen
+from crimm.StructEntities.Atom import Atom, DisorderedAtom
 
 class ChainConstructionWarning(Warning):
     """Define class ChainConstructionWarning."""

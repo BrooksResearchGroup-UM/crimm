@@ -11,8 +11,8 @@ from pycharmm import minimize as _minimize
 from pycharmm.generate import patch as charmm_patch
 from pycharmm.psf import get_natom, delete_atoms
 from Bio.PDB.Selection import unfold_entities
-from crimm.IO import get_pdb_str
-from crimm import StructEntities as Entities
+from crimm.IO.PDBString import get_pdb_str
+from crimm.StructEntities.Residue import Heterogen
 from crimm.Data.components_dict import nucleic_letters_1to3
 from pathlib import Path
 
@@ -402,7 +402,7 @@ def fetch_coords_from_charmm(entity):
     for residue in res_list:
         atoms = list(residue.get_atoms())
         # Update lone pairs coordinates for heterogens too
-        if isinstance(residue, Entities.Heterogen):
+        if isinstance(residue, Heterogen):
             atoms.extend(residue.lone_pairs)
         resname = residue.resname
         if resname == 'HIS':

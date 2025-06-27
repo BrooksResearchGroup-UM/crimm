@@ -1,7 +1,8 @@
 from Bio.Seq import Seq
 from Bio.Data.PDBData import protein_letters_1to3, protein_letters_3to1
-from crimm.Modeller import TopologyGenerator, ParameterLoader, ResidueTopologySet
-from crimm.StructEntities import PolymerChain, ResidueDefinition
+from crimm.Modeller import ParameterLoader, ResidueTopologySet
+from crimm.StructEntities.Chain import PolymerChain
+from crimm.StructEntities.TopoDefinitions import ResidueDefinition
 
 class SeqChainGenerator:
     """Generate a polymer chain from a sequence string"""

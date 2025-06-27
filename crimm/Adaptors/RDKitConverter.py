@@ -33,9 +33,9 @@
 import warnings
 import requests, json
 from crimm.Fetchers import fetch_rcsb_as_dict
-from crimm import StructEntities
-from crimm.IO import get_pdb_str
-from crimm.StructEntities import Atom, Heterogen
+from crimm.IO.PDBString import get_pdb_str
+from crimm.StructEntities.Atom import Atom
+from crimm.StructEntities.Residue import Heterogen
 import numpy as np
 from rdkit import Chem
 from rdkit.Chem import AllChem
@@ -289,7 +289,7 @@ class RDKitHetConverter:
     generate a mol2 file.
 
     Attributes:
-        lig (StructEntities.Heterogen): The heterogen object to be converted.
+        lig (Heterogen): The heterogen object to be converted.
         lig_pdbid (str): The PDB ID of the heterogen.
         chain_id (str): The chain ID of the heterogen.
         element_dict (dict): A dictionary mapping the atom name to the element
@@ -342,11 +342,11 @@ class RDKitHetConverter:
         metal atoms. If the heterogen does not contain metal atoms, the mol
         object will be sanitized and hydrogens will be added to the mol object.
         Args:
-            lig (StructEntities.Heterogen): The heterogen residue object to be converted.
+            lig (Heterogen): The heterogen residue object to be converted.
             update_hydrogens (bool): If True, hydrogens positions calculted by rdkit
                 will be updated on the crimm ligand residue. Defaults to True.
         """
-        if isinstance(lig, StructEntities.Heterogen):
+        if isinstance(lig, Heterogen):
             self.lig = lig
         else:
             raise TypeError("Input must be a Heterogen object (Residue level).")
@@ -438,7 +438,7 @@ class RDKitHetConverter:
                 occupancy=1.0,
                 altloc=' ',
                 serial_number=i,
-                element=atom.GetSymbol(),
+                element=atom.GetSymbol().upper(),
                 fullname=f"{name:^4}",
                 topo_definition=None
             )
@@ -697,15 +697,38 @@ def create_probe_mol(probe, use_conf=True):
     # Chem.AssignStereochemistryFrom3D(mol)
     return mol
 
-def create_probe_confomers(probe, conf_coords: np.ndarray):
+def create_probe_confomers(
+        probe, conf_coords: np.ndarray, scores: np.ndarray = None
+    ):
     if conf_coords.shape[1] != len(probe.atoms):
         raise ValueError(
             'Number of atoms in probe and number of coordinates do not match!'
         )
-    mol = create_probe_mol(probe, use_conf=False)
-    for conf_coord in conf_coords:
+    
+    if hasattr(probe, 'rdkit_mol'):
+        # Make a copy of the stored rdkit mol, and remove all conf
+        mol = Chem.RWMol(probe.rdkit_mol).GetMol()
+        mol.RemoveAllConformers()
+    else:
+        mol = create_probe_mol(probe, use_conf=False)
+    if scores is None:
+        for conf_coord in conf_coords:
+            conf = Chem.Conformer()
+            conf.Set3D(True)
+            for atom_idx, coord in enumerate(conf_coord):
+                coord = Point3D(*coord.astype(np.float64))
+                conf.SetAtomPosition(atom_idx, coord)
+            mol.AddConformer(conf, assignId=True)
+        return mol
+
+    if scores.shape[0] != conf_coords.shape[0]:
+        raise ValueError(
+            'Number of conformers and number of scores do not match!'
+        )
+    for conf_coord, score in zip(conf_coords, scores):
         conf = Chem.Conformer()
         conf.Set3D(True)
+        conf.SetDoubleProp('Score', float(score))
         for atom_idx, coord in enumerate(conf_coord):
             coord = Point3D(*coord.astype(np.float64))
             conf.SetAtomPosition(atom_idx, coord)

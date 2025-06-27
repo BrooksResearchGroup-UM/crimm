@@ -6,8 +6,7 @@ from Bio.Data.PDBData import protein_letters_3to1_extended
 from Bio.Data.PDBData import nucleic_letters_3to1_extended
 from Bio.PDB.Chain import Chain as _Chain
 from Bio.PDB.PDBExceptions import PDBConstructionException
-import crimm.StructEntities as cEntities
-from copy import copy
+from crimm.StructEntities.Residue import DisorderedResidue
 
 class BaseChain(_Chain):
     """Base class derived from and Biopython chain object and compatible with
@@ -132,7 +131,7 @@ class BaseChain(_Chain):
         """Reset the selected child of all disordered residues to the first
         residue (alt loc A) supplied by PDB."""
         for res in self:
-            if isinstance(res, cEntities.DisorderedResidue):
+            if isinstance(res, DisorderedResidue):
                 self._disordered_reset_residue(res)
             elif res.disordered == 1:
                 self._disordered_reset_atom(res)
@@ -226,7 +225,7 @@ class Chain(BaseChain):
     def get_disordered_res(self):
         disordered_res = []
         for res in self:
-            if isinstance(res, cEntities.DisorderedResidue):
+            if isinstance(res, DisorderedResidue):
                 disordered_res.append(res)
         return disordered_res
     
@@ -348,7 +347,7 @@ class PolymerChain(Chain):
         """
         present_res = set()
         for res in self:
-            if isinstance(res, cEntities.DisorderedResidue):
+            if isinstance(res, DisorderedResidue):
                 # Record both residues as present from the disordered residue
                 for resname, child_res in res.child_dict.items():
                     _, resseq, _ = child_res.get_id()

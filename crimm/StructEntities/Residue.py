@@ -4,7 +4,6 @@ from Bio.PDB.Residue import Residue as _Residue
 from Bio.PDB.Entity import Entity
 from Bio.PDB.Residue import DisorderedResidue as _DisorderedResidue
 from crimm.StructEntities.TopoElements import Bond
-from crimm.Utils.StructureUtils import get_coords
 
 class Residue(_Residue):
     """Residue class derived from Biopython Residue and made compatible with

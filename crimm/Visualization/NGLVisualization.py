@@ -6,11 +6,9 @@ if find_spec("nglview") is None:
     )
 
 import warnings
-from typing import List
 import nglview as nv
 from Bio.PDB.Selection import unfold_entities
-from crimm.IO import get_pdb_str
-import crimm.StructEntities as Entities
+from crimm.IO.PDBString import get_pdb_str
 from rdkit import Chem
 
 class NGLStructure(nv.Structure):
@@ -108,6 +106,12 @@ class View(nv.NGLWidget):
             components.append(self._load_entity(entity))
         return components
 
+    def load_rdkit(self, mol):
+        ngl_structure = NGLRDKitStructure(mol)
+        component = self.add_component(ngl_structure)
+        self.entity_dict[mol] = component
+        return component
+
     def subdue_all_entities(self, color = 'grey'):
         """subdue the colors for all entities. Deafult color is grey."""
         for i in range(len(self.entity_dict)):
@@ -126,7 +130,7 @@ class View(nv.NGLWidget):
 
     def highlight_residues(
             self,
-            residues: List[Entities.Residue],
+            residues,
             add_licorice = False,
             color = 'red',
             **kwargs
@@ -186,7 +190,7 @@ class View(nv.NGLWidget):
 
     def highlight_atoms(
             self,
-            atoms: List[Entities.Atom],
+            atoms,
             add_licorice = True,
             color = 'red',
             **kwargs

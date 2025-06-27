@@ -10,9 +10,8 @@ from scipy.spatial import KDTree
 from crimm import Data
 from crimm.Modeller.CoordManipulator import CoordManipulator
 from crimm.StructEntities import Atom, Residue, Model
-from crimm.StructEntities.Chain import Solvent, Ion, PolymerChain
+from crimm.StructEntities.Chain import Solvent, Ion
 from crimm.Modeller.TopoLoader import ResidueTopologySet
-from crimm.Utils.StructureUtils import get_charges
 from crimm.Data.components_dict import CHARMM_PDB_ION_NAMES
 
 WATER_COORD_PATH = os.path.join(os.path.dirname(Data.__file__), 'water_coords.npy')

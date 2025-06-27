@@ -4,7 +4,7 @@ import requests
 from Bio.Align import PairwiseAligner
 from crimm.Superimpose.ChainSuperimposer import ChainSuperimposer
 from crimm.Fetchers import fetch_rcsb, fetch_alphafold, uniprot_id_query
-import crimm.StructEntities as Entities
+from crimm.StructEntities.Chain import PolymerChain
 
 def find_gaps_within_range(gaps, segment):
     in_range = []
@@ -118,7 +118,7 @@ class ChainLoopBuilder:
     """
 
     def __init__(
-            self, model_chain: Entities.PolymerChain, 
+            self, model_chain: PolymerChain, 
             model_can_seq = None,
             pdbid = None,
             inplace = False,
@@ -167,7 +167,7 @@ class ChainLoopBuilder:
             raise AttributeError('Canonical sequence is required to repair loops')
 
     def set_template_chain(
-            self, template_chain: Entities.PolymerChain
+            self, template_chain: PolymerChain
         ):
         """
         Set the template chain for copying the coordinates of loop residues from

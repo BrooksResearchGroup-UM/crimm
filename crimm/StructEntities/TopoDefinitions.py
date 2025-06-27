@@ -3,7 +3,8 @@ from typing import List, Dict, Tuple
 from collections import OrderedDict
 import numpy as np
 from Bio.Data.PDBData import protein_letters_3to1_extended
-import crimm.StructEntities as Entities
+from crimm.StructEntities.Atom import Atom
+from crimm.StructEntities.Residue import Residue
 from crimm.Modeller.TopoFixer import recur_find_build_seq, find_coords_by_ic
 
 class AtomDefinition:
@@ -35,7 +36,7 @@ class AtomDefinition:
     def create_new_atom(self, coords = None, serial_number = 0):
         """Create a new atom instance from the Atom definition. The default coordinates
         will be none if not specified."""
-        return Entities.Atom(
+        return Atom(
             name = self.name,
             coord=coords,
             bfactor=0.0,
@@ -295,7 +296,7 @@ class ResidueDefinition:
         else:
             resname = self.resname
         
-        new_res = Entities.Residue(
+        new_res = Residue(
             (' ', int(resseq), str(icode)),
             resname,
             segid = segid
@@ -333,7 +334,7 @@ class ResidueDefinition:
                 coords = np.zeros(3),
                 serial_number=1
             )
-            new_res = Entities.Residue(
+            new_res = Residue(
                 (het_field, int(resseq), str(icode)),
                 atom_name,
                 segid = segid

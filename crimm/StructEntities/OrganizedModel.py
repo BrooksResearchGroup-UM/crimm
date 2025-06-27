@@ -5,7 +5,7 @@ import pandas as pd
 from Bio.PDB.Selection import unfold_entities
 # Nucleoside phosphates and phosphonates
 from crimm.Data.components_dict import NUCLEOSIDE_PHOS, PDB_CHARMM_ION_NAMES 
-from crimm.Fetchers import query_drugbank_info
+from crimm.Utils.query_db import query_drugbank_info
 from crimm.Utils.StructureUtils import index_to_letters, letters_to_index
 from .Model import Model
 from .Chain import (

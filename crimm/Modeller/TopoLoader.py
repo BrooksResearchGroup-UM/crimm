@@ -1,13 +1,18 @@
 import os
 import warnings
-import pickle
 import subprocess
 from typing import List, Tuple
 from copy import deepcopy, copy
 from Bio.Data.PDBData import protein_letters_3to1_extended
 from Bio.Data.PDBData import protein_letters_1to3
 
-from crimm import StructEntities as Entities
+from crimm.StructEntities.Model import Model
+from crimm.StructEntities.Chain import PolymerChain, Chain
+from crimm.StructEntities.Residue import Residue, Heterogen, DisorderedResidue
+from crimm.StructEntities.Atom import Atom
+from crimm.StructEntities.TopoElements import Bond, Angle, Dihedral, Improper
+from crimm.StructEntities.TopoDefinitions import PatchDefinition,  ResidueDefinition
+from crimm.StructEntities.OrganizedModel import OrganizedModel
 from crimm.IO.PRMParser import categorize_lines, parse_line_dict
 from crimm.IO.RTFParser import RTFParser
 from crimm.Modeller import ResidueFixer
@@ -53,8 +58,8 @@ protein_n_term_patch_correction = {
 }
 
 def _find_atom_in_residue(
-        residue: Entities.Residue, atom_name: str
-    )->Entities.Atom:
+        residue: Residue, atom_name: str
+    )->Atom:
     if atom_name.startswith('+') or atom_name.startswith('-'):
         return None
     if atom_name in residue:
@@ -64,8 +69,8 @@ def _find_atom_in_residue(
     return residue.missing_atoms[atom_name]
 
 def _find_atom_from_neighbor(
-        cur_residue: Entities.Residue, atom_name: str
-    )->Entities.Atom:
+        cur_residue: Residue, atom_name: str
+    )->Atom:
     """Get atom from neighbor residue. (Private function)"""
     resseq = cur_residue.id[1]
     chain = cur_residue.parent
@@ -79,7 +84,7 @@ def _find_atom_from_neighbor(
         return _find_atom_in_residue(neighbor_residue, atom_name)
     return None
 
-def get_bonds_within_residue(residue: Entities.Residue)->List[Entities.Bond]:
+def get_bonds_within_residue(residue: Residue)->List[Bond]:
     """Return a list of bonds within the residue (peptide bonds linking neighbor 
     residues are excluded). Raise ValueError if the topology definition is 
     not loaded."""
@@ -97,16 +102,16 @@ def get_bonds_within_residue(residue: Entities.Residue)->List[Entities.Bond]:
                 # one of the atoms has to be in the neighbor residue
                 continue
             bonds.append(
-                Entities.Bond(atom1, atom2, bond_type)
+                Bond(atom1, atom2, bond_type)
             )
     return bonds
 
-def atom_add_neighbors(atom1: Entities.Atom, atom2: Entities.Atom):
+def atom_add_neighbors(atom1: Atom, atom2: Atom):
     """Add atom2 to atom1's neighbors and vice versa"""
     atom1.neighbors.add(atom2)
     atom2.neighbors.add(atom1)
 
-def residue_trace_atom_neigbors(residue: Entities.Residue)->List[Entities.Bond]:
+def residue_trace_atom_neigbors(residue: Residue)->List[Bond]:
     """Trace all bonds within the residue and add the atoms to each other's
     neighbors list. Return a list of bonds within the residue."""
     bonds = get_bonds_within_residue(residue)
@@ -117,7 +122,7 @@ def residue_trace_atom_neigbors(residue: Entities.Residue)->List[Entities.Bond]:
 
 def clear_atom_neighbors(entity):
     """Clear all neighbors of atoms in an entity"""
-    if isinstance(entity, Entities.Atom):
+    if isinstance(entity, Atom):
         entity.neighbors = set()
         return
     elif not hasattr(entity, 'get_atoms'):
@@ -128,9 +133,9 @@ def clear_atom_neighbors(entity):
         atom.neighbors = set()
 
 def chain_trace_atom_neighbors(
-        chain: Entities.PolymerChain, inter_res_bonding_atoms: Tuple[str],
+        chain: PolymerChain, inter_res_bonding_atoms: Tuple[str],
         bond_type='single'
-    )->List[Entities.Bond]:
+    )->List[Bond]:
     """Trace all bonds within the chain and add the atoms to each other's
     neighbors list. Return a list of bonds within the chain."""
     end_atom, start_atom = inter_res_bonding_atoms
@@ -149,7 +154,7 @@ def chain_trace_atom_neighbors(
         a1 = _find_atom_in_residue(cur_res, end_atom)
         a2 = _find_atom_in_residue(next_res, start_atom)
         atom_add_neighbors(a1, a2)
-        inter_res_bond = Entities.Bond(a1, a2, bond_type)
+        inter_res_bond = Bond(a1, a2, bond_type)
         all_bonds.append(inter_res_bond)
 
     last_res = chain.residues[-1]
@@ -162,7 +167,7 @@ def _add_dihedral(cur_atom, nei_atom, second_nei_atom, dihedral_set):
     for third_nei_atom in second_nei_atom.neighbors:
         if third_nei_atom == nei_atom:
             continue
-        dihe = Entities.Dihedral(cur_atom, nei_atom, second_nei_atom, third_nei_atom)
+        dihe = Dihedral(cur_atom, nei_atom, second_nei_atom, third_nei_atom)
         dihedral_set.add(dihe)
 
 def _add_angle_and_dihedral(cur_atom, nei_atom, angle_set, dihedral_set):
@@ -170,7 +175,7 @@ def _add_angle_and_dihedral(cur_atom, nei_atom, angle_set, dihedral_set):
     for second_nei_atom in nei_atom.neighbors:
         if second_nei_atom == cur_atom:
             continue
-        angle = Entities.Angle(cur_atom, nei_atom, second_nei_atom)
+        angle = Angle(cur_atom, nei_atom, second_nei_atom)
         angle_set.add(angle)
         _add_dihedral(cur_atom, nei_atom, second_nei_atom, dihedral_set)
 
@@ -186,8 +191,8 @@ def traverse_graph(cur_atom, angle_set, dihedral_set, visited_set):
         traverse_graph(nei_atom, angle_set, dihedral_set, visited_set)
 
 def _get_improper_from_atom_names(
-        residue: Entities.Residue, atom_names: Tuple[str]
-    )->Entities.Improper:
+        residue: Residue, atom_names: Tuple[str]
+    )->Improper:
     """Get improper from atom names. (Private function)"""
     atoms = []
     for atom_name in atom_names:
@@ -205,18 +210,18 @@ def _get_improper_from_atom_names(
                 'Improper angle definition is incorrect: '
                 f'Atom {atom} is not neighbor of atom {a1}!'
             )
-    return Entities.Improper(a1, a2, a3, a4)
+    return Improper(a1, a2, a3, a4)
 
-def _is_terminal_or_orphan_residue(residue: Entities.Residue)->bool:
+def _is_terminal_or_orphan_residue(residue: Residue)->bool:
     """Check if the residue is a terminal residue or does not belong to a chain. 
     (Private function)"""
-    chain: Entities.PolymerChain = residue.parent
+    chain: PolymerChain = residue.parent
     if chain is None:
         # orphan residue
         return True
     return residue in (chain.residues[0], chain.residues[-1])
 
-def residue_get_impropers(residue: Entities.Residue)->List[Entities.Improper]:
+def residue_get_impropers(residue: Residue)->List[Improper]:
     """Return a list of improper angles within the residue. Raise ValueError if the 
     topology definition is not loaded."""
     if residue.topo_definition is None:
@@ -235,7 +240,7 @@ def residue_get_impropers(residue: Entities.Residue)->List[Entities.Improper]:
         impropers.append(improper)
     return impropers
 
-def get_impropers(chain: Entities.PolymerChain)->List[Entities.Improper]:
+def get_impropers(chain: PolymerChain)->List[Improper]:
     """Return a list of improper angles within the chain. Raise ValueError if the 
     topology definition is not loaded."""
     impropers = []
@@ -247,7 +252,7 @@ def _get_cmap_from_atom_names(res, cmap_atom_names):
     """Get cmap from atom names. (Private function)"""
     raise NotImplementedError
 
-def get_cmap(chain: Entities.PolymerChain)->List[Entities.CMap]:
+def get_cmap(chain: PolymerChain):
     """Return a list of CMap terms within the chain. Raise ValueError if the 
     topology definition is not loaded."""
     cmaps = []
@@ -317,7 +322,7 @@ class BaseTopology:
         s = s[:-2] + ">"
         return s
 
-    def delete_atom_related_elements(self, atom: Entities.Atom):
+    def delete_atom_related_elements(self, atom: Atom):
         """Delete all topology elements related to the atom"""
         for topo_type_name, topo_list in self:
             if topo_list is None:
@@ -376,7 +381,7 @@ class ModelTopology:
     ]
     def __init__(self, model):
         """Find all topology elements from the model"""
-        if not isinstance(model, Entities.Model):
+        if not isinstance(model, Model):
             raise ValueError(
                 'Model is not an instance of Model!'
                 f' {type(model)} is provided.'
@@ -442,7 +447,7 @@ class ModelTopology:
                 repr_str += repr(chain.topology) + '\n'
         return repr_str
                         
-    def _create_disu_bonds(self, model: Entities.Model):
+    def _create_disu_bonds(self, model: Model):
         if 'disulf' in model.connect_atoms:
             patcher = ResiduePatcher()
             for (a1, a2) in model.connect_atoms['disulf']:
@@ -477,7 +482,7 @@ class ModelTopology:
                 res2['CB'].topo_definition = cys_def['CB']
                 chain1.topology.update()
                 chain2.topology.update()
-                disu_bond = Entities.Bond(a1, a2, 'single')
+                disu_bond = Bond(a1, a2, 'single')
                 self.disu_bonds.append(disu_bond)
     
     
@@ -494,7 +499,7 @@ class HeterogenTopology(BaseTopology):
         self.create_atom_lookup_table()
         return self
                         
-    def find_topo_elements(self, heterogen_chain: Entities.Chain):
+    def find_topo_elements(self, heterogen_chain: Chain):
         """Find all topology elements in the chain"""
         self.bonds = []
         self.angles = []
@@ -551,7 +556,7 @@ class ChainTopology(BaseTopology):
                 return atom
 
     ## TODO: get Cmap from the topology rtf file
-    def find_topo_elements(self, chain: Entities.Chain):
+    def find_topo_elements(self, chain: Chain):
         """Find all topology elements in the chain"""
         if chain.undefined_res:
             raise ValueError(
@@ -692,13 +697,13 @@ class ParameterLoader:
 
     def get_from_topo_element(self, topo_element):
         """Get the parameter for a given topology element"""
-        if isinstance(topo_element, Entities.Bond):
+        if isinstance(topo_element, Bond):
             return self.get_bond(topo_element.atom_types)
-        elif isinstance(topo_element, Entities.Angle):
+        elif isinstance(topo_element, Angle):
             return self.get_angle(topo_element.atom_types)
-        elif isinstance(topo_element, Entities.Dihedral):
+        elif isinstance(topo_element, Dihedral):
             return self.get_dihedral(topo_element.atom_types)
-        elif isinstance(topo_element, Entities.Improper):
+        elif isinstance(topo_element, Improper):
             return self.get_improper(topo_element.atom_types)
         else:
             raise ValueError('Invalid topology element type')
@@ -838,18 +843,18 @@ class ResidueTopologySet:
         from a RTF file."""
         self.rtf_version = rtf_version
         for resname, res_topo_dict in topo_data_dict.items():
-            # if resname in Entities.ResidueDefinition.na_3to1:
+            # if resname in ResidueDefinition.na_3to1:
             #     # Map 3-letter residue name to 1-letter residue name for nucleic
             #     # acids, since biopython uses 1-letter residue name for them.
-            #     resname = Entities.ResidueDefinition.na_3to1[resname]
+            #     resname = ResidueDefinition.na_3to1[resname]
 
             if res_topo_dict['is_patch']:
-                res_def = Entities.PatchDefinition(
+                res_def = PatchDefinition(
                     self.rtf_version, resname, res_topo_dict, is_hetero=self.is_hetero
                 )
                 self.patches.append(res_def)
             else:
-                res_def = Entities.ResidueDefinition(
+                res_def = ResidueDefinition(
                     self.rtf_version, resname, res_topo_dict, is_hetero=self.is_hetero
                 )
                 self.residues.append(res_def)
@@ -868,13 +873,13 @@ class ResidueTopologySet:
         )
 
     def __getitem__(self, __key: 'str'):
-        if __key in Entities.ResidueDefinition.na_1to3:
-            __key = Entities.ResidueDefinition.na_1to3[__key]
+        if __key in ResidueDefinition.na_1to3:
+            __key = ResidueDefinition.na_1to3[__key]
         return self.res_defs[__key]
     
     def __contains__(self, __key: 'str'):
-        if __key in Entities.ResidueDefinition.na_1to3:
-            __key = Entities.ResidueDefinition.na_1to3[__key]
+        if __key in ResidueDefinition.na_1to3:
+            __key = ResidueDefinition.na_1to3[__key]
         return __key in self.res_defs
     
     def __iter__(self):
@@ -896,17 +901,20 @@ class CGENFFTopologySet:
         from a RTF file."""
         rtf = RTFParser(rtf_block=rtf_block)
         self._raw_data_strings.extend(rtf.lines)
+        if len(rtf.topo_dict) == 0:
+            return False
         for resname, res_atom_dict in rtf.topo_dict.items():
             for info_dict in res_atom_dict['atoms'][0].values():
                 atype = info_dict['atom_type']
                 info_dict['mass'], info_dict['desc'], info_dict['element'] =\
                     self.mass_dict[atype]
 
-            res_def = Entities.ResidueDefinition(
+            res_def = ResidueDefinition(
                 rtf.rtf_version, resname, res_atom_dict, is_hetero=True
             )
             self.residues.append(res_def)
             self.res_defs[resname] = res_def
+        return True
 
     def __repr__(self):
         return (
@@ -941,8 +949,9 @@ class CGENFFTopologyLoader:
             self.save_path = os.getcwd()
 
     ## TODO: parse parameters from the toppar block as well
-    def _get_cgenff_topology(self, input_mol2_block, ligand_toppar_file=None):
+    def _get_cgenff_topology(self, input_mol2_block, resname, ligand_toppar_file=None):
         """Load mol2 block and generate topology definition. """
+
         if ligand_toppar_file is not None:
             with open(ligand_toppar_file, 'r', encoding='utf-8') as f:
                 toppar_block = f.read()
@@ -953,18 +962,25 @@ class CGENFFTopologyLoader:
 
         rtf_block = '\n'.join(toppar_lines[:rtf_end])
         prm_block = '\n'.join(toppar_lines[rtf_end:])
-        self.cgenff_topo_set.load_rtf_block(rtf_block)
+        success = self.cgenff_topo_set.load_rtf_block(rtf_block)
+        if not success:
+            raise ValueError(
+                f'Failed to generate parameters for ligand {resname}! '
+                'Either CGENFF fail to generate the topology (check the CGENFF log) ' 
+                'or the user supplied RTF file does not match the ligand supplied.'
+            )
+        
         return toppar_block
 
     ## TODO: need to find topology element from rtf. Currently only add 
     ## topology definition to the atom
-    def generate(self, lig_res: Entities.Heterogen, ligand_toppar_file=None):
+    def generate(self, lig_res: Heterogen, ligand_toppar_file=None):
         """Generate topology definition for the ligand residue using cgenff.
         
         Parameters
         ----------
         
-        lig_res: Entities.Heterogen
+        lig_res: Heterogen
             The ligand residue object.
         
         ligand_toppar_file: str, optional
@@ -980,8 +996,10 @@ class CGENFFTopologyLoader:
 
         self.rdkit_mols[lig_res.resname] = rdk_mol
         mol2_block = MolToMol2Block(rdk_mol, ligname = lig_res.resname)
-        toppar_block = self._get_cgenff_topology(mol2_block, ligand_toppar_file)
         self.mol2_blocks[lig_res.resname] = mol2_block
+        toppar_block = self._get_cgenff_topology(
+            mol2_block, lig_res.resname, ligand_toppar_file
+        )
         self.toppar_blocks[lig_res.resname] = toppar_block
         residue_definition = self.cgenff_topo_set.res_defs[lig_res.resname]
         for atom_def in residue_definition:
@@ -1000,15 +1018,18 @@ class CGENFFTopologyLoader:
             atom.topo_definition = atom_def
         lig_res.topo_definition = residue_definition
 
-    def generate_from_rdkit(self, rdkit_mol, resname):
+    def generate_from_rdkit(self, rdkit_mol, resname, ligand_toppar_file=None):
         """Generate topology definition for the ligand residue using cgenff. A 
         ligand Residue object will be returned"""
+        resname = resname.upper()
         self.rdconvert.load_rdkit_mol(rdkit_mol, ligand_resname=resname)
         self.rdkit_mols[resname] = rdkit_mol
         ligand = self.rdconvert.get_ligand()
         mol2_block = self.rdconvert.get_mol2_block()
-        toppar_block = self._get_cgenff_topology(mol2_block)
         self.mol2_blocks[resname] = mol2_block
+        toppar_block = self._get_cgenff_topology(
+            mol2_block, resname, ligand_toppar_file
+        )
         self.toppar_blocks[resname] = toppar_block
         residue_definition = self.cgenff_topo_set.res_defs[resname]
         for atom_def in residue_definition:
@@ -1107,7 +1128,7 @@ class TopologyGenerator:
         self.cur_param.fill_ic(self.cur_defs, preserve=preserve)
         
     def _generate_residue_topology(
-            self, residue: Entities.Residue, coerce = False, QUIET = False
+            self, residue: Residue, coerce = False, QUIET = False
         ):
         """Load topology definition into the residue and find any missing atoms.
         Argument:
@@ -1119,7 +1140,7 @@ class TopologyGenerator:
         Return:
             True if the residue is defined, False otherwise"""
 
-        if isinstance(residue, Entities.DisorderedResidue):
+        if isinstance(residue, DisorderedResidue):
             return self._generate_residue_topology(
                 residue.selected_child, coerce=coerce, QUIET=QUIET
             )
@@ -1170,9 +1191,9 @@ class TopologyGenerator:
                     )
 
     @staticmethod
-    def _create_missing_atom(residue: Entities.Residue, atom_name: str)-> list:
+    def _create_missing_atom(residue: Residue, atom_name: str)-> list:
         """Create and separate missing heavy atoms and missing hydrogen atom by atom name"""
-        missing_atom : Entities.Atom = residue.topo_definition[atom_name].create_new_atom()
+        missing_atom : Atom = residue.topo_definition[atom_name].create_new_atom()
         missing_atom.set_parent(residue)
         if atom_name.startswith('H'):
             residue.missing_hydrogens[atom_name] = missing_atom
@@ -1182,7 +1203,7 @@ class TopologyGenerator:
 
     @staticmethod
     def _load_group_atom_topo_definition(
-            residue: Entities.Residue, atom_name_list: list
+            residue: Residue, atom_name_list: list
         ) -> tuple:
         """Load topology definition to each atom in the residue and find any missing 
         atoms. 
@@ -1202,7 +1223,7 @@ class TopologyGenerator:
         return tuple(atom_group)
 
     @staticmethod
-    def _load_atom_groups(residue: Entities.Residue):
+    def _load_atom_groups(residue: Residue):
         residue.atom_groups = []
         residue.missing_atoms, residue.missing_hydrogens = {},{}
         atom_group_lists = residue.topo_definition.atom_groups
@@ -1212,7 +1233,7 @@ class TopologyGenerator:
             )
             residue.atom_groups.append(cur_group)
 
-    def coerce_resname(self, residue: Entities.Residue, QUIET = False)->bool:
+    def coerce_resname(self, residue: Residue, QUIET = False)->bool:
         """Coerce the name of modified residue to reconstruct it as the canonical 
         one that it is based on. 
 
@@ -1283,7 +1304,7 @@ class TopologyGenerator:
         return topology
 
     def generate(
-            self, chain: Entities.Chain, coerce: bool = False,
+            self, chain: Chain, coerce: bool = False,
             first_patch: str = None, last_patch: str = None,
             auto_correct_first_patch=True,
             preserve_ic = True, QUIET = False
@@ -1332,7 +1353,7 @@ class TopologyGenerator:
         return topology
 
     def patch_termini(
-            self, chain: Entities.PolymerChain,
+            self, chain: PolymerChain,
             first: str, last: str, auto_correct_first_patch=True, QUIET=False
         ):
         """Patch the terminal residues of the chain"""
@@ -1367,7 +1388,7 @@ class TopologyGenerator:
             chain.topology.update()
 
     def patch_residue(
-            self, residue: Entities.Residue, patch: str,
+            self, residue: Residue, patch: str,
             patch_loc = 'MIDCHAIN', QUIET = False
         ):
         """Patch the residue with the patch definition"""
@@ -1410,7 +1431,7 @@ class TopologyGenerator:
         fixer.remove_undefined_atoms()
     
     def generate_model(
-            self, model: Entities.OrganizedModel.OrganizedModel, coerce: bool = False,
+            self, model: OrganizedModel, coerce: bool = False,
             prot_first_patch: str = 'ACE', prot_last_patch: str = 'CT3',
             na_first_patch: str = '5TER', na_last_patch: str = '3PHO',
             auto_correct_first_patch=True, build_coords = True,
@@ -1442,7 +1463,7 @@ class TopologyGenerator:
                 default is TIP3
             QUIET: if True, suppress all warnings
         """
-        if not isinstance(model, Entities.OrganizedModel.OrganizedModel):
+        if not isinstance(model, OrganizedModel):
             raise TypeError(
                 "Invalid argument type provided! OrganizedModel"
                 f' is expected. {type(model)} is provided.'
@@ -1487,8 +1508,8 @@ class TopologyGenerator:
 class ResiduePatcher:
     """Class Object for patching a residue with a patch definition"""
     def __init__(self):
-        self.res: Entities.ResidueDefinition = None
-        self.patch: Entities.PatchDefinition = None
+        self.res: ResidueDefinition = None
+        self.patch: PatchDefinition = None
         # for marking the ic entry to be removed from terminal residue during 
         # patching, either '+' or '-' depending on the patch location
         self.remove_nei_ic_prefix: str = None
@@ -1633,7 +1654,7 @@ class ResiduePatcher:
         return self.res
     
     def patch_disulfide(
-            self, res1: Entities.ResidueDefinition, res2: Entities.ResidueDefinition
+            self, res1: ResidueDefinition, res2: ResidueDefinition
         ):
         """Patch the disulfide bond between two cysteine residues"""
         ## Disulfide bond patching is hard coded. The residue and atom definitions
@@ -1641,7 +1662,7 @@ class ResiduePatcher:
         ## Dihedrals and impropers are not generated.
         ## TODO: fully implement the DISU patch definition to the topology definition
         ## and parameters
-        if not isinstance(res1, Entities.ResidueDefinition) or not isinstance(res2, Entities.ResidueDefinition):
+        if not isinstance(res1, ResidueDefinition) or not isinstance(res2, ResidueDefinition):
             raise TypeError("res1 and res2 must be ResidueDefinition objects")
         if res1.resname != 'CYS' or res2.resname != 'CYS':
             raise ValueError("res1 and res2 must be CYS residues")

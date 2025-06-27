@@ -2,7 +2,7 @@ import warnings
 
 # Allowed Elements
 from Bio.Data.IUPACData import atom_weights
-from crimm import StructEntities as Entities
+from crimm.StructEntities.Atom import Atom
 
 _ATOM_FORMAT_STRING = (
     "%s%5i %-4s%c%3s %c%4i%c   %8.3f%8.3f%8.3f%s%6.2f      %4s%2s%2s\n"
@@ -15,7 +15,7 @@ _TER_FORMAT_STRING = (
 )
 
 def _get_atom_line_with_parent_info(
-        atom: Entities.Atom, trunc_resname=False, use_charmm_format=False
+        atom: Atom, trunc_resname=False, use_charmm_format=False
     ):
     """Return the parent info of the atom (PRIVATE). Atom must have a parent residue."""
     residue = atom.parent
@@ -32,7 +32,7 @@ def _get_atom_line_with_parent_info(
         use_charmm_format=use_charmm_format
     )
 
-def _get_ter_line(atom: Entities.Atom, trunc_resname=False):
+def _get_ter_line(atom: Atom, trunc_resname=False):
     """Return the parent info of the atom (PRIVATE). Atom must have a parent residue."""
     residue = atom.parent
     resname = residue.resname
@@ -51,7 +51,7 @@ def _get_ter_line(atom: Entities.Atom, trunc_resname=False):
     args = (atom.get_serial_number(), resname, chain_id, resseq, icode)
     return _TER_FORMAT_STRING % args
 
-def _get_orphan_atom_line(atom: Entities.Atom, trunc_resname=False, use_charmm_format=False):
+def _get_orphan_atom_line(atom: Atom, trunc_resname=False, use_charmm_format=False):
     """Return the orphan atom line (PRIVATE). Dummy residue and chain info will be filled."""
     resname = 'DUM'
     segid = ' '

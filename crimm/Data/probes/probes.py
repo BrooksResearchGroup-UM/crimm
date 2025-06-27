@@ -1,6 +1,6 @@
 import numpy as np
 from Bio.Data.IUPACData import atom_weights
-from crimm.StructEntities import Bond, Angle, Dihedral, Improper
+from crimm.StructEntities.TopoElements import Bond, Angle, Dihedral, Improper
 
 bond_type_dict = {
     1: 'single',
