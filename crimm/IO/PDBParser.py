@@ -28,7 +28,7 @@ def separate_solvent(residues):
     het = []
     water = []
     for res in residues:
-        if res.resname == 'HOH':
+        if res.resname == 'HOH' or res.resname == 'TIP3':
             water.append(res)
         else:
             het.append(res)
