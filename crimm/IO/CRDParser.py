@@ -33,7 +33,7 @@ crd_entry = namedtuple(
 )
 
 class CRDParser:
-    """Parse a CHARMM CARD coordinate file for topology information.
+    """Parse a CHARMM CARD coordinate file for structure coord information.
 
     Reads the following Attributes:
      - Atomids
@@ -130,12 +130,21 @@ class CRDParser:
                 else:
                     field = ' '
                 sb.init_residue(entry.resname, field, cur_resid, ' ')
-            element = all_element_dict.get(entry.atomname)
+            atom_name = entry.atomname
+            if atom_name in all_element_dict:
+                element = all_element_dict.get(atom_name)
+            else:
+                element = atom_name[0]
+                warnings.warn(
+                    f'Element type cannot be determined from atom name {atom_name}! '
+                    f'Element is assigned as \'{element}\'.'
+                )
+                
             sb.init_atom(
-                entry.atomname, entry.coord, entry.tempFactor,
+                atom_name, entry.coord, entry.tempFactor,
                 occupancy = 1.0,
                 altloc = ' ',
-                fullname = entry.atomname,
+                fullname = atom_name,
                 serial_number = entry.serial,
                 element = element
             )
