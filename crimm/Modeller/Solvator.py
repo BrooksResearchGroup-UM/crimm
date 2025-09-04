@@ -9,7 +9,9 @@ from random import choices
 from scipy.spatial import KDTree
 from crimm import Data
 from crimm.Modeller.CoordManipulator import CoordManipulator
-from crimm.StructEntities import Atom, Residue, Model
+from crimm.StructEntities.Atom import Atom
+from crimm.StructEntities.Residue import Residue
+from crimm.StructEntities.Model import Model
 from crimm.StructEntities.Chain import Solvent, Ion
 from crimm.Modeller.TopoLoader import ResidueTopologySet
 from crimm.Data.components_dict import CHARMM_PDB_ION_NAMES
