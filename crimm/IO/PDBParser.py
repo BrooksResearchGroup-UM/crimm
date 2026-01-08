@@ -7,7 +7,8 @@ from Bio.Data.PDBData import (
     nucleic_letters_3to1, nucleic_letters_3to1_extended
 )
 from crimm.IO.StructureBuilder import StructureBuilder
-from crimm.StructEntities.Chain import Solvent, Heterogens, PolymerChain, Chain
+from crimm.StructEntities.Chain import Solvent, Heterogens, PolymerChain, Chain, Ion
+from crimm.Data.components_dict import CHARMM_PDB_ION_NAMES
 
 protein_letters_3to1.update({'HSD': 'H', 'HSE': 'H', 'HSP': 'H'})
 def check_chain_type(residues, resname_lookup, extended_lookup=None):
@@ -28,7 +29,7 @@ def separate_solvent(residues):
     het = []
     water = []
     for res in residues:
-        if res.resname == 'HOH':
+        if res.resname == 'HOH' or res.resname == 'TIP3':
             water.append(res)
         else:
             het.append(res)
@@ -52,6 +53,10 @@ def find_chain_type(chain):
             residues, nucleic_letters_3to1, nucleic_letters_3to1_extended
         ):
             return [('Polyribonucleotide', chain.id, residues)]
+        elif check_chain_type(
+            residues, CHARMM_PDB_ION_NAMES, None
+        ):
+            return [('Ion', chain.id, residues)]
         else:
             warnings.warn(
                 f'Chain type cannot be determined for {chain.get_full_id()}'
@@ -71,7 +76,8 @@ def convert_chains(chains):
         'Polyribonucleotide': 1,
         'Chain': 2, # 'Chain' is a catch-all for 'unknown
         'Heterogens': 3,
-        'Solvent': 4
+        'Ion': 4,
+        'Solvent': 5
     }
 
     new_chains = []
@@ -98,6 +104,8 @@ def convert_chains(chains):
             )
         elif chain_type == 'Heterogens':
             new_chain = Heterogens(new_chain_id)
+        elif chain_type == 'Ion':
+            new_chain = Ion(new_chain_id)
         else:
             new_chain = Solvent(new_chain_id)
         for res in residues:

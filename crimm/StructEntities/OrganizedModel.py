@@ -4,7 +4,7 @@ import requests
 import pandas as pd
 from Bio.PDB.Selection import unfold_entities
 # Nucleoside phosphates and phosphonates
-from crimm.Data.components_dict import NUCLEOSIDE_PHOS, PDB_CHARMM_ION_NAMES 
+from crimm.Data.components_dict import NUCLEOSIDE_PHOS, PDB_CHARMM_ION_NAMES, CHARMM_PDB_ION_NAMES 
 from crimm.Utils.query_db import query_drugbank_info
 from crimm.Utils.StructureUtils import index_to_letters, letters_to_index
 from .Model import Model
@@ -275,7 +275,7 @@ class OrganizedModel(Model):
         }
         
         for res in heterogens:
-            if len(res.resname) <= 2:
+            if len(res.resname) <= 2 or res.resname in CHARMM_PDB_ION_NAMES:
                 heterogen_type_dict['Ion'].append(res)
             elif self.is_glycosylation(res):
                 heterogen_type_dict['Glycosylation'].append(res)

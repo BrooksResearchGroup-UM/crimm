@@ -22,6 +22,7 @@ from Bio.PDB.PDBExceptions import PDBConstructionWarning
 from crimm.IO.StructureBuilder import StructureBuilder
 from crimm.IO.PDBParser import protein_letters_3to1, nucleic_letters_3to1
 from crimm.Data.element_dict import all_element_dict
+from crimm.IO.PDBParser import convert_chains
 
 crd_entry = namedtuple(
     'crd_entry',
@@ -32,7 +33,7 @@ crd_entry = namedtuple(
 )
 
 class CRDParser:
-    """Parse a CHARMM CARD coordinate file for topology information.
+    """Parse a CHARMM CARD coordinate file for structure coord information.
 
     Reads the following Attributes:
      - Atomids
@@ -47,9 +48,10 @@ class CRDParser:
      - Atomtypes
      - Masses
     """
-    def __init__(self, QUIET = False) -> None:
+    def __init__(self, include_solvent = True, QUIET = False) -> None:
         self._structure_builder = StructureBuilder()
         self.QUIET = QUIET
+        self.include_solvent = include_solvent
 
     @staticmethod
     def determine_chain_id(i, cur_letters=''):
@@ -104,6 +106,9 @@ class CRDParser:
         sb.init_structure(structure_id)
         # Only one model per structure for crd files
         sb.init_model(1)
+        # temporarily set to empty dict
+        # TODO: Implement a header parser
+        sb.header = {} 
         cur_segid = None
         cur_resid = None
         cur_resnum = None
@@ -125,12 +130,32 @@ class CRDParser:
                 else:
                     field = ' '
                 sb.init_residue(entry.resname, field, cur_resid, ' ')
-            element = all_element_dict.get(entry.atomname)
+            atom_name = entry.atomname
+            if atom_name in all_element_dict:
+                element = all_element_dict.get(atom_name)
+            else:
+                element = atom_name[0]
+                warnings.warn(
+                    f'Element type cannot be determined from atom name {atom_name}! '
+                    f'Element is assigned as \'{element}\'.'
+                )
+                
             sb.init_atom(
-                entry.atomname, entry.coord, entry.tempFactor,
+                atom_name, entry.coord, entry.tempFactor,
                 occupancy = 1.0,
                 altloc = ' ',
-                fullname = entry.atomname,
+                fullname = atom_name,
                 serial_number = entry.serial,
                 element = element
             )
+        stucture = sb.structure
+        for model in stucture:
+            new_chains = convert_chains(model.child_list)
+            if not self.include_solvent:
+                new_chains = [c for c in new_chains if c.chain_type != 'Solvent']
+            for chain in new_chains:
+                chain.set_parent(model)
+            model.child_list = new_chains
+            model.child_dict = {c.id: c for c in new_chains}
+
+        
