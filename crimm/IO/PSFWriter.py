@@ -14,7 +14,8 @@ Format specification (from CHARMM source io/psfres.F90):
 
 from typing import Union, List, Dict, Tuple, Optional, Any
 from dataclasses import dataclass
-from crimm.StructEntities import Model, Structure, Chain, Residue, Atom
+from crimm.StructEntities import Model, Structure, Residue, Atom
+from crimm.StructEntities.Chain import Chain
 from crimm.StructEntities.TopoElements import Bond, Angle, Dihedral, Improper, CMap
 
 
@@ -52,6 +53,7 @@ class PSFWriter:
         self._atom_map: Dict[Atom, int] = {}
         self._atoms: List[Atom] = []
         self._lonepairs: List[LonePairInfo] = []
+        self._segid_map: Dict[Any, str] = {}  # Maps chain to assigned segid
 
     def write(self, model: Model, filepath: str, title: str = "") -> None:
         """Write PSF file for the given Model.
@@ -69,13 +71,46 @@ class PSFWriter:
         with open(filepath, 'w', encoding='utf-8') as f:
             f.write(psf_str)
 
-    def get_psf_string(self, model: Model, title: str = "") -> str:
+    def _get_chains(self, entity: Union[Model, Chain]) -> List[Chain]:
+        """Normalize input to a list of chains.
+
+        Parameters
+        ----------
+        entity : Model or Chain
+            Input entity
+
+        Returns
+        -------
+        List[Chain]
+            List of chains to process
+        """
+        if isinstance(entity, Chain):
+            return [entity]
+        return list(entity)
+
+    def _get_topology(self, entity: Union[Model, Chain]):
+        """Get topology container from entity.
+
+        Parameters
+        ----------
+        entity : Model or Chain
+            Input entity
+
+        Returns
+        -------
+        TopologyElementContainer
+            Topology containing bonds, angles, etc.
+        """
+        # Both Model and Chain have .topology attribute
+        return entity.topology
+
+    def get_psf_string(self, model: Union[Model, Chain], title: str = "") -> str:
         """Return PSF content as string.
 
         Parameters
         ----------
-        model : Model
-            The Model object with topology to write
+        model : Model or Chain
+            The Model or Chain object with topology to write
         title : str, default ""
             Title line(s) for the PSF header
 
@@ -88,20 +123,29 @@ class PSFWriter:
         self._atom_map = {}
         self._atoms = []
         self._lonepairs = []
+        self._segid_map = {}
 
-        # Check topology exists
-        if not hasattr(model, 'topology') or model.topology is None:
+        # Get topology container (Model has .topology, Chain has .topo_elements)
+        topology = self._get_topology(model)
+        if topology is None:
+            entity_type = "Chain" if isinstance(model, Chain) else "Model"
             raise ValueError(
-                "Model has no topology. Generate topology first using "
-                "TopologyGenerator.generate_model()"
+                f"{entity_type} has no topology. Generate topology first using "
+                "TopologyGenerator.generate_model() or topo.generate()"
             )
 
         # Determine if CMAP terms present
-        has_cmap = (
-            hasattr(model.topology, 'cmap') and
-            model.topology.cmap is not None and
-            len(model.topology.cmap) > 0
-        )
+        # First check topology.cmap, then fall back to extracting from residues
+        # where ChainTopology.cmap may be None but residues have CMAP definitions
+        cmap_terms = None
+        if hasattr(topology, 'cmap') and topology.cmap is not None:
+            cmap_terms = topology.cmap
+        else:
+            # Try to get CMAP from residues directly
+            cmap_terms = self._get_cmaps_from_model(model)
+
+        has_cmap = cmap_terms is not None and len(cmap_terms) > 0
+        self._cmap_terms = cmap_terms  # Store for use in _write_cmap
 
         # Build atom index map (including lone pairs)
         self._build_atom_index_map(model)
@@ -111,32 +155,193 @@ class PSFWriter:
         sections.append(self._write_header(has_cmap))
         sections.append(self._write_title(title))
         sections.append(self._write_atoms(model))
-        sections.append(self._write_bonds(model.topology))
-        sections.append(self._write_angles(model.topology))
-        sections.append(self._write_dihedrals(model.topology))
-        sections.append(self._write_impropers(model.topology))
+        sections.append(self._write_bonds(topology))
+        sections.append(self._write_angles(topology))
+        sections.append(self._write_dihedrals(topology))
+        sections.append(self._write_impropers(topology))
         sections.append(self._write_donors(model))
         sections.append(self._write_acceptors(model))
         sections.append(self._write_nonbonded())
         sections.append(self._write_groups(model))
 
-        # CMAP section (if present)
+        # Lone pair section (CHARMM always writes this, even if 0)
+        # Must come before CMAP section
+        sections.append(self._write_lonepairs())
+
+        # CMAP section (if present) - always last
         if has_cmap:
-            sections.append(self._write_cmap(model.topology))
+            sections.append(self._write_cmap(topology))
 
-        # Lone pair section (if any)
-        if self._lonepairs:
-            sections.append(self._write_lonepairs())
+        # Join sections with blank lines between them (CHARMM format)
+        return "\n\n".join(sections) + "\n"
 
-        return "\n".join(sections)
+    def _assign_segids(self, model: Union[Model, Chain]) -> None:
+        """Assign automatic segment IDs to chains without segids.
 
-    def _build_atom_index_map(self, model: Model) -> None:
+        Rules:
+        - Protein: PRO{A,B,C,...}
+        - DNA: DNA{A,B,C,...}
+        - RNA: RNA{A,B,C,...}
+        - Ligand/Other: LIG{A,B,C,...}
+
+        Parameters
+        ----------
+        model : Model or Chain
+            The Model or Chain object
+        """
+        # Track counts for each type to assign letters
+        type_counts = {'PRO': 0, 'DNA': 0, 'RNA': 0, 'LIG': 0}
+        letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+
+        chains = [model] if isinstance(model, Chain) else model
+        for chain in chains:
+            # Check if chain already has segid set on its residues
+            # Note: segid might be whitespace-only ('    '), which is truthy but empty
+            has_segid = False
+            for residue in chain:
+                segid = getattr(residue, 'segid', None)
+                if segid and segid.strip():  # Must have non-whitespace content
+                    has_segid = True
+                    break
+
+            if has_segid:
+                # Use existing segid
+                continue
+
+            # Determine chain type
+            chain_type = getattr(chain, 'chain_type', None) or ''
+
+            if 'polypeptide' in chain_type.lower():
+                prefix = 'PRO'
+            elif 'polydeoxyribonucleotide' in chain_type.lower():
+                prefix = 'DNA'
+            elif 'polyribonucleotide' in chain_type.lower():
+                prefix = 'RNA'
+            else:
+                prefix = 'LIG'
+
+            # Get the letter to use
+            letter_idx = type_counts[prefix]
+            if letter_idx < len(letters):
+                letter = letters[letter_idx]
+            else:
+                letter = str(letter_idx)  # Fallback for >26 chains
+
+            type_counts[prefix] += 1
+            segid = f"{prefix}{letter}"
+
+            # Store in map
+            self._segid_map[chain] = segid
+
+            # Also set on all residues of this chain for consistency
+            for residue in chain:
+                residue.segid = segid
+
+    def _get_cmaps_from_model(self, model: Union[Model, Chain]) -> List[Tuple[Tuple[Atom, ...], Tuple[Atom, ...]]]:
+        """Extract CMAP terms from residues in the model.
+
+        Each residue may have a .cmap attribute containing CMAP definitions
+        as tuples of (dihedral1_atom_names, dihedral2_atom_names).
+        Atom names can have prefixes:
+        - '-' : previous residue (e.g., '-C' for C atom in previous residue)
+        - '+' : next residue (e.g., '+N' for N atom in next residue)
+
+        Returns
+        -------
+        List of tuples of (dihedral1_atoms, dihedral2_atoms) where each
+        dihedral is a tuple of 4 Atom objects.
+        """
+        cmaps = []
+        for chain in self._get_chains(model):
+            residues = list(chain.get_residues())
+            for i, res in enumerate(residues):
+                if not hasattr(res, 'cmap') or not res.cmap:
+                    continue
+
+                prev_res = residues[i - 1] if i > 0 else None
+                next_res = residues[i + 1] if i < len(residues) - 1 else None
+
+                for dihedral1_names, dihedral2_names in res.cmap:
+                    try:
+                        dihedral1_atoms = self._resolve_cmap_atoms(
+                            dihedral1_names, res, prev_res, next_res
+                        )
+                        dihedral2_atoms = self._resolve_cmap_atoms(
+                            dihedral2_names, res, prev_res, next_res
+                        )
+                        if dihedral1_atoms and dihedral2_atoms:
+                            cmaps.append((dihedral1_atoms, dihedral2_atoms))
+                    except Exception:
+                        pass  # Skip CMAPs that can't be resolved
+
+        return cmaps if cmaps else None
+
+    def _resolve_cmap_atoms(
+        self, atom_names: Tuple[str, ...], res: Residue,
+        prev_res: Optional[Residue], next_res: Optional[Residue]
+    ) -> Optional[Tuple[Atom, ...]]:
+        """Resolve CMAP atom names to actual Atom objects.
+
+        Parameters
+        ----------
+        atom_names : tuple of str
+            Atom names, possibly with '-' or '+' prefixes
+        res : Residue
+            Current residue
+        prev_res : Residue or None
+            Previous residue in chain
+        next_res : Residue or None
+            Next residue in chain
+
+        Returns
+        -------
+        Tuple of Atom objects, or None if resolution fails
+        """
+        atoms = []
+        for name in atom_names:
+            atom = None
+            if name.startswith('-'):
+                # Previous residue atom
+                if prev_res is not None:
+                    atom = self._get_atom_by_name(prev_res, name[1:])
+            elif name.startswith('+'):
+                # Next residue atom
+                if next_res is not None:
+                    atom = self._get_atom_by_name(next_res, name[1:])
+            else:
+                # Current residue atom
+                atom = self._get_atom_by_name(res, name)
+
+            if atom is None:
+                return None
+            atoms.append(atom)
+
+        return tuple(atoms) if len(atoms) == len(atom_names) else None
+
+    def _get_atom_by_name(self, residue: Residue, name: str) -> Optional[Atom]:
+        """Get an atom from a residue by name."""
+        for atom in residue.get_atoms():
+            if atom.name == name:
+                return atom
+        return None
+
+    def _build_atom_index_map(self, model: Union[Model, Chain]) -> None:
         """Build mapping from Atom objects to 1-based PSF indices.
 
         Also collects lone pair information for CGENFF ligands.
+
+        Parameters
+        ----------
+        model : Model or Chain
+            The Model or Chain object to index
         """
+        # First assign automatic segids
+        self._assign_segids(model)
+
         idx = 1
-        for chain in model:
+        # Normalize input: if Chain, wrap in list; if Model, iterate directly
+        chains = [model] if isinstance(model, Chain) else model
+        for chain in chains:
             for residue in chain:
                 # Regular atoms
                 for atom in residue.get_atoms():
@@ -174,10 +379,13 @@ class PSFWriter:
             keywords.append("XPLOR")
         if has_cmap:
             keywords.append("CMAP")
-        return " ".join(keywords) + "\n"
+        return " ".join(keywords)
 
     def _write_title(self, title: str) -> str:
-        """Write NTITLE section."""
+        """Write NTITLE section.
+
+        CHARMM format requires title lines to start with asterisk (*).
+        """
         lines = []
         if title:
             title_lines = title.strip().split('\n')
@@ -186,7 +394,9 @@ class PSFWriter:
 
         lines.append(self._format_section_header(len(title_lines), "NTITLE"))
         for line in title_lines:
-            lines.append(f" {line}")
+            # Pad to 80 chars as CHARMM does
+            padded_line = f"* {line}".ljust(80)
+            lines.append(padded_line)
         return "\n".join(lines)
 
     def _write_atoms(self, model: Model) -> str:
@@ -229,22 +439,44 @@ class PSFWriter:
 
         return "\n".join(lines)
 
+    def _format_g14_6(self, value: float) -> str:
+        """Format a float value in Fortran G14.6 style.
+
+        G14.6 uses F notation for values that fit, E notation otherwise.
+        Field width is 14, with 6 significant figures.
+        """
+        if value == 0.0:
+            return f"{0.0:>14.6f}"
+
+        abs_val = abs(value)
+        # Use E notation for very small or very large values
+        if abs_val < 0.01 or abs_val >= 1e6:
+            # E notation: total width 14, 6 significant figures
+            # Format: sign + 0. + 6 digits + E + sign + 2 digits = 13-14 chars
+            return f"{value:>14.6E}"
+        else:
+            # F notation: total width 14, enough decimals for 6 sig figs
+            return f"{value:>14.6f}"
+
     def _format_atom_line(
         self, serial: int, segid: str, resid: str, resname: str,
         atomname: str, atomtype: str, charge: float, mass: float, imove: int
     ) -> str:
-        """Format a single atom line."""
+        """Format a single atom line using Fortran-compatible G14.6 format."""
+        charge_str = self._format_g14_6(charge)
+        mass_str = self._format_g14_6(mass)
+
         if self.extended:
             # Extended XPLOR format: I10 A8 A8 A8 A8 A6 2G14.6 I8
             return (
                 f"{serial:>10d} {segid:<8s} {resid:<8s} {resname:<8s} "
-                f"{atomname:<8s} {atomtype:<6s} {charge:>14.6f}{mass:>14.6f}{imove:>8d}"
+                f"{atomname:<8s} {atomtype:<6s}{charge_str}{mass_str}{imove:>8d}"
             )
         else:
             # Standard XPLOR format: I8 A4 A4 A4 A4 A4 2G14.6 I8
             return (
                 f"{serial:>8d} {segid:<4s} {resid:<4s} {resname:<4s} "
-                f"{atomname:<4s} {atomtype:<4s} {charge:>14.6f}{mass:>14.6f}{imove:>8d}"
+                f"{atomname:<4s} {atomtype:<4s}{charge_str}{mass_str}{imove:>8d}"
             )
 
     def _write_bonds(self, topology) -> str:
@@ -291,14 +523,14 @@ class PSFWriter:
                 indices.extend([self._atom_map[a] for a in atoms])
         return self._format_index_section(indices, "NIMPHI: impropers", items_per_line=2)
 
-    def _write_donors(self, model: Model) -> str:
+    def _write_donors(self, model: Union[Model, Chain]) -> str:
         """Write NDON section.
 
         RTF format: DONOR HN N (hydrogen, heavy_atom)
         PSF format: (heavy_atom, hydrogen) - so we swap the order
         """
         indices = []
-        for chain in model:
+        for chain in self._get_chains(model):
             for residue in chain:
                 if hasattr(residue, 'H_donors') and residue.H_donors:
                     for donor_pair in residue.H_donors:
@@ -327,14 +559,14 @@ class PSFWriter:
                                 ])
         return self._format_index_section(indices, "NDON: donors", items_per_line=4)
 
-    def _write_acceptors(self, model: Model) -> str:
+    def _write_acceptors(self, model: Union[Model, Chain]) -> str:
         """Write NACC section.
 
         RTF format: ACCE O C (acceptor, antecedent)
         PSF format: (acceptor, antecedent) - same order
         """
         indices = []
-        for chain in model:
+        for chain in self._get_chains(model):
             for residue in chain:
                 if hasattr(residue, 'H_acceptors') and residue.H_acceptors:
                     for acc_info in residue.H_acceptors:
@@ -382,15 +614,31 @@ class PSFWriter:
     def _write_nonbonded(self) -> str:
         """Write NNB section (non-bonded exclusion list).
 
-        For simplicity, write an empty exclusion list.
-        Full implementation would compute actual exclusions.
-        """
-        # NNB section contains exclusion list pointers
-        # Simplified: all zeros (no explicit exclusions beyond bonded)
-        indices = [0] * len(self._atoms)
-        return self._format_index_section(indices, "NNB", items_per_line=8)
+        PSF format for NNB section:
+        - Header: NNB !NNB (number of explicit exclusion pairs)
+        - INBLO array: one entry per atom (index of last exclusion)
+        - IEXCL array: the actual exclusion atom indices (NNB entries)
 
-    def _write_groups(self, model: Model) -> str:
+        For simplicity, write NNB=0 (no explicit exclusions beyond bonded).
+        The INBLO array still needs to be output (all zeros).
+        """
+        lines = []
+        nnb = 0  # Number of explicit exclusion pairs (not atom count!)
+
+        # Header: "       0 !NNB"
+        lines.append(self._format_section_header(nnb, "NNB"))
+
+        # CHARMM format requires blank line after NNB header before INBLO array
+        lines.append("")
+
+        # INBLO array: one entry per atom (all zeros = no exclusions)
+        inblo = [0] * len(self._atoms)
+        if inblo:
+            lines.append(self._format_indices(inblo, items_per_line=8))
+
+        return "\n".join(lines)
+
+    def _write_groups(self, model: Union[Model, Chain]) -> str:
         """Write NGRP section (atom groups for charge computation).
 
         Groups are defined per residue from atom_groups.
@@ -399,7 +647,7 @@ class PSFWriter:
         groups = []
         atom_offset = 0
 
-        for chain in model:
+        for chain in self._get_chains(model):
             for residue in chain:
                 if hasattr(residue, 'atom_groups') and residue.atom_groups:
                     for group in residue.atom_groups:
@@ -422,25 +670,40 @@ class PSFWriter:
         else:
             lines.append(f"{ngrp:>8d}{nst2:>8d} !NGRP NST2")
 
-        # Group data (3 integers per group)
+        # Group data (3 integers per group, but 9 integers per line per CHARMM fmt04)
         indices = []
         for igpbs, igptyp, imoveg in groups:
             indices.extend([igpbs, igptyp, imoveg])
 
         if indices:
-            lines.append(self._format_indices(indices, items_per_line=3))
+            lines.append(self._format_indices(indices, items_per_line=9))
 
         return "\n".join(lines)
 
     def _write_cmap(self, topology) -> str:
-        """Write NCRTERM section (cross-map terms)."""
-        cmaps = topology.cmap if hasattr(topology, 'cmap') and topology.cmap else []
+        """Write NCRTERM section (cross-map terms).
+
+        Uses self._cmap_terms if available (from residue-level extraction),
+        otherwise falls back to topology.cmap.
+        """
+        # Prefer stored CMAP terms from residue extraction
+        if hasattr(self, '_cmap_terms') and self._cmap_terms:
+            cmaps = self._cmap_terms
+        elif hasattr(topology, 'cmap') and topology.cmap:
+            cmaps = topology.cmap
+        else:
+            cmaps = []
+
         indices = []
 
         for cmap in cmaps:
             if isinstance(cmap, CMap):
                 dihe1, dihe2 = cmap
                 # Each CMAP has 8 atoms (2 dihedrals)
+                atoms = list(dihe1) + list(dihe2)
+            elif isinstance(cmap, tuple) and len(cmap) == 2:
+                # Tuple of (dihedral1_atoms, dihedral2_atoms) from residue extraction
+                dihe1, dihe2 = cmap
                 atoms = list(dihe1) + list(dihe2)
             else:
                 # Assume it's already a sequence of atoms
@@ -449,10 +712,14 @@ class PSFWriter:
             if all(a in self._atom_map for a in atoms):
                 indices.extend([self._atom_map[a] for a in atoms])
 
-        return self._format_index_section(indices, "NCRTERM: cross-terms", items_per_line=1)
+        # CMAP uses 8 atoms per entry, 1 entry per line (8 integers per line)
+        return self._format_index_section(indices, "NCRTERM: cross-terms", items_per_line=8)
 
     def _write_lonepairs(self) -> str:
-        """Write NUMLP NUMLPH section for lone pairs."""
+        """Write NUMLP NUMLPH section for lone pairs.
+
+        CHARMM always writes this section, even when there are no lone pairs.
+        """
         lines = []
         nlp = len(self._lonepairs)
         nlph = nlp  # Number of LP hosts
@@ -462,7 +729,7 @@ class PSFWriter:
         else:
             lines.append(f"{nlp:>8d}{nlph:>8d} !NUMLP NUMLPH")
 
-        # Lone pair host information
+        # Lone pair host information (only if there are lone pairs)
         for lp_info in self._lonepairs:
             host_idx = self._atom_map.get(lp_info.host_atom, 0)
             lp_idx = self._atom_map.get(lp_info.lp_atom, 0)
@@ -494,6 +761,11 @@ class PSFWriter:
         lines = []
 
         # Calculate count based on label
+        # Each section stores data in a specific format:
+        # - bonds, donors, acceptors: pairs (2 ints each)
+        # - angles: triplets (3 ints each)
+        # - dihedrals, impropers: quads (4 ints each)
+        # - cross-terms (CMAP): 8 atoms each
         if "bonds" in label.lower():
             count = len(indices) // 2
         elif "angles" in label.lower():
@@ -502,6 +774,8 @@ class PSFWriter:
             count = len(indices) // 4
         elif "cross-terms" in label.lower():
             count = len(indices) // 8
+        elif "donors" in label.lower() or "acceptors" in label.lower():
+            count = len(indices) // 2  # Donors/acceptors are pairs (atom, hydrogen/antecedent)
         else:
             count = len(indices)
 
