@@ -1,6 +1,9 @@
 import tempfile
 import warnings
 import numpy as np
+from typing import Dict, Optional
+from pathlib import Path
+
 import pycharmm as pcm
 from pycharmm import read, psf, coor
 from pycharmm import generate
@@ -12,14 +15,66 @@ from pycharmm.generate import patch as charmm_patch
 from pycharmm.psf import get_natom, delete_atoms
 from Bio.PDB.Selection import unfold_entities
 from crimm.IO.PDBString import get_pdb_str
+from crimm.IO import write_psf, write_crd
 from crimm.StructEntities.Residue import Heterogen
 from crimm.Data.components_dict import nucleic_letters_1to3
-from pathlib import Path
 
 def empty_charmm():
     """If any atom exists in current CHARMM runtime, remove them."""
     if get_natom() > 0:
         delete_atoms()
+
+
+def _entity_has_lonepairs(entity) -> bool:
+    """Check if entity contains any residues with lone pairs (e.g., CGENFF ligands)."""
+    res_list = unfold_entities(entity, 'R')
+    for res in res_list:
+        if isinstance(res, Heterogen) and len(res.lone_pairs) > 0:
+            return True
+    return False
+
+
+def _load_psf_crd(entity, append=False):
+    """Load an entity into pyCHARMM using PSF/CRD format.
+
+    This is the core helper that writes temp PSF/CRD files and loads them.
+
+    Parameters
+    ----------
+    entity : Model, Chain, or Residue
+        The entity to load into CHARMM
+    append : bool, default False
+        If True, append to existing PSF in CHARMM
+    """
+    import os
+    psf_path = None
+    crd_path = None
+    try:
+        # Create temp files with delete=False for cross-platform compatibility
+        with tempfile.NamedTemporaryFile('w', suffix='.psf', delete=False) as psf_f:
+            psf_path = psf_f.name
+        with tempfile.NamedTemporaryFile('w', suffix='.crd', delete=False) as crd_f:
+            crd_path = crd_f.name
+        
+        # Write PSF and CRD files (these functions handle their own file I/O)
+        write_psf(entity, psf_path)
+        write_crd(entity, crd_path)
+        
+        # Load into pyCHARMM
+        read.psf_card(psf_path, append=append)
+        read.coor_card(crd_path)
+    finally:
+        # Clean up temp files
+        if psf_path and os.path.exists(psf_path):
+            os.unlink(psf_path)
+        if crd_path and os.path.exists(crd_path):
+            os.unlink(crd_path)
+
+    # Handle lone pairs if present (CGENFF ligands)
+    if _entity_has_lonepairs(entity):
+        print("[crimm] Creating lone pair coordinates using COOR SHAKE")
+        pcm.lingo.charmm_script("coor shake")
+
 
 def load_topology(topo_generator):
     """Load topology and parameter files from a TopoGenerator object."""
@@ -101,148 +156,373 @@ def load_topology(topo_generator):
                 tf.flush()
                 read.stream(tf.name)
 
-def load_chain(chain, hbuild = False, report = False):
+def load_chain(chain, hbuild=False, report=False, use_psf_crd=True, append=False):
+    """Load a protein/nucleic chain into pyCHARMM.
+
+    Parameters
+    ----------
+    chain : PolymerChain
+        The chain to load (must have topology generated via TopologyGenerator)
+    hbuild : bool, default False
+        Run HBUILD for hydrogens (only used for legacy PDB mode)
+    report : bool, default False
+        Print IC table (only used for legacy PDB mode)
+    use_psf_crd : bool, default True
+        If True (default), use PSF/CRD format - simpler and recommended.
+        If False, use deprecated PDB-based loading with sequence generation.
+    append : bool, default False
+        If True, append to existing PSF in CHARMM (for incremental loading).
+
+    Returns
+    -------
+    str
+        The segment ID used for this chain
+    """
     if not chain.is_continuous():
         raise ValueError("Chain is not continuous! Fix the chain first!")
-    ##TODO: change seg id based on chain type (use NUC for nucleic)
-    segid = f'PRO{chain.id[0]}'
-    m_chain = _get_charmm_named_chain(chain, segid)
-    first_res = m_chain.child_list[0]
-    last_res = m_chain.child_list[-1]
-    first_patch, last_patch = '', ''
-    other_patches = {}
-    for res in m_chain.residues[1:-1]:
-        # iterate over all residues except the first and last to find 
-        # if any residue has been patched
-        if (patch_name:=res.topo_definition.patch_with) is not None:
-            if patch_name == 'DISU':
-                # skip disulfide bond patch in this step
-                continue
-            resseq = res.id[1]
-            # CHARMM requires the patch location to be in the format of
-            # SEGID RESSEQ
-            patch_loc = f'{segid} {resseq}'
-            other_patches[patch_loc] = patch_name
-    if (patch_name:=first_res.topo_definition.patch_with) is not None:
-        first_patch = patch_name
-        
-    if (patch_name:=last_res.topo_definition.patch_with) is not None:
-        last_patch = patch_name
-        
-    with tempfile.NamedTemporaryFile('w') as tf:
-        tf.write(get_pdb_str(m_chain, use_charmm_format=True))
-        tf.write('END\n')
-        tf.flush()
-        _load_chain(
-            tf.name, segnames=[segid], first_patch=first_patch, last_patch=last_patch,
-            hbuild=hbuild, report=report
-        )
-    if len(other_patches) > 0:
-        for patch_loc, patch_name in other_patches.items():
-            resseq = int(patch_loc.split()[1])
-            charmm_patch(patch_name, patch_sites=patch_loc)
-            pcm.lingo.charmm_script(
-                f'hbuild sele segid {segid} .and. resi {resseq} '
-                '.and. hydrogen end'
-            )
-    return segid
 
-def load_ligands(ligand_chains, segids=None):
-    """Load a list of ligand chains into CHARMM."""
+    # Determine segment ID based on chain type
+    if chain.chain_type == 'Polyribonucleotide':
+        segid = f'NUC{chain.id[0]}'
+    else:
+        segid = f'PRO{chain.id[0]}'
+
+    # Set segid on all residues
+    for res in chain:
+        res.segid = segid
+
+    if use_psf_crd:
+        # PSF/CRD approach (default) - simpler and recommended
+        # Topology is already in the PSF, no generation/patching needed
+        _load_psf_crd(chain, append=append)
+        return segid
+    else:
+        # Deprecated PDB-based implementation
+        warnings.warn(
+            "PDB-based loading (use_psf_crd=False) is deprecated and will be removed "
+            "in a future version. Use PSF/CRD format (default) for simpler and more "
+            "reliable loading.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        m_chain = _get_charmm_named_chain(chain, segid)
+        first_res = m_chain.child_list[0]
+        last_res = m_chain.child_list[-1]
+        first_patch, last_patch = '', ''
+        other_patches = {}
+        for res in m_chain.residues[1:-1]:
+            # iterate over all residues except the first and last to find 
+            # if any residue has been patched
+            if (patch_name:=res.topo_definition.patch_with) is not None:
+                if patch_name == 'DISU':
+                    # skip disulfide bond patch in this step
+                    continue
+                resseq = res.id[1]
+                # CHARMM requires the patch location to be in the format of
+                # SEGID RESSEQ
+                patch_loc = f'{segid} {resseq}'
+                other_patches[patch_loc] = patch_name
+        if (patch_name:=first_res.topo_definition.patch_with) is not None:
+            first_patch = patch_name
+            
+        if (patch_name:=last_res.topo_definition.patch_with) is not None:
+            last_patch = patch_name
+            
+        with tempfile.NamedTemporaryFile('w') as tf:
+            tf.write(get_pdb_str(m_chain, use_charmm_format=True))
+            tf.write('END\n')
+            tf.flush()
+            _load_chain(
+                tf.name, segnames=[segid], first_patch=first_patch, last_patch=last_patch,
+                hbuild=hbuild, report=report
+            )
+        if len(other_patches) > 0:
+            for patch_loc, patch_name in other_patches.items():
+                resseq = int(patch_loc.split()[1])
+                charmm_patch(patch_name, patch_sites=patch_loc)
+                pcm.lingo.charmm_script(
+                    f'hbuild sele segid {segid} .and. resi {resseq} '
+                    '.and. hydrogen end'
+                )
+        return segid
+
+def load_ligands(ligand_chains, segids=None, use_psf_crd=True, append=False):
+    """Load a list of ligand chains into pyCHARMM.
+
+    Parameters
+    ----------
+    ligand_chains : list
+        List of ligand chains (each chain may contain multiple ligand residues)
+    segids : list, optional
+        Segment IDs for each ligand. If None, auto-generates LG00, LG01, etc.
+    use_psf_crd : bool, default True
+        If True (default), use PSF/CRD format - simpler and recommended.
+        If False, use deprecated PDB-based loading.
+    append : bool, default False
+        If True, append to existing PSF in CHARMM (for incremental loading).
+
+    Returns
+    -------
+    list
+        The segment IDs used for each ligand
+    """
     all_ligands = [res for chain in ligand_chains for res in chain]
     if segids is None:
         segids = [f'LG{i:02d}' for i in range(len(all_ligands))]
     elif len(segids) != len(all_ligands):
         raise ValueError("Number of segids must match number of ligands")
 
-    for segid, lig_res in zip(segids, all_ligands):
-        lig_res.segid = segid
-        print(f"[crimm] Loading ligand {lig_res.resname} SEG: {segid}")
-        with tempfile.NamedTemporaryFile('w') as tf:
-            tf.write(get_pdb_str(lig_res, use_charmm_format=True))
-            tf.write('END\n')
-            tf.flush()
-            read.sequence_pdb(tf.name)
-            generate.new_segment(
-                seg_name=segid,
-                first_patch='',
-                last_patch='',
-                angle=True,
-                dihedral=True
-            )
-            read.pdb(tf.name, resid=True)
-    
-    lone_pair_ligands = [lig.resname for lig in all_ligands if len(lig.lone_pairs) > 0]
-
-    if len(lone_pair_ligands) > 0:
-        print(
-            "[crimm] Creating lone pair coordinates for ligands "
-            f"{','.join(lone_pair_ligands)} using CHARMM command COOR SHAKE"
+    if use_psf_crd:
+        # PSF/CRD approach (default) - simpler and recommended
+        for i, (segid, lig_res) in enumerate(zip(segids, all_ligands)):
+            lig_res.segid = segid
+            print(f"[crimm] Loading ligand {lig_res.resname} SEG: {segid}")
+            # First ligand uses caller's append value, subsequent ones always append
+            should_append = append if i == 0 else True
+            _load_psf_crd(lig_res, append=should_append)
+    else:
+        # Deprecated PDB-based implementation
+        warnings.warn(
+            "PDB-based loading (use_psf_crd=False) is deprecated and will be removed "
+            "in a future version. Use PSF/CRD format (default) for simpler and more "
+            "reliable loading.",
+            DeprecationWarning,
+            stacklevel=2
         )
-        pcm.lingo.charmm_script("coor shake")
+        for segid, lig_res in zip(segids, all_ligands):
+            lig_res.segid = segid
+            print(f"[crimm] Loading ligand {lig_res.resname} SEG: {segid}")
+            with tempfile.NamedTemporaryFile('w') as tf:
+                tf.write(get_pdb_str(lig_res, use_charmm_format=True))
+                tf.write('END\n')
+                tf.flush()
+                read.sequence_pdb(tf.name)
+                generate.new_segment(
+                    seg_name=segid,
+                    first_patch='',
+                    last_patch='',
+                    angle=True,
+                    dihedral=True
+                )
+                read.pdb(tf.name, resid=True)
+        
+        lone_pair_ligands = [lig.resname for lig in all_ligands if len(lig.lone_pairs) > 0]
+
+        if len(lone_pair_ligands) > 0:
+            print(
+                "[crimm] Creating lone pair coordinates for ligands "
+                f"{','.join(lone_pair_ligands)} using CHARMM command COOR SHAKE"
+            )
+            pcm.lingo.charmm_script("coor shake")
 
     return segids
 
-def load_water(water_chains, segids=None):
+def load_water(water_chains, segids=None, use_psf_crd=True, append=False):
+    """Load water chains into pyCHARMM.
+
+    Parameters
+    ----------
+    water_chains : list
+        List of water chains to load
+    segids : list, optional
+        Segment IDs for each water chain. If None, auto-generates WT00, WT01, etc.
+    use_psf_crd : bool, default True
+        If True (default), use PSF/CRD format - simpler and recommended.
+        If False, use deprecated PDB-based loading.
+    append : bool, default False
+        If True, append to existing PSF in CHARMM (for incremental loading).
+
+    Returns
+    -------
+    list
+        The segment IDs used for each water chain
+    """
     # Currently only supports TIP3 water model
     if segids is None:
         segids = [f'WT{i:02d}' for i in range(len(water_chains))]
     elif len(segids) != len(water_chains):
         raise ValueError("Number of segids must match number of water chains")
 
-    for segid, chain in zip(segids, water_chains):
-        for res in chain:
-            res.segid = segid
-        print(f"[crimm] Loading water chain {segid}")
-        chain = chain.copy()
-        chain.reset_atom_serial_numbers(reset_current_only=True)
-        for res in chain:
-            res.resname = res.topo_definition.resname
-        with tempfile.NamedTemporaryFile('w') as tf:
-            tf.write(get_pdb_str(chain, use_charmm_format=True, reset_serial=False))
-            tf.write('END\n')
-            tf.flush()
+    if use_psf_crd:
+        # PSF/CRD approach (default) - simpler and recommended
+        for i, (segid, chain) in enumerate(zip(segids, water_chains)):
+            for res in chain:
+                res.segid = segid
+            print(f"[crimm] Loading water chain {segid}")
+            # First chain uses caller's append value, subsequent ones always append
+            should_append = append if i == 0 else True
+            _load_psf_crd(chain, append=should_append)
+    else:
+        # Deprecated PDB-based implementation
+        warnings.warn(
+            "PDB-based loading (use_psf_crd=False) is deprecated and will be removed "
+            "in a future version. Use PSF/CRD format (default) for simpler and more "
+            "reliable loading.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        for segid, chain in zip(segids, water_chains):
+            for res in chain:
+                res.segid = segid
+            print(f"[crimm] Loading water chain {segid}")
+            chain = chain.copy()
+            chain.reset_atom_serial_numbers(reset_current_only=True)
+            for res in chain:
+                res.resname = res.topo_definition.resname
+            with tempfile.NamedTemporaryFile('w') as tf:
+                tf.write(get_pdb_str(chain, use_charmm_format=True, reset_serial=False))
+                tf.write('END\n')
+                tf.flush()
 
-            read.sequence_pdb(tf.name)
-            generate.new_segment(
-                seg_name=segid,
-                first_patch='',
-                last_patch='',
-                angle=False,
-                dihedral=False
-            )
-            read.pdb(tf.name, resid=True)
-        segids.append(segid)
+                read.sequence_pdb(tf.name)
+                generate.new_segment(
+                    seg_name=segid,
+                    first_patch='',
+                    last_patch='',
+                    angle=False,
+                    dihedral=False
+                )
+                read.pdb(tf.name, resid=True)
+
     return segids
 
-def load_ions(ion_chains):
+def load_ions(ion_chains, use_psf_crd=True, append=False):
+    """Load ion chains into pyCHARMM.
+
+    Parameters
+    ----------
+    ion_chains : list
+        List of ion chains to load
+    use_psf_crd : bool, default True
+        If True (default), use PSF/CRD format - simpler and recommended.
+        If False, use deprecated PDB-based loading.
+    append : bool, default False
+        If True, append to existing PSF in CHARMM (for incremental loading).
+
+    Returns
+    -------
+    list
+        The segment IDs used for each ion chain
+    """
     segids = []
-    for i, chain in enumerate(ion_chains):
-        segid = f'IO{i:02d}'
-        print(f"[crimm] Loading ion chain {segid}")
-        for res in chain:
-            res.segid = segid
-        # we need to copy the chain here, since we might modify atom_serial_number
-        chain = chain.copy()
-        chain.reset_atom_serial_numbers(reset_current_only=True)
-        
-            # res.resname = res.resname.upper()
-        with tempfile.NamedTemporaryFile('w') as tf:
-            tf.write(get_pdb_str(chain, use_charmm_format=True, reset_serial=False))
-            tf.write('END\n')
-            tf.flush()
 
-            read.sequence_pdb(tf.name)
-            generate.new_segment(
-                seg_name=segid,
-                first_patch='',
-                last_patch='',
-                angle=False,
-                dihedral=False
-            )
-            read.pdb(tf.name, resid=True)
-        segids.append(segid)
+    if use_psf_crd:
+        # PSF/CRD approach (default) - simpler and recommended
+        for i, chain in enumerate(ion_chains):
+            segid = f'IO{i:02d}'
+            print(f"[crimm] Loading ion chain {segid}")
+            for res in chain:
+                res.segid = segid
+            # First chain uses caller's append value, subsequent ones always append
+            should_append = append if i == 0 else True
+            _load_psf_crd(chain, append=should_append)
+            segids.append(segid)
+    else:
+        # Deprecated PDB-based implementation
+        warnings.warn(
+            "PDB-based loading (use_psf_crd=False) is deprecated and will be removed "
+            "in a future version. Use PSF/CRD format (default) for simpler and more "
+            "reliable loading.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        for i, chain in enumerate(ion_chains):
+            segid = f'IO{i:02d}'
+            print(f"[crimm] Loading ion chain {segid}")
+            for res in chain:
+                res.segid = segid
+            # we need to copy the chain here, since we might modify atom_serial_number
+            chain = chain.copy()
+            chain.reset_atom_serial_numbers(reset_current_only=True)
+            
+            with tempfile.NamedTemporaryFile('w') as tf:
+                tf.write(get_pdb_str(chain, use_charmm_format=True, reset_serial=False))
+                tf.write('END\n')
+                tf.flush()
+
+                read.sequence_pdb(tf.name)
+                generate.new_segment(
+                    seg_name=segid,
+                    first_patch='',
+                    last_patch='',
+                    angle=False,
+                    dihedral=False
+                )
+                read.pdb(tf.name, resid=True)
+            segids.append(segid)
+
     return segids
+
+
+def load_model(model, use_psf_crd=True, load_params=True):
+    """Load an entire OrganizedModel into pyCHARMM.
+
+    This is a convenience function that loads all components of a model
+    (protein chains, ligands, water, ions) in a single call.
+
+    Parameters
+    ----------
+    model : OrganizedModel
+        Model with topology generated via TopologyGenerator
+    use_psf_crd : bool, default True
+        If True (default), load entire model via single PSF/CRD call - most efficient.
+        If False, load components individually using legacy PDB-based approach.
+    load_params : bool, default True
+        If True (default), also load topology parameters (RTF/PRM) via load_topology().
+
+    Notes
+    -----
+    When use_psf_crd=True, the entire model is loaded at once via PSF/CRD.
+    This is simpler and preserves all topology (including disulfide bonds) automatically.
+    
+    When use_psf_crd=False, components are loaded individually using the deprecated
+    PDB-based loading and requires separate patch_disu_from_model() call.
+
+    Examples
+    --------
+    >>> from crimm.Adaptors.pyCHARMMAdaptors import load_model, load_topology
+    >>> # Load everything in one call (recommended)
+    >>> load_model(model)
+    >>>
+    >>> # Or load topology separately and just load structure
+    >>> load_topology(model.topology_loader)
+    >>> load_model(model, load_params=False)
+    """
+    if load_params:
+        load_topology(model.topology_loader)
+
+    if use_psf_crd:
+        # PSF/CRD approach (default) - single call for entire model
+        # Topology is already in the PSF, including disulfides - no patching needed
+        _load_psf_crd(model, append=False)
+    else:
+        # Deprecated: load components separately using PDB-based approach
+        warnings.warn(
+            "PDB-based loading (use_psf_crd=False) is deprecated and will be removed "
+            "in a future version. Use PSF/CRD format (default) for simpler and more "
+            "reliable loading.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        # Load protein chains
+        for chain in model.protein:
+            load_chain(chain, use_psf_crd=False)
+        
+        # Load ligands (including phosphorylated ligands and co-solvents)
+        all_ligand_chains = model.ligand + model.phos_ligand + model.co_solvent
+        if all_ligand_chains:
+            load_ligands(all_ligand_chains, use_psf_crd=False)
+        
+        # Load water
+        if model.solvent:
+            load_water(model.solvent, use_psf_crd=False)
+        
+        # Load ions
+        if model.ion:
+            load_ions(model.ion, use_psf_crd=False)
+        
+        # Apply disulfide patches (only needed for PDB-based loading)
+        patch_disu_from_model(model)
 
 def _get_charmm_named_chain(chain, segid):
     for res in chain:
@@ -427,6 +707,35 @@ def fetch_coords_from_charmm(entity):
                     f' with RESNAME {resname} RESID {resseq} ATOM NAME {atom_name}'
                 )
             atom.coord = charmm_coord_dict[segid][atom_key]
+
+def minimize(constrained_atoms='CA', sd_nstep=1000, abnr_nstep=500):
+    """Simple minimization with harmonic constraints on specified atoms.
+
+    This is a convenience function that runs steepest-descent followed by
+    adopted basis Newton-Raphson minimization with CA atoms constrained.
+
+    Parameters
+    ----------
+    constrained_atoms : str, default 'CA'
+        Atom type to constrain with harmonic potential (e.g., 'CA' for alpha carbons)
+    sd_nstep : int, default 1000
+        Number of steepest-descent minimization steps (0 to skip)
+    abnr_nstep : int, default 500
+        Number of adopted basis Newton-Raphson minimization steps (0 to skip)
+    """
+    cons_harm.setup_absolute(
+        selection=pcm.SelectAtoms(atom_type=constrained_atoms),
+        force_constant=50
+    )
+    if int(sd_nstep) > 0:
+        _minimize.run_sd(nstep=int(sd_nstep))
+    else:
+        print('Steepest-descend minimization not performed')
+    if int(abnr_nstep) > 0:
+        _minimize.run_abnr(nstep=int(abnr_nstep), tolenr=1e-3, tolgrd=1e-3)
+    else:
+        print('Adopted Basis Newton-Raphson minimization not performed')
+    cons_harm.turn_off()
 
 def sd_minimize(
     nstep, non_bonded_script, tolenr=1e-3, tolgrd=1e-3, 
