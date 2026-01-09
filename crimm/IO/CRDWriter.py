@@ -136,6 +136,21 @@ def get_crd_str(
     # Atom count header
     lines.append(header_fmt.format(natom))
 
+    # Build global residue numbering map
+    # RESNO in CRD format must be sequential across the entire system (1, 2, 3...)
+    # while RESID is the segment-local residue identifier
+    resno_map = {}  # Maps residue object to global resno
+    global_resno = 1
+    last_residue = None
+
+    for atom in atoms:
+        residue = atom.parent
+        if residue is not last_residue and residue is not None:
+            if residue not in resno_map:
+                resno_map[residue] = global_resno
+                global_resno += 1
+            last_residue = residue
+
     # Atom lines
     for idx, atom in enumerate(atoms, start=1):
         serial = idx if reset_serial else (atom.serial_number or idx)
@@ -145,8 +160,10 @@ def get_crd_str(
         if residue is not None:
             resname = residue.resname[:str_width]
             segid = (residue.segid or "")[:str_width]
-            resno = residue.id[1]  # residue sequence number
-            resid = str(residue.id[1])[:str_width]  # residue ID as string
+            # Use global sequential RESNO for CHARMM compatibility
+            resno = resno_map.get(residue, 1)
+            # RESID is the segment-local residue ID as string
+            resid = str(residue.id[1])[:str_width]
         else:
             resname = "UNK"[:str_width]
             segid = ""[:str_width]
