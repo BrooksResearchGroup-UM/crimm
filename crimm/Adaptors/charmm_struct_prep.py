@@ -2,7 +2,7 @@ from crimm.Fetchers import fetch_rcsb
 from crimm.Modeller import ParameterLoader, TopologyLoader
 from crimm.Modeller.LoopBuilder import ChainLoopBuilder
 from crimm.Modeller.TopoFixer import fix_chain
-from crimm.StructEntities import Model
+from crimm.StructEntities.Model import Model
 import crimm.Adaptors.pyCHARMMAdaptors as pcm_interface
 from crimm.Adaptors.PropKaAdaptors import PropKaProtonator
 
