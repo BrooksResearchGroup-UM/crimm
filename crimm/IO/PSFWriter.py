@@ -98,11 +98,61 @@ class PSFWriter:
 
         Returns
         -------
-        TopologyElementContainer
+        TopologyElementContainer or ModelTopology
             Topology containing bonds, angles, etc.
         """
-        # Both Model and Chain have .topology attribute
-        return entity.topology
+        if isinstance(entity, Chain):
+            return entity.topology
+
+        # For Model, use ModelTopology which properly handles:
+        # - Disulfide bonds (DISU patch: removes HG1, changes SG type to SM)
+        # - Inter-chain bonds
+        # - Combined topology elements from all chains
+        from crimm.Modeller.TopoLoader import ModelTopology
+        return ModelTopology(entity)
+
+    def _combine_chain_topologies(self, model: Model):
+        """Combine topologies from all chains in the model.
+
+        Parameters
+        ----------
+        model : Model
+            Model containing multiple chains
+
+        Returns
+        -------
+        CombinedTopology
+            Object with combined bonds, angles, dihedrals, impropers, cmap
+        """
+        class CombinedTopology:
+            """Simple container for combined topology elements."""
+            def __init__(self):
+                self.bonds = []
+                self.angles = []
+                self.dihedrals = []
+                self.impropers = []
+                self.cmap = []
+
+        combined = CombinedTopology()
+
+        for chain in model:
+            chain_topo = getattr(chain, 'topology', None)
+            if chain_topo is None:
+                continue
+
+            # Combine all topology elements
+            if chain_topo.bonds:
+                combined.bonds.extend(chain_topo.bonds)
+            if chain_topo.angles:
+                combined.angles.extend(chain_topo.angles)
+            if chain_topo.dihedrals:
+                combined.dihedrals.extend(chain_topo.dihedrals)
+            if chain_topo.impropers:
+                combined.impropers.extend(chain_topo.impropers)
+            if hasattr(chain_topo, 'cmap') and chain_topo.cmap:
+                combined.cmap.extend(chain_topo.cmap)
+
+        return combined
 
     def get_psf_string(self, model: Union[Model, Chain], title: str = "") -> str:
         """Return PSF content as string.
@@ -136,9 +186,9 @@ class PSFWriter:
 
         # Determine if CMAP terms present
         # First check topology.cmap, then fall back to extracting from residues
-        # where ChainTopology.cmap may be None but residues have CMAP definitions
+        # where ChainTopology.cmap may be None or empty but residues have CMAP definitions
         cmap_terms = None
-        if hasattr(topology, 'cmap') and topology.cmap is not None:
+        if hasattr(topology, 'cmap') and topology.cmap:  # Check for non-empty
             cmap_terms = topology.cmap
         else:
             # Try to get CMAP from residues directly
@@ -182,6 +232,8 @@ class PSFWriter:
         - Protein: PRO{A,B,C,...}
         - DNA: DNA{A,B,C,...}
         - RNA: RNA{A,B,C,...}
+        - Solvent: SOLV (single segment for all waters)
+        - Ion: IONS (single segment for all ions)
         - Ligand/Other: LIG{A,B,C,...}
 
         Parameters
@@ -217,6 +269,20 @@ class PSFWriter:
                 prefix = 'DNA'
             elif 'polyribonucleotide' in chain_type.lower():
                 prefix = 'RNA'
+            elif chain_type.lower() == 'solvent':
+                # All water chains share the SOLV segment
+                segid = 'SOLV'
+                self._segid_map[chain] = segid
+                for residue in chain:
+                    residue.segid = segid
+                continue
+            elif chain_type.lower() == 'ion':
+                # All ion chains share the IONS segment
+                segid = 'IONS'
+                self._segid_map[chain] = segid
+                for residue in chain:
+                    residue.segid = segid
+                continue
             else:
                 prefix = 'LIG'
 
@@ -642,10 +708,10 @@ class PSFWriter:
         """Write NGRP section (atom groups for charge computation).
 
         Groups are defined per residue from atom_groups.
+        Groups must be sorted by first atom index in ascending order.
         """
         lines = []
         groups = []
-        atom_offset = 0
 
         for chain in self._get_chains(model):
             for residue in chain:
@@ -660,6 +726,10 @@ class PSFWriter:
                                     1,  # Group type (1 for protein/standard groups)
                                     0   # Move flag (0 = free)
                                 ))
+
+        # CRITICAL: Groups must be sorted by first atom index (igpbs) in ascending order
+        # CHARMM expects groups in order for proper charge neutrality calculations
+        groups.sort(key=lambda x: x[0])
 
         ngrp = len(groups)
         nst2 = 0  # Number of groups with ST2 flag
