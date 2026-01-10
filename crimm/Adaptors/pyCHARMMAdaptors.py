@@ -44,6 +44,11 @@ def _load_psf_crd(entity, append=False):
         The entity to load into CHARMM
     append : bool, default False
         If True, append to existing PSF in CHARMM
+
+    Raises
+    ------
+    RuntimeError
+        If PSF or CRD files are not written correctly
     """
     import os
     psf_path = None
@@ -54,11 +59,17 @@ def _load_psf_crd(entity, append=False):
             psf_path = psf_f.name
         with tempfile.NamedTemporaryFile('w', suffix='.crd', delete=False) as crd_f:
             crd_path = crd_f.name
-        
+
         # Write PSF and CRD files (these functions handle their own file I/O)
         write_psf(entity, psf_path)
         write_crd(entity, crd_path)
-        
+
+        # Validate files were written correctly
+        if not os.path.exists(psf_path) or os.path.getsize(psf_path) == 0:
+            raise RuntimeError(f"PSF file was not written correctly: {psf_path}")
+        if not os.path.exists(crd_path) or os.path.getsize(crd_path) == 0:
+            raise RuntimeError(f"CRD file was not written correctly: {crd_path}")
+
         # Load into pyCHARMM
         read.psf_card(psf_path, append=append)
         read.coor_card(crd_path)
