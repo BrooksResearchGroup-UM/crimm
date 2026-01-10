@@ -7,20 +7,20 @@ name = "crimm"
 version = "2026.1"
 authors = [
   { name="Truman Xu", email="ziqiaoxu@umich.edu" },
+  { name="Stanislav Cherepanov", email="stanislc@umich.edu" },
 ]
-description = "Chemistry with the ReInvented Macromolecular"
+description = "Chemistry with the ReInvented Macromolecular Mechanics"
 readme = "README.md"
-requires-python = ">=3.8"
+license = {text = "GPL-3.0-or-later"}
+requires-python = ">=3.9"
 dependencies = [
-    "numpy >= 1.21.2",
-    "biopython >= 1.80",
+    "numpy>=1.24",
+    "biopython>=1.80",
     "ipywidgets>=8",
-    "nglview>=3.1.2",
-    "scipy>=1.7.1",
-    "requests>=2.26.0",
-    "propka==3.5.0",
-    "pandas",
-    "rdkit"
+    "nglview>=3.1",
+    "scipy>=1.10",
+    "requests>=2.28",
+    "pandas>=1.5",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -29,17 +29,22 @@ classifiers = [
     "Development Status :: 2 - Pre-Alpha",
 ]
 
+[project.optional-dependencies]
+protonation = ["propka>=3.5.1"]
+cheminformatics = ["rdkit"]
+all = ["propka>=3.5.1", "rdkit"]
+
 [project.urls]
-"Homepage" = "https://github.com/Truman-Xu/crimm"
-"Bug Tracker" = "https://github.com/Truman-Xu/crimm/issues"
+"Homepage" = "https://github.com/BrooksResearchGroup-UM/crimm"
+"Bug Tracker" = "https://github.com/BrooksResearchGroup-UM/crimm/issues"
 
 [tool.setuptools.packages.find]
 where = ["./"]
 exclude = [
-    "src", 
-    "__pycache__", 
-    ".ipynb_checkpoints", 
-    "*.egg-info", 
+    "src",
+    "__pycache__",
+    ".ipynb_checkpoints",
+    "*.egg-info",
     "tests"
 ]
 namespaces = false
