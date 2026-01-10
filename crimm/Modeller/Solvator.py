@@ -221,14 +221,21 @@ class Solvator:
         else:
             self.orient_method = "default"
         
+        # Initialize solvation info storage
+        if not hasattr(self.model, '_solvation_info'):
+            self.model._solvation_info = {}
+
         if remove_existing_water:
             self.remove_existing_water(self.model)
+            self.model._solvation_info['preserved_waters'] = 0
         else:
             # Convert existing waters to TIP3 format for CHARMM compatibility
-            self._convert_existing_waters_to_tip3(self.model)
+            n_preserved_waters = self._convert_existing_waters_to_tip3(self.model)
+            self.model._solvation_info['preserved_waters'] = n_preserved_waters
 
         # Always preserve existing ions (convert names if needed)
-        self._convert_existing_ions(self.model)
+        n_preserved_ions = self._convert_existing_ions(self.model)
+        self.model._solvation_info['preserved_ions'] = n_preserved_ions
 
         if len(self.model.chains) == 0:
             raise ValueError('No chains in model to solvate')
@@ -321,13 +328,18 @@ class Solvator:
 
         return h1_coord, h2_coord
 
-    def _convert_existing_waters_to_tip3(self, model: Model) -> None:
+    def _convert_existing_waters_to_tip3(self, model: Model) -> int:
         """Convert existing water molecules (HOH/WAT) to CHARMM TIP3 format.
 
         This:
         - Renames residue: HOH/WAT -> TIP3
         - Renames oxygen: O/OW -> OH2
         - Builds missing hydrogens for crystallographic waters
+
+        Returns
+        -------
+        int
+            Number of crystal waters preserved/converted
         """
         # Standard atom name mappings for water oxygen
         oxygen_names = {'O', 'OW', 'OH2'}
@@ -396,6 +408,13 @@ class Solvator:
                         oxygen_atom.name = 'OH2'
                         oxygen_atom.fullname = ' OH2'
 
+        # Count total preserved waters (converted + already TIP3)
+        n_preserved = 0
+        for chain in model.chains:
+            if chain.chain_type == 'Solvent':
+                n_preserved = len(list(chain.get_residues()))
+                break
+
         if n_converted > 0:
             warnings.warn(
                 f'Converted {n_converted} existing water molecules to TIP3 format',
@@ -407,11 +426,18 @@ class Solvator:
                 UserWarning
             )
 
-    def _convert_existing_ions(self, model: Model) -> None:
+        return n_preserved
+
+    def _convert_existing_ions(self, model: Model) -> int:
         """Convert existing ions to CHARMM-compatible names.
 
         Only converts ions that are defined in crimm/Data/toppar/water_ions.str.
         Maps common PDB ion names to CHARMM residue names.
+
+        Returns
+        -------
+        int
+            Number of crystal ions preserved
         """
         # Map PDB ion names to CHARMM names (only toppar-defined ions)
         ion_name_map = {
@@ -433,10 +459,12 @@ class Solvator:
         }
 
         n_converted = 0
+        n_preserved = 0
         for chain in model.chains:
             if chain.chain_type != 'Ion':
                 continue
             for residue in chain.get_residues():
+                n_preserved += 1
                 orig_name = residue.resname.strip().upper()
                 if orig_name in ion_name_map:
                     new_name = ion_name_map[orig_name]
@@ -453,6 +481,8 @@ class Solvator:
                 f'Converted {n_converted} existing ions to CHARMM format',
                 UserWarning
             )
+
+        return n_preserved
 
     def create_water_box_coords(self) -> np.ndarray:
         """
@@ -892,6 +922,44 @@ class Solvator:
         else:
             return 'sltcap', f"N₀/|Q| = {ratio:.2f} << 1: SLTCAP required (high charge)"
 
+    def _adjust_for_neutralization(
+        self, n_cation: float, n_anion: float, charge: float
+    ) -> tuple:
+        """Adjust rounded ion counts to ensure exact charge neutralization.
+
+        Parameters
+        ----------
+        n_cation : float
+            Calculated cation count (may be fractional).
+        n_anion : float
+            Calculated anion count (may be fractional).
+        charge : float
+            System charge in electron units.
+
+        Returns
+        -------
+        tuple
+            (n_cation, n_anion) as integers, adjusted for exact neutralization.
+        """
+        # Ensure non-negative and round
+        n_cation = max(0, round(n_cation))
+        n_anion = max(0, round(n_anion))
+
+        # Adjust for exact neutralization
+        # Net ion charge = n_cation - n_anion (assumes monovalent ions)
+        # For neutralization: n_cation - n_anion = -charge
+        net_ion_charge = n_cation - n_anion
+        target_ion_charge = -int(round(charge))
+
+        if net_ion_charge != target_ion_charge:
+            diff = target_ion_charge - net_ion_charge
+            if diff > 0:
+                n_cation += 1
+            else:
+                n_anion += 1
+
+        return int(n_cation), int(n_anion)
+
     def _ions_split(
         self, charge: float, n_water: int, concentration: float
     ) -> tuple:
@@ -916,35 +984,9 @@ class Solvator:
             (n_cation, n_anion) as integers.
         """
         n0 = self._calculate_n0(n_water, concentration)
-
         n_cation = n0 - charge / 2.0
         n_anion = n0 + charge / 2.0
-
-        # Ensure non-negative
-        n_cation = max(0, n_cation)
-        n_anion = max(0, n_anion)
-
-        # Round both normally first
-        n_cation = round(n_cation)
-        n_anion = round(n_anion)
-
-        # Adjust to ensure exact neutralization
-        # Net ion charge = n_cation - n_anion
-        # For neutralization: n_cation - n_anion = -charge
-        net_ion_charge = n_cation - n_anion
-        target_ion_charge = -int(round(charge))
-
-        if net_ion_charge != target_ion_charge:
-            # Need to adjust by 1
-            diff = target_ion_charge - net_ion_charge
-            if diff > 0:
-                # Need more positive charge - add cation
-                n_cation += 1
-            else:
-                # Need more negative charge - add anion
-                n_anion += 1
-
-        return int(n_cation), int(n_anion)
+        return self._adjust_for_neutralization(n_cation, n_anion, charge)
 
     def _ions_sltcap(
         self, charge: float, n_water: int, concentration: float
@@ -986,26 +1028,7 @@ class Solvator:
         n_cation = n0 * (sqrt_term - ratio)
         n_anion = n0 * (sqrt_term + ratio)
 
-        # Ensure non-negative
-        n_cation = max(0, n_cation)
-        n_anion = max(0, n_anion)
-
-        # Round both normally first
-        n_cation = round(n_cation)
-        n_anion = round(n_anion)
-
-        # Adjust to ensure exact neutralization
-        net_ion_charge = n_cation - n_anion
-        target_ion_charge = -int(round(charge))
-
-        if net_ion_charge != target_ion_charge:
-            diff = target_ion_charge - net_ion_charge
-            if diff > 0:
-                n_cation += 1
-            else:
-                n_anion += 1
-
-        return int(n_cation), int(n_anion)
+        return self._adjust_for_neutralization(n_cation, n_anion, charge)
 
     def _ions_add_neutralize(
         self, charge: float, n_water: int, concentration: float
@@ -1309,6 +1332,16 @@ class Solvator:
                 f"This may cause issues with PME.",
                 UserWarning
             )
+
+        # Store solvation metadata for PSF/CRD title generation
+        if not hasattr(self.model, '_solvation_info'):
+            self.model._solvation_info = {}
+        self.model._solvation_info['concentration'] = concentration
+        self.model._solvation_info['n_cation'] = n_cation
+        self.model._solvation_info['n_anion'] = n_anion
+        self.model._solvation_info['cation'] = cation
+        self.model._solvation_info['anion'] = anion
+        self.model._solvation_info['method'] = method
 
         return new_ion_chain
 
