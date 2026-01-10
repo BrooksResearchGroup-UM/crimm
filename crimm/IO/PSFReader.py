@@ -11,8 +11,7 @@ Format specification (from CHARMM source io/psfres.F90):
 - XPLOR format: Uses atom type names instead of parameter file indices
 """
 
-import re
-from typing import List, Tuple, Optional, Dict, Any, NamedTuple
+from typing import List, Tuple, Dict, Any, NamedTuple
 from dataclasses import dataclass, field
 
 

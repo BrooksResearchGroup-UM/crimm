@@ -10,7 +10,7 @@ Format specification (from CHARMM source io/coorio.F90):
 - Standard format: 2I5, 1X,A4, 1X,A4, 3F10.5, 1X,A4, 1X,A4, F10.5
 """
 
-from typing import Union, List, Optional
+from typing import Union, List
 from crimm.StructEntities import Model, Structure, Chain, Residue, Atom
 
 # Extended format (EXT) - for systems with >99999 atoms
