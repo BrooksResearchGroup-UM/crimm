@@ -32,6 +32,26 @@ BOX_VOLUME_FACTORS = {
     'octa': 0.707,  # Truncated octahedron: ~71% of cubic volume
 }
 
+# Ion valence table - only ions defined in crimm/Data/toppar/water_ions.str
+ION_VALENCES = {
+    # Alkali metals (+1)
+    'LIT': +1,   # Lithium
+    'SOD': +1,   # Sodium
+    'POT': +1,   # Potassium
+    'RUB': +1,   # Rubidium
+    'CES': +1,   # Cesium
+    # Alkaline earth (+2)
+    'MG': +2,    # Magnesium
+    'CAL': +2,   # Calcium
+    'BAR': +2,   # Barium
+    # Transition metals (defined in toppar)
+    'ZN2': +2,   # Zinc
+    'CD2': +2,   # Cadmium
+    # Anions
+    'CLA': -1,   # Chloride
+    'OH': -1,    # Hydroxide
+}
+
 # Atom objects for water
 OH2 = Atom(
     name = 'OH2',
@@ -194,6 +214,13 @@ class Solvator:
         
         if remove_existing_water:
             self.remove_existing_water(self.model)
+        else:
+            # Convert existing waters to TIP3 format for CHARMM compatibility
+            self._convert_existing_waters_to_tip3(self.model)
+
+        # Always preserve existing ions (convert names if needed)
+        self._convert_existing_ions(self.model)
+
         if len(self.model.chains) == 0:
             raise ValueError('No chains in model to solvate')
         if orient_coords:
@@ -237,7 +264,187 @@ class Solvator:
                 UserWarning
             )
             model.detach_child(chain_id)
-    
+
+    def _build_water_hydrogens(self, oxygen_coord: np.ndarray) -> tuple:
+        """Build hydrogen positions for a water molecule from oxygen position.
+
+        Uses TIP3P geometry:
+        - O-H bond length: 0.9572 Å
+        - H-O-H angle: 104.52°
+
+        Parameters
+        ----------
+        oxygen_coord : np.ndarray
+            Oxygen atom coordinates (x, y, z).
+
+        Returns
+        -------
+        tuple
+            (h1_coord, h2_coord) as numpy arrays.
+        """
+        # TIP3P geometry
+        oh_bond = 0.9572  # Å
+        hoh_angle = 104.52 * np.pi / 180  # radians
+
+        # Generate random orientation
+        # Create a random unit vector for first O-H bond
+        random_vec = np.random.randn(3)
+        random_vec /= np.linalg.norm(random_vec)
+
+        # First hydrogen
+        h1_coord = oxygen_coord + oh_bond * random_vec
+
+        # Second hydrogen: rotate around a perpendicular axis
+        # Find a perpendicular vector
+        perp = np.cross(random_vec, np.array([1, 0, 0]))
+        if np.linalg.norm(perp) < 0.1:
+            perp = np.cross(random_vec, np.array([0, 1, 0]))
+        perp /= np.linalg.norm(perp)
+
+        # Rotate random_vec by HOH angle around perpendicular axis
+        cos_a = np.cos(hoh_angle)
+        sin_a = np.sin(hoh_angle)
+        # Rodrigues rotation formula
+        h2_vec = (random_vec * cos_a +
+                  np.cross(perp, random_vec) * sin_a +
+                  perp * np.dot(perp, random_vec) * (1 - cos_a))
+        h2_coord = oxygen_coord + oh_bond * h2_vec
+
+        return h1_coord, h2_coord
+
+    def _convert_existing_waters_to_tip3(self, model: Model) -> None:
+        """Convert existing water molecules (HOH/WAT) to CHARMM TIP3 format.
+
+        This:
+        - Renames residue: HOH/WAT -> TIP3
+        - Renames oxygen: O/OW -> OH2
+        - Builds missing hydrogens for crystallographic waters
+        """
+        # Standard atom name mappings for water oxygen
+        oxygen_names = {'O', 'OW', 'OH2'}
+
+        n_converted = 0
+        n_hydrogens_built = 0
+
+        for chain in model.chains:
+            if chain.chain_type != 'Solvent':
+                continue
+            for residue in chain.get_residues():
+                if residue.resname in ('HOH', 'WAT', 'SOL', 'TIP3'):
+                    atoms = list(residue.get_atoms())
+
+                    # Find oxygen atom
+                    oxygen_atom = None
+                    hydrogen_atoms = []
+                    for atom in atoms:
+                        if atom.name in oxygen_names or atom.element == 'O':
+                            oxygen_atom = atom
+                        elif atom.element == 'H':
+                            hydrogen_atoms.append(atom)
+
+                    if oxygen_atom is None:
+                        # No oxygen found - skip this residue
+                        continue
+
+                    # Build missing hydrogens if needed
+                    if len(hydrogen_atoms) < 2:
+                        h1_coord, h2_coord = self._build_water_hydrogens(oxygen_atom.coord)
+                        n_hydrogens_built += (2 - len(hydrogen_atoms))
+
+                        # Get next available serial number
+                        max_serial = max(a.serial_number for a in atoms) if atoms else 0
+
+                        if len(hydrogen_atoms) == 0:
+                            # Build both hydrogens
+                            h1 = Atom(
+                                name='H1', coord=h1_coord, bfactor=0.0, occupancy=1.0,
+                                altloc=' ', fullname=' H1 ', serial_number=max_serial + 1,
+                                element='H'
+                            )
+                            h2 = Atom(
+                                name='H2', coord=h2_coord, bfactor=0.0, occupancy=1.0,
+                                altloc=' ', fullname=' H2 ', serial_number=max_serial + 2,
+                                element='H'
+                            )
+                            residue.add(h1)
+                            residue.add(h2)
+                        elif len(hydrogen_atoms) == 1:
+                            # Build one hydrogen
+                            h2 = Atom(
+                                name='H2', coord=h2_coord, bfactor=0.0, occupancy=1.0,
+                                altloc=' ', fullname=' H2 ', serial_number=max_serial + 1,
+                                element='H'
+                            )
+                            residue.add(h2)
+
+                    # Convert residue name to TIP3
+                    if residue.resname != 'TIP3':
+                        residue.resname = 'TIP3'
+                        n_converted += 1
+
+                    # Rename oxygen atom
+                    if oxygen_atom.name != 'OH2':
+                        oxygen_atom.name = 'OH2'
+                        oxygen_atom.fullname = ' OH2'
+
+        if n_converted > 0:
+            warnings.warn(
+                f'Converted {n_converted} existing water molecules to TIP3 format',
+                UserWarning
+            )
+        if n_hydrogens_built > 0:
+            warnings.warn(
+                f'Built {n_hydrogens_built} missing hydrogens for crystallographic waters',
+                UserWarning
+            )
+
+    def _convert_existing_ions(self, model: Model) -> None:
+        """Convert existing ions to CHARMM-compatible names.
+
+        Only converts ions that are defined in crimm/Data/toppar/water_ions.str.
+        Maps common PDB ion names to CHARMM residue names.
+        """
+        # Map PDB ion names to CHARMM names (only toppar-defined ions)
+        ion_name_map = {
+            # Alkali metals
+            'LI': 'LIT', 'LI+': 'LIT',
+            'NA': 'SOD', 'NA+': 'SOD', 'NAI': 'SOD',
+            'K': 'POT', 'K+': 'POT',
+            'RB': 'RUB', 'RB+': 'RUB',
+            'CS': 'CES', 'CS+': 'CES',
+            # Alkaline earth
+            'MG': 'MG', 'MG2+': 'MG', 'MG2': 'MG',
+            'CA': 'CAL', 'CA2+': 'CAL', 'CA2': 'CAL',
+            'BA': 'BAR', 'BA2+': 'BAR', 'BA2': 'BAR',
+            # Transition metals (defined in toppar)
+            'ZN': 'ZN2', 'ZN2+': 'ZN2',
+            'CD': 'CD2', 'CD2+': 'CD2',
+            # Anions
+            'CL': 'CLA', 'CL-': 'CLA',
+        }
+
+        n_converted = 0
+        for chain in model.chains:
+            if chain.chain_type != 'Ion':
+                continue
+            for residue in chain.get_residues():
+                orig_name = residue.resname.strip().upper()
+                if orig_name in ion_name_map:
+                    new_name = ion_name_map[orig_name]
+                    if residue.resname != new_name:
+                        residue.resname = new_name
+                        # Also rename the atom to match residue
+                        for atom in residue.get_atoms():
+                            atom.name = new_name
+                            atom.fullname = f' {new_name:<3s}'
+                        n_converted += 1
+
+        if n_converted > 0:
+            warnings.warn(
+                f'Converted {n_converted} existing ions to CHARMM format',
+                UserWarning
+            )
+
     def create_water_box_coords(self) -> np.ndarray:
         """
         Creates a water box grid based on the chosen box type.
@@ -528,8 +735,41 @@ class Solvator:
     # New Ion Calculation Methods (SPLIT, SLTCAP, Add-Neutralize)
     # =========================================================================
 
+    def _get_ion_chain_charge(self, chain) -> float:
+        """Calculate total charge of an ion chain from known ion valences.
+
+        Since ion chains typically don't have topology, we calculate their
+        charge from the ION_VALENCES table based on residue names.
+
+        Parameters
+        ----------
+        chain : Ion
+            An ion chain.
+
+        Returns
+        -------
+        float
+            Total charge of all ions in the chain.
+        """
+        total = 0.0
+        for res in chain.get_residues():
+            name = res.resname.strip().upper()
+            if name in ION_VALENCES:
+                total += ION_VALENCES[name]
+            else:
+                warnings.warn(
+                    f"Unknown ion '{name}' in chain {chain.id}, assuming charge 0. "
+                    f"Add to ION_VALENCES if needed.",
+                    UserWarning
+                )
+        return total
+
     def _calculate_system_charge(self, skip_undefined: bool = True) -> float:
         """Calculate total system charge from all non-solvent chains.
+
+        Includes:
+        - Protein/nucleic acid chains (from topology)
+        - Existing ion chains (from ION_VALENCES table)
 
         Parameters
         ----------
@@ -547,6 +787,9 @@ class Solvator:
             if chain.chain_type == 'Solvent':
                 continue
             if chain.chain_type == 'Ion':
+                # Include existing ion charges (e.g., Zn2+, Mg2+, Ca2+)
+                ion_charge = self._get_ion_chain_charge(chain)
+                total_charge += ion_charge
                 continue
             if chain.total_charge is None:
                 if not skip_undefined:
@@ -672,16 +915,25 @@ class Solvator:
         n_cation = max(0, n_cation)
         n_anion = max(0, n_anion)
 
-        # Round: counterions up, co-ions normally
-        if charge > 0:
-            n_cation = round(n_cation)
-            n_anion = math.ceil(n_anion)
-        elif charge < 0:
-            n_cation = math.ceil(n_cation)
-            n_anion = round(n_anion)
-        else:
-            n_cation = round(n_cation)
-            n_anion = round(n_anion)
+        # Round both normally first
+        n_cation = round(n_cation)
+        n_anion = round(n_anion)
+
+        # Adjust to ensure exact neutralization
+        # Net ion charge = n_cation - n_anion
+        # For neutralization: n_cation - n_anion = -charge
+        net_ion_charge = n_cation - n_anion
+        target_ion_charge = -int(round(charge))
+
+        if net_ion_charge != target_ion_charge:
+            # Need to adjust by 1
+            diff = target_ion_charge - net_ion_charge
+            if diff > 0:
+                # Need more positive charge - add cation
+                n_cation += 1
+            else:
+                # Need more negative charge - add anion
+                n_anion += 1
 
         return int(n_cation), int(n_anion)
 
@@ -729,16 +981,20 @@ class Solvator:
         n_cation = max(0, n_cation)
         n_anion = max(0, n_anion)
 
-        # Round: counterions up
-        if charge > 0:
-            n_cation = round(n_cation)
-            n_anion = math.ceil(n_anion)
-        elif charge < 0:
-            n_cation = math.ceil(n_cation)
-            n_anion = round(n_anion)
-        else:
-            n_cation = round(n_cation)
-            n_anion = round(n_anion)
+        # Round both normally first
+        n_cation = round(n_cation)
+        n_anion = round(n_anion)
+
+        # Adjust to ensure exact neutralization
+        net_ion_charge = n_cation - n_anion
+        target_ion_charge = -int(round(charge))
+
+        if net_ion_charge != target_ion_charge:
+            diff = target_ion_charge - net_ion_charge
+            if diff > 0:
+                n_cation += 1
+            else:
+                n_anion += 1
 
         return int(n_cation), int(n_anion)
 
