@@ -5,6 +5,8 @@ import os
 import warnings
 import numpy as np
 import math
+from typing import Optional
+import random
 from random import choices
 from scipy.spatial import KDTree
 from crimm import Data
@@ -112,13 +114,13 @@ class Solvator:
     >>> from crimm import fetch_rcsb
     >>> from crimm.Modeller.Solvator import Solvator
 
-    >>> fisrt_model = fetch_rcsb('5igv')
-    >>> solvator = Solvator()
-    >>> solvated_model = solvator.solvate(
-            fisrt_model, cutoff=8.0, solvcut=2.1, remove_existing_water=True
+    >>> model = fetch_rcsb('5igv')
+    >>> solvator = Solvator(model)
+    >>> water_chains = solvator.solvate(
+            cutoff=8.0, solvcut=2.1, remove_existing_water=True
         )
-    >>> water_chains = [
-        chain for chain in solvated if chain.chain_type == 'Solvent'
+    >>> solvent_chains = [
+        chain for chain in model if chain.chain_type == 'Solvent'
     ]
 
     Note that water chains are named W[A-Z] and have a maximum number of 9999 residues
@@ -172,16 +174,18 @@ class Solvator:
             box_type = 'cube',
             orient_method = None
 
-        ) -> Model:
-        """Solvates the entity and returns a Model level entity. The solvated
-        entity will be centered in a cubic box with side length equal to the
-        maximum dimension of the entity plus the cutoff distance. (i.e.,
-        Coordinates will be oriented using CoordManipulator.orient_coords()
-        before solvation.) The solvcut distance is the distance from the solute
-        at which water molecules will be removed. The solvcut distance is used
-        to remove water molecules that are too close to the solute. If altloc
-        atoms exist in the entity, the first altloc atoms will be used to
-        determine water molecules location during solvation.
+        ) -> list:
+        """Solvate the entity with a water box.
+
+        The solvated entity will be centered in a cubic or octahedral box with
+        side length equal to the maximum dimension of the entity plus the cutoff
+        distance. Coordinates will be oriented using CoordManipulator before
+        solvation. The solvcut distance is used to remove water molecules that
+        are too close to the solute. If altloc atoms exist, the first altloc
+        atoms will be used to determine water molecule locations.
+
+        The model is modified in place - water chains are added directly to the
+        model. The returned list contains the added water chains.
         
         Parameters
         ----------
@@ -199,8 +203,13 @@ class Solvator:
             to choose the water box shape.
         orient_method : str, optional
             The method to orient the coordinates before solvation. The 'default'
-            (default) uses the usual orientation; octa' uses an alternative 
+            (default) uses the usual orientation; octa' uses an alternative
             orientation aiming to minimize the octahedral box.
+
+        Returns
+        -------
+        list
+            List of Solvent chains added to the model.
         """
 
         self.cutoff = cutoff
@@ -1065,8 +1074,6 @@ class Solvator:
         list
             List of (water_residue, ion_name) tuples for successful placements.
         """
-        import random
-
         # Get all water residues and their oxygen coordinates
         water_residues = []
         water_coords = []
@@ -1155,11 +1162,10 @@ class Solvator:
         method: str = 'auto',
         cation: str = 'SOD',
         anion: str = 'CLA',
-        neutralize: bool = True,
         min_dist_solute: float = 5.0,
         min_dist_ion: float = 5.0,
         skip_undefined: bool = True
-    ) -> Ion:
+    ) -> Optional[Ion]:
         """Add ions to achieve target salt concentration.
 
         Supports three calculation methods:
@@ -1172,14 +1178,15 @@ class Solvator:
         ----------
         concentration : float
             Target salt concentration in Molar. Default 0.15 M (150 mM).
+            Use concentration=0 to only neutralize without adding salt.
         method : str
             Ion calculation method: 'auto', 'split', 'sltcap', or 'add_neutralize'.
         cation : str
             CHARMM ion name for cation. Default 'SOD' (Na+).
+            Note: Only monovalent ions (SOD, POT, LIT, etc.) are supported.
         anion : str
             CHARMM ion name for anion. Default 'CLA' (Cl-).
-        neutralize : bool
-            If True, ensure system is charge-neutral. Default True.
+            Note: Only monovalent ions (CLA) are supported.
         min_dist_solute : float
             Minimum distance from solute for ion placement in Å. Default 5.0.
         min_dist_ion : float
@@ -1189,8 +1196,8 @@ class Solvator:
 
         Returns
         -------
-        Ion
-            Chain containing the added ions.
+        Ion or None
+            Chain containing the added ions, or None if no ions needed.
 
         References
         ----------

@@ -1,7 +1,6 @@
 import tempfile
 import warnings
 import numpy as np
-from typing import Dict, Optional
 from pathlib import Path
 
 import pycharmm as pcm
