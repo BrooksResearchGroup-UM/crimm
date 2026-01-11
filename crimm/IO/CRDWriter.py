@@ -196,6 +196,16 @@ def _generate_system_info(entity) -> list:
             solv_parts.extend(solvation_info)
         lines.append(f"Solvation: {', '.join(solv_parts)}")
 
+    # Add crystal/box information
+    if model is not None and hasattr(model, '_solvation_info'):
+        sol_info = model._solvation_info
+        box_type = sol_info.get('box_type')
+        box_dim = sol_info.get('box_dim')
+        if box_type and box_dim:
+            box_type_names = {'cube': 'Cubic', 'octa': 'Octahedral'}
+            box_name = box_type_names.get(box_type, box_type.capitalize())
+            lines.append(f"Crystal: {box_name} box, {box_dim:.2f} Å")
+
     # Add special features
     features = []
     if disu_count > 0:
