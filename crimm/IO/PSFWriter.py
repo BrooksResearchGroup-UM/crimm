@@ -14,9 +14,9 @@ Format specification (from CHARMM source io/psfres.F90):
 
 from typing import Union, List, Dict, Tuple, Optional, Any
 from dataclasses import dataclass
-from crimm.StructEntities import Model, Structure, Residue, Atom
+from crimm.StructEntities import Model, Residue, Atom
 from crimm.StructEntities.Chain import Chain
-from crimm.StructEntities.TopoElements import Bond, Angle, Dihedral, Improper, CMap
+from crimm.StructEntities.TopoElements import CMap
 
 
 @dataclass
@@ -54,6 +54,99 @@ class PSFWriter:
         self._atoms: List[Atom] = []
         self._lonepairs: List[LonePairInfo] = []
         self._segid_map: Dict[Any, str] = {}  # Maps chain to assigned segid
+
+    def validate_for_simulation(
+        self, model: Union[Model, Chain], strict: bool = False
+    ) -> List[str]:
+        """Validate model topology before writing PSF.
+
+        Performs CHARMM-style validation checks that would normally occur
+        during PSF generation. Since loading a pre-built PSF skips these
+        checks, we must validate before writing.
+
+        Parameters
+        ----------
+        model : Model or Chain
+            The entity to validate
+        strict : bool, default False
+            If True, raise ValueError for any issues.
+            If False, issue warnings and return list of issues.
+
+        Returns
+        -------
+        List[str]
+            List of validation issues found (empty if valid)
+
+        Raises
+        ------
+        ValueError
+            If strict=True and validation issues are found
+        """
+        import warnings
+        issues = []
+
+        chains = self._get_chains(model)
+
+        for chain in chains:
+            chain_id = chain.id if hasattr(chain, 'id') else str(chain)
+
+            # Check 1: Missing parameters (like CHARMM's "BOND NOT FOUND" etc.)
+            if hasattr(chain, 'topology') and chain.topology is not None:
+                topo = chain.topology
+                if hasattr(topo, 'missing_param_dict') and topo.missing_param_dict:
+                    for param_type, missing_list in topo.missing_param_dict.items():
+                        if missing_list:
+                            issues.append(
+                                f"Chain {chain_id}: {len(missing_list)} {param_type} "
+                                f"parameters not found"
+                            )
+
+            # Check 2: Atoms without topology definitions
+            for residue in chain.get_residues():
+                res_id = f"{residue.resname} {residue.id[1]}"
+                res_def = getattr(residue, 'topo_definition', None)
+
+                if res_def is None:
+                    issues.append(
+                        f"Chain {chain_id}, Residue {res_id}: "
+                        f"No topology definition"
+                    )
+                    continue
+
+                # Check 3: Atoms with missing or suspicious charges
+                for atom in residue:
+                    # ResidueDefinition uses __contains__ and __getitem__
+                    if atom.name not in res_def:
+                        issues.append(
+                            f"Chain {chain_id}, Residue {res_id}, Atom {atom.name}: "
+                            f"Not defined in topology"
+                        )
+                    else:
+                        atom_def = res_def[atom.name]
+                        if not hasattr(atom_def, 'charge') or atom_def.charge is None:
+                            issues.append(
+                                f"Chain {chain_id}, Residue {res_id}, Atom {atom.name}: "
+                                f"No charge defined (will use 0.0)"
+                            )
+
+        # Report issues
+        if issues:
+            msg = (
+                f"PSF validation found {len(issues)} issue(s) that may cause "
+                f"incorrect simulation results:\n"
+            )
+            # Limit output to first 20 issues
+            for issue in issues[:20]:
+                msg += f"  ** WARNING ** {issue}\n"
+            if len(issues) > 20:
+                msg += f"  ... and {len(issues) - 20} more issues\n"
+
+            if strict:
+                raise ValueError(msg)
+            else:
+                warnings.warn(msg, UserWarning)
+
+        return issues
 
     def write(self, model: Model, filepath: str, title: str = "") -> None:
         """Write PSF file for the given Model.
@@ -175,7 +268,12 @@ class PSFWriter:
         self._lonepairs = []
         self._segid_map = {}
 
-        # Get topology container (Model has .topology, Chain has .topo_elements)
+        # Validate topology before writing (CHARMM-style pre-generation checks)
+        # This catches issues that CHARMM would normally find during PSF generation
+        # but which are skipped when loading a pre-built PSF file
+        self.validate_for_simulation(model, strict=False)
+
+        # Get topology container (Chain has .topology, Model uses ModelTopology wrapper)
         topology = self._get_topology(model)
         if topology is None:
             entity_type = "Chain" if isinstance(model, Chain) else "Model"
@@ -203,7 +301,7 @@ class PSFWriter:
         # Build sections
         sections = []
         sections.append(self._write_header(has_cmap))
-        sections.append(self._write_title(title))
+        sections.append(self._write_title(title, model))
         sections.append(self._write_atoms(model))
         sections.append(self._write_bonds(topology))
         sections.append(self._write_angles(topology))
@@ -337,8 +435,14 @@ class PSFWriter:
                         )
                         if dihedral1_atoms and dihedral2_atoms:
                             cmaps.append((dihedral1_atoms, dihedral2_atoms))
-                    except Exception:
-                        pass  # Skip CMAPs that can't be resolved
+                    except (KeyError, AttributeError, IndexError) as e:
+                        # CMAP resolution can fail at chain termini or with incomplete topology
+                        import warnings
+                        warnings.warn(
+                            f"Could not resolve CMAP for residue {res.resname} {res.id}: {e}. "
+                            f"CMAP term will be omitted from PSF file.",
+                            UserWarning
+                        )
 
         return cmaps if cmaps else None
 
@@ -447,16 +551,42 @@ class PSFWriter:
             keywords.append("CMAP")
         return " ".join(keywords)
 
-    def _write_title(self, title: str) -> str:
+    def _write_title(self, title: str, model: Model = None) -> str:
         """Write NTITLE section.
 
         CHARMM format requires title lines to start with asterisk (*).
+        If no title is provided and model is given, informative system
+        info is extracted. Otherwise a basic default title is used.
+
+        Parameters
+        ----------
+        title : str
+            User-provided title text (can be multiline)
+        model : Model, optional
+            Model to extract system information from for auto-generated title
         """
+        # Import system info generator from CRDWriter
+        from crimm.IO.CRDWriter import _generate_system_info
+
         lines = []
         if title:
             title_lines = title.strip().split('\n')
+        elif model is not None:
+            # Auto-generate informative title from model
+            title_lines = _generate_system_info(model)
         else:
-            title_lines = ["REMARKS PSF file generated by crimm"]
+            # Basic default title
+            import datetime
+            import getpass
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            try:
+                user = getpass.getuser()
+            except Exception:
+                user = "unknown"
+            title_lines = [
+                "PSF file generated by crimm",
+                f"Created: {timestamp} by {user}"
+            ]
 
         lines.append(self._format_section_header(len(title_lines), "NTITLE"))
         for line in title_lines:
@@ -492,11 +622,20 @@ class PSFWriter:
                 charge = atom.topo_definition.charge
                 mass = atom.topo_definition.mass
             else:
+                # Missing topology - use fallback values with warning
+                import warnings
+                warnings.warn(
+                    f"Atom {atom.name} in residue {residue.resname} {residue.id} "
+                    f"has no topology definition. Using fallback values: "
+                    f"type={atom.element or 'X'}, charge=0.0, mass={atom.mass or 0.0}. "
+                    f"Simulation results may be incorrect!",
+                    UserWarning
+                )
                 atomtype = atom.element or "X"
                 charge = 0.0
                 mass = atom.mass if atom.mass else 0.0
 
-            imove = 0  # Fixed atom flag (0 = free)
+            imove = 0  # Movement flag (0 = free to move, non-zero = constrained)
 
             lines.append(self._format_atom_line(
                 serial, segid, resid, resname, atomname,
@@ -935,3 +1074,49 @@ def get_psf_str(
     """
     writer = PSFWriter(extended=extended, xplor=xplor)
     return writer.get_psf_string(model, title)
+
+
+def validate_psf(
+    model: Model,
+    strict: bool = False
+) -> List[str]:
+    """Validate model topology before writing PSF.
+
+    Performs CHARMM-style validation checks that would normally occur
+    during PSF generation. Since loading a pre-built PSF skips these
+    checks in CHARMM, we must validate before writing.
+
+    This function checks for:
+    - Missing force field parameters (bonds, angles, dihedrals, etc.)
+    - Atoms without topology definitions
+    - Missing charges
+
+    Parameters
+    ----------
+    model : Model
+        The Model object to validate
+    strict : bool, default False
+        If True, raise ValueError for any issues.
+        If False, issue warnings and return list of issues.
+
+    Returns
+    -------
+    List[str]
+        List of validation issues found (empty if valid)
+
+    Raises
+    ------
+    ValueError
+        If strict=True and validation issues are found
+
+    Examples
+    --------
+    >>> issues = validate_psf(model)
+    >>> if issues:
+    ...     print(f"Found {len(issues)} issues")
+    ...
+    >>> # Or strict mode to halt on errors
+    >>> validate_psf(model, strict=True)
+    """
+    writer = PSFWriter()
+    return writer.validate_for_simulation(model, strict=strict)
