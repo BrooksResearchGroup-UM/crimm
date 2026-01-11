@@ -651,6 +651,12 @@ class Solvator:
                     water_chain, solvent_model='TIP3'
                 )
 
+        # Store box/crystal information for PSF/CRD title generation
+        if not hasattr(self.model, '_solvation_info'):
+            self.model._solvation_info = {}
+        self.model._solvation_info['box_type'] = self.box_type
+        self.model._solvation_info['box_dim'] = self.box_dim
+
         return water_chains
 
             
