@@ -461,6 +461,24 @@ class ModelTopology:
                         'But topology not generated for the chains.'
                     )
                     continue
+
+                # Check if disulfide patch has already been applied
+                # (e.g., if ModelTopology was already created earlier)
+                res1_patched = (
+                    res1.topo_definition is not None and
+                    getattr(res1.topo_definition, 'patch_with', None) == 'DISU'
+                )
+                res2_patched = (
+                    res2.topo_definition is not None and
+                    getattr(res2.topo_definition, 'patch_with', None) == 'DISU'
+                )
+
+                if res1_patched or res2_patched:
+                    # Disulfide patch already applied, just add the bond
+                    disu_bond = Bond(a1, a2, 'single')
+                    self.disu_bonds.append(disu_bond)
+                    continue
+
                 if 'HG1' in res1:
                     chain1.topology.delete_atom_related_elements(res1['HG1'])
                     res1.detach_child('HG1')

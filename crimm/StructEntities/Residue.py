@@ -171,8 +171,11 @@ class Heterogen(Residue):
     def total_charge(self):
         """Return the total charge of the residue."""
         total_charge = super().total_charge
+        if total_charge is None:
+            return None
         for lp in self.lone_pairs:
-            total_charge += lp.topo_definition.charge
+            if lp.topo_definition is not None:
+                total_charge += lp.topo_definition.charge
         return round(total_charge, 2)
 
     @property

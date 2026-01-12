@@ -5,6 +5,8 @@ import os
 import warnings
 import numpy as np
 import math
+from typing import Optional
+import random
 from random import choices
 from scipy.spatial import KDTree
 from crimm import Data
@@ -18,6 +20,39 @@ from crimm.Data.components_dict import CHARMM_PDB_ION_NAMES
 
 WATER_COORD_PATH = os.path.join(os.path.dirname(Data.__file__), 'water_coords.npy')
 BOXWIDTH=18.662 # water unit cube width
+
+# Physical constants for ion calculations
+WATER_MOLARITY = 55.5  # Molar concentration of pure water at 298K (often approximated as 56)
+AVOGADRO = 6.02214076e23  # mol^-1
+NM3_TO_L = 1e-24  # nm³ to liters conversion
+A3_TO_NM3 = 1e-3  # Å³ to nm³ conversion
+WATERS_PER_NM3 = 33.3  # Approximate number of water molecules per nm³ at 298K
+
+# Volume factors for different box geometries (relative to cubic)
+BOX_VOLUME_FACTORS = {
+    'cube': 1.0,
+    'octa': 0.707,  # Truncated octahedron: ~71% of cubic volume
+}
+
+# Ion valence table - only ions defined in crimm/Data/toppar/water_ions.str
+ION_VALENCES = {
+    # Alkali metals (+1)
+    'LIT': +1,   # Lithium
+    'SOD': +1,   # Sodium
+    'POT': +1,   # Potassium
+    'RUB': +1,   # Rubidium
+    'CES': +1,   # Cesium
+    # Alkaline earth (+2)
+    'MG': +2,    # Magnesium
+    'CAL': +2,   # Calcium
+    'BAR': +2,   # Barium
+    # Transition metals (defined in toppar)
+    'ZN2': +2,   # Zinc
+    'CD2': +2,   # Cadmium
+    # Anions
+    'CLA': -1,   # Chloride
+    'OH': -1,    # Hydroxide
+}
 
 # Atom objects for water
 OH2 = Atom(
@@ -79,13 +114,13 @@ class Solvator:
     >>> from crimm import fetch_rcsb
     >>> from crimm.Modeller.Solvator import Solvator
 
-    >>> fisrt_model = fetch_rcsb('5igv')
-    >>> solvator = Solvator()
-    >>> solvated_model = solvator.solvate(
-            fisrt_model, cutoff=8.0, solvcut=2.1, remove_existing_water=True
+    >>> model = fetch_rcsb('5igv')
+    >>> solvator = Solvator(model)
+    >>> water_chains = solvator.solvate(
+            cutoff=8.0, solvcut=2.1, remove_existing_water=True
         )
-    >>> water_chains = [
-        chain for chain in solvated if chain.chain_type == 'Solvent'
+    >>> solvent_chains = [
+        chain for chain in model if chain.chain_type == 'Solvent'
     ]
 
     Note that water chains are named W[A-Z] and have a maximum number of 9999 residues
@@ -139,16 +174,18 @@ class Solvator:
             box_type = 'cube',
             orient_method = None
 
-        ) -> Model:
-        """Solvates the entity and returns a Model level entity. The solvated
-        entity will be centered in a cubic box with side length equal to the
-        maximum dimension of the entity plus the cutoff distance. (i.e.,
-        Coordinates will be oriented using CoordManipulator.orient_coords()
-        before solvation.) The solvcut distance is the distance from the solute
-        at which water molecules will be removed. The solvcut distance is used
-        to remove water molecules that are too close to the solute. If altloc
-        atoms exist in the entity, the first altloc atoms will be used to
-        determine water molecules location during solvation.
+        ) -> list:
+        """Solvate the entity with a water box.
+
+        The solvated entity will be centered in a cubic or octahedral box with
+        side length equal to the maximum dimension of the entity plus the cutoff
+        distance. Coordinates will be oriented using CoordManipulator before
+        solvation. The solvcut distance is used to remove water molecules that
+        are too close to the solute. If altloc atoms exist, the first altloc
+        atoms will be used to determine water molecule locations.
+
+        The model is modified in place - water chains are added directly to the
+        model. The returned list contains the added water chains.
         
         Parameters
         ----------
@@ -166,8 +203,13 @@ class Solvator:
             to choose the water box shape.
         orient_method : str, optional
             The method to orient the coordinates before solvation. The 'default'
-            (default) uses the usual orientation; octa' uses an alternative 
+            (default) uses the usual orientation; octa' uses an alternative
             orientation aiming to minimize the octahedral box.
+
+        Returns
+        -------
+        list
+            List of Solvent chains added to the model.
         """
 
         self.cutoff = cutoff
@@ -179,8 +221,22 @@ class Solvator:
         else:
             self.orient_method = "default"
         
+        # Initialize solvation info storage
+        if not hasattr(self.model, '_solvation_info'):
+            self.model._solvation_info = {}
+
         if remove_existing_water:
             self.remove_existing_water(self.model)
+            self.model._solvation_info['preserved_waters'] = 0
+        else:
+            # Convert existing waters to TIP3 format for CHARMM compatibility
+            n_preserved_waters = self._convert_existing_waters_to_tip3(self.model)
+            self.model._solvation_info['preserved_waters'] = n_preserved_waters
+
+        # Always preserve existing ions (convert names if needed)
+        n_preserved_ions = self._convert_existing_ions(self.model)
+        self.model._solvation_info['preserved_ions'] = n_preserved_ions
+
         if len(self.model.chains) == 0:
             raise ValueError('No chains in model to solvate')
         if orient_coords:
@@ -199,7 +255,7 @@ class Solvator:
                 UserWarning
             )
         self.coords = self._extract_coords(self.model)
-        self.box_dim = (self.coords.ptp(0)+self.cutoff).max()
+        self.box_dim = (np.ptp(self.coords, axis=0)+self.cutoff).max()
 
         return self._solvate_model()
 
@@ -224,7 +280,210 @@ class Solvator:
                 UserWarning
             )
             model.detach_child(chain_id)
-    
+
+    def _build_water_hydrogens(self, oxygen_coord: np.ndarray) -> tuple:
+        """Build hydrogen positions for a water molecule from oxygen position.
+
+        Uses TIP3P geometry:
+        - O-H bond length: 0.9572 Å
+        - H-O-H angle: 104.52°
+
+        Parameters
+        ----------
+        oxygen_coord : np.ndarray
+            Oxygen atom coordinates (x, y, z).
+
+        Returns
+        -------
+        tuple
+            (h1_coord, h2_coord) as numpy arrays.
+        """
+        # TIP3P geometry
+        oh_bond = 0.9572  # Å
+        hoh_angle = 104.52 * np.pi / 180  # radians
+
+        # Generate random orientation
+        # Create a random unit vector for first O-H bond
+        random_vec = np.random.randn(3)
+        random_vec /= np.linalg.norm(random_vec)
+
+        # First hydrogen
+        h1_coord = oxygen_coord + oh_bond * random_vec
+
+        # Second hydrogen: rotate around a perpendicular axis
+        # Find a perpendicular vector
+        perp = np.cross(random_vec, np.array([1, 0, 0]))
+        if np.linalg.norm(perp) < 0.1:
+            perp = np.cross(random_vec, np.array([0, 1, 0]))
+        perp /= np.linalg.norm(perp)
+
+        # Rotate random_vec by HOH angle around perpendicular axis
+        cos_a = np.cos(hoh_angle)
+        sin_a = np.sin(hoh_angle)
+        # Rodrigues rotation formula
+        h2_vec = (random_vec * cos_a +
+                  np.cross(perp, random_vec) * sin_a +
+                  perp * np.dot(perp, random_vec) * (1 - cos_a))
+        h2_coord = oxygen_coord + oh_bond * h2_vec
+
+        return h1_coord, h2_coord
+
+    def _convert_existing_waters_to_tip3(self, model: Model) -> int:
+        """Convert existing water molecules (HOH/WAT) to CHARMM TIP3 format.
+
+        This:
+        - Renames residue: HOH/WAT -> TIP3
+        - Renames oxygen: O/OW -> OH2
+        - Builds missing hydrogens for crystallographic waters
+
+        Returns
+        -------
+        int
+            Number of crystal waters preserved/converted
+        """
+        # Standard atom name mappings for water oxygen
+        oxygen_names = {'O', 'OW', 'OH2'}
+
+        n_converted = 0
+        n_hydrogens_built = 0
+
+        for chain in model.chains:
+            if chain.chain_type != 'Solvent':
+                continue
+            for residue in chain.get_residues():
+                if residue.resname in ('HOH', 'WAT', 'SOL', 'TIP3'):
+                    atoms = list(residue.get_atoms())
+
+                    # Find oxygen atom
+                    oxygen_atom = None
+                    hydrogen_atoms = []
+                    for atom in atoms:
+                        if atom.name in oxygen_names or atom.element == 'O':
+                            oxygen_atom = atom
+                        elif atom.element == 'H':
+                            hydrogen_atoms.append(atom)
+
+                    if oxygen_atom is None:
+                        # No oxygen found - skip this residue
+                        continue
+
+                    # Build missing hydrogens if needed
+                    if len(hydrogen_atoms) < 2:
+                        h1_coord, h2_coord = self._build_water_hydrogens(oxygen_atom.coord)
+                        n_hydrogens_built += (2 - len(hydrogen_atoms))
+
+                        # Get next available serial number
+                        max_serial = max(a.serial_number for a in atoms) if atoms else 0
+
+                        if len(hydrogen_atoms) == 0:
+                            # Build both hydrogens
+                            h1 = Atom(
+                                name='H1', coord=h1_coord, bfactor=0.0, occupancy=1.0,
+                                altloc=' ', fullname=' H1 ', serial_number=max_serial + 1,
+                                element='H'
+                            )
+                            h2 = Atom(
+                                name='H2', coord=h2_coord, bfactor=0.0, occupancy=1.0,
+                                altloc=' ', fullname=' H2 ', serial_number=max_serial + 2,
+                                element='H'
+                            )
+                            residue.add(h1)
+                            residue.add(h2)
+                        elif len(hydrogen_atoms) == 1:
+                            # Build one hydrogen
+                            h2 = Atom(
+                                name='H2', coord=h2_coord, bfactor=0.0, occupancy=1.0,
+                                altloc=' ', fullname=' H2 ', serial_number=max_serial + 1,
+                                element='H'
+                            )
+                            residue.add(h2)
+
+                    # Convert residue name to TIP3
+                    if residue.resname != 'TIP3':
+                        residue.resname = 'TIP3'
+                        n_converted += 1
+
+                    # Rename oxygen atom
+                    if oxygen_atom.name != 'OH2':
+                        oxygen_atom.name = 'OH2'
+                        oxygen_atom.fullname = ' OH2'
+
+        # Count total preserved waters (converted + already TIP3)
+        n_preserved = 0
+        for chain in model.chains:
+            if chain.chain_type == 'Solvent':
+                n_preserved = len(list(chain.get_residues()))
+                break
+
+        if n_converted > 0:
+            warnings.warn(
+                f'Converted {n_converted} existing water molecules to TIP3 format',
+                UserWarning
+            )
+        if n_hydrogens_built > 0:
+            warnings.warn(
+                f'Built {n_hydrogens_built} missing hydrogens for crystallographic waters',
+                UserWarning
+            )
+
+        return n_preserved
+
+    def _convert_existing_ions(self, model: Model) -> int:
+        """Convert existing ions to CHARMM-compatible names.
+
+        Only converts ions that are defined in crimm/Data/toppar/water_ions.str.
+        Maps common PDB ion names to CHARMM residue names.
+
+        Returns
+        -------
+        int
+            Number of crystal ions preserved
+        """
+        # Map PDB ion names to CHARMM names (only toppar-defined ions)
+        ion_name_map = {
+            # Alkali metals
+            'LI': 'LIT', 'LI+': 'LIT',
+            'NA': 'SOD', 'NA+': 'SOD', 'NAI': 'SOD',
+            'K': 'POT', 'K+': 'POT',
+            'RB': 'RUB', 'RB+': 'RUB',
+            'CS': 'CES', 'CS+': 'CES',
+            # Alkaline earth
+            'MG': 'MG', 'MG2+': 'MG', 'MG2': 'MG',
+            'CA': 'CAL', 'CA2+': 'CAL', 'CA2': 'CAL',
+            'BA': 'BAR', 'BA2+': 'BAR', 'BA2': 'BAR',
+            # Transition metals (defined in toppar)
+            'ZN': 'ZN2', 'ZN2+': 'ZN2',
+            'CD': 'CD2', 'CD2+': 'CD2',
+            # Anions
+            'CL': 'CLA', 'CL-': 'CLA',
+        }
+
+        n_converted = 0
+        n_preserved = 0
+        for chain in model.chains:
+            if chain.chain_type != 'Ion':
+                continue
+            for residue in chain.get_residues():
+                n_preserved += 1
+                orig_name = residue.resname.strip().upper()
+                if orig_name in ion_name_map:
+                    new_name = ion_name_map[orig_name]
+                    if residue.resname != new_name:
+                        residue.resname = new_name
+                        # Also rename the atom to match residue
+                        for atom in residue.get_atoms():
+                            atom.name = new_name
+                            atom.fullname = f' {new_name:<3s}'
+                        n_converted += 1
+
+        if n_converted > 0:
+            warnings.warn(
+                f'Converted {n_converted} existing ions to CHARMM format',
+                UserWarning
+            )
+
+        return n_preserved
+
     def create_water_box_coords(self) -> np.ndarray:
         """
         Creates a water box grid based on the chosen box type.
@@ -259,7 +518,7 @@ class Solvator:
                 water_box[st:end, 2] += i * BOXWIDTH
             
             # Recenter the box
-            translation_vec = -water_box.ptp(0) / 2 - water_box.min(0)
+            translation_vec = -np.ptp(water_box, axis=0) / 2 - water_box.min(0)
             water_box += translation_vec
             return water_box
         elif self.box_type == "octa":
@@ -277,7 +536,7 @@ class Solvator:
                             water_points.append(atom + translation)
             water_points = np.array(water_points)
             # Recenter the grid so that its bounding box is centered at the origin
-            translation_vec = -water_points.ptp(0) / 2 - water_points.min(0)
+            translation_vec = -np.ptp(water_points, axis=0) / 2 - water_points.min(0)
             water_points += translation_vec
             # Reshape into water molecules (each with 3 atoms)
             water_box = water_points.reshape(-1, 3, 3)
@@ -369,7 +628,7 @@ class Solvator:
                 alphabet_index += 1
                 water_chains.append(cur_water_chain)
 
-            water_res = Residue((' ', resseq, ' '), 'HOH', '')
+            water_res = Residue((' ', resseq, ' '), 'TIP3', '')
 
             cur_oxygen = OH2.copy()
             cur_h1 = H1.copy()
@@ -392,13 +651,21 @@ class Solvator:
                     water_chain, solvent_model='TIP3'
                 )
 
+        # Store box/crystal information for PSF/CRD title generation
+        if not hasattr(self.model, '_solvation_info'):
+            self.model._solvation_info = {}
+        self.model._solvation_info['box_type'] = self.box_type
+        self.model._solvation_info['box_dim'] = self.box_dim
+
         return water_chains
 
             
     def add_balancing_ions(
             self, present_charge = None, cation='SOD', anion='CLA', skip_undefined=True
         ) -> Ion:
-        """Add balancing ions to the solvated entity to bring total charge to zero.
+        """DEPRECATED: Use add_ions(concentration=0.0) instead.
+
+        Add balancing ions to the solvated entity to bring total charge to zero.
         The default cation is Na+ and the default anion is Cl-. If the entity is
         not a solvated entity, a ValueError will be raised. A random selection of
         water molecules in the water box will be replaced with balancing ions.
@@ -422,6 +689,11 @@ class Solvator:
         ion_chain : Chain
             A chain containing the balancing ions.
         """
+        warnings.warn(
+            "add_balancing_ions() is deprecated. Use add_ions(concentration=0.0) instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         solvents = [chain for chain in self.model if chain.chain_type == 'Solvent']
         if len(solvents) == 0:
             raise ValueError(
@@ -437,12 +709,12 @@ class Solvator:
                 if chain.total_charge is None:
                     if not skip_undefined:
                         raise ValueError(
-                            'Chain {chain.id} has no topology definition for atom charge! '
+                            f'Chain {chain.id} has no topology definition for atom charge! '
                             'Cannot calculate total charge.'
                         )
-                    
+
                     warnings.warn(
-                        'Chain {chain.id} has no topology definition for atom charge! '
+                        f'Chain {chain.id} has no topology definition for atom charge! '
                         'Assume zero charge.',
                     )
                 charge_dict[chain.id] = chain.total_charge
@@ -501,6 +773,581 @@ class Solvator:
             new_ion_chain.add(ion_res)
             if (water_chain:=chosen_water.parent) is not None:
                 water_chain.detach_child(chosen_water.id)
+
+        return new_ion_chain
+
+    # =========================================================================
+    # New Ion Calculation Methods (SPLIT, SLTCAP, Add-Neutralize)
+    # =========================================================================
+
+    def _get_ion_chain_charge(self, chain) -> float:
+        """Calculate total charge of an ion chain from known ion valences.
+
+        Since ion chains typically don't have topology, we calculate their
+        charge from the ION_VALENCES table based on residue names.
+
+        Parameters
+        ----------
+        chain : Ion
+            An ion chain.
+
+        Returns
+        -------
+        float
+            Total charge of all ions in the chain.
+        """
+        total = 0.0
+        for res in chain.get_residues():
+            name = res.resname.strip().upper()
+            if name in ION_VALENCES:
+                total += ION_VALENCES[name]
+            else:
+                warnings.warn(
+                    f"Unknown ion '{name}' in chain {chain.id}, assuming charge 0. "
+                    f"Add to ION_VALENCES if needed.",
+                    UserWarning
+                )
+        return total
+
+    def _calculate_system_charge(self, skip_undefined: bool = True) -> float:
+        """Calculate total system charge from all non-solvent chains.
+
+        Includes:
+        - Protein/nucleic acid chains (from topology)
+        - Existing ion chains (from ION_VALENCES table)
+
+        Parameters
+        ----------
+        skip_undefined : bool
+            If True, assume zero charge for chains without topology.
+            If False, raise ValueError.
+
+        Returns
+        -------
+        float
+            Total system charge in electron units.
+        """
+        total_charge = 0.0
+        for chain in self.model:
+            if chain.chain_type == 'Solvent':
+                continue
+            if chain.chain_type == 'Ion':
+                # Include existing ion charges (e.g., Zn2+, Mg2+, Ca2+)
+                ion_charge = self._get_ion_chain_charge(chain)
+                total_charge += ion_charge
+                continue
+            if chain.total_charge is None:
+                if not skip_undefined:
+                    raise ValueError(
+                        f'Chain {chain.id} has no topology definition for atom charge! '
+                        'Cannot calculate total charge.'
+                    )
+                warnings.warn(
+                    f'Chain {chain.id} has no topology definition for atom charge! '
+                    'Assuming zero charge.',
+                    UserWarning
+                )
+                continue
+            total_charge += chain.total_charge
+        return total_charge
+
+    def _count_waters(self) -> int:
+        """Count total number of water molecules in solvent chains."""
+        n_water = 0
+        for chain in self.model:
+            if chain.chain_type == 'Solvent':
+                n_water += len(list(chain.get_residues()))
+        return n_water
+
+    def _calculate_solvent_volume(self) -> float:
+        """Calculate solvent volume in Å³ based on box geometry.
+
+        Returns
+        -------
+        float
+            Solvent volume in Å³.
+        """
+        if self.box_dim is None:
+            raise ValueError("Box dimensions not set. Run solvate() first.")
+
+        volume_factor = BOX_VOLUME_FACTORS.get(self.box_type, 1.0)
+        return volume_factor * (self.box_dim ** 3)
+
+    def _calculate_n0(self, n_water: int, concentration: float) -> float:
+        """Calculate N₀ (number of neutral ion pairs) for target concentration.
+
+        Parameters
+        ----------
+        n_water : int
+            Number of water molecules.
+        concentration : float
+            Target salt concentration in Molar.
+
+        Returns
+        -------
+        float
+            Number of neutral ion pairs (may be fractional).
+        """
+        return n_water * concentration / WATER_MOLARITY
+
+    def _select_ion_method(
+        self, n_water: int, charge: float, concentration: float
+    ) -> tuple:
+        """Auto-select best ion calculation method based on N₀/|Q| ratio.
+
+        Parameters
+        ----------
+        n_water : int
+            Number of water molecules.
+        charge : float
+            System charge in electron units.
+        concentration : float
+            Target salt concentration in Molar.
+
+        Returns
+        -------
+        tuple
+            (method_name, explanation_string)
+        """
+        n0 = self._calculate_n0(n_water, concentration)
+
+        if charge == 0:
+            return 'split', "Neutral system - all methods equivalent"
+
+        if n0 == 0:
+            return 'add_neutralize', "No salt concentration - neutralization only"
+
+        ratio = n0 / abs(charge)
+
+        if ratio >= 2.0:
+            return 'split', f"N₀/|Q| = {ratio:.1f} ≥ 2: SPLIT excellent (<1% error)"
+        elif ratio >= 1.0:
+            return 'split', f"N₀/|Q| = {ratio:.1f} ≥ 1: SPLIT acceptable (~7% error)"
+        elif ratio >= 0.5:
+            return 'sltcap', f"N₀/|Q| = {ratio:.2f} < 1: Using SLTCAP (SPLIT error ~17%)"
+        else:
+            return 'sltcap', f"N₀/|Q| = {ratio:.2f} << 1: SLTCAP required (high charge)"
+
+    def _adjust_for_neutralization(
+        self, n_cation: float, n_anion: float, charge: float
+    ) -> tuple:
+        """Adjust rounded ion counts to ensure exact charge neutralization.
+
+        Parameters
+        ----------
+        n_cation : float
+            Calculated cation count (may be fractional).
+        n_anion : float
+            Calculated anion count (may be fractional).
+        charge : float
+            System charge in electron units.
+
+        Returns
+        -------
+        tuple
+            (n_cation, n_anion) as integers, adjusted for exact neutralization.
+        """
+        # Ensure non-negative and round
+        n_cation = max(0, round(n_cation))
+        n_anion = max(0, round(n_anion))
+
+        # Adjust for exact neutralization
+        # Net ion charge = n_cation - n_anion (assumes monovalent ions)
+        # For neutralization: n_cation - n_anion = -charge
+        net_ion_charge = n_cation - n_anion
+        target_ion_charge = -int(round(charge))
+
+        if net_ion_charge != target_ion_charge:
+            diff = target_ion_charge - net_ion_charge
+            if diff > 0:
+                n_cation += 1
+            else:
+                n_anion += 1
+
+        return int(n_cation), int(n_anion)
+
+    def _ions_split(
+        self, charge: float, n_water: int, concentration: float
+    ) -> tuple:
+        """Calculate ion counts using SPLIT method.
+
+        SPLIT: N± = N₀ ∓ Q/2
+
+        Reference: Machado & Pantano (2020) J. Chem. Theory Comput. 16:1367-1372
+
+        Parameters
+        ----------
+        charge : float
+            System charge in electron units.
+        n_water : int
+            Number of water molecules.
+        concentration : float
+            Target salt concentration in Molar.
+
+        Returns
+        -------
+        tuple
+            (n_cation, n_anion) as integers.
+        """
+        n0 = self._calculate_n0(n_water, concentration)
+        n_cation = n0 - charge / 2.0
+        n_anion = n0 + charge / 2.0
+        return self._adjust_for_neutralization(n_cation, n_anion, charge)
+
+    def _ions_sltcap(
+        self, charge: float, n_water: int, concentration: float
+    ) -> tuple:
+        """Calculate ion counts using SLTCAP method.
+
+        SLTCAP: N± = N₀ × [√(1 + (Q/(2N₀))²) ∓ Q/(2N₀)]
+
+        Reference: Schmit et al. (2018) J. Chem. Theory Comput. 14:1823-1827
+
+        Parameters
+        ----------
+        charge : float
+            System charge in electron units.
+        n_water : int
+            Number of water molecules.
+        concentration : float
+            Target salt concentration in Molar.
+
+        Returns
+        -------
+        tuple
+            (n_cation, n_anion) as integers.
+        """
+        n0 = self._calculate_n0(n_water, concentration)
+
+        if n0 == 0:
+            # No salt - just neutralization
+            if charge > 0:
+                return 0, int(abs(charge))
+            elif charge < 0:
+                return int(abs(charge)), 0
+            else:
+                return 0, 0
+
+        ratio = charge / (2 * n0)
+        sqrt_term = math.sqrt(1 + ratio ** 2)
+
+        n_cation = n0 * (sqrt_term - ratio)
+        n_anion = n0 * (sqrt_term + ratio)
+
+        return self._adjust_for_neutralization(n_cation, n_anion, charge)
+
+    def _ions_add_neutralize(
+        self, charge: float, n_water: int, concentration: float
+    ) -> tuple:
+        """Calculate ion counts using Add-Neutralize (AN) method.
+
+        AN method: Add N₀ pairs, then add |Q| counterions.
+
+        WARNING: This method overestimates effective salt concentration
+        for charged systems. Use SPLIT or SLTCAP for better accuracy.
+
+        Parameters
+        ----------
+        charge : float
+            System charge in electron units.
+        n_water : int
+            Number of water molecules.
+        concentration : float
+            Target salt concentration in Molar.
+
+        Returns
+        -------
+        tuple
+            (n_cation, n_anion) as integers.
+        """
+        n0 = self._calculate_n0(n_water, concentration)
+        n0_int = round(n0)
+
+        if charge > 0:
+            n_cation = n0_int
+            n_anion = n0_int + int(abs(charge))
+        elif charge < 0:
+            n_cation = n0_int + int(abs(charge))
+            n_anion = n0_int
+        else:
+            n_cation = n0_int
+            n_anion = n0_int
+
+        return int(n_cation), int(n_anion)
+
+    def _place_ions_monte_carlo(
+        self,
+        solvents: list,
+        ion_list: list,
+        min_dist_solute: float = 5.0,
+        min_dist_ion: float = 5.0,
+        max_attempts: int = 1000
+    ) -> list:
+        """Place ions using Monte-Carlo with distance constraints.
+
+        Parameters
+        ----------
+        solvents : list
+            List of Solvent chain objects.
+        ion_list : list
+            List of ion names to place (e.g., ['SOD', 'SOD', 'CLA']).
+        min_dist_solute : float
+            Minimum distance from solute atoms in Å.
+        min_dist_ion : float
+            Minimum distance between placed ions in Å.
+        max_attempts : int
+            Maximum attempts to place each ion before giving up.
+
+        Returns
+        -------
+        list
+            List of (water_residue, ion_name) tuples for successful placements.
+        """
+        # Get all water residues and their oxygen coordinates
+        water_residues = []
+        water_coords = []
+        for chain in solvents:
+            for res in chain.get_residues():
+                if 'OH2' in res:
+                    water_residues.append(res)
+                    water_coords.append(res['OH2'].coord)
+                elif 'O' in res:
+                    water_residues.append(res)
+                    water_coords.append(res['O'].coord)
+
+        if len(water_residues) == 0:
+            raise ValueError("No water molecules found for ion placement")
+
+        water_coords = np.array(water_coords)
+
+        # Build KDTree of solute atoms
+        solute_coords = []
+        for chain in self.model:
+            if chain.chain_type not in ('Solvent', 'Ion'):
+                for atom in chain.get_atoms():
+                    solute_coords.append(atom.coord)
+
+        if len(solute_coords) > 0:
+            solute_coords = np.array(solute_coords)
+            solute_tree = KDTree(solute_coords)
+        else:
+            solute_tree = None
+
+        # Track placed ion positions and used water indices
+        placed_ion_coords = []
+        used_water_indices = set()
+        placements = []
+
+        for ion_name in ion_list:
+            placed = False
+            attempts = 0
+
+            # Shuffle water indices for random selection
+            available_indices = [
+                i for i in range(len(water_residues))
+                if i not in used_water_indices
+            ]
+            random.shuffle(available_indices)
+
+            for idx in available_indices:
+                if attempts >= max_attempts:
+                    break
+                attempts += 1
+
+                coord = water_coords[idx]
+
+                # Check distance from solute
+                if solute_tree is not None:
+                    dist_to_solute = solute_tree.query(coord)[0]
+                    if dist_to_solute < min_dist_solute:
+                        continue
+
+                # Check distance from other placed ions
+                if len(placed_ion_coords) > 0:
+                    ion_coords_array = np.array(placed_ion_coords)
+                    dists = np.linalg.norm(ion_coords_array - coord, axis=1)
+                    if np.min(dists) < min_dist_ion:
+                        continue
+
+                # Accept this placement
+                placements.append((water_residues[idx], ion_name))
+                placed_ion_coords.append(coord)
+                used_water_indices.add(idx)
+                placed = True
+                break
+
+            if not placed:
+                warnings.warn(
+                    f"Could not place ion {ion_name} after {max_attempts} attempts. "
+                    f"Consider reducing min_dist_solute or min_dist_ion.",
+                    UserWarning
+                )
+
+        return placements
+
+    def add_ions(
+        self,
+        concentration: float = 0.15,
+        method: str = 'auto',
+        cation: str = 'SOD',
+        anion: str = 'CLA',
+        min_dist_solute: float = 5.0,
+        min_dist_ion: float = 5.0,
+        skip_undefined: bool = True
+    ) -> Optional[Ion]:
+        """Add ions to achieve target salt concentration.
+
+        Supports three calculation methods:
+        - 'split': SPLIT method (Machado & Pantano, 2020) - good for N₀/|Q| ≥ 1
+        - 'sltcap': SLTCAP method (Schmit et al., 2018) - accurate for any system
+        - 'add_neutralize': Simple add-neutralize (may overestimate concentration)
+        - 'auto': Automatically select best method based on N₀/|Q| ratio
+
+        Parameters
+        ----------
+        concentration : float
+            Target salt concentration in Molar. Default 0.15 M (150 mM).
+            Use concentration=0 to only neutralize without adding salt.
+        method : str
+            Ion calculation method: 'auto', 'split', 'sltcap', or 'add_neutralize'.
+        cation : str
+            CHARMM ion name for cation. Default 'SOD' (Na+).
+            Note: Only monovalent ions (SOD, POT, LIT, etc.) are supported.
+        anion : str
+            CHARMM ion name for anion. Default 'CLA' (Cl-).
+            Note: Only monovalent ions (CLA) are supported.
+        min_dist_solute : float
+            Minimum distance from solute for ion placement in Å. Default 5.0.
+        min_dist_ion : float
+            Minimum distance between ions in Å. Default 5.0.
+        skip_undefined : bool
+            If True, assume zero charge for chains without topology. Default True.
+
+        Returns
+        -------
+        Ion or None
+            Chain containing the added ions, or None if no ions needed.
+
+        References
+        ----------
+        - Schmit et al. (2018) J. Chem. Theory Comput. 14:1823-1827 (SLTCAP)
+        - Machado & Pantano (2020) J. Chem. Theory Comput. 16:1367-1372 (SPLIT)
+        """
+        # Verify system is solvated
+        solvents = [c for c in self.model if c.chain_type == 'Solvent']
+        if len(solvents) == 0:
+            raise ValueError(
+                "Entity must be solvated before adding ions. Run solvate() first."
+            )
+
+        # Calculate system properties
+        charge = self._calculate_system_charge(skip_undefined)
+        n_water = self._count_waters()
+
+        # Select method if auto
+        if method == 'auto':
+            method, method_reason = self._select_ion_method(n_water, charge, concentration)
+        else:
+            method_reason = f"User-selected method: {method.upper()}"
+
+        # Calculate ion counts
+        if method == 'split':
+            n_cation, n_anion = self._ions_split(charge, n_water, concentration)
+        elif method == 'sltcap':
+            n_cation, n_anion = self._ions_sltcap(charge, n_water, concentration)
+        elif method == 'add_neutralize':
+            n_cation, n_anion = self._ions_add_neutralize(charge, n_water, concentration)
+            # Warn about AN method limitations
+            if charge != 0 and concentration > 0:
+                n0 = self._calculate_n0(n_water, concentration)
+                c_eff = concentration * math.sqrt(1 + abs(charge) / (n0 + 1e-10))
+                warnings.warn(
+                    f"Add-Neutralize method may overestimate effective salt concentration.\n"
+                    f"For system charge Q={charge:.0f}, effective concentration ≈ {c_eff*1000:.0f} mM "
+                    f"vs target {concentration*1000:.0f} mM.\n"
+                    f"Consider using method='split' or method='sltcap' for better accuracy.",
+                    UserWarning
+                )
+        else:
+            raise ValueError(f"Unknown method: {method}. Use 'auto', 'split', 'sltcap', or 'add_neutralize'.")
+
+        # Build ion list
+        ion_list = [cation] * n_cation + [anion] * n_anion
+
+        if len(ion_list) == 0:
+            print("No ions needed for this system.")
+            return None
+
+        # Calculate N₀ for reporting
+        n0 = self._calculate_n0(n_water, concentration)
+        ratio = n0 / abs(charge) if charge != 0 else float('inf')
+
+        # Print informative message
+        print(f"\nIon calculation using {method.upper()} method:")
+        print(f"  {method_reason}")
+        print(f"  System charge: {charge:+.0f} e")
+        print(f"  Water molecules: {n_water:,}")
+        print(f"  Target concentration: {concentration*1000:.0f} mM")
+        print(f"  N₀ (neutral pairs): {n0:.1f}")
+        if charge != 0:
+            print(f"  N₀/|Q| ratio: {ratio:.2f}")
+        print(f"\n  Adding ions:")
+        print(f"    {cation}: {n_cation}")
+        print(f"    {anion}: {n_anion}")
+
+        # Place ions using Monte-Carlo
+        placements = self._place_ions_monte_carlo(
+            solvents, ion_list, min_dist_solute, min_dist_ion
+        )
+
+        if len(placements) == 0:
+            warnings.warn("No ions could be placed!", UserWarning)
+            return None
+
+        # Create ion chain
+        rtf = ResidueTopologySet('water_ions')
+        new_ion_chain = Ion('IA')
+        ion_names_str = ', '.join(sorted(set(ion_list)))
+        new_ion_chain.pdbx_description = f"ions ({ion_names_str}) at {concentration*1000:.0f} mM"
+
+        for i, (water_res, ion_name) in enumerate(placements, start=1):
+            if 'OH2' in water_res:
+                oxy_coord = water_res['OH2'].coord
+            else:
+                oxy_coord = water_res['O'].coord
+
+            ion_res = rtf[ion_name].create_residue(resseq=i)
+            ion_res.atoms[0].coord = oxy_coord
+            new_ion_chain.add(ion_res)
+
+            # Remove water
+            if (water_chain := water_res.parent) is not None:
+                water_chain.detach_child(water_res.id)
+
+        self.model.add(new_ion_chain)
+        if self._topo_loader is not None:
+            self._topo_loader.generate(new_ion_chain)
+
+        # Report final charge
+        ion_charge = n_cation - n_anion
+        final_charge = charge + ion_charge
+        print(f"\n  Final system charge: {final_charge:+.0f} e")
+        if abs(final_charge) > 0.5:
+            warnings.warn(
+                f"System is not fully neutralized (charge = {final_charge:+.0f} e). "
+                f"This may cause issues with PME.",
+                UserWarning
+            )
+
+        # Store solvation metadata for PSF/CRD title generation
+        if not hasattr(self.model, '_solvation_info'):
+            self.model._solvation_info = {}
+        self.model._solvation_info['concentration'] = concentration
+        self.model._solvation_info['n_cation'] = n_cation
+        self.model._solvation_info['n_anion'] = n_anion
+        self.model._solvation_info['cation'] = cation
+        self.model._solvation_info['anion'] = anion
+        self.model._solvation_info['method'] = method
 
         return new_ion_chain
 
