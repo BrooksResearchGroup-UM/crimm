@@ -29,14 +29,20 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout docs branch
         uses: actions/checkout@v4
+        with:
+          # checkout the docs branch instead of the default branch
+          ref: 'refs/heads/docs'
+          # fetch full history (optional)
+          fetch-depth: 0
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Upload the static html sources
+          # Upload the static html sources (adjust this path if different on the docs branch)
           path: './docs/_build/html'
       - name: Deploy to GitHub Pages
         id: deployment
