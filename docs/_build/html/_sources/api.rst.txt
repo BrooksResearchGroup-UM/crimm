@@ -1,5 +1,9 @@
 API
 ===
+.. automodule:: crimm.Modeller.TopoLoader
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 .. autosummary::
    :toctree: generated
