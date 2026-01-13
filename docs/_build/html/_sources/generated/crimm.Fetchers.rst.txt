@@ -1,0 +1,18 @@
+crimm.Fetchers
+==============
+
+.. automodule:: crimm.Fetchers
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      fetch_alphafold
+      fetch_alphafold_from_chain
+      fetch_rcsb
+      fetch_rcsb_as_dict
+      fetch_swiss_model
+      fetch_swiss_model_from_chain
+      fetch_swiss_model_multiple
+   

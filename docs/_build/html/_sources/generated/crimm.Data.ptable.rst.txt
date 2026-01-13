@@ -1,0 +1,6 @@
+crimm.Data.ptable
+=================
+
+.. automodule:: crimm.Data.ptable
+
+   

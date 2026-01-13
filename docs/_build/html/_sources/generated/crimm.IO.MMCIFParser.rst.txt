@@ -1,0 +1,30 @@
+crimm.IO.MMCIFParser
+====================
+
+.. currentmodule:: crimm.IO
+
+.. autoclass:: MMCIFParser
+
+   
+   .. automethod:: __init__
+
+   
+   .. rubric:: Methods
+
+   .. autosummary::
+   
+      ~MMCIFParser.__init__
+      ~MMCIFParser.add_cell_and_symmetry_info
+      ~MMCIFParser.add_connect_record
+      ~MMCIFParser.create_assembly_dict
+      ~MMCIFParser.create_atom_from_namedtuple
+      ~MMCIFParser.create_atom_site_entry_dict
+      ~MMCIFParser.create_model_template
+      ~MMCIFParser.create_polymer_chain_dict
+      ~MMCIFParser.get_structure
+   
+   
+
+   
+   
+   

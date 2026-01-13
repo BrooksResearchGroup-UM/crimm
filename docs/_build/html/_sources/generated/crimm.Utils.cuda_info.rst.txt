@@ -1,0 +1,21 @@
+crimm.Utils.cuda\_info
+======================
+
+.. automodule:: crimm.Utils.cuda_info
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      convert_SMVer_cores
+      is_cuda_available
+      report_cuda_devices
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      CUDADeviceProp
+      CUDAInfo
+   

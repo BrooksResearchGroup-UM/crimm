@@ -1,0 +1,12 @@
+crimm.StructEntities.OrganizedModel
+===================================
+
+.. automodule:: crimm.StructEntities.OrganizedModel
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      OrganizedModel
+   

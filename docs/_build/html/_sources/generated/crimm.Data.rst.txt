@@ -1,0 +1,19 @@
+crimm.Data
+==========
+
+.. automodule:: crimm.Data
+
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   cgenff_mass_dict
+   components_dict
+   connect_records
+   constants
+   element_dict
+   probes
+   ptable

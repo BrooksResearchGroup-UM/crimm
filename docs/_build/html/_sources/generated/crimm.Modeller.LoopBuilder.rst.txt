@@ -1,0 +1,25 @@
+crimm.Modeller.LoopBuilder
+==========================
+
+.. automodule:: crimm.Modeller.LoopBuilder
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      find_gap_offsets
+      find_gaps_range_overlap
+      find_gaps_within_range
+      find_segment_offsets
+      report_loops
+      translate_gap_ids
+      translate_gaps_with_identical_seqs
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      ArcLoopBuilder
+      ChainLoopBuilder
+   

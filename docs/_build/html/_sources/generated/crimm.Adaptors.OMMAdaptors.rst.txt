@@ -1,0 +1,18 @@
+crimm.Adaptors.OMMAdaptors
+==========================
+
+.. automodule:: crimm.Adaptors.OMMAdaptors
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      construct_omm_positions
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      Topology
+   

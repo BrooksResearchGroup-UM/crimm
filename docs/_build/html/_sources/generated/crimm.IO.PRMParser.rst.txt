@@ -1,0 +1,38 @@
+crimm.IO.PRMParser
+==================
+
+.. automodule:: crimm.IO.PRMParser
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      angle_parser
+      bond_parser
+      categorize_lines
+      cmap_field_parser
+      cmap_key_parser
+      dihedral_collector
+      dihedral_parser
+      extended_collector
+      improper_parser
+      nbfix_parser
+      nonbonded_parser
+      parse_line_dict
+      simple_collector
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      angle_par
+      bond_par
+      cmap_par
+      dihe_par
+      impr_par
+      nbfix_par
+      nonbond14_par
+      nonbond_par
+      ub_par
+   

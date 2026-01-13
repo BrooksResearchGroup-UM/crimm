@@ -1,0 +1,12 @@
+crimm.IO.PDBString
+==================
+
+.. automodule:: crimm.IO.PDBString
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      get_pdb_str
+   

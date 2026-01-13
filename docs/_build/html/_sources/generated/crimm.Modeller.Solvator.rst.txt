@@ -1,0 +1,12 @@
+crimm.Modeller.Solvator
+=======================
+
+.. automodule:: crimm.Modeller.Solvator
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      Solvator
+   

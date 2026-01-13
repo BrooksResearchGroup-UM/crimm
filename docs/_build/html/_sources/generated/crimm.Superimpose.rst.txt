@@ -1,0 +1,13 @@
+crimm.Superimpose
+=================
+
+.. automodule:: crimm.Superimpose
+
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   ChainSuperimposer

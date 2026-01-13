@@ -1,0 +1,17 @@
+crimm.Adaptors
+==============
+
+.. automodule:: crimm.Adaptors
+
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   OMMAdaptors
+   OpenBabelAdaptors
+   PropKaAdaptors
+   RDKitConverter
+   pyCHARMMAdaptors
