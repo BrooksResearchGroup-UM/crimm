@@ -1,0 +1,20 @@
+crimm.StructEntities
+====================
+
+.. automodule:: crimm.StructEntities
+
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   Atom
+   Chain
+   Model
+   OrganizedModel
+   Residue
+   Structure
+   TopoDefinitions
+   TopoElements

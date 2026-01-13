@@ -1,0 +1,14 @@
+crimm.Adaptors.PropKaAdaptors
+=============================
+
+.. automodule:: crimm.Adaptors.PropKaAdaptors
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      MolecularContainer
+      PropKaAtom
+      PropKaProtonator
+   

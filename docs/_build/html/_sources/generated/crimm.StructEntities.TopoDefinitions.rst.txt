@@ -1,0 +1,14 @@
+crimm.StructEntities.TopoDefinitions
+====================================
+
+.. automodule:: crimm.StructEntities.TopoDefinitions
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      AtomDefinition
+      PatchDefinition
+      ResidueDefinition
+   

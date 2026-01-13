@@ -1,0 +1,12 @@
+crimm.Modeller.CoordManipulator
+===============================
+
+.. automodule:: crimm.Modeller.CoordManipulator
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      CoordManipulator
+   

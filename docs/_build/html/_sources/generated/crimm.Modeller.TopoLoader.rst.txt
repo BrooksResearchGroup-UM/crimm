@@ -1,0 +1,35 @@
+﻿crimm.Modeller.TopoLoader
+=========================
+
+.. automodule:: crimm.Modeller.TopoLoader
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      atom_add_neighbors
+      chain_trace_atom_neighbors
+      clear_atom_neighbors
+      excute_cgenff
+      get_bonds_within_residue
+      get_cmap
+      get_impropers
+      residue_get_impropers
+      residue_trace_atom_neigbors
+      traverse_graph
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      CGENFFTopologyLoader
+      CGENFFTopologySet
+      ChainTopology
+      HeterogenTopology
+      ModelTopology
+      ParameterLoader
+      ResiduePatcher
+      ResidueTopologySet
+      TopologyGenerator
+   

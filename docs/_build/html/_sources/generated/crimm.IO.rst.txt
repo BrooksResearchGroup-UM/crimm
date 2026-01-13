@@ -1,0 +1,20 @@
+crimm.IO
+========
+
+.. automodule:: crimm.IO
+
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   CRDParser
+   MMCIF2Dict
+   MMCIFParser
+   PDBParser
+   PDBString
+   PRMParser
+   RTFParser
+   StructureBuilder

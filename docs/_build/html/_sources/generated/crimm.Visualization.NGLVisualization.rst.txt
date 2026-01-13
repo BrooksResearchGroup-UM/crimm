@@ -1,0 +1,21 @@
+crimm.Visualization.NGLVisualization
+====================================
+
+.. automodule:: crimm.Visualization.NGLVisualization
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      show_nglview
+      show_nglview_multiple
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      NGLRDKitStructure
+      NGLStructure
+      View
+   

@@ -1,0 +1,18 @@
+crimm.Utils.StructureUtils
+==========================
+
+.. automodule:: crimm.Utils.StructureUtils
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      chain_to_polymerchain
+      combine_hetero_chains
+      get_charges
+      get_coords
+      index_to_letters
+      letters_to_index
+      rename_chains_by_order
+   

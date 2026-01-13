@@ -1,0 +1,16 @@
+crimm.Utils.query\_db
+=====================
+
+.. automodule:: crimm.Utils.query_db
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      get_rcsb_web_data
+      organize_drugbank_info
+      query_binding_affinity_info
+      query_drugbank_info
+      uniprot_id_query
+   

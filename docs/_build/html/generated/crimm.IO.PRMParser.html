@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>crimm.IO.PRMParser &#8212; crimm 2026.1a documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=d1102ebc" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=12dfc556" />
+    <script src="../_static/documentation_options.js?v=d0d58847"></script>
+    <script src="../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="crimm.IO.RTFParser" href="crimm.IO.RTFParser.html" />
+    <link rel="prev" title="crimm.IO.PDBString" href="crimm.IO.PDBString.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="module-crimm.IO.PRMParser">
+<span id="crimm-io-prmparser"></span><h1>crimm.IO.PRMParser<a class="headerlink" href="#module-crimm.IO.PRMParser" title="Link to this heading">¶</a></h1>
+<p class="rubric">Functions</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">angle_parser</span></code>(line)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">bond_parser</span></code>(line)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">categorize_lines</span></code>(lines)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">cmap_field_parser</span></code>(lines, n)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">cmap_key_parser</span></code>(line)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">dihedral_collector</span></code>(param_line_dict, parser)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">dihedral_parser</span></code>(line)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">extended_collector</span></code>(param_line_dict, parser)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">improper_parser</span></code>(line)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">nbfix_parser</span></code>(line)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">nonbonded_parser</span></code>(line)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_line_dict</span></code>(line_dict)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">simple_collector</span></code>(param_line_dict, parser)</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Classes</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">angle_par</span></code></p></td>
+<td><p>alias of <code class="xref py py-class docutils literal notranslate"><span class="pre">angle_param</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">bond_par</span></code></p></td>
+<td><p>alias of <code class="xref py py-class docutils literal notranslate"><span class="pre">bond_param</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">cmap_par</span></code></p></td>
+<td><p>alias of <code class="xref py py-class docutils literal notranslate"><span class="pre">cmap_param</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">dihe_par</span></code></p></td>
+<td><p>alias of <code class="xref py py-class docutils literal notranslate"><span class="pre">dihedral_param</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">impr_par</span></code></p></td>
+<td><p>alias of <code class="xref py py-class docutils literal notranslate"><span class="pre">improper_param</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">nbfix_par</span></code></p></td>
+<td><p>alias of <code class="xref py py-class docutils literal notranslate"><span class="pre">nbfix_param</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">nonbond14_par</span></code></p></td>
+<td><p>alias of <code class="xref py py-class docutils literal notranslate"><span class="pre">nonbond14_param</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">nonbond_par</span></code></p></td>
+<td><p>alias of <code class="xref py py-class docutils literal notranslate"><span class="pre">nonbond_param</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">ub_par</span></code></p></td>
+<td><p>alias of <code class="xref py py-class docutils literal notranslate"><span class="pre">ub_param</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">crimm</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../usage.html">Usage</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../api.html">API</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="crimm.html">crimm</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="crimm.Adaptors.html">crimm.Adaptors</a></li>
+<li class="toctree-l3"><a class="reference internal" href="crimm.Data.html">crimm.Data</a></li>
+<li class="toctree-l3"><a class="reference internal" href="crimm.Fetchers.html">crimm.Fetchers</a></li>
+<li class="toctree-l3 current"><a class="reference internal" href="crimm.IO.html">crimm.IO</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="crimm.IO.CRDParser.html">crimm.IO.CRDParser</a></li>
+<li class="toctree-l4"><a class="reference internal" href="crimm.IO.MMCIF2Dict.html">crimm.IO.MMCIF2Dict</a></li>
+<li class="toctree-l4"><a class="reference internal" href="crimm.IO.MMCIFParser.html">crimm.IO.MMCIFParser</a></li>
+<li class="toctree-l4"><a class="reference internal" href="crimm.IO.PDBParser.html">crimm.IO.PDBParser</a></li>
+<li class="toctree-l4"><a class="reference internal" href="crimm.IO.PDBString.html">crimm.IO.PDBString</a></li>
+<li class="toctree-l4 current"><a class="current reference internal" href="#">crimm.IO.PRMParser</a></li>
+<li class="toctree-l4"><a class="reference internal" href="crimm.IO.RTFParser.html">crimm.IO.RTFParser</a></li>
+<li class="toctree-l4"><a class="reference internal" href="crimm.IO.StructureBuilder.html">crimm.IO.StructureBuilder</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="crimm.Modeller.html">crimm.Modeller</a></li>
+<li class="toctree-l3"><a class="reference internal" href="crimm.StructEntities.html">crimm.StructEntities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="crimm.Superimpose.html">crimm.Superimpose</a></li>
+<li class="toctree-l3"><a class="reference internal" href="crimm.Utils.html">crimm.Utils</a></li>
+<li class="toctree-l3"><a class="reference internal" href="crimm.Visualization.html">crimm.Visualization</a></li>
+<li class="toctree-l3"><a class="reference internal" href="crimm.fft_docking.html">crimm.fft_docking</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="../api.html">API</a><ul>
+  <li><a href="crimm.html">crimm</a><ul>
+  <li><a href="crimm.IO.html">crimm.IO</a><ul>
+      <li>Previous: <a href="crimm.IO.PDBString.html" title="previous chapter">crimm.IO.PDBString</a></li>
+      <li>Next: <a href="crimm.IO.RTFParser.html" title="next chapter">crimm.IO.RTFParser</a></li>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2025, Truman Xu.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 7.4.7</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 0.7.16</a>
+      
+      |
+      <a href="../_sources/generated/crimm.IO.PRMParser.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

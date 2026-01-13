@@ -1,0 +1,14 @@
+crimm.StructEntities.Residue
+============================
+
+.. automodule:: crimm.StructEntities.Residue
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      DisorderedResidue
+      Heterogen
+      Residue
+   

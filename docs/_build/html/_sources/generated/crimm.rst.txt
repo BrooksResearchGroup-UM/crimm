@@ -1,0 +1,22 @@
+﻿crimm
+=====
+
+.. automodule:: crimm
+
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   Adaptors
+   Data
+   Fetchers
+   IO
+   Modeller
+   StructEntities
+   Superimpose
+   Utils
+   Visualization
+   fft_docking

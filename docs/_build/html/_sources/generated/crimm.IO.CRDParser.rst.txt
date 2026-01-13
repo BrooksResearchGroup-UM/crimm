@@ -1,0 +1,13 @@
+crimm.IO.CRDParser
+==================
+
+.. automodule:: crimm.IO.CRDParser
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      CRDParser
+      crd_entry
+   

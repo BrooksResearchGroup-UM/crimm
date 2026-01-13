@@ -1,0 +1,28 @@
+crimm.Modeller.TopoFixer
+========================
+
+.. automodule:: crimm.Modeller.TopoFixer
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      ab_initio_ic_build
+      build_hydrogens_for_chain
+      build_missing_atoms_for_chain
+      build_water_hs
+      find_build_seq
+      find_coords_by_ic
+      fix_chain
+      get_coord_from_dihedral_ic
+      get_coord_from_improper_ic
+      recur_find_build_seq
+      sep_by_priorities
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      ResidueFixer
+   

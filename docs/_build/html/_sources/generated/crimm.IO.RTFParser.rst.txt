@@ -1,0 +1,22 @@
+crimm.IO.RTFParser
+==================
+
+.. currentmodule:: crimm.IO
+
+.. autoclass:: RTFParser
+
+   
+   .. automethod:: __init__
+
+   
+   .. rubric:: Methods
+
+   .. autosummary::
+   
+      ~RTFParser.__init__
+   
+   
+
+   
+   
+   

@@ -1,0 +1,20 @@
+crimm.fft\_docking
+==================
+
+.. automodule:: crimm.fft_docking
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      batch_quaternion_rotate
+      calc_pairwise_rmsd
+      calc_vdw_energy_factors
+      fft_correlate
+      generate_grids
+      pairwise_dist
+      rank_poses
+      rotate_gen_lig_grids
+      sum_grids
+   

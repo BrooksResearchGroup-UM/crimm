@@ -1,0 +1,12 @@
+crimm.IO.MMCIF2Dict
+===================
+
+.. automodule:: crimm.IO.MMCIF2Dict
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      MMCIF2Dict
+   

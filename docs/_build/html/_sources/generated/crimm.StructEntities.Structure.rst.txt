@@ -1,0 +1,12 @@
+crimm.StructEntities.Structure
+==============================
+
+.. automodule:: crimm.StructEntities.Structure
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      Structure
+   
