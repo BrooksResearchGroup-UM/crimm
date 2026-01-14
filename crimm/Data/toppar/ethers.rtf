@@ -673,48 +673,6 @@ patc firs none last none
 !! Cycloalkanes 
 !!!!!!!!!!!!!!!!
 
-RESI CPEN         0.00   ! cyclopentane, viv
-GROUP
-ATOM C1   CC325A    -0.18
-ATOM H1A  HCA25A     0.09
-ATOM H1B  HCA25A     0.09
-GROUP
-ATOM C2   CC325A    -0.18
-ATOM H2A  HCA25A     0.09
-ATOM H2B  HCA25A     0.09
-GROUP
-ATOM C3   CC325A    -0.18
-ATOM H3A  HCA25A     0.09
-ATOM H3B  HCA25A     0.09
-GROUP
-ATOM C4   CC325A    -0.18
-ATOM H4A  HCA25A     0.09
-ATOM H4B  HCA25A     0.09
-GROUP
-ATOM C5   CC325A    -0.18
-ATOM H5A  HCA25A     0.09
-ATOM H5B  HCA25A     0.09
-
-BOND C1 H1A  C1 H1B  C1 C2
-BOND C2 H2A  C2 H2B  C2 C3
-BOND C3 H3A  C3 H3B  C3 C4
-BOND C4 H4A  C4 H4B  C4 C5
-BOND C5 H5A  C5 H5B  C5 C1
-!! IC for CPEN C2 conformer MP2/6-31G* optimized
-IC   C1    C2   C3    C4    1.5485  105.88  -13.32  105.00   1.5334
-IC   H1A   C1   C2    C3    1.0958  110.05  104.06  105.88   1.5485
-IC   C5    C2   *C1   H1A   1.5334  105.00  117.38  110.05   1.0958
-IC   H1A   C2   *C1   H1B   1.0958  110.05  119.30  112.68   1.0944
-IC   C3    C1   *C2   H2A   1.5485  105.88 -120.88  110.89   1.0943
-IC   H2A   C1   *C2   H2B   1.0943  110.89 -118.52  111.32   1.0943
-IC   C4    C2   *C3   H3A   1.5334  105.00 -123.32  112.68   1.0944
-IC   H3A   C2   *C3   H3B   1.0944  112.68 -119.30  110.05   1.0958
-IC   C5    C3   *C4   H4A   1.5288  102.87 -116.68  110.22   1.0972
-IC   H4A   C3   *C4   H4B   1.0972  110.22 -120.38  113.00   1.0949
-IC   C4    C1   *C5   H5A   1.5288  102.87  122.95  113.00   1.0949
-IC   C4    C1   *C5   H5B   1.5288  102.87 -116.68  110.22   1.0972
-patc firs none last none
-
 RESI CHEX            0.00 ! cyclohexane, viv
 GROUP
 ATOM C1   CC32A     -0.18
@@ -769,41 +727,6 @@ patc firs none last none
 !! Cyclic ethers
 !!!!!!!!!!!!!!!!!
 
-RESI THF             0.00 ! Tetrahydrofuran, viv
-GROUP
-ATOM O1   OC305A    -0.40
-ATOM C1   CC325B     0.02
-ATOM H1A  HCA25A     0.09
-ATOM H1B  HCA25A     0.09
-ATOM C2   CC325B    -0.18
-ATOM H2A  HCA25A     0.09
-ATOM H2B  HCA25A     0.09
-ATOM C3   CC325B    -0.18
-ATOM H3A  HCA25A     0.09
-ATOM H3B  HCA25A     0.09
-ATOM C4   CC325B     0.02
-ATOM H4A  HCA25A     0.09
-ATOM H4B  HCA25A     0.09
-BOND O1 C1  C1 H1A  C1 H1B  C1 C2
-BOND C2 H2A  C2 H2B  C2 C3
-BOND C3 H3A  C3 H3B  C3 C4
-BOND C4 H4A  C4 H4B  C4 O1
-!! IC for THF C2 conformer MP2/6-31G* optimized
-IC   O1    C1   C2    C3    1.4368  106.09   32.94  101.18   1.5273
-IC   C1    C2   C3    C4    1.5252  101.18  -39.14  101.18   1.5252
-IC   C2    C3   C4    O1    1.5273  101.18   32.94  106.09   1.4368
-IC   C3    C4   O1    C1    1.5252  106.09  -12.88  109.31   1.4368
-IC   C4    O1   C1    C2    1.4368  109.31  -12.88  106.09   1.5252
-IC   O1    C2   *C1   H1A   1.4368  106.09  118.91  113.61   1.0945
-IC   O1    C2   *C1   H1B   1.4368  106.09 -118.66  111.00   1.0989
-IC   C1    C3   *C2   H2A   1.5252  101.18  116.76  110.18   1.0949
-IC   C1    C3   *C2   H2B   1.5252  101.18 -121.33  113.76   1.0935
-IC   C2    C4   *C3   H3A   1.5273  101.18  121.95  112.88   1.0935
-IC   C2    C4   *C3   H3B   1.5273  101.18 -116.64  110.35   1.0949
-IC   C3    O1   *C4   H4A   1.5252  106.09  119.76  109.32   1.0989
-IC   C3    O1   *C4   H4B   1.5252  106.09 -122.32  108.34   1.0945
-patc firs none last none
-
 RESI TF2M            0.00 ! 2-methyl-THF, viv
 GROUP
 ATOM O1   OC305A    -0.40
@@ -843,49 +766,6 @@ IC   C3    O1   *C4   H4B   1.5208  104.28  119.33  110.91   1.1016
 IC   H5A   C1   *C5   H5B   1.0928  110.10  120.29  110.81   1.0947
 IC   H5A   C1   *C5   H5C   1.0928  110.10 -119.30  109.89   1.0938
 patc firs none last none
-
-RESI THP             0.00 ! Tetrahydro-2H-pyran, viv
-GROUP
-ATOM O1   OC30A     -0.40
-ATOM C1   CC326A     0.02
-ATOM H1A  HCA2A      0.09
-ATOM H1B  HCA2A      0.09
-ATOM C2   CC326A    -0.18
-ATOM H2A  HCA2A      0.09
-ATOM H2B  HCA2A      0.09
-ATOM C3   CC326A    -0.18
-ATOM H3A  HCA2A      0.09
-ATOM H3B  HCA2A      0.09
-ATOM C4   CC326A    -0.18
-ATOM H4A  HCA2A      0.09
-ATOM H4B  HCA2A      0.09
-ATOM C5   CC326A     0.02
-ATOM H5A  HCA2A      0.09
-ATOM H5B  HCA2A      0.09
-BOND O1 C1  C1 H1A  C1 H1B  C1 C2
-BOND C2 H2A  C2 H2B  C2 C3
-BOND C3 H3A  C3 H3B  C3 C4
-BOND C4 H4A  C4 H4B  C4 C5
-BOND C5 H5A  C5 H5B  C5 O1
-!! IC for THP chair conformer MP2/6-31G* optimized
-IC O1   C1    C2    C3         1.4266  111.33   57.16  109.96   1.5293
-IC C1   C2    C3    C4         1.5230  109.96  -52.34  109.87   1.5293
-IC C5   O1    C1    C2         1.4266  110.87  -61.89  111.33   1.5230
-IC C2   O1    *C1   H1A        1.5230  111.33 -121.53  105.76   1.0934
-IC H1A  O1    *C1   H1B        1.0934  105.76 -116.45  109.72   1.1033
-IC C3   C1    *C2   H2A        1.5293  109.96  122.65  109.93   1.0971
-IC H2A  C1    *C2   H2B        1.0971  109.93  117.29  108.46   1.0963
-IC C4   C2    *C3   H3A        1.5293  109.87 -122.83  110.84   1.0956
-IC H3A  C2    *C3   H3B        1.0956  110.84 -117.43  109.20   1.0986
-IC C5   C3    *C4   H4A        1.5230  109.96 -119.25  109.78   1.0963
-IC H4A  C3    *C4   H4B        1.0963  109.78 -118.81  111.12   1.0971
-IC C4   O1    *C5   H5A        1.5230  111.33  121.53  105.76   1.0934
-IC C4   O1    *C5   H5B        1.5230  111.33 -122.02  109.72   1.1033
-patc firs none last none
-
-!!!!!!!!!!!!!!!!!!
-!! Acyclic ethers 
-!!!!!!!!!!!!!!!!!!
 
 RESI DMET             0.00 ! Dimethylether, viv
 GROUP
@@ -978,47 +858,6 @@ IC  C5   O3   *C4  H41        1.5296  110.07  120.48  109.62   1.1125
 IC  C5   O3   *C4  H42        1.5296  110.07 -120.48  109.62   1.1125
 IC  H51  C4   *C5  H52        1.1107  110.48  120.09  110.35   1.1111
 IC  H51  C4   *C5  H53        1.1107  110.48 -120.09  110.35   1.1111
-patc firs none last none
-
-RESI DME              0.00 ! Dimethoxyethane, adm jr.
-GROUP
-ATOM C1   CC33A      -0.10 ! H12  H11
-ATOM H11  HCA3A       0.09 !    \ /
-ATOM H12  HCA3A       0.09 ! H13-C1  H31 H32  H61  H62
-ATOM H13  HCA3A       0.09 !       \   \  /     \  /
-ATOM O2   OC30A      -0.34 !        O2--C3       C6-H63
-ATOM C3   CC32A      -0.01 !              \     /
-ATOM H31  HCA2A       0.09 !           H41-C4-O5
-ATOM H32  HCA2A       0.09 !               |
-GROUP                      !              H42
-ATOM C4   CC32A      -0.01 !
-ATOM H41  HCA2A       0.09
-ATOM H42  HCA2A       0.09
-ATOM O5   OC30A      -0.34
-ATOM C6   CC33A      -0.10
-ATOM H61  HCA3A       0.09
-ATOM H62  HCA3A       0.09
-ATOM H63  HCA3A       0.09
-BOND C1  H11 C1  H12 C1  H13 
-BOND C1  O2  O2  C3
-BOND C3  H31 C3  H32 C3  C4
-BOND C4  H41 C4  H42 
-BOND C4  O5  O5  C6
-BOND C6  H61 C6  H62 C6  H63
-!! IC for DME ttt conformer MP2/6-31G(d) opt.
-IC  C1     O2    C3      C4         1.4177  111.45 -180.00  106.95   1.5133
-IC  H11    C1    O2      C3         1.0906  106.80  180.00  111.45   1.4180
-IC  O2     C3    C4      O5         1.4180  106.95  180.00  106.95   1.4180
-IC  C3     C4    O5      C6         1.5133  106.95 -180.00  111.45   1.4177
-IC  C4     O5    C6      H61        1.4180  111.45  180.00  106.80   1.0906
-IC  H11    O2    *C1     H12        1.0906  106.80  119.29  111.35   1.0986
-IC  H11    O2    *C1     H13        1.0906  106.80 -119.29  111.35   1.0986
-IC  C4     O2    *C3     H31        1.5133  106.95 -119.86  111.19   1.1001
-IC  H31    O2    *C3     H32        1.1001  111.19 -120.27  111.19   1.1001
-IC  O5     C3    *C4     H41        1.4180  106.95 -120.75  109.80   1.1001
-IC  H41    C3    *C4     H42        1.1001  109.80 -118.49  109.80   1.1001
-IC  H61    O5    *C6     H62        1.0906  106.80  119.29  111.35   1.0986
-IC  H61    O5    *C6     H63        1.0906  106.80 -119.29  111.35   1.0986
 patc firs none last none
 
 RESI MPET            0.00  ! Methyl Propyl Ether, viv
@@ -1155,61 +994,4 @@ patc firs none last none
 
 ! The following have not be rigorously tested
 !
-RESI PEGM            0.00  ! Peg monomer for polymer construction
-                           !
-GROUP                      !         H1A       H2A  
-ATOM C1   CC32A     -0.01  !          |         |
-ATOM H1B  HCA2A      0.09  ! (-C2) - C1 - O1 - C2 - 
-ATOM H1A  HCA2A      0.09  !          |         |  
-ATOM O1   OC30A     -0.34  !         H1B       H2B  
-ATOM C2   CC32A     -0.01  !
-ATOM H2A  HCA2A      0.09  !    
-ATOM H2B  HCA2A      0.09  !    
-BOND C1 H1A   C1 H1B   C1 O1  !  
-BOND O1 C2    C2 H2A   C2 H2B !   
-BOND C1 -C2   
-!
-IC -O1 -C2 C1  O1     0.000  0.000  180.0  0.000  0.000
-IC -C2  C1 O1  C2     0.000  0.000  180.0  0.000  0.000
-IC  C1  O1 C2 +C1     0.000  0.000  180.0  0.000  0.000
- 
-PRES HYD1            0.17  ! Complete terminal methyl group adjacent to ether O
-                           !   H1C -
-ATOM H1C   HCA3A     0.09  !
-ATOM C1    CC33A    -0.10  !
-ATOM H1A   HCA3A     0.09  !
-ATOM H1B   HCA3A     0.09  !
-BOND H1C C1
-
-PRES HYD2            0.17  ! Complete terminal methyl group adjacent to ether O
-                           !   H2C -
-ATOM H2C   HCA3A     0.09  !
-ATOM C2    CC33A    -0.10  !
-ATOM H2A   HCA3A     0.09  !
-ATOM H2B   HCA3A     0.09  !
-BOND H2C C2
-
-PRES MET1             0.00 ! Append terminal methyl group adjacent to CH2
-                           !        HE2
-                           !         |
-ATOM CE  CC33A      -0.27  !   HE3 - CE - 
-ATOM HE1 HCA3A       0.09  !         |
-ATOM HE2 HCA3A       0.09  !        HE1
-ATOM HE3 HCA3A       0.09  !
-BOND CE C1  CE HE1  CE HE2  CE HE3
-IC  CE  C1  O1  C2   0.00  0.00  180.00  0.00  0.00    
-
-PRES MET2            0.00  ! Append terminal methyl group adjacent to CH2
-                           !        HA3
-                           !         |
-ATOM CA  CC33A      -0.27  !   HA2 - CA - 
-ATOM HA1 HCA3A       0.09  !         |
-ATOM HA2 HCA3A       0.09  !        HA1
-ATOM HA3 HCA3A       0.09  !
-BOND CA C2  CA HA1  CA HA2  CA HA3
-IC  CA  C2  O1  C1   0.00  0.00  180.00  0.00  0.00    
-
-DEFAULT FIRST NONE LAST NONE
-
 END
-
