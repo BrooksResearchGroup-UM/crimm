@@ -24,7 +24,30 @@ from crimm.Adaptors.RDKitConverter import RDKitHetConverter, MolToMol2Block
 toppar_dir = os.path.abspath(
     os.path.join(os.path.dirname(__file__), '../Data/toppar')
 )
+
+# Core topology types - commonly used, typically loaded by default in pyCHARMM
+CORE_TOPOLOGY_TYPES = [
+    "protein", "nucleic", "lipid", "carb", "ethers", "cgenff", "water_ions"
+]
+
+# Extended topology types - less common, loaded on demand for specific use cases
+# These correspond to CHARMM stream files that are not part of the default toppar
+EXTENDED_TOPOLOGY_TYPES = [
+    "synthetic_polymer",   # PEG/PEO polymers
+    "moreions",            # Additional ions (PO4, HPO4, etc.)
+    "prot_heme",           # Heme group for hemoproteins
+    "prot_modify_res",     # Modified amino acids (phosphorylation, methylation, etc.)
+    "na_rna_modified",     # Modified RNA nucleotides
+    "carb_glycopeptide",   # Glycopeptide linkages
+    "label_fluorophore",   # Fluorescent labels
+    "label_spin",          # Spin labels for EPR
+    "lipid_cholesterol",   # Cholesterol
+    "lipid_sphingo",       # Sphingolipids
+    "polymer_solvent",     # Polymer solvents
+]
+
 rtf_path_dict = {
+    # Core topologies
     "protein": os.path.join(toppar_dir, 'prot.rtf'),
     "nucleic": os.path.join(toppar_dir, 'na.rtf'),
     "lipid": os.path.join(toppar_dir, 'lipid.rtf'),
@@ -32,9 +55,22 @@ rtf_path_dict = {
     "ethers": os.path.join(toppar_dir, 'ethers.rtf'),
     "cgenff": os.path.join(toppar_dir, 'cgenff.rtf'),
     "water_ions": os.path.join(toppar_dir, 'water_ions.rtf'),
+    # Extended topologies
+    "synthetic_polymer": os.path.join(toppar_dir, 'synthetic_polymer.rtf'),
+    "moreions": os.path.join(toppar_dir, 'moreions.rtf'),
+    "prot_heme": os.path.join(toppar_dir, 'prot_heme.rtf'),
+    "prot_modify_res": os.path.join(toppar_dir, 'prot_modify_res.rtf'),
+    "na_rna_modified": os.path.join(toppar_dir, 'na_rna_modified.rtf'),
+    "carb_glycopeptide": os.path.join(toppar_dir, 'carb_glycopeptide.rtf'),
+    "label_fluorophore": os.path.join(toppar_dir, 'label_fluorophore.rtf'),
+    "label_spin": os.path.join(toppar_dir, 'label_spin.rtf'),
+    "lipid_cholesterol": os.path.join(toppar_dir, 'lipid_cholesterol.rtf'),
+    "lipid_sphingo": os.path.join(toppar_dir, 'lipid_sphingo.rtf'),
+    "polymer_solvent": os.path.join(toppar_dir, 'polymer_solvent.rtf'),
 }
 
 prm_path_dict = {
+    # Core topologies
     "protein": os.path.join(toppar_dir, 'prot.prm'),
     "nucleic": os.path.join(toppar_dir, 'na.prm'),
     "lipid": os.path.join(toppar_dir, 'lipid.prm'),
@@ -42,6 +78,18 @@ prm_path_dict = {
     "ethers": os.path.join(toppar_dir, 'ethers.prm'),
     "cgenff": os.path.join(toppar_dir, 'cgenff.prm'),
     "water_ions": os.path.join(toppar_dir, 'water_ions.prm'),
+    # Extended topologies
+    "synthetic_polymer": os.path.join(toppar_dir, 'synthetic_polymer.prm'),
+    "moreions": os.path.join(toppar_dir, 'moreions.prm'),
+    "prot_heme": os.path.join(toppar_dir, 'prot_heme.prm'),
+    "prot_modify_res": os.path.join(toppar_dir, 'prot_modify_res.prm'),
+    "na_rna_modified": os.path.join(toppar_dir, 'na_rna_modified.prm'),
+    "carb_glycopeptide": os.path.join(toppar_dir, 'carb_glycopeptide.prm'),
+    "label_fluorophore": os.path.join(toppar_dir, 'label_fluorophore.prm'),
+    "label_spin": os.path.join(toppar_dir, 'label_spin.prm'),
+    "lipid_cholesterol": os.path.join(toppar_dir, 'lipid_cholesterol.prm'),
+    "lipid_sphingo": os.path.join(toppar_dir, 'lipid_sphingo.prm'),
+    "polymer_solvent": os.path.join(toppar_dir, 'polymer_solvent.prm'),
 }
 
 chain_type_def_lookup = {
@@ -49,7 +97,9 @@ chain_type_def_lookup = {
     "Polyribonucleotide": "nucleic",
     "Polynucleotide": "nucleic",
     "Solvent": "water_ions",
-    "Ion": "water_ions"
+    "Ion": "water_ions",
+    "Polymer": "synthetic_polymer",
+    "CoSolvent": "synthetic_polymer",
 }
 
 protein_n_term_patch_correction = {
