@@ -171,6 +171,12 @@ class CoordManipulator:
         Apply an alternative orientation aimed at minimizing the bounding
         truncated octahedron. This implementation uses a PCA-based approach to
         align the principal axes with the coordinate axes.
+
+        Note: If apply_to_parent=True, the transformation is applied to the
+        parent entity's atoms. Since atoms are shared objects in the Biopython
+        hierarchy (model atoms ARE structure atoms), modifying the loaded
+        entity's atoms already updates the parent. The apply_to_parent flag
+        is kept for API consistency but the transformation is only applied once.
         """
         if self.entity is None:
             raise ValueError('No structure entity loaded!')
@@ -184,8 +190,17 @@ class CoordManipulator:
         # Re-center the new coordinates around the origin
         new_center = new_coords.mean(axis=0)
         new_coords -= new_center
+
+        # Build the 4x4 transformation matrix for potential external use
+        # The transformation is: (coords - center) @ rotation - new_center
+        # Which equals: coords @ rotation - center @ rotation - new_center
+        translation = -center @ rotation - new_center
+        self.op_mat = np.eye(4)
+        self.op_mat[:3, :3] = rotation
+        self.op_mat[3, :3] = translation
+
         self.coords = new_coords
+        # Update atoms - since atoms are shared between model and parent structure,
+        # this single update affects both. No need to call apply_entity separately.
         for i, atom in enumerate(self._atoms):
             atom.coord = new_coords[i]
-        if apply_to_parent and self.entity.parent is not None:
-            self.apply_entity(self.entity.parent)

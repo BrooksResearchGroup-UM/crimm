@@ -123,9 +123,10 @@ class Solvator:
         chain for chain in model if chain.chain_type == 'Solvent'
     ]
 
-    Note that water chains are named W[A-Z] and have a maximum number of 9999 residues
-    >>> water_chains 
-    [<Solvent id=WA Residues=9999>, <Solvent id=WB Residues=2486>]
+    Note that water chains are named W[A-Z]. All waters are placed in a single chain
+    (PSF/CRD extended format supports residue numbers up to 10 digits).
+    >>> water_chains
+    [<Solvent id=WA Residues=12485>]
     >>> solvator.water_box_coords.shape # shape in (N waters, 3 atoms, 3 coords)
     (12485, 3, 3)
     >>> chain = structure[1]['A'] # get chain A from the first model
@@ -615,18 +616,15 @@ class Solvator:
 
     def _solvate_model(self):
         self.water_box_coords = self.get_expelled_water_box_coords()
-        alphabet_index = 0
         assert self.water_box_coords.shape[1:] == (3, 3), \
         f'Invalid water box coords shape {self.water_box_coords.shape}'
-        water_chains = []
+
+        # Create single water chain (PSF/CRD extended format supports large residue numbers)
+        cur_water_chain = self._create_new_water_chain(0)
+        water_chains = [cur_water_chain]
+
         for i, res_coords in enumerate(self.water_box_coords):
-            # split water molecules into chains of 9999 residues for PDB format
-            # compliance
-            resseq = i % 9999 + 1
-            if resseq == 1:
-                cur_water_chain = self._create_new_water_chain(alphabet_index)
-                alphabet_index += 1
-                water_chains.append(cur_water_chain)
+            resseq = i + 1  # Sequential residue numbering starting at 1
 
             water_res = Residue((' ', resseq, ' '), 'TIP3', '')
 
