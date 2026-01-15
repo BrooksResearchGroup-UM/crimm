@@ -204,3 +204,109 @@ class CoordManipulator:
         # this single update affects both. No need to call apply_entity separately.
         for i, atom in enumerate(self._atoms):
             atom.coord = new_coords[i]
+
+    def orient_coords_ortho(self, apply_to_parent=False) -> None:
+        """
+        Orient coordinates for orthorhombic box - align principal axes and sort by extent.
+
+        Uses PCA to find principal axes, then sorts them so:
+        - Largest extent → X axis (box dimension 'a')
+        - Medium extent → Y axis (box dimension 'b')
+        - Smallest extent → Z axis (box dimension 'c')
+
+        This orientation minimizes box volume for orthorhombic geometry by ensuring
+        that box dimensions match the molecule's extent ordering.
+
+        Note: Same parent/child sharing behavior as orient_coords_octa.
+        """
+        if self.entity is None:
+            raise ValueError('No structure entity loaded!')
+        
+        # Center the coordinates
+        center = self.coords.mean(axis=0)
+        centered_coords = self.coords - center
+        
+        # Compute PCA using SVD
+        U, S, Vt = np.linalg.svd(centered_coords, full_matrices=False)
+        
+        # S contains singular values proportional to extents along each principal axis
+        # Sort principal components by decreasing extent (largest first → X axis)
+        sort_idx = np.argsort(S)[::-1]  # Indices for descending order
+        rotation = Vt[sort_idx].T
+        
+        # Ensure right-handed coordinate system
+        if np.linalg.det(rotation) < 0:
+            rotation[:, -1] *= -1
+        
+        # Apply rotation
+        new_coords = centered_coords @ rotation
+        
+        # Re-center the new coordinates around the origin
+        new_center = new_coords.mean(axis=0)
+        new_coords -= new_center
+        
+        # Build the 4x4 transformation matrix
+        translation = -center @ rotation - new_center
+        self.op_mat = np.eye(4)
+        self.op_mat[:3, :3] = rotation
+        self.op_mat[3, :3] = translation
+        
+        self.coords = new_coords
+        for i, atom in enumerate(self._atoms):
+            atom.coord = new_coords[i]
+
+    def orient_coords_hexa(self, apply_to_parent=False) -> None:
+        """
+        Orient coordinates for hexagonal box - align smallest extent with Z.
+
+        The hexagonal prism has its base in the XY plane (γ=120°).
+        For optimal packing, orient molecule so its flattest dimension
+        aligns with Z (the prism height), while the two larger dimensions
+        span the hexagonal base.
+
+        Axis ordering after orientation:
+        - Two largest extents → XY plane (hexagonal base)
+        - Smallest extent → Z axis (prism height)
+
+        Note: Same parent/child sharing behavior as orient_coords_octa.
+        """
+        if self.entity is None:
+            raise ValueError('No structure entity loaded!')
+        
+        # Center the coordinates
+        center = self.coords.mean(axis=0)
+        centered_coords = self.coords - center
+        
+        # Compute PCA using SVD
+        U, S, Vt = np.linalg.svd(centered_coords, full_matrices=False)
+        
+        # S contains singular values proportional to extents
+        # We want: largest two extents in XY, smallest in Z
+        # Sort indices by S value
+        sort_idx = np.argsort(S)  # Ascending order (smallest first)
+        
+        # Reorder: [largest, medium, smallest] → [X, Y, Z]
+        # sort_idx[2] is largest, sort_idx[1] is medium, sort_idx[0] is smallest
+        reorder = [sort_idx[2], sort_idx[1], sort_idx[0]]
+        rotation = Vt[reorder].T
+        
+        # Ensure right-handed coordinate system
+        if np.linalg.det(rotation) < 0:
+            rotation[:, -1] *= -1
+        
+        # Apply rotation
+        new_coords = centered_coords @ rotation
+        
+        # Re-center the new coordinates around the origin
+        new_center = new_coords.mean(axis=0)
+        new_coords -= new_center
+        
+        # Build the 4x4 transformation matrix
+        translation = -center @ rotation - new_center
+        self.op_mat = np.eye(4)
+        self.op_mat[:3, :3] = rotation
+        self.op_mat[3, :3] = translation
+        
+        self.coords = new_coords
+        for i, atom in enumerate(self._atoms):
+            atom.coord = new_coords[i]
