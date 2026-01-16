@@ -64,7 +64,7 @@ class MMCIFParser:
         date =  cifdict.level_two_get(
             "pdbx_database_status", "recvd_initial_deposition_date"
         )
-        if date is None:
+        if date is not None:
             date = date[0]
         else:
             date = None
