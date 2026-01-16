@@ -267,7 +267,7 @@ class Solvator:
         self._topo_loader = getattr(self.model, 'topology_loader', None)
         self.box_type = None
         self.orient_method = None
-        self.crystal_type = None  # CrystalType object  # CrystalType object
+        self.crystal_type = None  # CrystalType object
         
     def get_model(self):
         return self.model

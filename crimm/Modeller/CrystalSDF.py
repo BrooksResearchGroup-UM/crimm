@@ -16,7 +16,7 @@ M. P. Allen and D. J. Tildesley, Computer Simulation of Liquids, Ch. 1.
 
 import math
 import numpy as np
-from typing import Tuple, Union
+from typing import Tuple
 
 # Constants
 SQRT2 = math.sqrt(2.0)
