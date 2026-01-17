@@ -1,0 +1,698 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>API &mdash; crimm 2026.1a documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=d0d58847"></script>
+      <script src="_static/doctools.js?v=9a2dae69"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="crimm" href="generated/crimm.html" />
+    <link rel="prev" title="Usage" href="usage.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            crimm
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#crimm.Modeller.TopoLoader.CGENFFTopologyLoader"><code class="docutils literal notranslate"><span class="pre">CGENFFTopologyLoader</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.CGENFFTopologyLoader.generate"><code class="docutils literal notranslate"><span class="pre">CGENFFTopologyLoader.generate()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.CGENFFTopologyLoader.generate_from_rdkit"><code class="docutils literal notranslate"><span class="pre">CGENFFTopologyLoader.generate_from_rdkit()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.CGENFFTopologyLoader.write_all"><code class="docutils literal notranslate"><span class="pre">CGENFFTopologyLoader.write_all()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.CGENFFTopologyLoader.write_ligand_str"><code class="docutils literal notranslate"><span class="pre">CGENFFTopologyLoader.write_ligand_str()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.CGENFFTopologyLoader.write_mol2"><code class="docutils literal notranslate"><span class="pre">CGENFFTopologyLoader.write_mol2()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#crimm.Modeller.TopoLoader.CGENFFTopologySet"><code class="docutils literal notranslate"><span class="pre">CGENFFTopologySet</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.CGENFFTopologySet.load_rtf_block"><code class="docutils literal notranslate"><span class="pre">CGENFFTopologySet.load_rtf_block()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#crimm.Modeller.TopoLoader.ChainTopology"><code class="docutils literal notranslate"><span class="pre">ChainTopology</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.ChainTopology.find_topo_elements"><code class="docutils literal notranslate"><span class="pre">ChainTopology.find_topo_elements()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.ChainTopology.load_chain"><code class="docutils literal notranslate"><span class="pre">ChainTopology.load_chain()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.ChainTopology.topo_types"><code class="docutils literal notranslate"><span class="pre">ChainTopology.topo_types</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#crimm.Modeller.TopoLoader.HeterogenTopology"><code class="docutils literal notranslate"><span class="pre">HeterogenTopology</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.HeterogenTopology.find_topo_elements"><code class="docutils literal notranslate"><span class="pre">HeterogenTopology.find_topo_elements()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.HeterogenTopology.load_chain"><code class="docutils literal notranslate"><span class="pre">HeterogenTopology.load_chain()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#crimm.Modeller.TopoLoader.ModelTopology"><code class="docutils literal notranslate"><span class="pre">ModelTopology</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.ModelTopology.angles"><code class="docutils literal notranslate"><span class="pre">ModelTopology.angles</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.ModelTopology.bonds"><code class="docutils literal notranslate"><span class="pre">ModelTopology.bonds</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.ModelTopology.cmap"><code class="docutils literal notranslate"><span class="pre">ModelTopology.cmap</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.ModelTopology.dihedrals"><code class="docutils literal notranslate"><span class="pre">ModelTopology.dihedrals</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.ModelTopology.impropers"><code class="docutils literal notranslate"><span class="pre">ModelTopology.impropers</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.ModelTopology.topo_types"><code class="docutils literal notranslate"><span class="pre">ModelTopology.topo_types</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#crimm.Modeller.TopoLoader.ParameterLoader"><code class="docutils literal notranslate"><span class="pre">ParameterLoader</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.ParameterLoader.apply"><code class="docutils literal notranslate"><span class="pre">ParameterLoader.apply()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.ParameterLoader.fill_ic"><code class="docutils literal notranslate"><span class="pre">ParameterLoader.fill_ic()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.ParameterLoader.get_angle"><code class="docutils literal notranslate"><span class="pre">ParameterLoader.get_angle()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.ParameterLoader.get_bond"><code class="docutils literal notranslate"><span class="pre">ParameterLoader.get_bond()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.ParameterLoader.get_dihedral"><code class="docutils literal notranslate"><span class="pre">ParameterLoader.get_dihedral()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.ParameterLoader.get_from_topo_element"><code class="docutils literal notranslate"><span class="pre">ParameterLoader.get_from_topo_element()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.ParameterLoader.get_improper"><code class="docutils literal notranslate"><span class="pre">ParameterLoader.get_improper()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.ParameterLoader.get_nonbonded"><code class="docutils literal notranslate"><span class="pre">ParameterLoader.get_nonbonded()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.ParameterLoader.ic_position_dict"><code class="docutils literal notranslate"><span class="pre">ParameterLoader.ic_position_dict</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.ParameterLoader.load_type"><code class="docutils literal notranslate"><span class="pre">ParameterLoader.load_type()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.ParameterLoader.res_def_fill_ic"><code class="docutils literal notranslate"><span class="pre">ParameterLoader.res_def_fill_ic()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#crimm.Modeller.TopoLoader.ResiduePatcher"><code class="docutils literal notranslate"><span class="pre">ResiduePatcher</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.ResiduePatcher.patch_disulfide"><code class="docutils literal notranslate"><span class="pre">ResiduePatcher.patch_disulfide()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.ResiduePatcher.patch_residue_definition"><code class="docutils literal notranslate"><span class="pre">ResiduePatcher.patch_residue_definition()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#crimm.Modeller.TopoLoader.ResidueTopologySet"><code class="docutils literal notranslate"><span class="pre">ResidueTopologySet</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.ResidueTopologySet.load_data_dict"><code class="docutils literal notranslate"><span class="pre">ResidueTopologySet.load_data_dict()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#crimm.Modeller.TopoLoader.TopologyGenerator"><code class="docutils literal notranslate"><span class="pre">TopologyGenerator</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.TopologyGenerator.apply_topo_def_on_residue"><code class="docutils literal notranslate"><span class="pre">TopologyGenerator.apply_topo_def_on_residue()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.TopologyGenerator.coerce_resname"><code class="docutils literal notranslate"><span class="pre">TopologyGenerator.coerce_resname()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.TopologyGenerator.generate"><code class="docutils literal notranslate"><span class="pre">TopologyGenerator.generate()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.TopologyGenerator.generate_model"><code class="docutils literal notranslate"><span class="pre">TopologyGenerator.generate_model()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.TopologyGenerator.generate_solvent"><code class="docutils literal notranslate"><span class="pre">TopologyGenerator.generate_solvent()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.TopologyGenerator.patch_residue"><code class="docutils literal notranslate"><span class="pre">TopologyGenerator.patch_residue()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#crimm.Modeller.TopoLoader.TopologyGenerator.patch_termini"><code class="docutils literal notranslate"><span class="pre">TopologyGenerator.patch_termini()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#crimm.Modeller.TopoLoader.atom_add_neighbors"><code class="docutils literal notranslate"><span class="pre">atom_add_neighbors()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#crimm.Modeller.TopoLoader.chain_trace_atom_neighbors"><code class="docutils literal notranslate"><span class="pre">chain_trace_atom_neighbors()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#crimm.Modeller.TopoLoader.clear_atom_neighbors"><code class="docutils literal notranslate"><span class="pre">clear_atom_neighbors()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#crimm.Modeller.TopoLoader.excute_cgenff"><code class="docutils literal notranslate"><span class="pre">excute_cgenff()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#crimm.Modeller.TopoLoader.get_bonds_within_residue"><code class="docutils literal notranslate"><span class="pre">get_bonds_within_residue()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#crimm.Modeller.TopoLoader.get_cmap"><code class="docutils literal notranslate"><span class="pre">get_cmap()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#crimm.Modeller.TopoLoader.get_impropers"><code class="docutils literal notranslate"><span class="pre">get_impropers()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#crimm.Modeller.TopoLoader.residue_get_impropers"><code class="docutils literal notranslate"><span class="pre">residue_get_impropers()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#crimm.Modeller.TopoLoader.residue_trace_atom_neigbors"><code class="docutils literal notranslate"><span class="pre">residue_trace_atom_neigbors()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#crimm.Modeller.TopoLoader.traverse_graph"><code class="docutils literal notranslate"><span class="pre">traverse_graph()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="generated/crimm.html">crimm</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">crimm</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">API</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/api.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-crimm.Modeller.TopoLoader">
+<span id="api"></span><h1>API<a class="headerlink" href="#module-crimm.Modeller.TopoLoader" title="Link to this heading"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.CGENFFTopologyLoader">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">crimm.Modeller.TopoLoader.</span></span><span class="sig-name descname"><span class="pre">CGENFFTopologyLoader</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cgenff_path</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save_path</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.CGENFFTopologyLoader" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Class for loading topology definition to the heterogen residues where
+the topology and parameters are generated by cgenff.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.CGENFFTopologyLoader.generate">
+<span class="sig-name descname"><span class="pre">generate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lig_res</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Heterogen</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ligand_toppar_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.CGENFFTopologyLoader.generate" title="Link to this definition"></a></dt>
+<dd><p>Generate topology definition for the ligand residue using cgenff.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>lig_res</strong> (<em>Heterogen</em>) – The ligand residue object.</p></li>
+<li><p><strong>ligand_toppar_file</strong> (<em>str</em><em>, </em><em>optional</em>) – The path to the ligand topology file. If not provided, the topology
+will be generated by cgenff.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.CGENFFTopologyLoader.generate_from_rdkit">
+<span class="sig-name descname"><span class="pre">generate_from_rdkit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rdkit_mol</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">resname</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ligand_toppar_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.CGENFFTopologyLoader.generate_from_rdkit" title="Link to this definition"></a></dt>
+<dd><p>Generate topology definition for the ligand residue using cgenff. A
+ligand Residue object will be returned</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.CGENFFTopologyLoader.write_all">
+<span class="sig-name descname"><span class="pre">write_all</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pathname</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.CGENFFTopologyLoader.write_all" title="Link to this definition"></a></dt>
+<dd><p>Write all the generated files to the specified directory.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.CGENFFTopologyLoader.write_ligand_str">
+<span class="sig-name descname"><span class="pre">write_ligand_str</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ligname</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filename</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.CGENFFTopologyLoader.write_ligand_str" title="Link to this definition"></a></dt>
+<dd><p>Write the content of cgenff rtf block to a file. Only path to the
+directory is needed. If path name is not provided, current working
+directory will be used. The file name will be the ligand residue name.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.CGENFFTopologyLoader.write_mol2">
+<span class="sig-name descname"><span class="pre">write_mol2</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ligname</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filename</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.CGENFFTopologyLoader.write_mol2" title="Link to this definition"></a></dt>
+<dd><p>Write the ligand mol2 file. Only path to the directory is needed. If
+path name is not provided, current working directory will be used.
+The file name will be the ligand residue name.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.CGENFFTopologySet">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">crimm.Modeller.TopoLoader.</span></span><span class="sig-name descname"><span class="pre">CGENFFTopologySet</span></span><a class="headerlink" href="#crimm.Modeller.TopoLoader.CGENFFTopologySet" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Class for loading topology definition to the heterogen residues where
+the topology and parameters are generated by cgenff.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.CGENFFTopologySet.load_rtf_block">
+<span class="sig-name descname"><span class="pre">load_rtf_block</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rtf_block</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.CGENFFTopologySet.load_rtf_block" title="Link to this definition"></a></dt>
+<dd><p>Load topology data from a dictionary. The dictionary should be parsed
+from a RTF file.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.ChainTopology">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">crimm.Modeller.TopoLoader.</span></span><span class="sig-name descname"><span class="pre">ChainTopology</span></span><a class="headerlink" href="#crimm.Modeller.TopoLoader.ChainTopology" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">_BaseTopology</span></code></p>
+<p>A class object that stores topology elements (bond, angles, dihe, etc)
+of bio-polymer chains, e.g. Protein, RNA, DNA.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.ChainTopology.find_topo_elements">
+<span class="sig-name descname"><span class="pre">find_topo_elements</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chain</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Chain</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.ChainTopology.find_topo_elements" title="Link to this definition"></a></dt>
+<dd><p>Find all topology elements in the chain</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.ChainTopology.load_chain">
+<span class="sig-name descname"><span class="pre">load_chain</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chain</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.ChainTopology.load_chain" title="Link to this definition"></a></dt>
+<dd><p>Find all topology elements from the chain</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.ChainTopology.topo_types">
+<span class="sig-name descname"><span class="pre">topo_types</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['bonds',</span> <span class="pre">'angles',</span> <span class="pre">'dihedrals',</span> <span class="pre">'impropers',</span> <span class="pre">'cmap']</span></em><a class="headerlink" href="#crimm.Modeller.TopoLoader.ChainTopology.topo_types" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.HeterogenTopology">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">crimm.Modeller.TopoLoader.</span></span><span class="sig-name descname"><span class="pre">HeterogenTopology</span></span><a class="headerlink" href="#crimm.Modeller.TopoLoader.HeterogenTopology" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">_BaseTopology</span></code></p>
+<p>A class object that stores topology elements (bond, angles, dihe, etc)
+for a heterogen residue, e.g. ligand, water, ions, etc.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.HeterogenTopology.find_topo_elements">
+<span class="sig-name descname"><span class="pre">find_topo_elements</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">heterogen_chain</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Chain</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.HeterogenTopology.find_topo_elements" title="Link to this definition"></a></dt>
+<dd><p>Find all topology elements in the chain</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.HeterogenTopology.load_chain">
+<span class="sig-name descname"><span class="pre">load_chain</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">heterogen_chain</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.HeterogenTopology.load_chain" title="Link to this definition"></a></dt>
+<dd><p>Find all topology elements from the heterogen chain</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.ModelTopology">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">crimm.Modeller.TopoLoader.</span></span><span class="sig-name descname"><span class="pre">ModelTopology</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.ModelTopology" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>A class object that stores topology elements (bond, angles, dihe, etc)
+for a model.</p>
+<dl class="py property">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.ModelTopology.angles">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">angles</span></span><a class="headerlink" href="#crimm.Modeller.TopoLoader.ModelTopology.angles" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.ModelTopology.bonds">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">bonds</span></span><a class="headerlink" href="#crimm.Modeller.TopoLoader.ModelTopology.bonds" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.ModelTopology.cmap">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">cmap</span></span><a class="headerlink" href="#crimm.Modeller.TopoLoader.ModelTopology.cmap" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.ModelTopology.dihedrals">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">dihedrals</span></span><a class="headerlink" href="#crimm.Modeller.TopoLoader.ModelTopology.dihedrals" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.ModelTopology.impropers">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">impropers</span></span><a class="headerlink" href="#crimm.Modeller.TopoLoader.ModelTopology.impropers" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.ModelTopology.topo_types">
+<span class="sig-name descname"><span class="pre">topo_types</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['bonds',</span> <span class="pre">'angles',</span> <span class="pre">'dihedrals',</span> <span class="pre">'impropers',</span> <span class="pre">'cmap']</span></em><a class="headerlink" href="#crimm.Modeller.TopoLoader.ModelTopology.topo_types" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.ParameterLoader">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">crimm.Modeller.TopoLoader.</span></span><span class="sig-name descname"><span class="pre">ParameterLoader</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">entity_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.ParameterLoader" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>A class object that loads parameters from CHARMM prm files.
+ic_position_dict = {</p>
+<blockquote>
+<div><p>‘R(I-J)’: (0, 1),
+‘T(I-J-K)’: (0, 1, 2),
+‘T(J-K-L)’: (1, 2, 3),
+‘R(K-L)’: (2, 3),
+‘T(I-K-J)’: (0, 2, 1),
+‘R(I-K)’: (0, 2),</p>
+</div></blockquote>
+<p>}
+param_dict structure:</p>
+<blockquote>
+<div><dl>
+<dt>{</dt><dd><dl class="simple">
+<dt>‘bonds’: {</dt><dd><p>(atom_type1, atom_type2): (k_bond, r0),
+…</p>
+</dd>
+</dl>
+<p>},
+‘angles’: {</p>
+<blockquote>
+<div><p>(atom_type1, atom_type2, atom_type3): (k_angle, theta0),
+…</p>
+</div></blockquote>
+<p>},
+‘dihedrals’: {</p>
+<blockquote>
+<div><p>(atom_type1, atom_type2, atom_type3, atom_type4): (k_dihedral, phi0),
+…</p>
+</div></blockquote>
+<p>},
+‘improper’: {</p>
+<blockquote>
+<div><p>(atom_type1, atom_type2, atom_type3, atom_type4): (k_improper, theta0),
+…</p>
+</div></blockquote>
+<p>},
+‘cmap’: {</p>
+<blockquote>
+<div><p>(atom_type1, atom_type2, atom_type3, atom_type4, atom_type5, atom_type6, atom_type7, atom_type8): cmap_table,
+…</p>
+</div></blockquote>
+<p>},
+‘nonbonded’: {</p>
+<blockquote>
+<div><p>atom_type: (epsilon, rmin),
+…</p>
+</div></blockquote>
+<p>},
+‘nonbonded14’: {</p>
+<blockquote>
+<div><p>atom_type: (epsilon, rmin),
+…</p>
+</div></blockquote>
+<p>},
+‘nbfix’: {</p>
+<blockquote>
+<div><p>(atom_type1, atom_type2): (epsilon, rmin),
+…</p>
+</div></blockquote>
+<p>}</p>
+</dd>
+</dl>
+<p>}</p>
+</div></blockquote>
+<dl class="py method">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.ParameterLoader.apply">
+<span class="sig-name descname"><span class="pre">apply</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">topo_element_container</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#crimm.Modeller.TopoLoader.ChainTopology" title="crimm.Modeller.TopoLoader.ChainTopology"><span class="pre">ChainTopology</span></a></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.ParameterLoader.apply" title="Link to this definition"></a></dt>
+<dd><p>Apply the parameter for a list of topology element</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.ParameterLoader.fill_ic">
+<span class="sig-name descname"><span class="pre">fill_ic</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">topology_loader</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">preserve</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.ParameterLoader.fill_ic" title="Link to this definition"></a></dt>
+<dd><p>Fill in the missing parameters for the internal coordinates table
+of a topology.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.ParameterLoader.get_angle">
+<span class="sig-name descname"><span class="pre">get_angle</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.ParameterLoader.get_angle" title="Link to this definition"></a></dt>
+<dd><p>Get angle parameters for a given angle instance.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.ParameterLoader.get_bond">
+<span class="sig-name descname"><span class="pre">get_bond</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.ParameterLoader.get_bond" title="Link to this definition"></a></dt>
+<dd><p>Get bond parameters for a given bond instance.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.ParameterLoader.get_dihedral">
+<span class="sig-name descname"><span class="pre">get_dihedral</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.ParameterLoader.get_dihedral" title="Link to this definition"></a></dt>
+<dd><p>Get dihedral parameters for a given dihedral instance.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.ParameterLoader.get_from_topo_element">
+<span class="sig-name descname"><span class="pre">get_from_topo_element</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">topo_element</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.ParameterLoader.get_from_topo_element" title="Link to this definition"></a></dt>
+<dd><p>Get the parameter for a given topology element</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.ParameterLoader.get_improper">
+<span class="sig-name descname"><span class="pre">get_improper</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.ParameterLoader.get_improper" title="Link to this definition"></a></dt>
+<dd><p>Get improper parameters for a given improper instance.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.ParameterLoader.get_nonbonded">
+<span class="sig-name descname"><span class="pre">get_nonbonded</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.ParameterLoader.get_nonbonded" title="Link to this definition"></a></dt>
+<dd><p>Get nonbonded parameters for a given atom type.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.ParameterLoader.ic_position_dict">
+<span class="sig-name descname"><span class="pre">ic_position_dict</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'R(I-J)':</span> <span class="pre">(0,</span> <span class="pre">1),</span> <span class="pre">'R(I-K)':</span> <span class="pre">(0,</span> <span class="pre">2),</span> <span class="pre">'R(K-L)':</span> <span class="pre">(2,</span> <span class="pre">3),</span> <span class="pre">'T(I-J-K)':</span> <span class="pre">(0,</span> <span class="pre">1,</span> <span class="pre">2),</span> <span class="pre">'T(I-K-J)':</span> <span class="pre">(0,</span> <span class="pre">2,</span> <span class="pre">1),</span> <span class="pre">'T(J-K-L)':</span> <span class="pre">(1,</span> <span class="pre">2,</span> <span class="pre">3)}</span></em><a class="headerlink" href="#crimm.Modeller.TopoLoader.ParameterLoader.ic_position_dict" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.ParameterLoader.load_type">
+<span class="sig-name descname"><span class="pre">load_type</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">entity_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.ParameterLoader.load_type" title="Link to this definition"></a></dt>
+<dd><p>Load parameters from a CHARMM prm file.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.ParameterLoader.res_def_fill_ic">
+<span class="sig-name descname"><span class="pre">res_def_fill_ic</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">residue_definition</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">preserve</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.ParameterLoader.res_def_fill_ic" title="Link to this definition"></a></dt>
+<dd><p>Fill in the missing parameters for the internal coordinates table
+of a residue definition.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.ResiduePatcher">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">crimm.Modeller.TopoLoader.</span></span><span class="sig-name descname"><span class="pre">ResiduePatcher</span></span><a class="headerlink" href="#crimm.Modeller.TopoLoader.ResiduePatcher" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Class Object for patching a residue with a patch definition</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.ResiduePatcher.patch_disulfide">
+<span class="sig-name descname"><span class="pre">patch_disulfide</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">res1</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ResidueDefinition</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">res2</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ResidueDefinition</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.ResiduePatcher.patch_disulfide" title="Link to this definition"></a></dt>
+<dd><p>Patch the disulfide bond between two cysteine residues</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.ResiduePatcher.patch_residue_definition">
+<span class="sig-name descname"><span class="pre">patch_residue_definition</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">residue_definition</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">patch_definition</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">patch_loc</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'MIDCHAIN'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.ResiduePatcher.patch_residue_definition" title="Link to this definition"></a></dt>
+<dd><p>Patch a residue definition with a patch definition. Return the patched residue definition</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.ResidueTopologySet">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">crimm.Modeller.TopoLoader.</span></span><span class="sig-name descname"><span class="pre">ResidueTopologySet</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">entity_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rtf_parser</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.ResidueTopologySet" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Class for loading topology definition to the residue and find any missing atoms.
+Any HIS will be renamed as HSD for protein.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.ResidueTopologySet.load_data_dict">
+<span class="sig-name descname"><span class="pre">load_data_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">topo_data_dict</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rtf_version</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.ResidueTopologySet.load_data_dict" title="Link to this definition"></a></dt>
+<dd><p>Load topology data from a dictionary. The dictionary should be parsed
+from a RTF file.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.TopologyGenerator">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">crimm.Modeller.TopoLoader.</span></span><span class="sig-name descname"><span class="pre">TopologyGenerator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cgenff_excutable_path</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cgenff_output_path</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.TopologyGenerator" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Class for generating topology elements from the topology definition
+and parameters.
+The topology definition the parameters are loaded from the CHARMM 36 RTF and
+PRM files.
+If the cgenff_excutable_path is provided, the topology definition and
+parameters for the heterogen residues are generated by cgenff, and ligand mol2
+file and cgenff rtf file will be saved if cgenff_output_path is specified.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.TopologyGenerator.apply_topo_def_on_residue">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">apply_topo_def_on_residue</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">residue</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">res_definition</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">QUIET</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.TopologyGenerator.apply_topo_def_on_residue" title="Link to this definition"></a></dt>
+<dd><p>Apply the topology definition to the residue</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.TopologyGenerator.coerce_resname">
+<span class="sig-name descname"><span class="pre">coerce_resname</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">residue</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Residue</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">QUIET</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#crimm.Modeller.TopoLoader.TopologyGenerator.coerce_resname" title="Link to this definition"></a></dt>
+<dd><p>Coerce the name of modified residue to reconstruct it as the canonical
+one that it is based on.</p>
+<dl class="simple">
+<dt>Argument:</dt><dd><p>residue: the residue whose name is to be coerced</p>
+</dd>
+</dl>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>True if the residue is a known modified residue and is successfully coerced
+False otherwise</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.TopologyGenerator.generate">
+<span class="sig-name descname"><span class="pre">generate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chain</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Chain</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coerce</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">first_patch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">last_patch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">auto_correct_first_patch</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">preserve_ic</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">QUIET</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.TopologyGenerator.generate" title="Link to this definition"></a></dt>
+<dd><p>Load topology definition into the chain and find any missing atoms.
+Argument:</p>
+<blockquote>
+<div><p>chain: the Chain object whose topology is to be defined
+auto_correct_first_patch: if True, automatically correct the first patch</p>
+<blockquote>
+<div><p>of polypeptide chains. Since PRO or GLY needs special treatment when
+patched at the N-terminus, the first patch will be corrected to PROP
+or GLYP respectively.</p>
+</div></blockquote>
+<dl class="simple">
+<dt>coerce: if True, try to coerce the modified residue name to the canonical name</dt><dd><p>and load the canonical residue topology definition</p>
+</dd>
+</dl>
+<p>QUIET: if True, suppress all warnings</p>
+</div></blockquote>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.TopologyGenerator.generate_model">
+<span class="sig-name descname"><span class="pre">generate_model</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">OrganizedModel</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coerce</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prot_first_patch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'ACE'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prot_last_patch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'CT3'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">na_first_patch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'5TER'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">na_last_patch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'3PHO'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">auto_correct_first_patch</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">build_coords</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">preserve_ic</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">solvent_model</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'TIP3'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">QUIET</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.TopologyGenerator.generate_model" title="Link to this definition"></a></dt>
+<dd><p>Generate topology for a organized model. Protein, nucleic acid, ion and solvent will
+be generated separately. If cgenff executable path is provided, cgenff will be used to
+generate topology for the ligand, nucleoside phosphate, and co-solvent residues.
+Argument:</p>
+<blockquote>
+<div><p>model: the OrganizedModel object whose topology is to be defined
+coerce: if True, try to coerce the modified residue name to the canonical name</p>
+<blockquote>
+<div><p>and load the canonical residue topology definition</p>
+</div></blockquote>
+<dl class="simple">
+<dt>prot_first_patch: the patch to be applied to the N-terminal residue of the protein.</dt><dd><p>Default is ACE (acetylated N-terminus)</p>
+</dd>
+<dt>prot_last_patch: the patch to be applied to the C-terminal residue of the protein.</dt><dd><p>Default is CT3 (N-Methylamide C-terminus)</p>
+</dd>
+<dt>na_first_patch: the patch to be applied to the 5’ terminal residue of the nucleic acid</dt><dd><p>Default is 5TER (5’-terminal HYDROXYL)</p>
+</dd>
+<dt>na_last_patch: the patch to be applied to the 3’ terminal residue of the nucleic acid</dt><dd><p>Default is 3PHO (3’-terminal PHOSPHATE)</p>
+</dd>
+<dt>auto_correct_first_patch: if True, automatically correct the first patch</dt><dd><p>of polypeptide chains. Since PRO or GLY needs special treatment when
+patched at the N-terminus, the first patch will be corrected to PROP
+or GLYP respectively.</p>
+</dd>
+</dl>
+<p>build_coords: if True, build the coordinates of the missing atoms
+preserve_ic: if True, preserve the internal coordinates of the residue
+solvent_model: the solvent model to be used for the solvent molecules.</p>
+<blockquote>
+<div><p>default is TIP3</p>
+</div></blockquote>
+<p>QUIET: if True, suppress all warnings</p>
+</div></blockquote>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.TopologyGenerator.generate_solvent">
+<span class="sig-name descname"><span class="pre">generate_solvent</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">solvent</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">solvent_model</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">QUIET</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.TopologyGenerator.generate_solvent" title="Link to this definition"></a></dt>
+<dd><p>Generate topology elements for solvent molecules</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.TopologyGenerator.patch_residue">
+<span class="sig-name descname"><span class="pre">patch_residue</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">residue</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Residue</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">patch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">patch_loc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'MIDCHAIN'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">QUIET</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.TopologyGenerator.patch_residue" title="Link to this definition"></a></dt>
+<dd><p>Patch the residue with the patch definition</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.TopologyGenerator.patch_termini">
+<span class="sig-name descname"><span class="pre">patch_termini</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chain</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">PolymerChain</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">first</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">last</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">auto_correct_first_patch</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">QUIET</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.TopologyGenerator.patch_termini" title="Link to this definition"></a></dt>
+<dd><p>Patch the terminal residues of the chain</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.atom_add_neighbors">
+<span class="sig-prename descclassname"><span class="pre">crimm.Modeller.TopoLoader.</span></span><span class="sig-name descname"><span class="pre">atom_add_neighbors</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atom1</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Atom</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">atom2</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Atom</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.atom_add_neighbors" title="Link to this definition"></a></dt>
+<dd><p>Add atom2 to atom1’s neighbors and vice versa</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.chain_trace_atom_neighbors">
+<span class="sig-prename descclassname"><span class="pre">crimm.Modeller.TopoLoader.</span></span><span class="sig-name descname"><span class="pre">chain_trace_atom_neighbors</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chain</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">PolymerChain</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inter_res_bonding_atoms</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bond_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'single'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Bond</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#crimm.Modeller.TopoLoader.chain_trace_atom_neighbors" title="Link to this definition"></a></dt>
+<dd><p>Trace all bonds within the chain and add the atoms to each other’s
+neighbors list. Return a list of bonds within the chain.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.clear_atom_neighbors">
+<span class="sig-prename descclassname"><span class="pre">crimm.Modeller.TopoLoader.</span></span><span class="sig-name descname"><span class="pre">clear_atom_neighbors</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">entity</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.clear_atom_neighbors" title="Link to this definition"></a></dt>
+<dd><p>Clear all neighbors of atoms in an entity</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.excute_cgenff">
+<span class="sig-prename descclassname"><span class="pre">crimm.Modeller.TopoLoader.</span></span><span class="sig-name descname"><span class="pre">excute_cgenff</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cgenff_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">input_mol2_block</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.excute_cgenff" title="Link to this definition"></a></dt>
+<dd><p>Excute cgenff to generate topology and parameter files for a given molecule.
+Takes mol2 block as input and return the output as string.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.get_bonds_within_residue">
+<span class="sig-prename descclassname"><span class="pre">crimm.Modeller.TopoLoader.</span></span><span class="sig-name descname"><span class="pre">get_bonds_within_residue</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">residue</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Residue</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Bond</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#crimm.Modeller.TopoLoader.get_bonds_within_residue" title="Link to this definition"></a></dt>
+<dd><p>Return a list of bonds within the residue (peptide bonds linking neighbor
+residues are excluded). Raise ValueError if the topology definition is
+not loaded.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.get_cmap">
+<span class="sig-prename descclassname"><span class="pre">crimm.Modeller.TopoLoader.</span></span><span class="sig-name descname"><span class="pre">get_cmap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chain</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">PolymerChain</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.get_cmap" title="Link to this definition"></a></dt>
+<dd><p>Return a list of CMap terms within the chain. Raise ValueError if the
+topology definition is not loaded.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.get_impropers">
+<span class="sig-prename descclassname"><span class="pre">crimm.Modeller.TopoLoader.</span></span><span class="sig-name descname"><span class="pre">get_impropers</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chain</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">PolymerChain</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Improper</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#crimm.Modeller.TopoLoader.get_impropers" title="Link to this definition"></a></dt>
+<dd><p>Return a list of improper angles within the chain. Raise ValueError if the
+topology definition is not loaded.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.residue_get_impropers">
+<span class="sig-prename descclassname"><span class="pre">crimm.Modeller.TopoLoader.</span></span><span class="sig-name descname"><span class="pre">residue_get_impropers</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">residue</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Residue</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Improper</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#crimm.Modeller.TopoLoader.residue_get_impropers" title="Link to this definition"></a></dt>
+<dd><p>Return a list of improper angles within the residue. Raise ValueError if the
+topology definition is not loaded.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.residue_trace_atom_neigbors">
+<span class="sig-prename descclassname"><span class="pre">crimm.Modeller.TopoLoader.</span></span><span class="sig-name descname"><span class="pre">residue_trace_atom_neigbors</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">residue</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Residue</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Bond</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#crimm.Modeller.TopoLoader.residue_trace_atom_neigbors" title="Link to this definition"></a></dt>
+<dd><p>Trace all bonds within the residue and add the atoms to each other’s
+neighbors list. Return a list of bonds within the residue.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="crimm.Modeller.TopoLoader.traverse_graph">
+<span class="sig-prename descclassname"><span class="pre">crimm.Modeller.TopoLoader.</span></span><span class="sig-name descname"><span class="pre">traverse_graph</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cur_atom</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">angle_set</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dihedral_set</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">visited_set</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#crimm.Modeller.TopoLoader.traverse_graph" title="Link to this definition"></a></dt>
+<dd><p>Traverse the graph of atoms and add all angles and dihedral angles to the
+angle and dihedral sets.</p>
+</dd></dl>
+
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">crimm</span></code></p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="usage.html" class="btn btn-neutral float-left" title="Usage" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="generated/crimm.html" class="btn btn-neutral float-right" title="crimm" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Truman Xu.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

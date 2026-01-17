@@ -1,0 +1,25 @@
+crimm.Adaptors.pyCHARMMAdaptors
+===============================
+
+.. automodule:: crimm.Adaptors.pyCHARMMAdaptors
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      create_water_hs_from_charmm
+      empty_charmm
+      fetch_coords_from_charmm
+      get_charmm_coord_dict
+      get_missing_water_h_dict
+      load_chain
+      load_ions
+      load_ligands
+      load_topology
+      load_water
+      ok_to_sync
+      patch_disu_from_model
+      sd_minimize
+      sync_coords
+   

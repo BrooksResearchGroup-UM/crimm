@@ -1,0 +1,202 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>crimm.Modeller.TopoLoader &mdash; crimm 2026.1a documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=d0d58847"></script>
+      <script src="../_static/doctools.js?v=9a2dae69"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="crimm.StructEntities" href="crimm.StructEntities.html" />
+    <link rel="prev" title="crimm.Modeller.TopoFixer" href="crimm.Modeller.TopoFixer.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            crimm
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../usage.html">Usage</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../api.html">API</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="crimm.html">crimm</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="crimm.Adaptors.html">crimm.Adaptors</a></li>
+<li class="toctree-l3"><a class="reference internal" href="crimm.Data.html">crimm.Data</a></li>
+<li class="toctree-l3"><a class="reference internal" href="crimm.Fetchers.html">crimm.Fetchers</a></li>
+<li class="toctree-l3"><a class="reference internal" href="crimm.IO.html">crimm.IO</a></li>
+<li class="toctree-l3 current"><a class="reference internal" href="crimm.Modeller.html">crimm.Modeller</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="crimm.Modeller.CoordManipulator.html">crimm.Modeller.CoordManipulator</a></li>
+<li class="toctree-l4"><a class="reference internal" href="crimm.Modeller.LoopBuilder.html">crimm.Modeller.LoopBuilder</a></li>
+<li class="toctree-l4"><a class="reference internal" href="crimm.Modeller.SeqChainGenerator.html">crimm.Modeller.SeqChainGenerator</a></li>
+<li class="toctree-l4"><a class="reference internal" href="crimm.Modeller.Solvator.html">crimm.Modeller.Solvator</a></li>
+<li class="toctree-l4"><a class="reference internal" href="crimm.Modeller.TopoFixer.html">crimm.Modeller.TopoFixer</a></li>
+<li class="toctree-l4 current"><a class="current reference internal" href="#">crimm.Modeller.TopoLoader</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="crimm.StructEntities.html">crimm.StructEntities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="crimm.Superimpose.html">crimm.Superimpose</a></li>
+<li class="toctree-l3"><a class="reference internal" href="crimm.Utils.html">crimm.Utils</a></li>
+<li class="toctree-l3"><a class="reference internal" href="crimm.Visualization.html">crimm.Visualization</a></li>
+<li class="toctree-l3"><a class="reference internal" href="crimm.fft_docking.html">crimm.fft_docking</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">crimm</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../api.html">API</a></li>
+          <li class="breadcrumb-item"><a href="crimm.html">crimm</a></li>
+          <li class="breadcrumb-item"><a href="crimm.Modeller.html">crimm.Modeller</a></li>
+      <li class="breadcrumb-item active">crimm.Modeller.TopoLoader</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/generated/crimm.Modeller.TopoLoader.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-crimm.Modeller.TopoLoader">
+<span id="crimm-modeller-topoloader"></span><h1>crimm.Modeller.TopoLoader<a class="headerlink" href="#module-crimm.Modeller.TopoLoader" title="Link to this heading"></a></h1>
+<p class="rubric">Functions</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">atom_add_neighbors</span></code>(atom1, atom2)</p></td>
+<td><p>Add atom2 to atom1's neighbors and vice versa</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">chain_trace_atom_neighbors</span></code>(chain, ...[, ...])</p></td>
+<td><p>Trace all bonds within the chain and add the atoms to each other's neighbors list.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">clear_atom_neighbors</span></code>(entity)</p></td>
+<td><p>Clear all neighbors of atoms in an entity</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">excute_cgenff</span></code>(cgenff_path, input_mol2_block)</p></td>
+<td><p>Excute cgenff to generate topology and parameter files for a given molecule.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_bonds_within_residue</span></code>(residue)</p></td>
+<td><p>Return a list of bonds within the residue (peptide bonds linking neighbor residues are excluded).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_cmap</span></code>(chain)</p></td>
+<td><p>Return a list of CMap terms within the chain.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_impropers</span></code>(chain)</p></td>
+<td><p>Return a list of improper angles within the chain.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">residue_get_impropers</span></code>(residue)</p></td>
+<td><p>Return a list of improper angles within the residue.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">residue_trace_atom_neigbors</span></code>(residue)</p></td>
+<td><p>Trace all bonds within the residue and add the atoms to each other's neighbors list.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">traverse_graph</span></code>(cur_atom, angle_set, ...)</p></td>
+<td><p>Traverse the graph of atoms and add all angles and dihedral angles to the angle and dihedral sets.</p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Classes</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">CGENFFTopologyLoader</span></code>([cgenff_path, save_path])</p></td>
+<td><p>Class for loading topology definition to the heterogen residues where the topology and parameters are generated by cgenff.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">CGENFFTopologySet</span></code>()</p></td>
+<td><p>Class for loading topology definition to the heterogen residues where the topology and parameters are generated by cgenff.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">ChainTopology</span></code>()</p></td>
+<td><p>A class object that stores topology elements (bond, angles, dihe, etc) of bio-polymer chains, e.g. Protein, RNA, DNA.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">HeterogenTopology</span></code>()</p></td>
+<td><p>A class object that stores topology elements (bond, angles, dihe, etc) for a heterogen residue, e.g. ligand, water, ions, etc.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">ModelTopology</span></code>(model)</p></td>
+<td><p>A class object that stores topology elements (bond, angles, dihe, etc) for a model.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">ParameterLoader</span></code>([entity_type])</p></td>
+<td><p>A class object that loads parameters from CHARMM prm files. ic_position_dict = {     'R(I-J)': (0, 1),     'T(I-J-K)': (0, 1, 2),     'T(J-K-L)': (1, 2, 3),     'R(K-L)': (2, 3),     'T(I-K-J)': (0, 2, 1),     'R(I-K)': (0, 2), } param_dict structure:     {         'bonds': {             (atom_type1, atom_type2): (k_bond, r0),             ... },         'angles': {             (atom_type1, atom_type2, atom_type3): (k_angle, theta0),             ... },         'dihedrals': {             (atom_type1, atom_type2, atom_type3, atom_type4): (k_dihedral, phi0),             ... },         'improper': {             (atom_type1, atom_type2, atom_type3, atom_type4): (k_improper, theta0),             ... },         'cmap': {             (atom_type1, atom_type2, atom_type3, atom_type4, atom_type5, atom_type6, atom_type7, atom_type8): cmap_table,             ... },         'nonbonded': {             atom_type: (epsilon, rmin),             ... },         'nonbonded14': {             atom_type: (epsilon, rmin),             ... },         'nbfix': {             (atom_type1, atom_type2): (epsilon, rmin),             ... }     }.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">ResiduePatcher</span></code>()</p></td>
+<td><p>Class Object for patching a residue with a patch definition</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">ResidueTopologySet</span></code>([entity_type, rtf_parser])</p></td>
+<td><p>Class for loading topology definition to the residue and find any missing atoms.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">TopologyGenerator</span></code>([cgenff_excutable_path, ...])</p></td>
+<td><p>Class for generating topology elements from the topology definition and parameters.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="crimm.Modeller.TopoFixer.html" class="btn btn-neutral float-left" title="crimm.Modeller.TopoFixer" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="crimm.StructEntities.html" class="btn btn-neutral float-right" title="crimm.StructEntities" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Truman Xu.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

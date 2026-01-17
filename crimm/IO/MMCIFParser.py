@@ -61,14 +61,19 @@ class MMCIFParser:
     @staticmethod
     def _cif_get_header(cifdict):
         """Get header information from the parsed mmCIF dictionary"""
+        date =  cifdict.level_two_get(
+            "pdbx_database_status", "recvd_initial_deposition_date"
+        )
+        if date is not None:
+            date = date[0]
+        else:
+            date = None
         header = {
             "name": cifdict.get("data"),
             "keywords": cifdict.retrieve_single_value_dict("struct_keywords"),
             "citation": cifdict.get("citation"),
             "idcode": cifdict.retrieve_single_value_dict('struct'),
-            "deposition_date": cifdict.level_two_get(
-                "pdbx_database_status", "recvd_initial_deposition_date"
-            )[0]
+            "deposition_date": date,
         }
 
         return header

@@ -1,0 +1,30 @@
+crimm.StructEntities.Chain
+==========================
+
+.. automodule:: crimm.StructEntities.Chain
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      convert_chain
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      BaseChain
+      Chain
+      CoSolvent
+      Glycosylation
+      Heterogens
+      Ion
+      Ligand
+      Macrolide
+      MaskedSeq
+      NucleosidePhosphate
+      Oligosaccharide
+      PolymerChain
+      Solvent
+   

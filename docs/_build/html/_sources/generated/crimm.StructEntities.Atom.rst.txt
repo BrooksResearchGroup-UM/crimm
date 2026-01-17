@@ -1,0 +1,13 @@
+crimm.StructEntities.Atom
+=========================
+
+.. automodule:: crimm.StructEntities.Atom
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      Atom
+      DisorderedAtom
+   

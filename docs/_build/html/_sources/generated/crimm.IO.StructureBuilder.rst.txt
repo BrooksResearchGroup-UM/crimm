@@ -1,0 +1,20 @@
+crimm.IO.StructureBuilder
+=========================
+
+.. automodule:: crimm.IO.StructureBuilder
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      StructureBuilder
+   
+   .. rubric:: Exceptions
+
+   .. autosummary::
+   
+      AtomAltLocException
+      ChainConstructionException
+      ChainConstructionWarning
+   

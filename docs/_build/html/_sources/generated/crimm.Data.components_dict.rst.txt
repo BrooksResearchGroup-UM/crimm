@@ -1,0 +1,6 @@
+crimm.Data.components\_dict
+===========================
+
+.. automodule:: crimm.Data.components_dict
+
+   

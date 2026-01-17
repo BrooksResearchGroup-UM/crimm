@@ -1,0 +1,13 @@
+crimm.Adaptors.OpenBabelAdaptors
+================================
+
+.. automodule:: crimm.Adaptors.OpenBabelAdaptors
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      fetch_bond_info
+      heterogen_to_openbabel
+   

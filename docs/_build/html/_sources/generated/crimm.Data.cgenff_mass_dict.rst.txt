@@ -1,0 +1,6 @@
+crimm.Data.cgenff\_mass\_dict
+=============================
+
+.. automodule:: crimm.Data.cgenff_mass_dict
+
+   

@@ -1,0 +1,12 @@
+crimm.Modeller.SeqChainGenerator
+================================
+
+.. automodule:: crimm.Modeller.SeqChainGenerator
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      SeqChainGenerator
+   

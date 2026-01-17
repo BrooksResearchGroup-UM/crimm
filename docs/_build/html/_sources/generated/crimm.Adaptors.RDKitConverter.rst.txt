@@ -1,0 +1,35 @@
+crimm.Adaptors.RDKitConverter
+=============================
+
+.. automodule:: crimm.Adaptors.RDKitConverter
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      MolToMol2Block
+      MolToMol2File
+      create_probe_confomers
+      create_probe_mol
+      determine_tripos_bond_type
+      get_rdkit_bond_order
+      heterogen_to_rdkit
+      query_rcsb_for_smiles
+      write_conformers_sdf
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      RDKitHetConverter
+   
+   .. rubric:: Exceptions
+
+   .. autosummary::
+   
+      LigandBondOrderException
+      LigandBondOrderWarning
+      SmilesQueryException
+      SmilesQueryWarning
+   

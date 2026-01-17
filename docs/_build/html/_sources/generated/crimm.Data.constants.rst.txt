@@ -1,0 +1,6 @@
+crimm.Data.constants
+====================
+
+.. automodule:: crimm.Data.constants
+
+   

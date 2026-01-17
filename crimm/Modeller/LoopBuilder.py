@@ -1,7 +1,9 @@
 import json
 import warnings
 import requests
+import numpy as np
 from Bio.Align import PairwiseAligner
+from crimm.Modeller.TopoLoader import ResidueTopologySet
 from crimm.Superimpose.ChainSuperimposer import ChainSuperimposer
 from crimm.Fetchers import fetch_rcsb, fetch_alphafold, uniprot_id_query
 from crimm.StructEntities.Chain import PolymerChain
@@ -112,6 +114,22 @@ def translate_gaps_with_identical_seqs(chainA, chainB):
         translated.extend(model_chain_gaps[i:])
     return translated
 
+def report_loops(chain: PolymerChain):
+    res_dict = dict(chain.missing_res)
+    loops = []
+    for gap in chain.gaps:
+        res_ids = sorted(gap)
+        missing_res = [res_dict[res_id] for res_id in res_ids]
+        anchor, target = chain[min(gap)-1], chain[max(gap)+1]
+        loops.append(
+            {
+                'anchor': {'C': anchor['C'].coord, 'CA': anchor['CA'].coord},
+                'loop_res_ids': res_ids,
+                'loop': missing_res,
+                'target': {'N': target['N'].coord, 'CA': target['CA'].coord}
+            }
+        )
+    return loops
 class ChainLoopBuilder:
     """
     loop modeller for PDB protein structures by homology modeling
@@ -556,3 +574,173 @@ class ChainLoopBuilder:
             )
 
         return self.model_chain
+    
+class ArcLoopBuilder:
+    """
+    Simple loop modeller that builds missing loops as arcs avoiding clashes
+    with existing protein atoms.
+    """
+    def __init__(self, loop, protein_atoms):
+        """
+        start_residue: dict {'C': np.array, 'CA': np.array} of the residue BEFORE loop
+        end_residue:   dict {'N': np.array, 'CA': np.array} of the residue AFTER loop
+        sequence:      string of amino acids in the missing loop
+        protein_atoms: list of np.array coordinates (the 'walls' to avoid)
+        """
+        self.topo = ResidueTopologySet('protein')
+        self.start = loop['anchor']
+        self.end = loop['target']
+        self.loop = loop['loop']
+        self.protein_atoms = protein_atoms
+        self.num_residues = len(loop['loop'])
+        self.res_ids = loop['loop_res_ids']
+        # Standard geometries for approximations
+        self.CA_CA_DIST = 3.8  # Avg distance between Alpha Carbons
+        self.CLASH_DIST = 1.8  # Min distance to existing atoms
+
+    def get_bezier_point(self, t, p0, p1, p2):
+        """
+        Quadratic Bezier formula: B(t) = (1-t)^2 * P0 + 2(1-t)t * P1 + t^2 * P2
+        """
+        return (1-t)**2 * p0 + 2*(1-t)*t * p1 + t**2 * p2
+
+    def generate_ca_trace(self, apex_point):
+        """
+        Generates C-alpha coordinates along the Bezier curve defined by 
+        Start, Apex, and End.
+        """
+        p0 = self.start['CA']
+        p2 = self.end['CA']
+        p1 = apex_point
+        
+        ca_coords = []
+        # We need N+2 points (Start + N loop residues + End) to interpolate correctly
+        # We only return the N loop residues.
+        steps = self.num_residues + 1
+        
+        for i in range(1, steps):
+            t = i / steps
+            coord = self.get_bezier_point(t, p0, p1, p2)
+            ca_coords.append(coord)
+            
+        return ca_coords
+
+    def reconstruct_backbone(self, ca_trace):
+        """
+        Simple heuristic to place N and C atoms relative to the C-alphas.
+        Since this is an *initial* conformation, we place them on the vectors
+        connecting the C-alphas.
+        """
+        full_loop = []
+        
+        # Include anchors for vector calculation
+        all_cas = [self.start['CA']] + ca_trace + [self.end['CA']]
+        
+        for i in range(self.num_residues):
+            # Indices in all_cas: Current residue is i+1
+            prev_ca = all_cas[i]
+            curr_ca = all_cas[i+1]
+            next_ca = all_cas[i+2]
+            
+            # Place N approx 1/3 way from Prev_CA to Curr_CA
+            vec_n = (curr_ca - prev_ca)
+            n_coord = prev_ca + vec_n * 0.76  # 0.76 is roughly (dist(CA-N) / 3.8)
+            
+            # Place C approx 1/3 way from Curr_CA to Next_CA
+            vec_c = (next_ca - curr_ca)
+            c_coord = curr_ca + vec_c * 0.39  # 0.39 is roughly (dist(CA-C) / 3.8)
+
+            coord_dict = {
+                'N': np.array(n_coord),
+                'CA': np.array(curr_ca),
+                'C': np.array(c_coord)
+            }
+            resname = self.loop[i]
+            residue = topo[resname].create_residue_from_coord_dict(
+                coord_dict, resseq = self.res_ids[i]
+            )
+            full_loop.append(residue)
+            
+        return full_loop
+    
+    def check_clashes(self, backbone):
+        """Returns True if any atom in the new backbone hits the protein."""
+        for res in backbone:
+            for atom_type in ['N', 'CA', 'C']:
+                coord = res[atom_type].coord
+                for p_atom in self.protein_atoms:
+                    if np.linalg.norm(coord - p_atom) < self.CLASH_DIST:
+                        return True
+        return False
+
+    def build(self):
+        # 1. Define the Axis (Chord)
+        start_pt = self.start['CA']
+        end_pt = self.end['CA']
+        chord_vec = end_pt - start_pt
+        chord_len = np.linalg.norm(chord_vec)
+        midpoint = start_pt + (chord_vec / 2.0)
+        
+        # 2. Determine Loop Height
+        # The loop must be longer than the chord. 
+        # Approx length of loop = Num_Residues * 3.8
+        target_len = self.num_residues * self.CA_CA_DIST
+        
+        if target_len < chord_len:
+            print("Warning: Sequence too short to bridge gap. Stretching straight.")
+            h = 0.1
+        else:
+            # Approx height calculation (Pythagoras on the triangle approximation)
+            # This is a heuristic estimation for Bezier control point height
+            h = np.sqrt((target_len/2.0)**2 - (chord_len/2.0)**2) * 1.5
+            
+        # 3. Define Perpendicular Vectors for Rotation
+        # We need an arbitrary vector perpendicular to the chord to start rotating
+        # Try Z-axis, if chord is Z-axis, try X-axis
+        arbitrary = np.array([0, 0, 1])
+        if np.allclose(chord_vec / chord_len, arbitrary):
+            arbitrary = np.array([1, 0, 0])
+            
+        # Gram-Schmidt process to get a true perpendicular vector
+        perp_vec = np.cross(chord_vec, arbitrary)
+        perp_vec = perp_vec / np.linalg.norm(perp_vec)
+        
+        # 4. Swing the Loop (Rotate 0 to 360 degrees)
+        best_backbone = None
+        min_clashes = float('inf')
+        
+        # We test 36 angles (every 10 degrees)
+        for angle in np.linspace(0, 2*np.pi, 36):
+            
+            # Rotate the perpendicular vector around the chord vector
+            # (Rodrigues' rotation formula or simple trig reconstruction)
+            
+            # Simplified rotation logic:
+            # Create a local coordinate system at the midpoint
+            # u = chord (normalized), v = perp, w = cross(u, v)
+            u = chord_vec / chord_len
+            v = perp_vec
+            w = np.cross(u, v)
+            
+            # Rotated direction
+            rot_dir = v * np.cos(angle) + w * np.sin(angle)
+            
+            # The "Apex" (Control Point) for the Bezier curve
+            apex = midpoint + (rot_dir * h)
+            
+            # Generate the trace
+            ca_trace = self.generate_ca_trace(apex)
+            
+            # Build full atoms
+            backbone = self.reconstruct_backbone(ca_trace)
+            
+            # Check collisions
+            if not self.check_clashes(backbone):
+                print(f"Found clear path at angle {int(np.degrees(angle))} degrees!")
+                return backbone
+            
+        print("Could not find clash-free path. Returning best guess (0 degrees).")
+        # In a real scenario, you might return the path with minimum clashes
+        # Re-generate base case
+        apex = midpoint + (perp_vec * h)
+        return self.reconstruct_backbone(self.generate_ca_trace(apex))

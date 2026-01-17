@@ -1,0 +1,30 @@
+crimm.Superimpose.ChainSuperimposer
+===================================
+
+.. currentmodule:: crimm.Superimpose
+
+.. autoclass:: ChainSuperimposer
+
+   
+   .. automethod:: __init__
+
+   
+   .. rubric:: Methods
+
+   .. autosummary::
+   
+      ~ChainSuperimposer.__init__
+      ~ChainSuperimposer.apply
+      ~ChainSuperimposer.apply_transform
+      ~ChainSuperimposer.find_valid_edge_ids
+      ~ChainSuperimposer.get_matching_res
+      ~ChainSuperimposer.set_around_gap
+      ~ChainSuperimposer.set_atoms
+      ~ChainSuperimposer.set_chains
+      ~ChainSuperimposer.show
+   
+   
+
+   
+   
+   
