@@ -10951,7 +10951,7 @@ CG321  SG301  SG3O1  OG2P1   0.9184 1    0.00 ! CSU, by ac_aa
 CG321  SG301  SG3O1  OG2P1   4.0686 2    0.00 ! CSU, by ac_aa
 CG321  SG301  SG3O1  OG2P1   0.3279 3    0.00 ! CSU, by ac_aa
 
-IMPROPERS
+IMPROPER
 !!  --------------------------------------------------------------------------  !
 !! Rules: - The multiplicity of impropers should always be 0 so that a harmonic !
 !!    potential is used rather than a cosine function.                          !

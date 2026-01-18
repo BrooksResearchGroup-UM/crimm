@@ -202,9 +202,25 @@ def _generate_system_info(entity) -> list:
         box_type = sol_info.get('box_type')
         box_dim = sol_info.get('box_dim')
         if box_type and box_dim:
-            box_type_names = {'cube': 'Cubic', 'octa': 'Octahedral'}
+            box_type_names = {
+                'cube': 'Cubic',
+                'octa': 'Truncated Octahedron',
+                'rhdo': 'Rhombic Dodecahedron',
+                'ortho': 'Orthorhombic',
+                'tetra': 'Tetragonal',
+                'hexa': 'Hexagonal',
+                'mono': 'Monoclinic',
+                'tric': 'Triclinic',
+                'rhomb': 'Rhombohedral',
+            }
             box_name = box_type_names.get(box_type, box_type.capitalize())
-            lines.append(f"Crystal: {box_name} box, {box_dim:.2f} Å")
+            # Handle orthorhombic with different a, b, c dimensions
+            box_dims = sol_info.get('box_dims')
+            if box_type == 'ortho' and box_dims is not None:
+                a, b, c = box_dims
+                lines.append(f"Crystal: {box_name} box, {a:.2f} x {b:.2f} x {c:.2f} Å")
+            else:
+                lines.append(f"Crystal: {box_name} box, {box_dim:.2f} Å")
 
     # Add special features
     features = []
