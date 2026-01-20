@@ -398,6 +398,7 @@ class Solvator:
     def solvate(
             self, cutoff=9.0, solvcut = 2.10,
             remove_existing_water = True,
+            remove_existing_ions = False,
             orient_coords = True,
             box_type = 'cube',
             orient_method = None,
@@ -423,6 +424,10 @@ class Solvator:
             removed (default: 2.10 Å)
         remove_existing_water : bool, optional
             If True, remove existing water molecules from the entity (default: True)
+        remove_existing_ions : bool, optional
+            If True, remove existing ions from the entity (default: False)
+        orient_coords : bool, optional
+            If True, orient coordinates before solvation (default: True)
         box_type : str, optional
             The shape of the water box. Supported types:
             - 'cube': Cubic box (default)
@@ -498,9 +503,13 @@ class Solvator:
             n_preserved_waters = self._convert_existing_waters_to_tip3(self.model)
             self.model._solvation_info['preserved_waters'] = n_preserved_waters
 
-        # Always preserve existing ions (convert names if needed)
-        n_preserved_ions = self._convert_existing_ions(self.model)
-        self.model._solvation_info['preserved_ions'] = n_preserved_ions
+        if remove_existing_ions:
+            self.remove_existing_ions(self.model)
+            self.model._solvation_info['preserved_ions'] = 0
+        else:
+            # preserve existing ions (convert names if needed)
+            n_preserved_ions = self._convert_existing_ions(self.model)
+            self.model._solvation_info['preserved_ions'] = n_preserved_ions
 
         if len(self.model.chains) == 0:
             raise ValueError('No chains in model to solvate')
@@ -605,6 +614,19 @@ class Solvator:
                 UserWarning
             )
             model.detach_child(chain_id)
+    
+    def remove_existing_ions(self, model: Model) -> Model:
+        """Removes existing ions from the model."""
+        remove_list = []
+        for chain in model.chains:
+            if chain.chain_type == 'Ion':
+                remove_list.append(chain.id)
+        for chain_id in remove_list:
+            warnings.warn(
+                f'Removing existing ion chain {chain_id} from model',
+                UserWarning
+            )
+            model.detach_child(chain_id)
 
     def _build_water_hydrogens(self, oxygen_coord: np.ndarray) -> tuple:
         """Build hydrogen positions for a water molecule from oxygen position.
@@ -675,6 +697,7 @@ class Solvator:
         for chain in model.chains:
             if chain.chain_type != 'Solvent':
                 continue
+            chain.source = 'crystallographic'  # mark as original waters
             for residue in chain.get_residues():
                 if residue.resname in ('HOH', 'WAT', 'SOL', 'TIP3'):
                     atoms = list(residue.get_atoms())
@@ -981,9 +1004,23 @@ class Solvator:
 
         return water_chains
 
+    def _remove_generated_ions(self):
+        """Removes any previously generated ion chains from the model."""
+        remove_list = []
+        for chain in self.model.chains:
+            if chain.chain_type == 'Ion' and chain.source == 'generated':
+                remove_list.append(chain.id)
+        for chain_id in remove_list:
+            self.model.detach_child(chain_id)
+        if len(remove_list) > 0:
+            warnings.warn(
+                f'Removed {len(remove_list)} previously generated ion chains',
+                UserWarning
+            )
             
     def add_balancing_ions(
-            self, present_charge = None, cation='SOD', anion='CLA', skip_undefined=True
+            self, present_charge = None, cation='SOD', anion='CLA', skip_undefined=True,
+            remove_generated_ions=True
         ) -> Ion:
         """DEPRECATED: Use add_ions(concentration=0.0) instead.
 
@@ -1005,6 +1042,13 @@ class Solvator:
             The cation to use. The default is 'SOD' (Na+).
         anion : str, optional
             The anion to use. The default is 'CLA' (Cl-).
+        skip_undefined : bool, optional
+            If True, chains without defined topology will be assumed to have zero
+            charge. If False, a ValueError will be raised if any chain has undefined
+            charge. The default is True.
+        remove_generated_ions : bool, optional
+            If True, any previously generated balancing ion chains will be removed
+            before adding new ions. The default is True.
                 
         Returns
         -------
@@ -1016,6 +1060,8 @@ class Solvator:
             DeprecationWarning,
             stacklevel=2
         )
+        if remove_generated_ions:
+            self._remove_generated_ions()
         solvents = [chain for chain in self.model if chain.chain_type == 'Solvent']
         if len(solvents) == 0:
             raise ValueError(
@@ -1076,6 +1122,7 @@ class Solvator:
         chosen_waters = choices(water_res, k=len(ion_list))
         rtf = ResidueTopologySet('water_ions')
         new_ion_chain = Ion('IA')
+        new_ion_chain.source = 'generated'
         ion_names = ', '.join(set(ion_list))
         new_ion_chain.pdbx_description = f"balancing ions ({ion_names})"
         for i, (chosen_water, ion_name) in enumerate(zip(chosen_waters, ion_list), start=1):
@@ -1515,7 +1562,8 @@ class Solvator:
         anion: str = 'CLA',
         min_dist_solute: float = 5.0,
         min_dist_ion: float = 5.0,
-        skip_undefined: bool = True
+        skip_undefined: bool = True,
+        remove_generated_ions: bool = True,
     ) -> Optional[Ion]:
         """Add ions to achieve target salt concentration.
 
@@ -1544,6 +1592,8 @@ class Solvator:
             Minimum distance between ions in Å. Default 5.0.
         skip_undefined : bool
             If True, assume zero charge for chains without topology. Default True.
+        remove_generated_ions : bool
+            If True, any previously generated ion chains will be removed. Default True.
 
         Returns
         -------
@@ -1555,6 +1605,10 @@ class Solvator:
         - Schmit et al. (2018) J. Chem. Theory Comput. 14:1823-1827 (SLTCAP)
         - Machado & Pantano (2020) J. Chem. Theory Comput. 16:1367-1372 (SPLIT)
         """
+        # Remove previously generated ions
+        if remove_generated_ions:
+            self._remove_generated_ions()
+
         # Verify system is solvated
         solvents = [c for c in self.model if c.chain_type == 'Solvent']
         if len(solvents) == 0:
@@ -1629,6 +1683,7 @@ class Solvator:
         # Create ion chain
         rtf = ResidueTopologySet('water_ions')
         new_ion_chain = Ion('IA')
+        new_ion_chain.source = 'generated'
         ion_names_str = ', '.join(sorted(set(ion_list)))
         new_ion_chain.pdbx_description = f"ions ({ion_names_str}) at {concentration*1000:.0f} mM"
 
