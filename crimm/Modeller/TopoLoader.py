@@ -1589,6 +1589,170 @@ class TopologyGenerator:
         model.topology_loader = self
         model.topology = ModelTopology(model)
 
+    def write_toppar(
+            self,
+            path: str = '.',
+            toppar_folder: str = 'toppar',
+            load_script: str = 'load_toppar.str',
+            include_water_ions: bool = True
+        ) -> list:
+        """Export all loaded topology/parameter files for standalone CHARMM use.
+
+        Creates a toppar directory with RTF, PRM, and STR files based on what
+        topology has been loaded. Optionally generates a load script that can
+        be streamed to load all files in the correct order.
+
+        Parameters
+        ----------
+        path : str
+            Base directory where toppar folder and load script will be created
+            (default: current directory).
+        toppar_folder : str
+            Name of the topology folder (default: 'toppar').
+        load_script : str or None
+            Name of the load script file (default: 'load_toppar.str').
+            If None, no load script is generated.
+        include_water_ions : bool
+            Whether to include water_ions.str (default: True).
+            Set to True if your system contains water or ions.
+
+        Returns
+        -------
+        list
+            List of written file paths
+
+        Raises
+        ------
+        ValueError
+            If no topology has been loaded
+
+        Examples
+        --------
+        >>> topo_gen = TopologyGenerator()
+        >>> topo_gen.generate(protein_chain)
+        >>> topo_gen.write_toppar(path='output', toppar_folder='toppar')
+        # Creates: output/toppar/protein.rtf, output/toppar/protein.prm,
+        #          output/toppar/water_ions.str, output/load_toppar.str
+        """
+        import shutil
+
+        if not self.res_def_dict:
+            raise ValueError(
+                "No topology loaded. Call generate() on chains first."
+            )
+
+        # Create output directory
+        output_dir = os.path.join(path, toppar_folder)
+        os.makedirs(output_dir, exist_ok=True)
+
+        written_files = []
+        rtf_files = []  # Track for load script generation
+        prm_files = []
+        stream_files = []
+
+        # Determine which types to export (exclude cgenff and water_ions - handled separately)
+        biopolymer_types = [t for t in self.res_def_dict.keys()
+                          if t not in ('cgenff', 'water_ions')]
+
+        # Write biopolymer RTF files
+        for topo_type in biopolymer_types:
+            topo_loader = self.res_def_dict[topo_type]
+            rtf_path = os.path.join(output_dir, f'{topo_type}.rtf')
+            with open(rtf_path, 'w', encoding='utf-8') as f:
+                f.write(f'* {topo_type.upper()} RTF exported by crimm\n')
+                f.write('*\n')
+                for line in topo_loader._raw_data_strings:
+                    if line.upper().startswith('RESI') or line.upper().startswith('PRES'):
+                        line = '\n' + line
+                    f.write(line + '\n')
+                f.write('\nEND\n')
+            written_files.append(rtf_path)
+            rtf_files.append(f'{topo_type}.rtf')
+
+        # Write biopolymer PRM files
+        for topo_type in biopolymer_types:
+            if topo_type in self.param_dict:
+                param_loader = self.param_dict[topo_type]
+                prm_path = os.path.join(output_dir, f'{topo_type}.prm')
+                with open(prm_path, 'w', encoding='utf-8') as f:
+                    f.write(f'* {topo_type.upper()} PRM exported by crimm\n')
+                    f.write('*\n')
+                    for line in param_loader._raw_data_strings:
+                        f.write(line + '\n')
+                    f.write('\nEND\n')
+                written_files.append(prm_path)
+                prm_files.append(f'{topo_type}.prm')
+
+        # Handle CGenFF if ligands were parameterized
+        if 'cgenff' in self.res_def_dict and self.cgenff_loader is not None:
+            # Copy cgenff.rtf
+            src_rtf = os.path.join(toppar_dir, 'cgenff.rtf')
+            dst_rtf = os.path.join(output_dir, 'cgenff.rtf')
+            shutil.copy2(src_rtf, dst_rtf)
+            written_files.append(dst_rtf)
+            rtf_files.append('cgenff.rtf')
+
+            # Copy cgenff.prm
+            src_prm = os.path.join(toppar_dir, 'cgenff.prm')
+            dst_prm = os.path.join(output_dir, 'cgenff.prm')
+            shutil.copy2(src_prm, dst_prm)
+            written_files.append(dst_prm)
+            prm_files.append('cgenff.prm')
+
+            # Write individual ligand STR files
+            for resname, toppar_block in self.cgenff_loader.toppar_blocks.items():
+                str_path = os.path.join(output_dir, f'{resname}.str')
+                with open(str_path, 'w', encoding='utf-8') as f:
+                    f.write(f'* CGenFF topology and parameters for {resname}\n')
+                    f.write('* Generated by crimm\n')
+                    f.write('*\n')
+                    f.write(toppar_block)
+                    if not toppar_block.endswith('\n'):
+                        f.write('\n')
+                written_files.append(str_path)
+                stream_files.append(f'{resname}.str')
+
+        # Handle water_ions
+        if include_water_ions:
+            src_str = os.path.join(toppar_dir, 'water_ions.str')
+            dst_str = os.path.join(output_dir, 'water_ions.str')
+            shutil.copy2(src_str, dst_str)
+            written_files.append(dst_str)
+            stream_files.append('water_ions.str')
+
+        # Generate load script if requested
+        if load_script is not None:
+            load_script_path = os.path.join(path, load_script)
+            with open(load_script_path, 'w', encoding='utf-8') as f:
+                f.write('* Toppar loader script generated by crimm\n')
+                f.write('*\n\n')
+
+                # Write RTF read commands
+                for i, rtf_file in enumerate(rtf_files):
+                    append = ' append' if i > 0 else ''
+                    f.write(f'read rtf card{append} name {toppar_folder}/{rtf_file}\n')
+
+                if rtf_files:
+                    f.write('\n')
+
+                # Write PRM read commands
+                for i, prm_file in enumerate(prm_files):
+                    append = ' append' if i > 0 else ''
+                    f.write(f'read param card flex{append} name {toppar_folder}/{prm_file}\n')
+
+                if prm_files:
+                    f.write('\n')
+
+                # Write stream commands
+                for str_file in stream_files:
+                    f.write(f'stream {toppar_folder}/{str_file}\n')
+
+                f.write('\n')
+
+            written_files.append(load_script_path)
+
+        return written_files
+
 ##TODO: Rewrite TopoDef and this class to use the Topology instead
 ## of removing entries one by one here
 class ResiduePatcher:
