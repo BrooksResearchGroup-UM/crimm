@@ -16,7 +16,6 @@ from crimm.StructEntities.Atom import Atom
 from crimm.StructEntities.Residue import Residue
 from crimm.StructEntities.Model import Model
 from crimm.StructEntities.Chain import Solvent, Ion
-from crimm.Modeller.TopoLoader import ResidueTopologySet
 from crimm.Data.components_dict import CHARMM_PDB_ION_NAMES
 from crimm.Modeller.TopoLoader import TopologyGenerator
 
@@ -158,7 +157,7 @@ ION_VALENCES = {
     'OH': -1,    # Hydroxide
 }
 
-# Atom objects for water
+# Topology definitions for water and ions
 _topo = TopologyGenerator()
 _topo_def, _params = _topo.load_residue_definitions('Solvent')
 
@@ -1120,7 +1119,7 @@ class Solvator:
         
         water_res = [res for chain in solvents for res in chain]
         chosen_waters = choices(water_res, k=len(ion_list))
-        rtf = ResidueTopologySet('water_ions')
+
         new_ion_chain = Ion('IA')
         new_ion_chain.source = 'generated'
         ion_names = ', '.join(set(ion_list))
@@ -1132,12 +1131,12 @@ class Solvator:
                 oxy_coord = chosen_water['O'].coord
             else:
                 raise KeyError(f'No oxygen atom present in water {chosen_water}')
-            if ion_name not in rtf.res_defs:
+            if ion_name not in _topo_def.res_defs:
                 raise ValueError(
                     f'Ion {ion_name} not exist in water_ions.rtf. Ion names must be '
                     f'in {CHARMM_PDB_ION_NAMES.keys()}'
                 )
-            ion_res = rtf[ion_name].create_residue(resseq=i)
+            ion_res = _topo_def.res_defs[ion_name].create_residue(resseq=i)
             ion_res.atoms[0].coord = oxy_coord
             new_ion_chain.add(ion_res)
             if (water_chain:=chosen_water.parent) is not None:
@@ -1148,7 +1147,7 @@ class Solvator:
     # =========================================================================
     # New Ion Calculation Methods (SPLIT, SLTCAP, Add-Neutralize)
     # =========================================================================
-
+    # TODO: Move this inside of the `get_charge` function in Utils
     def _get_ion_chain_charge(self, chain) -> float:
         """Calculate total charge of an ion chain from known ion valences.
 
@@ -1681,7 +1680,6 @@ class Solvator:
             return None
 
         # Create ion chain
-        rtf = ResidueTopologySet('water_ions')
         new_ion_chain = Ion('IA')
         new_ion_chain.source = 'generated'
         ion_names_str = ', '.join(sorted(set(ion_list)))
@@ -1693,7 +1691,7 @@ class Solvator:
             else:
                 oxy_coord = water_res['O'].coord
 
-            ion_res = rtf[ion_name].create_residue(resseq=i)
+            ion_res = _topo_def.res_defs[ion_name].create_residue(resseq=i)
             ion_res.atoms[0].coord = oxy_coord
             new_ion_chain.add(ion_res)
 
