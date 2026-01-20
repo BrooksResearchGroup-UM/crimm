@@ -14,8 +14,10 @@ Format specification (from CHARMM source io/psfres.F90):
 
 from typing import Union, List, Dict, Tuple, Optional, Any
 from dataclasses import dataclass
-from crimm.StructEntities import Model, Residue, Atom
+from crimm.StructEntities.Atom import Atom
+from crimm.StructEntities.Residue import Residue
 from crimm.StructEntities.Chain import Chain
+from crimm.StructEntities.Model import Model
 from crimm.StructEntities.TopoElements import CMap
 
 

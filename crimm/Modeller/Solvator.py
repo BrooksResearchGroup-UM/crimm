@@ -18,6 +18,8 @@ from crimm.StructEntities.Model import Model
 from crimm.StructEntities.Chain import Solvent, Ion
 from crimm.Modeller.TopoLoader import ResidueTopologySet
 from crimm.Data.components_dict import CHARMM_PDB_ION_NAMES
+from crimm.Modeller.TopoLoader import TopologyGenerator
+
 
 WATER_COORD_PATH = os.path.join(os.path.dirname(Data.__file__), 'water_coords.npy')
 BOXWIDTH=18.662 # water unit cube width
@@ -157,38 +159,14 @@ ION_VALENCES = {
 }
 
 # Atom objects for water
-OH2 = Atom(
-    name = 'OH2',
-    coord = None,
-    bfactor = 0.0,
-    occupancy = 1.0,
-    altloc = ' ',
-    fullname = 'OH2',
-    serial_number = 0,
-    element = 'O'
-)
+_topo = TopologyGenerator()
+_topo_def, _params = _topo.load_residue_definitions('Solvent')
 
-H1 = Atom(
-    name = 'H1',
-    coord = None,
-    bfactor = 0.0,
-    occupancy = 1.0,
-    altloc = ' ',
-    fullname = 'H1',
-    serial_number = 0,
-    element = 'H'
-)
-
-H2 = Atom(
-    name = 'H2',
-    coord = None,
-    bfactor = 0.0,
-    occupancy = 1.0,
-    altloc = ' ',
-    fullname = 'H2',
-    serial_number = 0,
-    element = 'H'
-)
+TIP3_def = _topo_def['TIP3']
+# Create new Atom instances without coordinates
+OH2 = TIP3_def['OH2'].create_new_atom()
+H1 = TIP3_def['H1'].create_new_atom()
+H2 = TIP3_def['H2'].create_new_atom()
 
 ## TODO: deal with atom serial number > 99999 for larger structures (e.g. 1A8I)
 class Solvator:
@@ -674,7 +652,7 @@ class Solvator:
         h2_coord = oxygen_coord + oh_bond * h2_vec
 
         return h1_coord, h2_coord
-
+        
     def _convert_existing_waters_to_tip3(self, model: Model) -> int:
         """Convert existing water molecules (HOH/WAT) to CHARMM TIP3 format.
 
@@ -724,25 +702,15 @@ class Solvator:
 
                         if len(hydrogen_atoms) == 0:
                             # Build both hydrogens
-                            h1 = Atom(
-                                name='H1', coord=h1_coord, bfactor=0.0, occupancy=1.0,
-                                altloc=' ', fullname=' H1 ', serial_number=max_serial + 1,
-                                element='H'
-                            )
-                            h2 = Atom(
-                                name='H2', coord=h2_coord, bfactor=0.0, occupancy=1.0,
-                                altloc=' ', fullname=' H2 ', serial_number=max_serial + 2,
-                                element='H'
-                            )
+                            h1 = H1.copy()
+                            h2 = H2.copy()
+                            h1.coord = h1_coord
+                            h2.coord = h2_coord
                             residue.add(h1)
                             residue.add(h2)
                         elif len(hydrogen_atoms) == 1:
-                            # Build one hydrogen
-                            h2 = Atom(
-                                name='H2', coord=h2_coord, bfactor=0.0, occupancy=1.0,
-                                altloc=' ', fullname=' H2 ', serial_number=max_serial + 1,
-                                element='H'
-                            )
+                            h2 = H2.copy()
+                            h2.coord = h2_coord
                             residue.add(h2)
 
                     # Convert residue name to TIP3

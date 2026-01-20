@@ -1178,7 +1178,25 @@ class TopologyGenerator:
             self.save_cgenff_output = False
             self.cgenff_loader = None
 
-
+    def load_residue_definitions(
+            self, chain_type: str, preserve = False
+        ):
+        """Load topology definition from the RTF file
+        Argument:
+            chain_type: the type of the chain, e.g. Polypeptide(L), Polyribonucleotide
+            preserve: if True, preserve the existing internal coordinate parameters
+                      in the residue definitions, do not overwrite them from the prm file
+        Return:
+            cur_defs: the ResidueTopologySet object for the chain type
+            cur_param: the ParameterLoader object for the chain type"""
+        
+        if chain_type not in self.res_def_dict:
+            self._load_residue_definitions(chain_type, preserve)
+        else:
+            self.cur_defs = self.res_def_dict[chain_type_def_lookup[chain_type]]
+            self.cur_param = self.param_dict[chain_type_def_lookup[chain_type]]
+        return self.cur_defs, self.cur_param
+    
     def _load_residue_definitions(self, chain_type: str, preserve):
         """Load topology definition from the RTF file"""
         entity_type = chain_type_def_lookup.get(chain_type)

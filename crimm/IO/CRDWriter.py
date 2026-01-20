@@ -11,7 +11,12 @@ Format specification (from CHARMM source io/coorio.F90):
 """
 
 from typing import Union, List
-from crimm.StructEntities import Model, Structure, Chain, Residue, Atom
+from crimm.StructEntities.Atom import Atom
+from crimm.StructEntities.Residue import Residue
+from crimm.StructEntities.Chain import Chain
+from crimm.StructEntities.Model import Model
+from crimm.StructEntities.Structure import Structure
+
 
 # Extended format (EXT) - for systems with >99999 atoms
 _EXT_HEADER_FORMAT = "{:>10d}  EXT\n"
