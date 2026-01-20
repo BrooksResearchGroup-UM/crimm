@@ -740,10 +740,12 @@ class Solvator:
                         residue.resname = 'TIP3'
                         n_converted += 1
 
-                    # Rename oxygen atom
+                    # Rename oxygen atom and set topology definition
                     if oxygen_atom.name != 'OH2':
                         oxygen_atom.name = 'OH2'
                         oxygen_atom.fullname = ' OH2'
+                    # Ensure oxygen has proper topology definition (charge=-0.834, type=OT)
+                    oxygen_atom.topo_definition = OH2.topo_definition
 
         # Count total preserved waters (converted + already TIP3)
         n_preserved = 0
