@@ -16,7 +16,7 @@ from typing import Union, List, Dict, Tuple, Optional, Any
 from dataclasses import dataclass
 from crimm.StructEntities.Atom import Atom
 from crimm.StructEntities.Residue import Residue
-from crimm.StructEntities.Chain import Chain
+from crimm.StructEntities.Chain import BaseChain
 from crimm.StructEntities.Model import Model
 from crimm.StructEntities.TopoElements import CMap
 
@@ -58,7 +58,7 @@ class PSFWriter:
         self._segid_map: Dict[Any, str] = {}  # Maps chain to assigned segid
 
     def validate_for_simulation(
-        self, model: Union[Model, Chain], strict: bool = False
+        self, model: Union[Model, BaseChain], strict: bool = False
     ) -> List[str]:
         """Validate model topology before writing PSF.
 
@@ -68,7 +68,7 @@ class PSFWriter:
 
         Parameters
         ----------
-        model : Model or Chain
+        model : Model or BaseChain
             The entity to validate
         strict : bool, default False
             If True, raise ValueError for any issues.
@@ -166,29 +166,38 @@ class PSFWriter:
         with open(filepath, 'w', encoding='utf-8') as f:
             f.write(psf_str)
 
-    def _get_chains(self, entity: Union[Model, Chain]) -> List[Chain]:
+    def _get_chains(self, entity: Union[Model, BaseChain]) -> List[BaseChain]:
         """Normalize input to a list of chains.
 
         Parameters
         ----------
-        entity : Model or Chain
+        entity : Model or BaseChain
             Input entity
 
         Returns
         -------
-        List[Chain]
+        List[BaseChain]
             List of chains to process
         """
-        if isinstance(entity, Chain):
+        if isinstance(entity, BaseChain):
             return [entity]
-        return list(entity)
+        if isinstance(entity, Model):
+            return list(entity.chains)
+        if isinstance(entity, List):
+            if all(isinstance(c, BaseChain) for c in entity):
+                return entity
+        raise ValueError(
+            f"Input must be a Model or Chain object"
+            f" or a list of Chain objects, but got {type(entity)}"
+        )
 
-    def _get_topology(self, entity: Union[Model, Chain]):
+
+    def _get_topology(self, entity: Union[Model, BaseChain]):
         """Get topology container from entity.
 
         Parameters
         ----------
-        entity : Model or Chain
+        entity : Model or BaseChain
             Input entity
 
         Returns
@@ -196,7 +205,7 @@ class PSFWriter:
         TopologyElementContainer or ModelTopology
             Topology containing bonds, angles, etc.
         """
-        if isinstance(entity, Chain):
+        if isinstance(entity, BaseChain):
             return entity.topology
 
         # For Model, use existing ModelTopology if available
@@ -254,12 +263,12 @@ class PSFWriter:
 
         return combined
 
-    def get_psf_string(self, model: Union[Model, Chain], title: str = "") -> str:
+    def get_psf_string(self, model: Union[Model, BaseChain], title: str = "") -> str:
         """Return PSF content as string.
 
         Parameters
         ----------
-        model : Model or Chain
+        model : Model or BaseChain
             The Model or Chain object with topology to write
         title : str, default ""
             Title line(s) for the PSF header
@@ -283,7 +292,7 @@ class PSFWriter:
         # Get topology container (Chain has .topology, Model uses ModelTopology wrapper)
         topology = self._get_topology(model)
         if topology is None:
-            entity_type = "Chain" if isinstance(model, Chain) else "Model"
+            entity_type = "Chain" if isinstance(model, BaseChain) else "Model"
             raise ValueError(
                 f"{entity_type} has no topology. Generate topology first using "
                 "TopologyGenerator.generate_model() or topo.generate()"
@@ -330,7 +339,7 @@ class PSFWriter:
         # Join sections with blank lines between them (CHARMM format)
         return "\n\n".join(sections) + "\n"
 
-    def _assign_segids(self, model: Union[Model, Chain]) -> None:
+    def _assign_segids(self, model: Union[Model, BaseChain]) -> None:
         """Assign automatic segment IDs to chains without segids.
 
         Rules:
@@ -343,14 +352,14 @@ class PSFWriter:
 
         Parameters
         ----------
-        model : Model or Chain
+        model : Model or BaseChain
             The Model or Chain object
         """
         # Track counts for each type to assign letters
         type_counts = {'PRO': 0, 'DNA': 0, 'RNA': 0, 'LIG': 0}
         letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
-        chains = [model] if isinstance(model, Chain) else model
+        chains = [model] if isinstance(model, BaseChain) else model
         for chain in chains:
             # Check if chain already has segid set on its residues
             # Note: segid might be whitespace-only ('    '), which is truthy but empty
@@ -408,7 +417,7 @@ class PSFWriter:
             for residue in chain:
                 residue.segid = segid
 
-    def _get_cmaps_from_model(self, model: Union[Model, Chain]) -> List[Tuple[Tuple[Atom, ...], Tuple[Atom, ...]]]:
+    def _get_cmaps_from_model(self, model: Union[Model, BaseChain]) -> List[Tuple[Tuple[Atom, ...], Tuple[Atom, ...]]]:
         """Extract CMAP terms from residues in the model.
 
         Each residue may have a .cmap attribute containing CMAP definitions
@@ -502,14 +511,14 @@ class PSFWriter:
                 return atom
         return None
 
-    def _build_atom_index_map(self, model: Union[Model, Chain]) -> None:
+    def _build_atom_index_map(self, model: Union[Model, BaseChain]) -> None:
         """Build mapping from Atom objects to 1-based PSF indices.
 
         Also collects lone pair information for CGENFF ligands.
 
         Parameters
         ----------
-        model : Model or Chain
+        model : Model or BaseChain
             The Model or Chain object to index
         """
         # First assign automatic segids
@@ -517,7 +526,7 @@ class PSFWriter:
 
         idx = 1
         # Normalize input: if Chain, wrap in list; if Model, iterate directly
-        chains = [model] if isinstance(model, Chain) else model
+        chains = [model] if isinstance(model, BaseChain) else model
         for chain in chains:
             for residue in chain:
                 # Regular atoms
@@ -735,7 +744,7 @@ class PSFWriter:
                 indices.extend([self._atom_map[a] for a in atoms])
         return self._format_index_section(indices, "NIMPHI: impropers", items_per_line=2)
 
-    def _write_donors(self, model: Union[Model, Chain]) -> str:
+    def _write_donors(self, model: Union[Model, BaseChain]) -> str:
         """Write NDON section.
 
         RTF format: DONOR HN N (hydrogen, heavy_atom)
@@ -771,7 +780,7 @@ class PSFWriter:
                                 ])
         return self._format_index_section(indices, "NDON: donors", items_per_line=4)
 
-    def _write_acceptors(self, model: Union[Model, Chain]) -> str:
+    def _write_acceptors(self, model: Union[Model, BaseChain]) -> str:
         """Write NACC section.
 
         RTF format: ACCE O C (acceptor, antecedent)
@@ -850,7 +859,7 @@ class PSFWriter:
 
         return "\n".join(lines)
 
-    def _write_groups(self, model: Union[Model, Chain]) -> str:
+    def _write_groups(self, model: Union[Model, BaseChain]) -> str:
         """Write NGRP section (atom groups for charge computation).
 
         Groups are defined per residue from atom_groups.
