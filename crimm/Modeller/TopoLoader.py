@@ -3,6 +3,7 @@ import warnings
 import subprocess
 from typing import List, Tuple
 from copy import deepcopy, copy
+import numpy as np
 from Bio.Data.PDBData import protein_letters_3to1_extended
 from Bio.Data.PDBData import protein_letters_1to3
 
@@ -1439,20 +1440,42 @@ class TopologyGenerator:
         return True
 
     def generate_solvent(self, solvent, solvent_model, QUIET=False):
-        """Generate topology elements for solvent molecules"""
+        """Generate topology elements for solvent molecules.
+
+        For crystallographic waters (HOH/WAT) that only have oxygen atoms,
+        this method builds the missing hydrogens using TIP3P geometry before
+        assigning topology definitions.
+        """
         solvent.undefined_res = []
         self._load_residue_definitions('Solvent', preserve=False)
         if solvent_model not in self.cur_defs:
             raise ValueError(f'Unknown solvent model: {solvent_model}')
 
+        # Map HOH/WAT to the solvent model (e.g., TIP3)
         self.cur_defs.res_defs['HOH'] = self.cur_defs[solvent_model]
+        self.cur_defs.res_defs['WAT'] = self.cur_defs[solvent_model]
+        self.cur_defs.res_defs['SOL'] = self.cur_defs[solvent_model]
 
+        # Get atom definitions from solvent model for building hydrogens
+        solvent_def = self.cur_defs[solvent_model]
+
+        n_hydrogens_built = 0
         for residue in solvent:
+            # Build missing hydrogens for crystallographic waters
+            n_hydrogens_built += self._build_missing_water_hydrogens(
+                residue, solvent_def
+            )
+
             is_defined = self._generate_residue_topology(
                 residue, coerce=False, QUIET=QUIET
             )
             if not is_defined:
                 solvent.undefined_res.append(residue)
+
+        if n_hydrogens_built > 0 and not QUIET:
+            warnings.warn(
+                f"Built {n_hydrogens_built} missing hydrogens for crystallographic waters"
+            )
         if (n_undefined:=len(solvent.undefined_res)) > 0 and not QUIET:
             warnings.warn(
                 f"{n_undefined} residue(s) not defined in the chain!"
@@ -1463,6 +1486,69 @@ class TopologyGenerator:
         solvent.topology = topology.load_chain(solvent)
         self.cur_param.apply(solvent.topology)
         return topology
+
+    def _build_missing_water_hydrogens(self, residue, solvent_def):
+        """Build missing hydrogens for crystallographic water molecules.
+
+        Returns the number of hydrogens built.
+        """
+        if residue.resname not in ('HOH', 'WAT', 'SOL', 'TIP3'):
+            return 0
+
+        oxygen_names = {'O', 'OW', 'OH2'}
+        oxygen_atom = None
+        n_hydrogens = 0
+
+        for atom in residue.get_atoms():
+            if atom.name in oxygen_names or atom.element == 'O':
+                oxygen_atom = atom
+            elif atom.element == 'H':
+                n_hydrogens += 1
+
+        if oxygen_atom is None or n_hydrogens >= 2:
+            return 0
+
+        if oxygen_atom.name != 'OH2':
+            oxygen_atom.name = 'OH2'
+            oxygen_atom.fullname = ' OH2'
+
+        h1_coord, h2_coord = self._compute_water_hydrogen_coords(oxygen_atom.coord)
+
+        if n_hydrogens == 0:
+            h1 = solvent_def['H1'].create_new_atom()
+            h1.coord = h1_coord
+            residue.add(h1)
+
+        h2 = solvent_def['H2'].create_new_atom()
+        h2.coord = h2_coord
+        residue.add(h2)
+
+        return 2 - n_hydrogens
+
+    @staticmethod
+    def _compute_water_hydrogen_coords(oxygen_coord):
+        """Compute hydrogen positions for water using TIP3P geometry.
+
+        TIP3P: O-H bond = 0.9572 A, H-O-H angle = 104.52 degrees.
+        """
+        oh_bond = 0.9572
+        hoh_angle = np.radians(104.52)
+
+        random_vec = np.random.randn(3)
+        random_vec /= np.linalg.norm(random_vec)
+        h1_coord = oxygen_coord + oh_bond * random_vec
+
+        ref_axis = np.array([0, 1, 0]) if abs(random_vec[0]) > 0.9 else np.array([1, 0, 0])
+        perp = np.cross(random_vec, ref_axis)
+        perp /= np.linalg.norm(perp)
+
+        cos_a, sin_a = np.cos(hoh_angle), np.sin(hoh_angle)
+        h2_vec = (random_vec * cos_a +
+                  np.cross(perp, random_vec) * sin_a +
+                  perp * np.dot(perp, random_vec) * (1 - cos_a))
+        h2_coord = oxygen_coord + oh_bond * h2_vec
+
+        return h1_coord, h2_coord
 
     def generate(
             self, chain: Chain, coerce: bool = False,
@@ -1935,6 +2021,12 @@ class ResiduePatcher:
         for bond_type in self.res.bonds:
             self.res.bonds[bond_type].extend(self.patch.bonds[bond_type])
 
+        # Remove groups fully redefined by patch to avoid duplicates (e.g., CT3 patch)
+        patch_atoms = set(self.patch.atom_dict.keys())
+        self.res.atom_groups = [
+            group for group in self.res.atom_groups
+            if not all(atom_name in patch_atoms for atom_name in group)
+        ]
         self.res.atom_groups.extend(self.patch.atom_groups)
         self.res.H_donors.extend(self.patch.H_donors)
         self.res.H_acceptors.extend(self.patch.H_acceptors)
