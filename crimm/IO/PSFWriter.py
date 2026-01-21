@@ -40,6 +40,10 @@ class PSFWriter:
         Use extended format (I10/A8) for large systems
     xplor : bool, default True
         Use XPLOR format (atom type names instead of indices)
+    separate_crystal_segids : bool, default False
+        If True, crystallographic waters/ions get separate segids (CRWT/CION)
+        from generated ones (SOLV/IONS). If False (default), all waters use
+        SOLV and all ions use IONS regardless of source.
 
     Attributes
     ----------
@@ -47,11 +51,31 @@ class PSFWriter:
         Whether extended format is used
     xplor : bool
         Whether XPLOR format is used
+    separate_crystal_segids : bool
+        Whether crystallographic chains get separate segids
+
+    Examples
+    --------
+    Default behavior - all waters/ions share segids:
+
+    >>> writer = PSFWriter()
+    >>> writer.write(model, 'system.psf')  # Waters->SOLV, Ions->IONS
+
+    Separate crystallographic chains:
+
+    >>> writer = PSFWriter(separate_crystal_segids=True)
+    >>> writer.write(model, 'system.psf')  # Crystal waters->CRWT, Generated->SOLV
     """
 
-    def __init__(self, extended: bool = True, xplor: bool = True):
+    def __init__(
+        self,
+        extended: bool = True,
+        xplor: bool = True,
+        separate_crystal_segids: bool = False
+    ):
         self.extended = extended
         self.xplor = xplor
+        self.separate_crystal_segids = separate_crystal_segids
         self._atom_map: Dict[Atom, int] = {}
         self._atoms: List[Atom] = []
         self._lonepairs: List[LonePairInfo] = []
@@ -384,22 +408,26 @@ class PSFWriter:
             elif 'polyribonucleotide' in chain_type.lower():
                 prefix = 'RNA'
             elif chain_type.lower() == 'solvent':
-                if chain.source is None or chain.source.lower() != 'generated':
-                # Crystallographic water chains get a special segid
+                # By default, all waters share SOLV segid
+                # If separate_crystal_segids=True, crystallographic waters get CRWT
+                if self.separate_crystal_segids and (
+                    chain.source is None or chain.source.lower() != 'generated'
+                ):
                     segid = 'CRWT'
                 else:
-                # All generated  water chains share the SOLV segment              
                     segid = 'SOLV'
                 self._segid_map[chain] = segid
                 for residue in chain:
                     residue.segid = segid
                 continue
             elif chain_type.lower() == 'ion':
-                if chain.source is None or chain.source.lower() != 'generated':
-                # Crystallographic ion chains get a special segid
+                # By default, all ions share IONS segid
+                # If separate_crystal_segids=True, crystallographic ions get CION
+                if self.separate_crystal_segids and (
+                    chain.source is None or chain.source.lower() != 'generated'
+                ):
                     segid = 'CION'
                 else:
-                    # All generated ion chains share the IONS segment
                     segid = 'IONS'
                 self._segid_map[chain] = segid
                 for residue in chain:
@@ -1095,7 +1123,8 @@ def write_psf(
     filepath: str,
     extended: bool = True,
     xplor: bool = True,
-    title: str = ""
+    title: str = "",
+    separate_crystal_segids: bool = False
 ) -> None:
     """Write CHARMM PSF format file from a crimm Model.
 
@@ -1111,8 +1140,25 @@ def write_psf(
         Use XPLOR format (atom type names instead of indices)
     title : str, default ""
         Title line(s) for the PSF header
+    separate_crystal_segids : bool, default False
+        If True, crystallographic waters/ions get separate segids (CRWT/CION)
+        from generated ones (SOLV/IONS). If False (default), all waters use
+        SOLV and all ions use IONS regardless of source.
+
+    Examples
+    --------
+    >>> from crimm.IO import write_psf
+    >>> write_psf(model, 'system.psf')  # All waters->SOLV, ions->IONS
+
+    To separate crystallographic from generated chains:
+
+    >>> write_psf(model, 'system.psf', separate_crystal_segids=True)
     """
-    writer = PSFWriter(extended=extended, xplor=xplor)
+    writer = PSFWriter(
+        extended=extended,
+        xplor=xplor,
+        separate_crystal_segids=separate_crystal_segids
+    )
     writer.write(model, filepath, title)
 
 
@@ -1120,7 +1166,8 @@ def get_psf_str(
     model: Model,
     extended: bool = True,
     xplor: bool = True,
-    title: str = ""
+    title: str = "",
+    separate_crystal_segids: bool = False
 ) -> str:
     """Get CHARMM PSF format string from a crimm Model.
 
@@ -1134,13 +1181,21 @@ def get_psf_str(
         Use XPLOR format (atom type names instead of indices)
     title : str, default ""
         Title line(s) for the PSF header
+    separate_crystal_segids : bool, default False
+        If True, crystallographic waters/ions get separate segids (CRWT/CION)
+        from generated ones (SOLV/IONS). If False (default), all waters use
+        SOLV and all ions use IONS regardless of source.
 
     Returns
     -------
     str
         PSF format string
     """
-    writer = PSFWriter(extended=extended, xplor=xplor)
+    writer = PSFWriter(
+        extended=extended,
+        xplor=xplor,
+        separate_crystal_segids=separate_crystal_segids
+    )
     return writer.get_psf_string(model, title)
 
 
