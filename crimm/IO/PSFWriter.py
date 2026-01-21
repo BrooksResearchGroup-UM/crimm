@@ -384,15 +384,23 @@ class PSFWriter:
             elif 'polyribonucleotide' in chain_type.lower():
                 prefix = 'RNA'
             elif chain_type.lower() == 'solvent':
-                # All water chains share the SOLV segment
-                segid = 'SOLV'
+                if chain.source is None or chain.source.lower() != 'generated':
+                # Crystallographic water chains get a special segid
+                    segid = 'CRWT'
+                else:
+                # All generated  water chains share the SOLV segment              
+                    segid = 'SOLV'
                 self._segid_map[chain] = segid
                 for residue in chain:
                     residue.segid = segid
                 continue
             elif chain_type.lower() == 'ion':
-                # All ion chains share the IONS segment
-                segid = 'IONS'
+                if chain.source is None or chain.source.lower() != 'generated':
+                # Crystallographic ion chains get a special segid
+                    segid = 'CION'
+                else:
+                    # All generated ion chains share the IONS segment
+                    segid = 'IONS'
                 self._segid_map[chain] = segid
                 for residue in chain:
                     residue.segid = segid

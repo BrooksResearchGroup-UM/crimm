@@ -355,12 +355,10 @@ def load_water(water_chains, segids=None, use_psf_crd=True, append=False):
 
     if use_psf_crd:
         # PSF/CRD approach (default) - simpler and recommended
-        for i, (segid, chain) in enumerate(zip(segids, water_chains)):
-            for res in chain:
-                res.segid = segid
-            print(f"[crimm] Loading water chain {segid}")
-            # First chain uses caller's append value, subsequent ones always append
+        for i, chain in enumerate(water_chains):
+            # Segment ID for water chains is defined by PSFWriter based on water source
             should_append = append if i == 0 else True
+            segid = chain.residues[0].segid
             _load_psf_crd(chain, append=should_append)
     else:
         # Deprecated PDB-based implementation
@@ -415,17 +413,14 @@ def load_ions(ion_chains, use_psf_crd=True, append=False):
         The segment IDs used for each ion chain
     """
     segids = []
-
+    
     if use_psf_crd:
         # PSF/CRD approach (default) - simpler and recommended
         for i, chain in enumerate(ion_chains):
-            segid = f'IO{i:02d}'
-            print(f"[crimm] Loading ion chain {segid}")
-            for res in chain:
-                res.segid = segid
-            # First chain uses caller's append value, subsequent ones always append
+            # Segment ID for ion chains is defined by PSFWriter based on ion source
             should_append = append if i == 0 else True
             _load_psf_crd(chain, append=should_append)
+            segid = chain.residues[0].segid
             segids.append(segid)
     else:
         # Deprecated PDB-based implementation
