@@ -223,9 +223,9 @@ def _generate_system_info(entity) -> list:
             box_dims = sol_info.get('box_dims')
             if box_type == 'ortho' and box_dims is not None:
                 a, b, c = box_dims
-                lines.append(f"Crystal: {box_name} box, {a:.2f} x {b:.2f} x {c:.2f} Å")
+                lines.append(f"Crystal: {box_name} box, {a:.2f} x {b:.2f} x {c:.2f} A")
             else:
-                lines.append(f"Crystal: {box_name} box, {box_dim:.2f} Å")
+                lines.append(f"Crystal: {box_name} box, {box_dim:.2f} A")
 
     # Add special features
     features = []
