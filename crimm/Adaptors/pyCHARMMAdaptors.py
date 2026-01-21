@@ -72,7 +72,8 @@ def _load_psf_crd(entity, append=False):
 
         # Load into pyCHARMM
         read.psf_card(psf_path, append=append)
-        read.coor_card(crd_path)
+        # When appending PSF, also use append for CRD to offset atom indices
+        read.coor_card(crd_path, append=append)
     finally:
         # Clean up temp files
         if psf_path and os.path.exists(psf_path):

@@ -332,9 +332,9 @@ class PSFWriter:
         # Must come before CMAP section
         sections.append(self._write_lonepairs())
 
-        # CMAP section (if present) - always last
-        if has_cmap:
-            sections.append(self._write_cmap(topology))
+        # CMAP section - always write for append mode compatibility
+        # (CHARMM expects NCRTERM section when CMAP flag is present)
+        sections.append(self._write_cmap(topology))
 
         # Join sections with blank lines between them (CHARMM format)
         return "\n\n".join(sections) + "\n"
@@ -565,14 +565,18 @@ class PSFWriter:
                                     ))
 
     def _write_header(self, has_cmap: bool) -> str:
-        """Write PSF header line with format keywords."""
+        """Write PSF header line with format keywords.
+
+        Note: CMAP flag is always included for compatibility with CHARMM's
+        PSF append mode, which expects consistent format flags.
+        """
         keywords = ["PSF"]
         if self.extended:
             keywords.append("EXT")
         if self.xplor:
             keywords.append("XPLOR")
-        if has_cmap:
-            keywords.append("CMAP")
+        # Always include CMAP for append mode compatibility
+        keywords.append("CMAP")
         return " ".join(keywords)
 
     def _write_title(self, title: str, model: Model = None) -> str:
@@ -867,17 +871,54 @@ class PSFWriter:
 
         return "\n".join(lines)
 
+    def _determine_group_type(self, residue) -> int:
+        """Determine CHARMM group type based on residue charges.
+
+        Returns:
+            0: No charges (all atoms have zero partial charge, e.g., dummy atoms)
+            1: Neutral (non-zero charges that sum to zero)
+            2: Charged (non-zero net charge, e.g., ions, ASP, GLU, LYS, ARG)
+        """
+        has_any_charge = False
+        total_charge = 0.0
+
+        for atom in residue.get_atoms():
+            if atom.topo_definition is not None:
+                charge = atom.topo_definition.charge
+                if abs(charge) > 1e-6:
+                    has_any_charge = True
+                total_charge += charge
+
+        if not has_any_charge:
+            return 0  # No charges (dummy atoms)
+        elif abs(total_charge) > 0.01:
+            return 2  # Charged group
+        else:
+            return 1  # Neutral group
+
     def _write_groups(self, model: Union[Model, BaseChain]) -> str:
         """Write NGRP section (atom groups for charge computation).
 
         Groups are defined per residue from atom_groups.
         Groups must be sorted by first atom index in ascending order.
+
+        Group types (igptyp) per CHARMM documentation:
+        - 0: No charges (all atoms have zero partial charge)
+        - 1: Neutral (non-zero charges that sum to zero)
+        - 2: Charged (non-zero net charge, e.g., ions, charged residues)
+        - 3: ST2 (special ST2 water model)
         """
         lines = []
         groups = []
 
         for chain in self._get_chains(model):
             for residue in chain:
+                # Determine group type based on residue's charges
+                # Type 0: no charges (all atoms have zero partial charge, e.g., dummy atoms)
+                # Type 1: neutral (non-zero charges that sum to zero)
+                # Type 2: charged (non-zero net charge, e.g., ions, ASP, GLU, LYS, ARG)
+                group_type = self._determine_group_type(residue)
+
                 if hasattr(residue, 'atom_groups') and residue.atom_groups:
                     for group in residue.atom_groups:
                         # Each group entry: (first_atom_in_group, group_type, move_flag)
@@ -886,7 +927,7 @@ class PSFWriter:
                             if first_atom in self._atom_map:
                                 groups.append((
                                     self._atom_map[first_atom] - 1,  # 0-based pointer
-                                    1,  # Group type (1 for protein/standard groups)
+                                    group_type,  # Group type (1=neutral, 2=charged)
                                     0   # Move flag (0 = free)
                                 ))
 
@@ -1028,6 +1069,9 @@ class PSFWriter:
                 ints_per_line = items_per_line
 
             lines.append(self._format_indices(indices, ints_per_line))
+        else:
+            # Empty section needs extra blank line for CHARMM append mode compatibility
+            lines.append("")
 
         return "\n".join(lines)
 
