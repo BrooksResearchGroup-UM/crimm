@@ -5,7 +5,8 @@ import os
 import warnings
 import numpy as np
 import math
-from typing import Optional
+from typing import Optional, Tuple
+from dataclasses import dataclass
 import random
 from random import choices
 from scipy.spatial import KDTree
@@ -15,8 +16,9 @@ from crimm.StructEntities.Atom import Atom
 from crimm.StructEntities.Residue import Residue
 from crimm.StructEntities.Model import Model
 from crimm.StructEntities.Chain import Solvent, Ion
-from crimm.Modeller.TopoLoader import ResidueTopologySet
 from crimm.Data.components_dict import CHARMM_PDB_ION_NAMES
+from crimm.Modeller.TopoLoader import TopologyGenerator
+
 
 WATER_COORD_PATH = os.path.join(os.path.dirname(Data.__file__), 'water_coords.npy')
 BOXWIDTH=18.662 # water unit cube width
@@ -28,11 +30,112 @@ NM3_TO_L = 1e-24  # nm³ to liters conversion
 A3_TO_NM3 = 1e-3  # Å³ to nm³ conversion
 WATERS_PER_NM3 = 33.3  # Approximate number of water molecules per nm³ at 298K
 
-# Volume factors for different box geometries (relative to cubic)
-BOX_VOLUME_FACTORS = {
-    'cube': 1.0,
-    'octa': 0.707,  # Truncated octahedron: ~71% of cubic volume
+# Crystal type definition
+@dataclass
+class CrystalType:
+    """CHARMM crystal type definition.
+
+    Attributes
+    ----------
+    name : str
+        Display name for the crystal type
+    charmm_name : str
+        CHARMM 4-character code (CUBI, OCTA, RHDO, etc.)
+    dof : int
+        Degrees of freedom for lattice optimization
+    volume_factor : float
+        Volume relative to cubic box with same max dimension (for isotropic types)
+    angles : Tuple[float, float, float]
+        Crystal angles (alpha, beta, gamma) in degrees
+    supports_solvation : bool
+        Whether water box generation is supported for this type
+    """
+    name: str
+    charmm_name: str
+    dof: int
+    volume_factor: float
+    angles: Tuple[float, float, float]
+    supports_solvation: bool
+
+# All CHARMM crystal types (from ~/software/charmm/doc/crystl.info)
+CRYSTAL_TYPES = {
+    'cube': CrystalType(
+        name='Cubic',
+        charmm_name='CUBI',
+        dof=1,
+        volume_factor=1.0,
+        angles=(90.0, 90.0, 90.0),
+        supports_solvation=True
+    ),
+    'octa': CrystalType(
+        name='Truncated Octahedron',
+        charmm_name='OCTA',
+        dof=1,
+        volume_factor=0.77,  # (4*sqrt(3)/9) ≈ 0.77
+        angles=(109.4712206344907, 109.4712206344907, 109.4712206344907),
+        supports_solvation=True
+    ),
+    'rhdo': CrystalType(
+        name='Rhombic Dodecahedron',
+        charmm_name='RHDO',
+        dof=1,
+        volume_factor=0.707,  # sqrt(0.5) ≈ 0.707
+        angles=(60.0, 90.0, 60.0),
+        supports_solvation=True
+    ),
+    'ortho': CrystalType(
+        name='Orthorhombic',
+        charmm_name='ORTH',
+        dof=3,
+        volume_factor=1.0,  # Variable, depends on a,b,c
+        angles=(90.0, 90.0, 90.0),
+        supports_solvation=True
+    ),
+    'tetra': CrystalType(
+        name='Tetragonal',
+        charmm_name='TETR',
+        dof=2,
+        volume_factor=1.0,  # Variable, depends on a,c
+        angles=(90.0, 90.0, 90.0),
+        supports_solvation=True
+    ),
+    'hexa': CrystalType(
+        name='Hexagonal',
+        charmm_name='HEXA',
+        dof=2,
+        volume_factor=0.866,  # sqrt(0.75) ≈ 0.866
+        angles=(90.0, 90.0, 120.0),
+        supports_solvation=True
+    ),
+    'mono': CrystalType(
+        name='Monoclinic',
+        charmm_name='MONO',
+        dof=4,
+        volume_factor=1.0,
+        angles=(90.0, 90.0, 90.0),  # beta varies
+        supports_solvation=False
+    ),
+    'tric': CrystalType(
+        name='Triclinic',
+        charmm_name='TRIC',
+        dof=6,
+        volume_factor=1.0,
+        angles=(90.0, 90.0, 90.0),  # all vary
+        supports_solvation=False
+    ),
+    'rhomb': CrystalType(
+        name='Rhombohedral',
+        charmm_name='RHOM',
+        dof=2,
+        volume_factor=1.0,  # Variable
+        angles=(60.0, 60.0, 60.0),  # all equal, <120
+        supports_solvation=False
+    ),
 }
+
+# Volume factors for different box geometries (relative to cubic)
+# Kept for backward compatibility
+BOX_VOLUME_FACTORS = {k: v.volume_factor for k, v in CRYSTAL_TYPES.items()}
 
 # Ion valence table - only ions defined in crimm/Data/toppar/water_ions.str
 ION_VALENCES = {
@@ -54,39 +157,15 @@ ION_VALENCES = {
     'OH': -1,    # Hydroxide
 }
 
-# Atom objects for water
-OH2 = Atom(
-    name = 'OH2',
-    coord = None,
-    bfactor = 0.0,
-    occupancy = 1.0,
-    altloc = ' ',
-    fullname = 'OH2',
-    serial_number = 0,
-    element = 'O'
-)
+# Topology definitions for water and ions
+_topo = TopologyGenerator()
+_topo_def, _params = _topo.load_residue_definitions('Solvent')
 
-H1 = Atom(
-    name = 'H1',
-    coord = None,
-    bfactor = 0.0,
-    occupancy = 1.0,
-    altloc = ' ',
-    fullname = 'H1',
-    serial_number = 0,
-    element = 'H'
-)
-
-H2 = Atom(
-    name = 'H2',
-    coord = None,
-    bfactor = 0.0,
-    occupancy = 1.0,
-    altloc = ' ',
-    fullname = 'H2',
-    serial_number = 0,
-    element = 'H'
-)
+TIP3_def = _topo_def['TIP3']
+# Create new Atom instances without coordinates
+OH2 = TIP3_def['OH2'].create_new_atom()
+H1 = TIP3_def['H1'].create_new_atom()
+H2 = TIP3_def['H2'].create_new_atom()
 
 ## TODO: deal with atom serial number > 99999 for larger structures (e.g. 1A8I)
 class Solvator:
@@ -123,9 +202,10 @@ class Solvator:
         chain for chain in model if chain.chain_type == 'Solvent'
     ]
 
-    Note that water chains are named W[A-Z] and have a maximum number of 9999 residues
-    >>> water_chains 
-    [<Solvent id=WA Residues=9999>, <Solvent id=WB Residues=2486>]
+    Note that water chains are named W[A-Z]. All waters are placed in a single chain
+    (PSF/CRD extended format supports residue numbers up to 10 digits).
+    >>> water_chains
+    [<Solvent id=WA Residues=12485>]
     >>> solvator.water_box_coords.shape # shape in (N waters, 3 atoms, 3 coords)
     (12485, 3, 3)
     >>> chain = structure[1]['A'] # get chain A from the first model
@@ -157,69 +237,258 @@ class Solvator:
         self.solvcut = None
         self.coords = None
         self.box_dim = None
+        self.box_dims = None  # For orthorhombic: (a, b, c)
         self.water_box_coords = None
         # unit of pre-equilibrated cube of water molecules (18.662 A each side)
         self.water_unit_coords = np.load(WATER_COORD_PATH)
-        self._topo_loader = self.model.topology_loader
+        self._topo_loader = getattr(self.model, 'topology_loader', None)
         self.box_type = None
         self.orient_method = None
+        self.crystal_type = None  # CrystalType object
         
     def get_model(self):
         return self.model
 
+    def suggest_optimal_crystal(
+            self,
+            cutoff: float = 9.0,
+            candidates: list = None
+        ) -> dict:
+        """Suggest optimal crystal type based on molecule geometry.
+
+        Analyzes the molecule's bounding box dimensions after PCA orientation
+        and calculates the solvent volume for each candidate crystal type.
+        Returns the type that minimizes total solvent volume.
+
+        The function simulates the orientation that would be applied during
+        solvation to provide accurate volume estimates.
+
+        Parameters
+        ----------
+        cutoff : float, optional
+            Minimum distance from solute to box edge in Angstroms (default: 9.0)
+        candidates : list, optional
+            List of crystal types to consider.
+            Default: ['cube', 'octa', 'rhdo', 'ortho']
+
+        Returns
+        -------
+        dict
+            Dictionary with:
+            - 'recommended': str, the optimal crystal type
+            - 'reason': str, explanation for the recommendation
+            - 'volumes': dict, volume comparison for all candidates (in Å³)
+            - 'molecule_shape': str, 'globular', 'elongated', or 'intermediate'
+            - 'extents': tuple, molecule dimensions after orientation (sorted: largest first)
+            - 'aspect_ratios': dict, shape descriptors
+
+        Examples
+        --------
+        >>> solvator = Solvator(model)
+        >>> result = solvator.suggest_optimal_crystal(cutoff=10.0)
+        >>> print(f"Recommended: {result['recommended']}")
+        >>> print(f"Reason: {result['reason']}")
+        >>> solvator.solvate(cutoff=10.0, box_type=result['recommended'])
+        """
+        if candidates is None:
+            candidates = ['cube', 'octa', 'rhdo', 'ortho']
+
+        # Validate candidates
+        for c in candidates:
+            if c not in CRYSTAL_TYPES:
+                raise ValueError(f"Unknown crystal type: {c}")
+            if not CRYSTAL_TYPES[c].supports_solvation:
+                raise ValueError(f"Crystal type '{c}' does not support solvation")
+
+        # Extract coordinates from model EXCLUDING water and ion chains
+        # This matches solvation behavior where waters are removed before orientation
+        coords = self._extract_coords_for_suggestion(self.model)
+
+        # Simulate orient_coords_ortho: PCA with axis sorting by singular values
+        # This matches exactly what happens during solvation with ortho orientation
+        centered = coords - coords.mean(axis=0)
+        U, S, Vt = np.linalg.svd(centered, full_matrices=False)
+        
+        # Sort principal components by decreasing singular values (largest variance first)
+        sort_idx = np.argsort(S)[::-1]
+        rotation = Vt[sort_idx].T
+        
+        # Ensure right-handed coordinate system
+        if np.linalg.det(rotation) < 0:
+            rotation[:, -1] *= -1
+        
+        # Apply rotation to get oriented coordinates
+        oriented_coords = centered @ rotation
+        
+        # Get extents after orientation (now sorted: largest on X, smallest on Z)
+        extents = np.ptp(oriented_coords, axis=0)
+        
+        # These are already sorted by the SVD-based orientation
+        # extents[0] >= extents[1] >= extents[2] (approximately)
+        sorted_extents = extents  # Already sorted by orientation
+        
+        # Calculate aspect ratios
+        aspect_xy = sorted_extents[0] / sorted_extents[1] if sorted_extents[1] > 0 else 1.0
+        aspect_xz = sorted_extents[0] / sorted_extents[2] if sorted_extents[2] > 0 else 1.0
+
+        # Classify molecule shape
+        if aspect_xy < 1.3 and aspect_xz < 1.5:
+            shape = 'globular'
+        elif aspect_xz > 2.5:
+            shape = 'elongated'
+        else:
+            shape = 'intermediate'
+
+        # Calculate volumes for each candidate
+        volumes = {}
+        for crystal_type in candidates:
+            if crystal_type == 'ortho':
+                # Orthorhombic: use actual extents from orientation
+                dims = sorted_extents + 2 * cutoff
+                vol = dims[0] * dims[1] * dims[2]
+            elif crystal_type == 'tetra':
+                # Tetragonal: a=b (max of X,Y), c (Z)
+                a = max(sorted_extents[0], sorted_extents[1]) + 2 * cutoff
+                c = sorted_extents[2] + 2 * cutoff
+                vol = a * a * c
+            elif crystal_type == 'hexa':
+                # Hexagonal: a=b (max of X,Y), c (Z with smallest extent)
+                # Volume = sqrt(3)/2 * a² * c ≈ 0.866 * a² * c
+                a = max(sorted_extents[0], sorted_extents[1]) + 2 * cutoff
+                c = sorted_extents[2] + 2 * cutoff
+                vol = 0.866 * a * a * c
+            else:
+                # Isotropic types (cube, octa, rhdo) use max extent
+                box_dim = sorted_extents.max() + 2 * cutoff
+                vol_factor = CRYSTAL_TYPES[crystal_type].volume_factor
+                vol = vol_factor * (box_dim ** 3)
+            volumes[crystal_type] = vol
+
+        # Find minimum volume
+        recommended = min(volumes, key=volumes.get)
+        min_vol = volumes[recommended]
+        cube_vol = volumes.get('cube', min_vol)
+
+        # Generate reason with savings percentage
+        savings = (cube_vol - min_vol) / cube_vol * 100 if cube_vol > 0 else 0
+
+        if recommended == 'ortho':
+            if shape == 'elongated':
+                reason = (f"Molecule is elongated (aspect ratio {aspect_xz:.1f}:1). "
+                         f"Orthorhombic box saves {savings:.0f}% volume vs cubic.")
+            else:
+                reason = (f"Orthorhombic fits molecule dimensions best, "
+                         f"saving {savings:.0f}% volume vs cubic.")
+        elif recommended in ('octa', 'rhdo'):
+            reason = (f"Molecule is {shape}. {CRYSTAL_TYPES[recommended].name} "
+                     f"saves {savings:.0f}% volume vs cubic.")
+        else:
+            reason = f"{CRYSTAL_TYPES[recommended].name} minimizes solvent volume ({savings:.0f}% savings)."
+
+        return {
+            'recommended': recommended,
+            'reason': reason,
+            'volumes': volumes,
+            'molecule_shape': shape,
+            'extents': tuple(sorted_extents),
+            'aspect_ratios': {'xy': aspect_xy, 'xz': aspect_xz}
+        }
+
     def solvate(
             self, cutoff=9.0, solvcut = 2.10,
             remove_existing_water = True,
+            remove_existing_ions = False,
             orient_coords = True,
             box_type = 'cube',
-            orient_method = None
+            orient_method = None,
+            box_dims = None
 
         ) -> list:
         """Solvate the entity with a water box.
 
-        The solvated entity will be centered in a cubic or octahedral box with
-        side length equal to the maximum dimension of the entity plus the cutoff
-        distance. Coordinates will be oriented using CoordManipulator before
-        solvation. The solvcut distance is used to remove water molecules that
-        are too close to the solute. If altloc atoms exist, the first altloc
-        atoms will be used to determine water molecule locations.
+        The solvated entity will be centered in a water box with dimensions
+        based on the chosen crystal type. Coordinates will be oriented using
+        CoordManipulator before solvation. The solvcut distance is used to
+        remove water molecules that are too close to the solute.
 
         The model is modified in place - water chains are added directly to the
         model. The returned list contains the added water chains.
-        
+
         Parameters
         ----------
         cutoff : float, optional
-            The distance from the solute to the edge of the cubic box. The
-            default is 9.0.
+            The distance from the solute to the edge of the box (default: 9.0 Å)
         solvcut : float, optional
             The distance from the solute at which water molecules will be
-            removed. The default is 2.10.
+            removed (default: 2.10 Å)
         remove_existing_water : bool, optional
-            If True, remove existing water molecules from the entity. The default
-            is True.
+            If True, remove existing water molecules from the entity (default: True)
+        remove_existing_ions : bool, optional
+            If True, remove existing ions from the entity (default: False)
+        orient_coords : bool, optional
+            If True, orient coordinates before solvation (default: True)
         box_type : str, optional
-            The shape of the water box. The default is'cube' (default) or 'octa' 
-            to choose the water box shape.
+            The shape of the water box. Supported types:
+            - 'cube': Cubic box (default)
+            - 'octa': Truncated octahedron (~23% volume savings)
+            - 'rhdo': Rhombic dodecahedron (~29% volume savings)
+            - 'ortho': Orthorhombic (rectangular, optimal for elongated molecules)
+            - 'tetra': Tetragonal (a=b, c variable)
+            - 'hexa': Hexagonal prism
+            Use suggest_optimal_crystal() to get recommendations.
         orient_method : str, optional
-            The method to orient the coordinates before solvation. The 'default'
-            (default) uses the usual orientation; octa' uses an alternative
-            orientation aiming to minimize the octahedral box.
+            The method to orient the coordinates before solvation:
+            - None or 'default': Standard orientation (major axis along X)
+            - 'octa': PCA-based orientation for octahedral/rhdo boxes
+        box_dims : tuple, optional
+            For orthorhombic/tetragonal boxes, specify (a, b, c) dimensions.
+            If None, dimensions are calculated from molecule extents + cutoff.
 
         Returns
         -------
         list
             List of Solvent chains added to the model.
+
+        See Also
+        --------
+        suggest_optimal_crystal : Recommend optimal crystal type based on geometry
+        CRYSTAL_TYPES : Dictionary of all supported crystal types
         """
+        # Validate crystal type
+        if box_type not in CRYSTAL_TYPES:
+            raise ValueError(
+                f"Unknown box_type '{box_type}'. "
+                f"Supported types: {list(CRYSTAL_TYPES.keys())}"
+            )
+
+        self.crystal_type = CRYSTAL_TYPES[box_type]
+
+        if not self.crystal_type.supports_solvation:
+            raise ValueError(
+                f"Crystal type '{box_type}' does not support water box generation. "
+                f"Solvation-compatible types: "
+                f"{[k for k, v in CRYSTAL_TYPES.items() if v.supports_solvation]}"
+            )
 
         self.cutoff = cutoff
         self.solvcut = solvcut
         self.box_type = box_type
         self.orient_method = orient_method
-        if self.orient_method is None and self.box_type == "octa": 
-            self.orient_method = "octa"
-        else:
-            self.orient_method = "default"
+
+        # Set default orientation method based on box type
+        # Each crystal type benefits from a specific orientation strategy
+        if self.orient_method is None:
+            if self.box_type in ("octa", "rhdo", "cube"):
+                # PCA minimizes bounding box for isotropic geometries
+                self.orient_method = "octa"
+            elif self.box_type in ("ortho", "tetra"):
+                # Sort axes by extent: largest→X, medium→Y, smallest→Z
+                self.orient_method = "ortho"
+            elif self.box_type == "hexa":
+                # Hexagonal: put flattest dimension on Z (prism height)
+                self.orient_method = "hexa"
+            else:
+                self.orient_method = "default"
         
         # Initialize solvation info storage
         if not hasattr(self.model, '_solvation_info'):
@@ -233,20 +502,32 @@ class Solvator:
             n_preserved_waters = self._convert_existing_waters_to_tip3(self.model)
             self.model._solvation_info['preserved_waters'] = n_preserved_waters
 
-        # Always preserve existing ions (convert names if needed)
-        n_preserved_ions = self._convert_existing_ions(self.model)
-        self.model._solvation_info['preserved_ions'] = n_preserved_ions
+        if remove_existing_ions:
+            self.remove_existing_ions(self.model)
+            self.model._solvation_info['preserved_ions'] = 0
+        else:
+            # preserve existing ions (convert names if needed)
+            n_preserved_ions = self._convert_existing_ions(self.model)
+            self.model._solvation_info['preserved_ions'] = n_preserved_ions
 
         if len(self.model.chains) == 0:
             raise ValueError('No chains in model to solvate')
         if orient_coords:
             coorman = CoordManipulator()
             coorman.load_entity(self.model)
+            apply_parent = self.model.parent is not None
+
             if self.orient_method == "octa":
-                coorman.orient_coords_octa(apply_to_parent=(self.model.parent is not None))
-                warnings.warn("Using octahedral orientation for solvation.", UserWarning)
+                coorman.orient_coords_octa(apply_to_parent=apply_parent)
+                warnings.warn("Using PCA orientation for solvation.", UserWarning)
+            elif self.orient_method == "ortho":
+                coorman.orient_coords_ortho(apply_to_parent=apply_parent)
+                warnings.warn("Using orthorhombic orientation for solvation.", UserWarning)
+            elif self.orient_method == "hexa":
+                coorman.orient_coords_hexa(apply_to_parent=apply_parent)
+                warnings.warn("Using hexagonal orientation for solvation.", UserWarning)
             else:
-                coorman.orient_coords(apply_to_parent=(self.model.parent is not None))
+                coorman.orient_coords(apply_to_parent=apply_parent)
                 warnings.warn("Using default orientation for solvation.", UserWarning)
 
             warnings.warn(
@@ -255,17 +536,69 @@ class Solvator:
                 UserWarning
             )
         self.coords = self._extract_coords(self.model)
-        self.box_dim = (np.ptp(self.coords, axis=0)+self.cutoff).max()
+
+        # Calculate box dimensions based on crystal type
+        extents = np.ptp(self.coords, axis=0)
+
+        if self.box_type in ('cube', 'octa', 'rhdo'):
+            # Isotropic boxes: use max extent
+            self.box_dim = extents.max() + 2 * self.cutoff
+            self.box_dims = (self.box_dim, self.box_dim, self.box_dim)
+        elif self.box_type == 'ortho':
+            # Orthorhombic: use actual extents for each dimension
+            if box_dims is not None:
+                self.box_dims = tuple(box_dims)
+            else:
+                self.box_dims = tuple(extents + 2 * self.cutoff)
+            self.box_dim = max(self.box_dims)  # For compatibility
+        elif self.box_type == 'tetra':
+            # Tetragonal: a=b, c can be different
+            if box_dims is not None:
+                self.box_dims = tuple(box_dims)
+            else:
+                a = max(extents[0], extents[1]) + 2 * self.cutoff
+                c = extents[2] + 2 * self.cutoff
+                self.box_dims = (a, a, c)
+            self.box_dim = max(self.box_dims)
+        elif self.box_type == 'hexa':
+            # Hexagonal: a=b, c can be different
+            if box_dims is not None:
+                self.box_dims = tuple(box_dims)
+            else:
+                a = max(extents[0], extents[1]) + 2 * self.cutoff
+                c = extents[2] + 2 * self.cutoff
+                self.box_dims = (a, a, c)
+            self.box_dim = max(self.box_dims)
+        else:
+            # Fallback for any other type
+            self.box_dim = extents.max() + 2 * self.cutoff
+            self.box_dims = (self.box_dim, self.box_dim, self.box_dim)
 
         return self._solvate_model()
 
 
     def _extract_coords(self, entity) -> np.ndarray:
-        """Extracts coordinates from entity. If any altloc atoms are present, 
+        """Extracts coordinates from entity. If any altloc atoms are present,
         only the first altloc atoms will be included in the returned array."""
         coords = []
         for atom in entity.get_atoms(include_alt=False):
             coords.append(atom.coord)
+        return np.array(coords)
+
+    def _extract_coords_for_suggestion(self, model) -> np.ndarray:
+        """Extract coordinates excluding water and ion chains.
+
+        This is used by suggest_optimal_crystal() to match the behavior of
+        solvate(), which removes waters before calculating box dimensions.
+        """
+        coords = []
+        for chain in model:
+            chain_type = getattr(chain, 'chain_type', None)
+            # Skip water and ion chains
+            if chain_type in ('Solvent', 'Ion'):
+                continue
+            for atom in chain.get_atoms(include_alt=False):
+                coords.append(atom.coord)
         return np.array(coords)
 
     def remove_existing_water(self, model: Model) -> Model:
@@ -277,6 +610,19 @@ class Solvator:
         for chain_id in remove_list:
             warnings.warn(
                 f'Removing existing water chain {chain_id} from model',
+                UserWarning
+            )
+            model.detach_child(chain_id)
+    
+    def remove_existing_ions(self, model: Model) -> Model:
+        """Removes existing ions from the model."""
+        remove_list = []
+        for chain in model.chains:
+            if chain.chain_type == 'Ion':
+                remove_list.append(chain.id)
+        for chain_id in remove_list:
+            warnings.warn(
+                f'Removing existing ion chain {chain_id} from model',
                 UserWarning
             )
             model.detach_child(chain_id)
@@ -327,7 +673,7 @@ class Solvator:
         h2_coord = oxygen_coord + oh_bond * h2_vec
 
         return h1_coord, h2_coord
-
+        
     def _convert_existing_waters_to_tip3(self, model: Model) -> int:
         """Convert existing water molecules (HOH/WAT) to CHARMM TIP3 format.
 
@@ -350,6 +696,7 @@ class Solvator:
         for chain in model.chains:
             if chain.chain_type != 'Solvent':
                 continue
+            chain.source = 'crystallographic'  # mark as original waters
             for residue in chain.get_residues():
                 if residue.resname in ('HOH', 'WAT', 'SOL', 'TIP3'):
                     atoms = list(residue.get_atoms())
@@ -377,25 +724,15 @@ class Solvator:
 
                         if len(hydrogen_atoms) == 0:
                             # Build both hydrogens
-                            h1 = Atom(
-                                name='H1', coord=h1_coord, bfactor=0.0, occupancy=1.0,
-                                altloc=' ', fullname=' H1 ', serial_number=max_serial + 1,
-                                element='H'
-                            )
-                            h2 = Atom(
-                                name='H2', coord=h2_coord, bfactor=0.0, occupancy=1.0,
-                                altloc=' ', fullname=' H2 ', serial_number=max_serial + 2,
-                                element='H'
-                            )
+                            h1 = H1.copy()
+                            h2 = H2.copy()
+                            h1.coord = h1_coord
+                            h2.coord = h2_coord
                             residue.add(h1)
                             residue.add(h2)
                         elif len(hydrogen_atoms) == 1:
-                            # Build one hydrogen
-                            h2 = Atom(
-                                name='H2', coord=h2_coord, bfactor=0.0, occupancy=1.0,
-                                altloc=' ', fullname=' H2 ', serial_number=max_serial + 1,
-                                element='H'
-                            )
+                            h2 = H2.copy()
+                            h2.coord = h2_coord
                             residue.add(h2)
 
                     # Convert residue name to TIP3
@@ -403,10 +740,12 @@ class Solvator:
                         residue.resname = 'TIP3'
                         n_converted += 1
 
-                    # Rename oxygen atom
+                    # Rename oxygen atom and set topology definition
                     if oxygen_atom.name != 'OH2':
                         oxygen_atom.name = 'OH2'
                         oxygen_atom.fullname = ' OH2'
+                    # Ensure oxygen has proper topology definition (charge=-0.834, type=OT)
+                    oxygen_atom.topo_definition = OH2.topo_definition
 
         # Count total preserved waters (converted + already TIP3)
         n_preserved = 0
@@ -487,124 +826,126 @@ class Solvator:
     def create_water_box_coords(self) -> np.ndarray:
         """
         Creates a water box grid based on the chosen box type.
-          - For 'cube': builds a cubic grid with side length = box_dim.
-          - For 'octa': builds a grid over a cube of side length = box_dim * sqrt(4/3)
-            (the bounding cube of a truncated octahedron) and then selects only those
-            water molecules whose oxygen atom is at least 'solvcut' inside the octahedron.
+
+        Supported box types:
+          - 'cube': Cubic grid with side length = box_dim
+          - 'octa': Truncated octahedron (bounding cube = box_dim * sqrt(4/3))
+          - 'rhdo': Rhombic dodecahedron (bounding cube = box_dim * sqrt(2))
+          - 'ortho': Orthorhombic box with dimensions box_dims = (a, b, c)
+          - 'tetra': Tetragonal box (a=b, c different)
+          - 'hexa': Hexagonal prism
+
+        Returns water molecules as array of shape (N_waters, 3, 3).
         """
-        if self.box_type == "cube":
-            n_water_cubes = int(np.ceil(self.box_dim / BOXWIDTH))
-            water_coords_expanded = self.water_unit_coords.reshape(-1, 3)
-            n_atoms = water_coords_expanded.shape[0]
-            water_line = np.empty((n_atoms * n_water_cubes, 3))
-            water_plane = np.empty((n_atoms * n_water_cubes ** 2, 3))
-            water_box = np.empty((n_atoms * n_water_cubes ** 3, 3))
-            
-            for i in range(n_water_cubes):
-                st, end = i * n_atoms, (i + 1) * n_atoms
-                water_line[st:end, 0] = water_coords_expanded[:, 0] + i * BOXWIDTH
-                water_line[st:end, 1:] = water_coords_expanded[:, 1:]
-            
-            n_atoms_per_line = water_line.shape[0]
-            for i in range(n_water_cubes):
-                st, end = i * n_atoms_per_line, (i + 1) * n_atoms_per_line
-                water_plane[st:end] = water_line
-                water_plane[st:end, 1] += i * BOXWIDTH
-            
-            n_atoms_per_plane = water_plane.shape[0]
-            for i in range(n_water_cubes):
-                st, end = i * n_atoms_per_plane, (i + 1) * n_atoms_per_plane
-                water_box[st:end] = water_plane
-                water_box[st:end, 2] += i * BOXWIDTH
-            
-            # Recenter the box
-            translation_vec = -np.ptp(water_box, axis=0) / 2 - water_box.min(0)
-            water_box += translation_vec
-            return water_box
-        elif self.box_type == "octa":
-            # Bounding cube side length for the octahedron is box_dim * sqrt(4/3)
+        from crimm.Modeller.CrystalSDF import (
+            sdf_cube, sdf_truncated_octahedron, sdf_rhombic_dodecahedron,
+            sdf_orthorhombic, sdf_hexagonal, get_bounding_cube_size
+        )
+
+        # Determine grid dimensions based on crystal type
+        if self.box_type == 'cube':
+            grid_dims = self.box_dims
+        elif self.box_type == 'octa':
+            # Bounding cube for truncated octahedron
             grid_length = self.box_dim * math.sqrt(4 / 3)
-            n_units = int(math.ceil(grid_length / BOXWIDTH))
-            water_coords_expanded = self.water_unit_coords.reshape(-1, 3)
-            n_atoms = water_coords_expanded.shape[0]
-            water_points = []
-            for i in range(n_units):
-                for j in range(n_units):
-                    for k in range(n_units):
-                        translation = np.array([i * BOXWIDTH, j * BOXWIDTH, k * BOXWIDTH])
-                        for atom in water_coords_expanded:
-                            water_points.append(atom + translation)
-            water_points = np.array(water_points)
-            # Recenter the grid so that its bounding box is centered at the origin
-            translation_vec = -np.ptp(water_points, axis=0) / 2 - water_points.min(0)
-            water_points += translation_vec
-            # Reshape into water molecules (each with 3 atoms)
-            water_box = water_points.reshape(-1, 3, 3)
-            # Filter water molecules by testing that the oxygen atom (first atom)
-            # is at least 'solvcut' inside the truncated octahedron.
+            grid_dims = (grid_length, grid_length, grid_length)
+        elif self.box_type == 'rhdo':
+            # Bounding cube for rhombic dodecahedron
+            grid_length = self.box_dim * math.sqrt(2)
+            grid_dims = (grid_length, grid_length, grid_length)
+        elif self.box_type in ('ortho', 'tetra'):
+            grid_dims = self.box_dims
+        elif self.box_type == 'hexa':
+            # Hexagon fits in 2a x 2a square (approximately)
+            a, _, c = self.box_dims
+            grid_dims = (a * 1.2, a * 1.2, c)
+        else:
+            grid_dims = self.box_dims
+
+        # Build water grid
+        n_units = [int(math.ceil(d / BOXWIDTH)) for d in grid_dims]
+        water_coords_expanded = self.water_unit_coords.reshape(-1, 3)
+
+        # Generate grid points
+        water_points = []
+        for i in range(n_units[0]):
+            for j in range(n_units[1]):
+                for k in range(n_units[2]):
+                    translation = np.array([i * BOXWIDTH, j * BOXWIDTH, k * BOXWIDTH])
+                    for atom in water_coords_expanded:
+                        water_points.append(atom + translation)
+
+        water_points = np.array(water_points)
+
+        # Recenter grid at origin
+        translation_vec = -np.ptp(water_points, axis=0) / 2 - water_points.min(0)
+        water_points += translation_vec
+
+        # Reshape into water molecules (each with 3 atoms: O, H1, H2)
+        water_box = water_points.reshape(-1, 3, 3)
+
+        # For cubic box, return all waters within boundary (no SDF needed)
+        if self.box_type == 'cube':
+            # Filter waters within cubic boundary
+            half = self.box_dim / 2
             selected_waters = []
             for water in water_box:
                 oxygen = water[0]
-                x, y, z = oxygen
-                d = self.box_dim / math.sqrt(3)
-                # Compute differences for the square faces:
-                dist1 = abs(x) - d
-                dist2 = abs(y) - d
-                dist3 = abs(z) - d
-                # Compute differences for the hexagonal faces:
-                dist4 = (abs(x + y + z) - self.box_dim) / math.sqrt(3)
-                dist5 = (abs(x + y - z) - self.box_dim) / math.sqrt(3)
-                dist6 = (abs(x - y + z) - self.box_dim) / math.sqrt(3)
-                dist7 = (abs(x - y - z) - self.box_dim) / math.sqrt(3)
-                sdf_value = max(dist1, dist2, dist3, dist4, dist5, dist6, dist7)
-                if sdf_value <= -self.solvcut:
+                if all(abs(oxygen) <= half):
                     selected_waters.append(water)
-            return np.array(selected_waters)
-        else:
-            raise ValueError("Unsupported box type")
+            return np.array(selected_waters) if selected_waters else np.empty((0, 3, 3))
+
+        # For other types, use SDF to filter waters
+        selected_waters = []
+        for water in water_box:
+            oxygen = water[0]
+
+            if self.box_type == 'octa':
+                sdf_value = sdf_truncated_octahedron(oxygen, self.box_dim)
+            elif self.box_type == 'rhdo':
+                sdf_value = sdf_rhombic_dodecahedron(oxygen, self.box_dim)
+            elif self.box_type in ('ortho', 'tetra'):
+                sdf_value = sdf_orthorhombic(oxygen, self.box_dims)
+            elif self.box_type == 'hexa':
+                sdf_value = sdf_hexagonal(oxygen, self.box_dims[0], self.box_dims[2])
+            else:
+                # Fallback to cubic
+                sdf_value = sdf_cube(oxygen, self.box_dim)
+
+            # Select waters at least solvcut distance inside the boundary
+            if sdf_value <= -self.solvcut:
+                selected_waters.append(water)
+
+        return np.array(selected_waters) if selected_waters else np.empty((0, 3, 3))
 
     def get_expelled_water_box_coords(self) -> np.ndarray:
         """
         Returns water molecules that are outside the solvcut distance from the solute.
-        For the cubic box the original boundary selection is applied; for the
-        octahedral box, the grid (already filtered by the truncated octahedron
-        condition) is further filtered by ensuring that water oxygens are not within
-        solvcut of the solute.
+        
+        All crystal types (cube, octa, rhdo, ortho, tetra, hexa) are now filtered
+        by their respective SDF in create_water_box_coords(), so only solvcut 
+        filtering is needed here.
         """
-        if self.box_type == "cube":
-            water_box = self.create_water_box_coords()  # shape (N_points, 3)
-            # Select water molecules fully within the cubic boundary.
-            c1 = water_box > self.box_dim / 2
-            c2 = water_box < -self.box_dim / 2
-            boundary_select = np.logical_not(
-                np.any((c1 | c2).reshape(-1, 3, 3), axis=(1, 2))
-            )
-            kd_tree = KDTree(self.coords)
-            water_kd_tree = KDTree(water_box)
-            r = water_kd_tree.query_ball_tree(kd_tree, self.solvcut)
-            within_cutoff = np.empty(len(r), dtype=bool)
-            for i, nei_list in enumerate(r):
-                within_cutoff[i] = bool(len(nei_list))
-            cutoff_select = np.logical_not(
-                np.any(within_cutoff.reshape(-1, 3), axis=1)
-            )
-            water_box = water_box.reshape((-1, 3, 3))[boundary_select & cutoff_select]
-            return water_box
-        elif self.box_type == "octa":
-            water_box = self.create_water_box_coords()  # Already shape (N_waters, 3, 3)
-            # Use the oxygen atom (first atom) of each water for KDTree filtering.
-            oxy_coords = np.array([water[0] for water in water_box])
-            kd_tree = KDTree(self.coords)
-            water_kd_tree = KDTree(oxy_coords)
-            r = water_kd_tree.query_ball_tree(kd_tree, self.solvcut)
-            cutoff_select = []
-            for nei_list in r:
-                cutoff_select.append(not bool(len(nei_list)))
-            cutoff_select = np.array(cutoff_select)
-            water_box = water_box[cutoff_select]
-            return water_box
-        else:
-            raise ValueError("Unsupported box type")
+        if self.box_type not in ("cube", "octa", "rhdo", "ortho", "tetra", "hexa"):
+            raise ValueError(f"Unsupported box type: {self.box_type}")
+
+        # create_water_box_coords() returns shape (N_waters, 3, 3) for all types
+        water_box = self.create_water_box_coords()
+        
+        if len(water_box) == 0:
+            return np.empty((0, 3, 3))
+        
+        # Use the oxygen atom (first atom) of each water for KDTree filtering.
+        oxy_coords = np.array([water[0] for water in water_box])
+        kd_tree = KDTree(self.coords)
+        water_kd_tree = KDTree(oxy_coords)
+        r = water_kd_tree.query_ball_tree(kd_tree, self.solvcut)
+        cutoff_select = []
+        for nei_list in r:
+            cutoff_select.append(not bool(len(nei_list)))
+        cutoff_select = np.array(cutoff_select)
+        water_box = water_box[cutoff_select]
+        return water_box
 
     def _create_new_water_chain(self, alphabet_index) -> Solvent:
         chain_id = 'W'+self.alphabet[alphabet_index]
@@ -615,20 +956,18 @@ class Solvator:
 
     def _solvate_model(self):
         self.water_box_coords = self.get_expelled_water_box_coords()
-        alphabet_index = 0
         assert self.water_box_coords.shape[1:] == (3, 3), \
         f'Invalid water box coords shape {self.water_box_coords.shape}'
-        water_chains = []
-        for i, res_coords in enumerate(self.water_box_coords):
-            # split water molecules into chains of 9999 residues for PDB format
-            # compliance
-            resseq = i % 9999 + 1
-            if resseq == 1:
-                cur_water_chain = self._create_new_water_chain(alphabet_index)
-                alphabet_index += 1
-                water_chains.append(cur_water_chain)
 
-            water_res = Residue((' ', resseq, ' '), 'TIP3', '')
+        # Create single water chain (PSF/CRD extended format supports large residue numbers)
+        cur_water_chain = self._create_new_water_chain(0)
+        water_chains = [cur_water_chain]
+        segid = 'SOLV'
+
+        for i, res_coords in enumerate(self.water_box_coords):
+            resseq = i + 1  # Sequential residue numbering starting at 1
+
+            water_res = Residue((' ', resseq, ' '), 'TIP3', segid)
 
             cur_oxygen = OH2.copy()
             cur_h1 = H1.copy()
@@ -656,12 +995,34 @@ class Solvator:
             self.model._solvation_info = {}
         self.model._solvation_info['box_type'] = self.box_type
         self.model._solvation_info['box_dim'] = self.box_dim
+        # Store box_dims for orthorhombic and related types
+        if hasattr(self, 'box_dims') and self.box_dims is not None:
+            self.model._solvation_info['box_dims'] = self.box_dims
+        # Store crystal type info for output writers
+        if self.box_type in CRYSTAL_TYPES:
+            crystal_info = CRYSTAL_TYPES[self.box_type]
+            self.model._solvation_info['charmm_name'] = crystal_info.charmm_name
+            self.model._solvation_info['angles'] = crystal_info.angles
 
         return water_chains
 
+    def _remove_generated_ions(self):
+        """Removes any previously generated ion chains from the model."""
+        remove_list = []
+        for chain in self.model.chains:
+            if chain.chain_type == 'Ion' and chain.source == 'generated':
+                remove_list.append(chain.id)
+        for chain_id in remove_list:
+            self.model.detach_child(chain_id)
+        if len(remove_list) > 0:
+            warnings.warn(
+                f'Removed {len(remove_list)} previously generated ion chains',
+                UserWarning
+            )
             
     def add_balancing_ions(
-            self, present_charge = None, cation='SOD', anion='CLA', skip_undefined=True
+            self, present_charge = None, cation='SOD', anion='CLA', skip_undefined=True,
+            remove_generated_ions=True
         ) -> Ion:
         """DEPRECATED: Use add_ions(concentration=0.0) instead.
 
@@ -683,6 +1044,13 @@ class Solvator:
             The cation to use. The default is 'SOD' (Na+).
         anion : str, optional
             The anion to use. The default is 'CLA' (Cl-).
+        skip_undefined : bool, optional
+            If True, chains without defined topology will be assumed to have zero
+            charge. If False, a ValueError will be raised if any chain has undefined
+            charge. The default is True.
+        remove_generated_ions : bool, optional
+            If True, any previously generated balancing ion chains will be removed
+            before adding new ions. The default is True.
                 
         Returns
         -------
@@ -694,6 +1062,8 @@ class Solvator:
             DeprecationWarning,
             stacklevel=2
         )
+        if remove_generated_ions:
+            self._remove_generated_ions()
         solvents = [chain for chain in self.model if chain.chain_type == 'Solvent']
         if len(solvents) == 0:
             raise ValueError(
@@ -752,8 +1122,9 @@ class Solvator:
         
         water_res = [res for chain in solvents for res in chain]
         chosen_waters = choices(water_res, k=len(ion_list))
-        rtf = ResidueTopologySet('water_ions')
+
         new_ion_chain = Ion('IA')
+        new_ion_chain.source = 'generated'
         ion_names = ', '.join(set(ion_list))
         new_ion_chain.pdbx_description = f"balancing ions ({ion_names})"
         for i, (chosen_water, ion_name) in enumerate(zip(chosen_waters, ion_list), start=1):
@@ -763,12 +1134,12 @@ class Solvator:
                 oxy_coord = chosen_water['O'].coord
             else:
                 raise KeyError(f'No oxygen atom present in water {chosen_water}')
-            if ion_name not in rtf.res_defs:
+            if ion_name not in _topo_def.res_defs:
                 raise ValueError(
                     f'Ion {ion_name} not exist in water_ions.rtf. Ion names must be '
                     f'in {CHARMM_PDB_ION_NAMES.keys()}'
                 )
-            ion_res = rtf[ion_name].create_residue(resseq=i)
+            ion_res = _topo_def.res_defs[ion_name].create_residue(resseq=i)
             ion_res.atoms[0].coord = oxy_coord
             new_ion_chain.add(ion_res)
             if (water_chain:=chosen_water.parent) is not None:
@@ -779,7 +1150,7 @@ class Solvator:
     # =========================================================================
     # New Ion Calculation Methods (SPLIT, SLTCAP, Add-Neutralize)
     # =========================================================================
-
+    # TODO: Move this inside of the `get_charge` function in Utils
     def _get_ion_chain_charge(self, chain) -> float:
         """Calculate total charge of an ion chain from known ion valences.
 
@@ -1193,7 +1564,8 @@ class Solvator:
         anion: str = 'CLA',
         min_dist_solute: float = 5.0,
         min_dist_ion: float = 5.0,
-        skip_undefined: bool = True
+        skip_undefined: bool = True,
+        remove_generated_ions: bool = True,
     ) -> Optional[Ion]:
         """Add ions to achieve target salt concentration.
 
@@ -1222,6 +1594,8 @@ class Solvator:
             Minimum distance between ions in Å. Default 5.0.
         skip_undefined : bool
             If True, assume zero charge for chains without topology. Default True.
+        remove_generated_ions : bool
+            If True, any previously generated ion chains will be removed. Default True.
 
         Returns
         -------
@@ -1233,6 +1607,10 @@ class Solvator:
         - Schmit et al. (2018) J. Chem. Theory Comput. 14:1823-1827 (SLTCAP)
         - Machado & Pantano (2020) J. Chem. Theory Comput. 16:1367-1372 (SPLIT)
         """
+        # Remove previously generated ions
+        if remove_generated_ions:
+            self._remove_generated_ions()
+
         # Verify system is solvated
         solvents = [c for c in self.model if c.chain_type == 'Solvent']
         if len(solvents) == 0:
@@ -1305,8 +1683,9 @@ class Solvator:
             return None
 
         # Create ion chain
-        rtf = ResidueTopologySet('water_ions')
         new_ion_chain = Ion('IA')
+        new_ion_chain.source = 'generated'
+        segid = 'IONS'
         ion_names_str = ', '.join(sorted(set(ion_list)))
         new_ion_chain.pdbx_description = f"ions ({ion_names_str}) at {concentration*1000:.0f} mM"
 
@@ -1316,8 +1695,9 @@ class Solvator:
             else:
                 oxy_coord = water_res['O'].coord
 
-            ion_res = rtf[ion_name].create_residue(resseq=i)
+            ion_res = _topo_def.res_defs[ion_name].create_residue(resseq=i)
             ion_res.atoms[0].coord = oxy_coord
+            ion_res.segid = segid
             new_ion_chain.add(ion_res)
 
             # Remove water

@@ -482,13 +482,14 @@ class Oligosaccharide(BaseChain):
 class Solvent(BaseChain):
     chain_type = 'Solvent'
     # The source of the solvent, e.g. PDB (crystallographic) or generated (modeled).
-    source = None 
+    source: str = None
 
 class CoSolvent(Heterogens):
     chain_type = 'CoSolvent'
 
 class Ion(BaseChain):
     chain_type = 'Ion'
+    source: str = None
 
 class Glycosylation(BaseChain):
     chain_type = 'Glycosylation'

@@ -14,8 +14,10 @@ Format specification (from CHARMM source io/psfres.F90):
 
 from typing import Union, List, Dict, Tuple, Optional, Any
 from dataclasses import dataclass
-from crimm.StructEntities import Model, Residue, Atom
-from crimm.StructEntities.Chain import Chain
+from crimm.StructEntities.Atom import Atom
+from crimm.StructEntities.Residue import Residue
+from crimm.StructEntities.Chain import BaseChain
+from crimm.StructEntities.Model import Model
 from crimm.StructEntities.TopoElements import CMap
 
 
@@ -38,6 +40,10 @@ class PSFWriter:
         Use extended format (I10/A8) for large systems
     xplor : bool, default True
         Use XPLOR format (atom type names instead of indices)
+    separate_crystal_segids : bool, default False
+        If True, crystallographic waters/ions get separate segids (CRWT/CION)
+        from generated ones (SOLV/IONS). If False (default), all waters use
+        SOLV and all ions use IONS regardless of source.
 
     Attributes
     ----------
@@ -45,18 +51,38 @@ class PSFWriter:
         Whether extended format is used
     xplor : bool
         Whether XPLOR format is used
+    separate_crystal_segids : bool
+        Whether crystallographic chains get separate segids
+
+    Examples
+    --------
+    Default behavior - all waters/ions share segids:
+
+    >>> writer = PSFWriter()
+    >>> writer.write(model, 'system.psf')  # Waters->SOLV, Ions->IONS
+
+    Separate crystallographic chains:
+
+    >>> writer = PSFWriter(separate_crystal_segids=True)
+    >>> writer.write(model, 'system.psf')  # Crystal waters->CRWT, Generated->SOLV
     """
 
-    def __init__(self, extended: bool = True, xplor: bool = True):
+    def __init__(
+        self,
+        extended: bool = True,
+        xplor: bool = True,
+        separate_crystal_segids: bool = False
+    ):
         self.extended = extended
         self.xplor = xplor
+        self.separate_crystal_segids = separate_crystal_segids
         self._atom_map: Dict[Atom, int] = {}
         self._atoms: List[Atom] = []
         self._lonepairs: List[LonePairInfo] = []
         self._segid_map: Dict[Any, str] = {}  # Maps chain to assigned segid
 
     def validate_for_simulation(
-        self, model: Union[Model, Chain], strict: bool = False
+        self, model: Union[Model, BaseChain], strict: bool = False
     ) -> List[str]:
         """Validate model topology before writing PSF.
 
@@ -66,7 +92,7 @@ class PSFWriter:
 
         Parameters
         ----------
-        model : Model or Chain
+        model : Model or BaseChain
             The entity to validate
         strict : bool, default False
             If True, raise ValueError for any issues.
@@ -164,29 +190,38 @@ class PSFWriter:
         with open(filepath, 'w', encoding='utf-8') as f:
             f.write(psf_str)
 
-    def _get_chains(self, entity: Union[Model, Chain]) -> List[Chain]:
+    def _get_chains(self, entity: Union[Model, BaseChain]) -> List[BaseChain]:
         """Normalize input to a list of chains.
 
         Parameters
         ----------
-        entity : Model or Chain
+        entity : Model or BaseChain
             Input entity
 
         Returns
         -------
-        List[Chain]
+        List[BaseChain]
             List of chains to process
         """
-        if isinstance(entity, Chain):
+        if isinstance(entity, BaseChain):
             return [entity]
-        return list(entity)
+        if isinstance(entity, Model):
+            return list(entity.chains)
+        if isinstance(entity, List):
+            if all(isinstance(c, BaseChain) for c in entity):
+                return entity
+        raise ValueError(
+            f"Input must be a Model or Chain object"
+            f" or a list of Chain objects, but got {type(entity)}"
+        )
 
-    def _get_topology(self, entity: Union[Model, Chain]):
+
+    def _get_topology(self, entity: Union[Model, BaseChain]):
         """Get topology container from entity.
 
         Parameters
         ----------
-        entity : Model or Chain
+        entity : Model or BaseChain
             Input entity
 
         Returns
@@ -194,10 +229,15 @@ class PSFWriter:
         TopologyElementContainer or ModelTopology
             Topology containing bonds, angles, etc.
         """
-        if isinstance(entity, Chain):
+        if isinstance(entity, BaseChain):
             return entity.topology
 
-        # For Model, use ModelTopology which properly handles:
+        # For Model, use existing ModelTopology if available
+        # This avoids recreating topology and adding duplicate elements
+        if hasattr(entity, 'topology') and entity.topology is not None:
+            return entity.topology
+
+        # Otherwise create new ModelTopology which properly handles:
         # - Disulfide bonds (DISU patch: removes HG1, changes SG type to SM)
         # - Inter-chain bonds
         # - Combined topology elements from all chains
@@ -247,12 +287,12 @@ class PSFWriter:
 
         return combined
 
-    def get_psf_string(self, model: Union[Model, Chain], title: str = "") -> str:
+    def get_psf_string(self, model: Union[Model, BaseChain], title: str = "") -> str:
         """Return PSF content as string.
 
         Parameters
         ----------
-        model : Model or Chain
+        model : Model or BaseChain
             The Model or Chain object with topology to write
         title : str, default ""
             Title line(s) for the PSF header
@@ -276,7 +316,7 @@ class PSFWriter:
         # Get topology container (Chain has .topology, Model uses ModelTopology wrapper)
         topology = self._get_topology(model)
         if topology is None:
-            entity_type = "Chain" if isinstance(model, Chain) else "Model"
+            entity_type = "Chain" if isinstance(model, BaseChain) else "Model"
             raise ValueError(
                 f"{entity_type} has no topology. Generate topology first using "
                 "TopologyGenerator.generate_model() or topo.generate()"
@@ -316,14 +356,14 @@ class PSFWriter:
         # Must come before CMAP section
         sections.append(self._write_lonepairs())
 
-        # CMAP section (if present) - always last
-        if has_cmap:
-            sections.append(self._write_cmap(topology))
+        # CMAP section - always write for append mode compatibility
+        # (CHARMM expects NCRTERM section when CMAP flag is present)
+        sections.append(self._write_cmap(topology))
 
         # Join sections with blank lines between them (CHARMM format)
         return "\n\n".join(sections) + "\n"
 
-    def _assign_segids(self, model: Union[Model, Chain]) -> None:
+    def _assign_segids(self, model: Union[Model, BaseChain]) -> None:
         """Assign automatic segment IDs to chains without segids.
 
         Rules:
@@ -336,14 +376,14 @@ class PSFWriter:
 
         Parameters
         ----------
-        model : Model or Chain
+        model : Model or BaseChain
             The Model or Chain object
         """
         # Track counts for each type to assign letters
         type_counts = {'PRO': 0, 'DNA': 0, 'RNA': 0, 'LIG': 0}
         letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
-        chains = [model] if isinstance(model, Chain) else model
+        chains = [model] if isinstance(model, BaseChain) else model
         for chain in chains:
             # Check if chain already has segid set on its residues
             # Note: segid might be whitespace-only ('    '), which is truthy but empty
@@ -368,15 +408,27 @@ class PSFWriter:
             elif 'polyribonucleotide' in chain_type.lower():
                 prefix = 'RNA'
             elif chain_type.lower() == 'solvent':
-                # All water chains share the SOLV segment
-                segid = 'SOLV'
+                # By default, all waters share SOLV segid
+                # If separate_crystal_segids=True, crystallographic waters get CRWT
+                if self.separate_crystal_segids and (
+                    chain.source is None or chain.source.lower() != 'generated'
+                ):
+                    segid = 'CRWT'
+                else:
+                    segid = 'SOLV'
                 self._segid_map[chain] = segid
                 for residue in chain:
                     residue.segid = segid
                 continue
             elif chain_type.lower() == 'ion':
-                # All ion chains share the IONS segment
-                segid = 'IONS'
+                # By default, all ions share IONS segid
+                # If separate_crystal_segids=True, crystallographic ions get CION
+                if self.separate_crystal_segids and (
+                    chain.source is None or chain.source.lower() != 'generated'
+                ):
+                    segid = 'CION'
+                else:
+                    segid = 'IONS'
                 self._segid_map[chain] = segid
                 for residue in chain:
                     residue.segid = segid
@@ -401,7 +453,7 @@ class PSFWriter:
             for residue in chain:
                 residue.segid = segid
 
-    def _get_cmaps_from_model(self, model: Union[Model, Chain]) -> List[Tuple[Tuple[Atom, ...], Tuple[Atom, ...]]]:
+    def _get_cmaps_from_model(self, model: Union[Model, BaseChain]) -> List[Tuple[Tuple[Atom, ...], Tuple[Atom, ...]]]:
         """Extract CMAP terms from residues in the model.
 
         Each residue may have a .cmap attribute containing CMAP definitions
@@ -495,14 +547,14 @@ class PSFWriter:
                 return atom
         return None
 
-    def _build_atom_index_map(self, model: Union[Model, Chain]) -> None:
+    def _build_atom_index_map(self, model: Union[Model, BaseChain]) -> None:
         """Build mapping from Atom objects to 1-based PSF indices.
 
         Also collects lone pair information for CGENFF ligands.
 
         Parameters
         ----------
-        model : Model or Chain
+        model : Model or BaseChain
             The Model or Chain object to index
         """
         # First assign automatic segids
@@ -510,7 +562,7 @@ class PSFWriter:
 
         idx = 1
         # Normalize input: if Chain, wrap in list; if Model, iterate directly
-        chains = [model] if isinstance(model, Chain) else model
+        chains = [model] if isinstance(model, BaseChain) else model
         for chain in chains:
             for residue in chain:
                 # Regular atoms
@@ -541,14 +593,18 @@ class PSFWriter:
                                     ))
 
     def _write_header(self, has_cmap: bool) -> str:
-        """Write PSF header line with format keywords."""
+        """Write PSF header line with format keywords.
+
+        Note: CMAP flag is always included for compatibility with CHARMM's
+        PSF append mode, which expects consistent format flags.
+        """
         keywords = ["PSF"]
         if self.extended:
             keywords.append("EXT")
         if self.xplor:
             keywords.append("XPLOR")
-        if has_cmap:
-            keywords.append("CMAP")
+        # Always include CMAP for append mode compatibility
+        keywords.append("CMAP")
         return " ".join(keywords)
 
     def _write_title(self, title: str, model: Model = None) -> str:
@@ -728,7 +784,7 @@ class PSFWriter:
                 indices.extend([self._atom_map[a] for a in atoms])
         return self._format_index_section(indices, "NIMPHI: impropers", items_per_line=2)
 
-    def _write_donors(self, model: Union[Model, Chain]) -> str:
+    def _write_donors(self, model: Union[Model, BaseChain]) -> str:
         """Write NDON section.
 
         RTF format: DONOR HN N (hydrogen, heavy_atom)
@@ -764,7 +820,7 @@ class PSFWriter:
                                 ])
         return self._format_index_section(indices, "NDON: donors", items_per_line=4)
 
-    def _write_acceptors(self, model: Union[Model, Chain]) -> str:
+    def _write_acceptors(self, model: Union[Model, BaseChain]) -> str:
         """Write NACC section.
 
         RTF format: ACCE O C (acceptor, antecedent)
@@ -843,17 +899,54 @@ class PSFWriter:
 
         return "\n".join(lines)
 
-    def _write_groups(self, model: Union[Model, Chain]) -> str:
+    def _determine_group_type(self, residue) -> int:
+        """Determine CHARMM group type based on residue charges.
+
+        Returns:
+            0: No charges (all atoms have zero partial charge, e.g., dummy atoms)
+            1: Neutral (non-zero charges that sum to zero)
+            2: Charged (non-zero net charge, e.g., ions, ASP, GLU, LYS, ARG)
+        """
+        has_any_charge = False
+        total_charge = 0.0
+
+        for atom in residue.get_atoms():
+            if atom.topo_definition is not None:
+                charge = atom.topo_definition.charge
+                if abs(charge) > 1e-6:
+                    has_any_charge = True
+                total_charge += charge
+
+        if not has_any_charge:
+            return 0  # No charges (dummy atoms)
+        elif abs(total_charge) > 0.01:
+            return 2  # Charged group
+        else:
+            return 1  # Neutral group
+
+    def _write_groups(self, model: Union[Model, BaseChain]) -> str:
         """Write NGRP section (atom groups for charge computation).
 
         Groups are defined per residue from atom_groups.
         Groups must be sorted by first atom index in ascending order.
+
+        Group types (igptyp) per CHARMM documentation:
+        - 0: No charges (all atoms have zero partial charge)
+        - 1: Neutral (non-zero charges that sum to zero)
+        - 2: Charged (non-zero net charge, e.g., ions, charged residues)
+        - 3: ST2 (special ST2 water model)
         """
         lines = []
         groups = []
 
         for chain in self._get_chains(model):
             for residue in chain:
+                # Determine group type based on residue's charges
+                # Type 0: no charges (all atoms have zero partial charge, e.g., dummy atoms)
+                # Type 1: neutral (non-zero charges that sum to zero)
+                # Type 2: charged (non-zero net charge, e.g., ions, ASP, GLU, LYS, ARG)
+                group_type = self._determine_group_type(residue)
+
                 if hasattr(residue, 'atom_groups') and residue.atom_groups:
                     for group in residue.atom_groups:
                         # Each group entry: (first_atom_in_group, group_type, move_flag)
@@ -862,7 +955,7 @@ class PSFWriter:
                             if first_atom in self._atom_map:
                                 groups.append((
                                     self._atom_map[first_atom] - 1,  # 0-based pointer
-                                    1,  # Group type (1 for protein/standard groups)
+                                    group_type,  # Group type (1=neutral, 2=charged)
                                     0   # Move flag (0 = free)
                                 ))
 
@@ -1004,6 +1097,9 @@ class PSFWriter:
                 ints_per_line = items_per_line
 
             lines.append(self._format_indices(indices, ints_per_line))
+        else:
+            # Empty section needs extra blank line for CHARMM append mode compatibility
+            lines.append("")
 
         return "\n".join(lines)
 
@@ -1027,7 +1123,8 @@ def write_psf(
     filepath: str,
     extended: bool = True,
     xplor: bool = True,
-    title: str = ""
+    title: str = "",
+    separate_crystal_segids: bool = False
 ) -> None:
     """Write CHARMM PSF format file from a crimm Model.
 
@@ -1043,8 +1140,25 @@ def write_psf(
         Use XPLOR format (atom type names instead of indices)
     title : str, default ""
         Title line(s) for the PSF header
+    separate_crystal_segids : bool, default False
+        If True, crystallographic waters/ions get separate segids (CRWT/CION)
+        from generated ones (SOLV/IONS). If False (default), all waters use
+        SOLV and all ions use IONS regardless of source.
+
+    Examples
+    --------
+    >>> from crimm.IO import write_psf
+    >>> write_psf(model, 'system.psf')  # All waters->SOLV, ions->IONS
+
+    To separate crystallographic from generated chains:
+
+    >>> write_psf(model, 'system.psf', separate_crystal_segids=True)
     """
-    writer = PSFWriter(extended=extended, xplor=xplor)
+    writer = PSFWriter(
+        extended=extended,
+        xplor=xplor,
+        separate_crystal_segids=separate_crystal_segids
+    )
     writer.write(model, filepath, title)
 
 
@@ -1052,7 +1166,8 @@ def get_psf_str(
     model: Model,
     extended: bool = True,
     xplor: bool = True,
-    title: str = ""
+    title: str = "",
+    separate_crystal_segids: bool = False
 ) -> str:
     """Get CHARMM PSF format string from a crimm Model.
 
@@ -1066,13 +1181,21 @@ def get_psf_str(
         Use XPLOR format (atom type names instead of indices)
     title : str, default ""
         Title line(s) for the PSF header
+    separate_crystal_segids : bool, default False
+        If True, crystallographic waters/ions get separate segids (CRWT/CION)
+        from generated ones (SOLV/IONS). If False (default), all waters use
+        SOLV and all ions use IONS regardless of source.
 
     Returns
     -------
     str
         PSF format string
     """
-    writer = PSFWriter(extended=extended, xplor=xplor)
+    writer = PSFWriter(
+        extended=extended,
+        xplor=xplor,
+        separate_crystal_segids=separate_crystal_segids
+    )
     return writer.get_psf_string(model, title)
 
 
