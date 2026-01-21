@@ -342,7 +342,7 @@ def excute_cgenff(cgenff_path, input_mol2_block):
 
 class BaseTopology:
     topo_types = [
-        'bonds', 'angles', 'dihedrals', 'impropers'
+        'bonds', 'angles', 'dihedrals', 'impropers', # 'cmap'
     ]
     def __init__(self):
         self.bonds = None
@@ -423,6 +423,131 @@ class BaseTopology:
         """Find all topology elements in the entity"""
         raise NotImplementedError
 
+class DisulfideTopology:
+    """A class object that stores disulfide bonds for a model."""
+    topo_types = [
+        'bonds', 'angles', 'dihedrals'
+    ]
+    def __init__(self, model):
+        """Find all disulfide bonds from the model"""
+        if not isinstance(model, Model):
+            raise ValueError(
+                'Model is not an instance of Model!'
+                f' {type(model)} is provided.'
+            )
+        self.bonds = []
+        self.angles = []
+        self.dihedrals = []
+        self.containing_entity = model
+        self._create_disulfide(model)
+
+    def __iter__(self):
+        for topo_type_name in self.topo_types:
+            yield topo_type_name, getattr(self, topo_type_name)
+    
+    def __repr__(self) -> str:
+        repr_str = f"<DisulfideTopology with "
+        for attr in self.topo_types:
+            value = getattr(self, attr)
+            if value is None:
+                n = 0
+            else:
+                n = len(value)
+            repr_str += f"{attr}={n}, "
+        repr_str = repr_str[:-2] + ">"
+        return repr_str
+
+    def _disu_patch_applied(self, res)->bool:
+        """Check if disulfide patch has already been applied"""
+        if res.topo_definition is None:
+            return False
+        return getattr(res.topo_definition, 'patch_with', None) == 'DISU'
+    
+    def _generate_disulide_bond_angles(self, SG1, SG2):
+        """Generate angles for the disulfide bond"""
+        res1 = SG1.parent
+        res2 = SG2.parent
+        bond = Bond(SG1, SG2, 'single')
+        angle1 = Angle(res1['CB'], SG1, SG2)
+        angle2 = Angle(res2['CB'], SG2, SG1)
+        return bond, angle1, angle2
+
+    def _generate_disulide_dihedrals(self, SG1, SG2):
+        """Generate dihedrals for the disulfide bond"""
+        res1 = SG1.parent
+        res2 = SG2.parent
+        dihedral1 = Dihedral(res1['CA'], res1['CB'], SG1, SG2)
+        dihedral2 = Dihedral(res2['CA'], res2['CB'], SG2, SG1)
+        dihedral3 = Dihedral(res1['N'], res1['CA'], res1['CB'], SG1)
+        dihedral4 = Dihedral(res2['N'], res2['CA'], res2['CB'], SG2)
+        dihedral5 = Dihedral(res1['C'], res1['CA'], res1['CB'], SG1)
+        dihedral6 = Dihedral(res2['C'], res2['CA'], res2['CB'], SG2)
+        dihedral7 = Dihedral(res1['CB'], SG1, SG2, res2['CB'])
+        return [
+            dihedral1, dihedral2, dihedral3, dihedral4, 
+            dihedral5, dihedral6, dihedral7
+        ]
+
+    def _remove_CYS_HG1(self, res):
+        """Remove HG1 and associated records from the residue"""
+        if 'HG1' not in res:
+            return 
+        HG1 = res['HG1']
+        chain = res.parent
+        if chain.topology is not None:
+            chain.topology.delete_atom_related_elements(HG1)
+        res.detach_child('HG1')
+        for atom_group in res.atom_groups:
+            if HG1 in atom_group:
+                atom_group.remove(HG1)
+        warnings.warn(
+            f"Removing HG1 from residue {res} for disulfide bond formation."
+        )
+
+
+    def _create_disulfide(self, model: Model):
+        if 'disulf' not in model.connect_atoms:
+            return
+        patcher = ResiduePatcher()
+        for (SG1, SG2) in model.connect_atoms['disulf']:
+            res1 = SG1.parent
+            res2 = SG2.parent
+            chain1 = res1.parent
+            chain2 = res2.parent
+            if chain1.topology is None or chain2.topology is None:
+                warnings.warn(
+                    f'Disulfide bond found between {res1} and {res2}! '
+                    'But topology not generated for the chains.'
+                )
+                continue
+
+            # Remove HG1 from both residues if present
+            self._remove_CYS_HG1(res1)
+            self._remove_CYS_HG1(res2)
+
+            # Check if disulfide patch has already been applied
+            # (e.g., if ModelTopology was already created earlier)
+            if not (self._disu_patch_applied(res1) and self._disu_patch_applied(res2)):
+                ## TODO: implement full DISU patching using patch definition 
+                ## and update atom topo_definition automatically when patching
+                cys_def = patcher.patch_disulfide(
+                    res1.topo_definition, res2.topo_definition
+                )
+                res1.topo_definition = cys_def
+                res2.topo_definition = cys_def
+                res1['SG'].topo_definition = cys_def['SG']
+                res2['SG'].topo_definition = cys_def['SG']
+                res1['CB'].topo_definition = cys_def['CB']
+                res2['CB'].topo_definition = cys_def['CB']
+
+            chain1.topology.update()
+            chain2.topology.update()
+            bond, angle1, angle2 = self._generate_disulide_bond_angles(SG1, SG2)
+            self.bonds.append(bond)
+            self.angles.append(angle1)
+            self.angles.append(angle2)
+            self.dihedrals.extend(self._generate_disulide_dihedrals(SG1, SG2))
+
 class ModelTopology:
     """A class object that stores topology elements (bond, angles, dihe, etc) 
     for a model."""
@@ -436,9 +561,8 @@ class ModelTopology:
                 'Model is not an instance of Model!'
                 f' {type(model)} is provided.'
             )
-        self.disu_bonds = []
         self.containing_entity = model
-        self._create_disu_bonds(model)
+        self.disulfide_topology = DisulfideTopology(model)
 
     def __iter__(self):
         for topo_type_name in self.topo_types:
@@ -448,16 +572,24 @@ class ModelTopology:
         elements = []
         for chain in self.containing_entity:
             if chain.topology is None:
+                warnings.warn(
+                    f'Topology not generated for chain {chain}!'
+                )
                 continue
             if hasattr(chain.topology, element_name):
                 chain_elements = getattr(chain.topology, element_name)
                 if chain_elements is not None:
                     elements.extend(chain_elements)
+
+        if self.disulfide_topology is not None:
+            disu_elements = getattr(self.disulfide_topology, element_name, None)
+            if disu_elements is not None:
+                elements.extend(disu_elements)
         return elements
             
     @property
     def bonds(self):
-        return self.disu_bonds+self._gather_topo('bonds')
+        return self._gather_topo('bonds')
     @property
     def angles(self):
         return self._gather_topo('angles')
@@ -485,8 +617,8 @@ class ModelTopology:
             else:
                 n = len(value)
             s += f"{attr}={n}, "
-        if self.disu_bonds:
-            s += f'(disulfide bonds={len(self.disu_bonds)}), '
+        if self.disulfide_topology is not None:
+            s += 'including ' + repr(self.disulfide_topology)[1:-1] + ', '
         s = s[:-2] + ">"
         repr_str += s + '\nTopology by Chains:\n'
         
@@ -496,64 +628,7 @@ class ModelTopology:
             else:
                 repr_str += repr(chain.topology) + '\n'
         return repr_str
-                        
-    def _create_disu_bonds(self, model: Model):
-        if 'disulf' in model.connect_atoms:
-            patcher = ResiduePatcher()
-            for (a1, a2) in model.connect_atoms['disulf']:
-                res1 = a1.parent
-                res2 = a2.parent
-                chain1 = res1.parent
-                chain2 = res2.parent
-                if chain1.topology is None or chain2.topology is None:
-                    warnings.warn(
-                        f'Disulfide bond found between {res1} and {res2}! '
-                        'But topology not generated for the chains.'
-                    )
-                    continue
 
-                # Check if disulfide patch has already been applied
-                # (e.g., if ModelTopology was already created earlier)
-                res1_patched = (
-                    res1.topo_definition is not None and
-                    getattr(res1.topo_definition, 'patch_with', None) == 'DISU'
-                )
-                res2_patched = (
-                    res2.topo_definition is not None and
-                    getattr(res2.topo_definition, 'patch_with', None) == 'DISU'
-                )
-
-                if res1_patched or res2_patched:
-                    # Disulfide patch already applied, just add the bond
-                    disu_bond = Bond(a1, a2, 'single')
-                    self.disu_bonds.append(disu_bond)
-                    continue
-
-                if 'HG1' in res1:
-                    chain1.topology.delete_atom_related_elements(res1['HG1'])
-                    res1.detach_child('HG1')
-                if 'HG1' in res2:
-                    chain2.topology.delete_atom_related_elements(res2['HG1'])
-                    res2.detach_child('HG1')
-                warnings.warn(
-                    f'Disulfide bond found between {res1} and {res2}! '
-                    'Removing hydrogen HG1 from the residues.'
-                )
-                cys_def = patcher.patch_disulfide(
-                    res1.topo_definition, res2.topo_definition
-                )
-                res1.topo_definition = cys_def
-                res2.topo_definition = cys_def
-                res1['SG'].topo_definition = cys_def['SG']
-                res2['SG'].topo_definition = cys_def['SG']
-                res1['CB'].topo_definition = cys_def['CB']
-                res2['CB'].topo_definition = cys_def['CB']
-                chain1.topology.update()
-                chain2.topology.update()
-                disu_bond = Bond(a1, a2, 'single')
-                self.disu_bonds.append(disu_bond)
-    
-    
 class HeterogenTopology(BaseTopology):
     """A class object that stores topology elements (bond, angles, dihe, etc) 
     for a heterogen residue, e.g. ligand, water, ions, etc."""
@@ -1306,7 +1381,7 @@ class TopologyGenerator:
                 cur_atom = residue[atom_name]
                 cur_atom.topo_definition = residue.topo_definition[atom_name]
             atom_group.append(cur_atom)
-        return tuple(atom_group)
+        return atom_group
 
     @staticmethod
     def _load_atom_groups(residue: Residue):
@@ -1909,9 +1984,6 @@ class ResiduePatcher:
         """Patch the disulfide bond between two cysteine residues"""
         ## Disulfide bond patching is hard coded. The residue and atom definitions
         ## are modified here directly without using the DISU patch definition.
-        ## Dihedrals and impropers are not generated.
-        ## TODO: fully implement the DISU patch definition to the topology definition
-        ## and parameters
         if not isinstance(res1, ResidueDefinition) or not isinstance(res2, ResidueDefinition):
             raise TypeError("res1 and res2 must be ResidueDefinition objects")
         if res1.resname != 'CYS' or res2.resname != 'CYS':
@@ -1933,23 +2005,12 @@ class ResiduePatcher:
         self.res.assign_donor_acceptor()
         self.res.create_atom_lookup_dict()
         self.res.patch_with = 'DISU'
+        # Modify atom types and charges for disulfide bond
         sulfur_def = self.res['SG']
         sulfur_def.atom_type = 'SM'
         sulfur_def.charge = -0.08
         CB_def = self.res['CB']
         CB_def.charge = -0.10
-
-        # for bond_type in self.res.bonds:
-        #     self.res.bonds[bond_type].extend(('SG1','SG2'))
-
-        # self.res.atom_groups.extend(self.patch.atom_groups)
-
-        # self.res.ic = {**self.res.ic, **self.patch.ic}
-        # if self.remove_nei_ic_prefix is not None:
-        #     self._remove_neighbor_atom_from_ic()
-        #     self._remove_neighbor_atom_from_improper()
-        #     self._remove_neighbor_atom_from_cmap()
-
-        self.res.is_modified = True
+        self.res.is_modified = True       
 
         return self.res
