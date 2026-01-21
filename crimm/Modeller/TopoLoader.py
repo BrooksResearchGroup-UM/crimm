@@ -557,13 +557,16 @@ class ModelTopology:
     ]
     def __init__(self, model):
         """Find all topology elements from the model"""
-        if not isinstance(model, Model):
-            raise ValueError(
-                'Model is not an instance of Model!'
-                f' {type(model)} is provided.'
-            )
         self.containing_entity = model
-        self.disulfide_topology = DisulfideTopology(model)
+        self.disulfide_topology = None
+        if isinstance(model, Model):
+            self.disulfide_topology = DisulfideTopology(model)
+            # raise ValueError(
+            #     'Entity provided is not an instance of Model!'
+            #     f' {type(model)} is provided.'
+            # )
+        
+        
 
     def __iter__(self):
         for topo_type_name in self.topo_types:
