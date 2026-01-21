@@ -199,7 +199,12 @@ class PSFWriter:
         if isinstance(entity, Chain):
             return entity.topology
 
-        # For Model, use ModelTopology which properly handles:
+        # For Model, use existing ModelTopology if available
+        # This avoids recreating topology and adding duplicate elements
+        if hasattr(entity, 'topology') and entity.topology is not None:
+            return entity.topology
+
+        # Otherwise create new ModelTopology which properly handles:
         # - Disulfide bonds (DISU patch: removes HG1, changes SG type to SM)
         # - Inter-chain bonds
         # - Combined topology elements from all chains
