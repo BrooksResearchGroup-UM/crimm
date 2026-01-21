@@ -962,11 +962,12 @@ class Solvator:
         # Create single water chain (PSF/CRD extended format supports large residue numbers)
         cur_water_chain = self._create_new_water_chain(0)
         water_chains = [cur_water_chain]
+        segid = 'SOLV'
 
         for i, res_coords in enumerate(self.water_box_coords):
             resseq = i + 1  # Sequential residue numbering starting at 1
 
-            water_res = Residue((' ', resseq, ' '), 'TIP3', '')
+            water_res = Residue((' ', resseq, ' '), 'TIP3', segid)
 
             cur_oxygen = OH2.copy()
             cur_h1 = H1.copy()
@@ -1684,6 +1685,7 @@ class Solvator:
         # Create ion chain
         new_ion_chain = Ion('IA')
         new_ion_chain.source = 'generated'
+        segid = 'IONS'
         ion_names_str = ', '.join(sorted(set(ion_list)))
         new_ion_chain.pdbx_description = f"ions ({ion_names_str}) at {concentration*1000:.0f} mM"
 
@@ -1695,6 +1697,7 @@ class Solvator:
 
             ion_res = _topo_def.res_defs[ion_name].create_residue(resseq=i)
             ion_res.atoms[0].coord = oxy_coord
+            ion_res.segid = segid
             new_ion_chain.add(ion_res)
 
             # Remove water
