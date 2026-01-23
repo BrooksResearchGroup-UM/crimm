@@ -15,11 +15,14 @@ _TER_FORMAT_STRING = (
 )
 
 def _get_atom_line_with_parent_info(
-        atom: Atom, trunc_resname=False, use_charmm_format=False
+        atom: Atom, trunc_resname=False, use_charmm_format=False, convert_water=False
     ):
     """Return the parent info of the atom (PRIVATE). Atom must have a parent residue."""
     residue = atom.parent
     resname = residue.resname
+    # Convert common water residue names to HOH for better visualization for nglview
+    if convert_water and resname in ('TIP3', 'TIP2', 'WAT', 'TIP3P'):
+        resname = 'HOH'
     segid = residue.segid
     hetfield, resseq, icode = residue.id
     if (chain:=residue.parent) is not None:
@@ -190,24 +193,46 @@ def _get_atom_line(
 ##TODO: Add support for CONECT records
 def get_pdb_str(
         entity, reset_serial=True,
-        include_alt=False, trunc_resname=False, use_charmm_format=False
+        include_alt=False, trunc_resname=False, 
+        use_charmm_format=False, convert_water=False
     ):
-    """Return the PDB string of the entity."""
+    """Return the PDB string of the entity.
+    Parameters
+    ----------
+    entity : crimm.StructEntities.Entity
+        The entity to convert to PDB string.
+    reset_serial : bool, optional
+        Whether to reset the atom serial numbers, by default True.
+    include_alt : bool, optional
+        Whether to include alternate location atoms, by default False.
+    trunc_resname : bool, optional
+        Whether to truncate residue names to 3 characters, by default False.
+    use_charmm_format : bool, optional
+        Whether to use CHARMM PDB format (no chain ID), by default False.
+    convert_water : bool, optional
+        Whether to convert common water residue names to HOH, by default False.
+    Returns
+    -------
+    str
+        The PDB string of the entity.
+    """
     if reset_serial and hasattr(entity, 'reset_atom_serial_numbers'):
         entity.reset_atom_serial_numbers(include_alt=include_alt)
 
     if entity.level == 'A':
         if entity.parent is None:
             return _get_orphan_atom_line(entity, trunc_resname, use_charmm_format)
-        return _get_atom_line_with_parent_info(entity, trunc_resname, use_charmm_format)
+        return _get_atom_line_with_parent_info(
+            entity, trunc_resname, use_charmm_format, convert_water
+        )
 
-    chains = None
+    chains = []
     if entity.level in ('C', 'R', 'A'):
-        chains = [entity]
+        chains.append(entity)
     elif entity.level == 'M':
-        chains = entity.child_list
+        chains += entity.child_list
     elif entity.level == 'S':
-        chains = entity.child_list[0].child_list
+        chains += entity.child_list[0].child_list
     
     pdb_str = ''
     for chain in chains:
@@ -215,7 +240,9 @@ def get_pdb_str(
         if len(atoms) == 0:
             continue
         for atom in atoms:
-            pdb_str += _get_atom_line_with_parent_info(atom, trunc_resname, use_charmm_format)
+            pdb_str += _get_atom_line_with_parent_info(
+                atom, trunc_resname, use_charmm_format, convert_water
+            )
         pdb_str += _get_ter_line(atoms[-1], trunc_resname)
     pdb_str += 'END\n'
     return pdb_str
