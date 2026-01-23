@@ -12,6 +12,7 @@ Format specification (from CHARMM source io/psfres.F90):
 - XPLOR format: Uses atom type names instead of parameter file indices
 """
 
+import warnings
 from typing import Union, List, Dict, Tuple, Optional, Any
 from dataclasses import dataclass
 from crimm.StructEntities.Atom import Atom
@@ -108,7 +109,6 @@ class PSFWriter:
         ValueError
             If strict=True and validation issues are found
         """
-        import warnings
         issues = []
 
         chains = self._get_chains(model)
@@ -489,7 +489,6 @@ class PSFWriter:
                             cmaps.append((dihedral1_atoms, dihedral2_atoms))
                     except (KeyError, AttributeError, IndexError) as e:
                         # CMAP resolution can fail at chain termini or with incomplete topology
-                        import warnings
                         warnings.warn(
                             f"Could not resolve CMAP for residue {res.resname} {res.id}: {e}. "
                             f"CMAP term will be omitted from PSF file.",
@@ -677,9 +676,11 @@ class PSFWriter:
                 atomtype = atom.topo_definition.atom_type
                 charge = atom.topo_definition.charge
                 mass = atom.topo_definition.mass
+                if resname == 'HIS':
+                    # Use residue definition resname for HIS variants
+                    resname = residue.topo_definition.resname
             else:
                 # Missing topology - use fallback values with warning
-                import warnings
                 warnings.warn(
                     f"Atom {atom.name} in residue {residue.resname} {residue.id} "
                     f"has no topology definition. Using fallback values: "
@@ -868,7 +869,10 @@ class PSFWriter:
                         if acc_atom in self._atom_map:
                             acc_idx = self._atom_map[acc_atom]
                             # Use antecedent index if available, otherwise 0
-                            ante_idx = self._atom_map.get(ante_atom, 0) if ante_atom else 0
+                            if ante_atom is not None:
+                                ante_idx = self._atom_map.get(ante_atom, 0)  
+                            else:
+                                ante_idx = 0
                             indices.extend([acc_idx, ante_idx])
         return self._format_index_section(indices, "NACC: acceptors", items_per_line=4)
 

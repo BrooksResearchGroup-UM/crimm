@@ -12,6 +12,7 @@ class BaseChain(_Chain):
     """Base class derived from and Biopython chain object and compatible with
     Biopython's functions"""
     chain_type = "Base Chain"
+    _res_repr_str = "Residues"
     def __init__(self, chain_id):
         super().__init__(chain_id)
         # the following attributes are used for topology definitions
@@ -21,6 +22,15 @@ class BaseChain(_Chain):
         self.topology = None
         self.pdbx_description = None
 
+    @property
+    def segids(self):
+        """Return the list of segids in this chain."""
+        segid_set = set()
+        for res in self:
+            if res.segid is not None and (res.segid not in ('', ' ')):
+                segid_set.add(res.segid)
+        return list(segid_set)
+    
     @property
     def residues(self):
         """Alias for child_list. Returns the list of residues in this chain."""
@@ -138,7 +148,10 @@ class BaseChain(_Chain):
 
     def __repr__(self):
         """Return the chain identifier."""
-        return f"<{self.chain_type} id={self.get_id()} Residues={len(self)}>"
+        segids = ', '.join(self.segids)
+        if len(segids) == 0:
+            return f"<{self.chain_type} id={self.get_id()} {self._res_repr_str}={len(self)}>"
+        return f"<{self.chain_type} id={self.get_id()} {self._res_repr_str}={len(self)} segids={segids}>"
         
     def expanded_view(self):
         """Print the expanded view of the chain."""
@@ -454,6 +467,7 @@ class PolymerChain(Chain):
 class Heterogens(BaseChain):
     """A chain of heterogens."""
     chain_type = 'Heterogens'
+    _res_repr_str = "Molecules"
     def __init__(self, chain_id):
         super().__init__(chain_id)
         self.resnames = None
@@ -464,10 +478,6 @@ class Heterogens(BaseChain):
         if len(self) != 1 or self.pdbx_description is None:
             return
         self.child_list[0].pdbx_description = self.pdbx_description
-
-    def __repr__(self):
-        """Return the chain identifier."""
-        return f"<{self.chain_type} id={self.get_id()} Molecules={len(self)}>"
 
 class Ligand(Heterogens):
     """A chain of ligands."""
@@ -481,14 +491,18 @@ class Oligosaccharide(BaseChain):
 
 class Solvent(BaseChain):
     chain_type = 'Solvent'
+    _res_repr_str = "Molecules"
     # The source of the solvent, e.g. PDB (crystallographic) or generated (modeled).
     source: str = None
 
 class CoSolvent(Heterogens):
     chain_type = 'CoSolvent'
+    _res_repr_str = "Molecules"
+
 
 class Ion(BaseChain):
     chain_type = 'Ion'
+    _res_repr_str = "Ions"
     source: str = None
 
 class Glycosylation(BaseChain):

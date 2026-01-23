@@ -90,9 +90,9 @@ def _load_psf_crd(entity, append=False, separate_crystal_segids=False):
 def load_topology(topo_generator):
     """Load topology and parameter files from a TopoGenerator object."""
     load_water_ions = False
-    load_cgenff = False
+    load_cgenff_ligand = False
     if 'cgenff' in topo_generator.res_def_dict:
-        load_cgenff = True
+        load_cgenff_ligand = True
         # rearrange the order of cgenff
         topo_generator.res_def_dict['cgenff'] = topo_generator.res_def_dict.pop('cgenff')
     if 'cgenff' in topo_generator.param_dict:
@@ -127,26 +127,8 @@ def load_topology(topo_generator):
             read.prm(tf.name, append = bool(i), flex=True)
 
     # load cgenff.rtf and cgenff.prm after all bio polymers
-    if load_cgenff:
-        abs_path = Path(__file__).resolve().parent.parent
-        rtf_abs_path = abs_path / "Data/toppar/cgenff.rtf"
-        prm_abs_path = abs_path / "Data/toppar/cgenff.prm"
-        with open(rtf_abs_path, 'r', encoding='utf-8') as f:
-            with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
-                tf.write('* CGENFF RTF Loaded from crimm\n')
-                tf.write(f.read())
-                tf.flush() # has to flush first for long files!
-                read.rtf(tf.name, append = True)
-
-        pcm_settings.set_bomb_level(-1)
-        with open(prm_abs_path, 'r', encoding='utf-8') as f:
-            with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
-                tf.write('* CGENFF PRM Loaded from crimm\n')
-                tf.write(f.read())
-                tf.flush() # has to flush first for long files!
-                read.prm(tf.name, append=True, flex=True)
-        pcm_settings.set_bomb_level(0)
-
+    if load_cgenff_ligand:
+        load_cgenff_toppar()
         ligandrtf_blocks = topo_generator.cgenff_loader.toppar_blocks
         for resname, data_block in ligandrtf_blocks.items():
             with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
@@ -157,15 +139,40 @@ def load_topology(topo_generator):
         
     # load water_ions.str at the end
     if load_water_ions:
-        abs_path = Path(__file__).resolve().parent.parent
-        abs_path = abs_path / "Data/toppar/water_ions.str"
-        with open(abs_path, 'r', encoding='utf-8') as f:
-            with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
-                tf.write('* WATER ION TOPPAR Loaded from crimm\n')
-                for line in f.readlines():
-                    tf.write(line)
-                tf.flush()
-                read.stream(tf.name)
+        load_solvent_toppar()
+
+def load_solvent_toppar():
+    """Load default solvent model (TIP3 water + ions) into pyCHARMM."""
+    abs_path = Path(__file__).resolve().parent.parent
+    abs_path = abs_path / "Data/toppar/water_ions.str"
+    with open(abs_path, 'r', encoding='utf-8') as f:
+        with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
+            tf.write('* WATER ION TOPPAR Loaded from crimm\n')
+            for line in f.readlines():
+                tf.write(line)
+            tf.flush()
+            read.stream(tf.name)
+
+def load_cgenff_toppar():
+    """Load default CGENFF parameters into pyCHARMM."""
+    abs_path = Path(__file__).resolve().parent.parent
+    rtf_abs_path = abs_path / "Data/toppar/cgenff.rtf"
+    prm_abs_path = abs_path / "Data/toppar/cgenff.prm"
+    with open(rtf_abs_path, 'r', encoding='utf-8') as f:
+        with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
+            tf.write('* CGENFF RTF Loaded from crimm\n')
+            tf.write(f.read())
+            tf.flush() # has to flush first for long files!
+            read.rtf(tf.name, append = True)
+
+    pcm_settings.set_bomb_level(-1)
+    with open(prm_abs_path, 'r', encoding='utf-8') as f:
+        with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
+            tf.write('* CGENFF PRM Loaded from crimm\n')
+            tf.write(f.read())
+            tf.flush() # has to flush first for long files!
+            read.prm(tf.name, append=True, flex=True)
+    pcm_settings.set_bomb_level(0)
 
 def load_chain(chain, hbuild=False, report=False, use_psf_crd=True, append=False):
     """Load a protein/nucleic chain into pyCHARMM.

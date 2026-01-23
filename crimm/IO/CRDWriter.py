@@ -365,6 +365,9 @@ def get_crd_str(
         residue = atom.parent
         if residue is not None:
             resname = residue.resname[:str_width]
+            if resname == 'HIS' and residue.topo_definition is not None:
+                # Use residue definition resname for HIS variants
+                resname = residue.topo_definition.resname
             segid = (residue.segid or "")[:str_width]
             # Use global sequential RESNO for CHARMM compatibility
             resno = resno_map.get(residue, 1)
