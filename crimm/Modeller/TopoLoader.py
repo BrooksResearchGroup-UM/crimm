@@ -1474,7 +1474,7 @@ class TopologyGenerator:
             )
             if not is_defined:
                 solvent.undefined_res.append(residue)
-
+            residue.resname = solvent_model  # set resname to solvent model for consistency
         if n_hydrogens_built > 0 and not QUIET:
             warnings.warn(
                 f"Built {n_hydrogens_built} missing hydrogens for crystallographic waters"

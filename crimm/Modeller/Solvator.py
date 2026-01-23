@@ -302,7 +302,7 @@ class Solvator:
 
         # Extract coordinates from model EXCLUDING water and ion chains
         # This matches solvation behavior where waters are removed before orientation
-        coords = self._extract_coords_for_suggestion(self.model)
+        coords = self._extract_coords(self.model, non_solvent_only=True)
 
         # Simulate orient_coords_ortho: PCA with axis sorting by singular values
         # This matches exactly what happens during solvation with ortho orientation
@@ -535,11 +535,14 @@ class Solvator:
                 'atom coordinates of the entity in the structure.',
                 UserWarning
             )
-        self.coords = self._extract_coords(self.model)
+        self.coords = self._extract_coords(self.model, non_solvent_only=True)
+        # Box dimension cannot be smaller than the existing solvent molecule extents
+        cur_solvent_dim = self._extract_coords(self.model, non_solvent_only=False)
+        min_box_dim = np.ptp(cur_solvent_dim, axis=0)
 
         # Calculate box dimensions based on crystal type
         extents = np.ptp(self.coords, axis=0)
-
+        
         if self.box_type in ('cube', 'octa', 'rhdo'):
             # Isotropic boxes: use max extent
             self.box_dim = extents.max() + 2 * self.cutoff
@@ -573,32 +576,47 @@ class Solvator:
             # Fallback for any other type
             self.box_dim = extents.max() + 2 * self.cutoff
             self.box_dims = (self.box_dim, self.box_dim, self.box_dim)
-
+        if self.box_dims[0] < min_box_dim[0] or \
+           self.box_dims[1] < min_box_dim[1] or \
+           self.box_dims[2] < min_box_dim[2]:
+            raise ValueError(
+                f'Calculated box dimensions {self.box_dims}Å are smaller than existing '
+                f'solvent molecule extents {min_box_dim}Å. Increase cutoff or provide '
+                'larger box_dims for orthorhombic/tetragonal boxes.'
+            )
         return self._solvate_model()
 
 
-    def _extract_coords(self, entity) -> np.ndarray:
+    def _extract_coords(self, entity, non_solvent_only: bool = False) -> np.ndarray:
         """Extracts coordinates from entity. If any altloc atoms are present,
-        only the first altloc atoms will be included in the returned array."""
-        coords = []
-        for atom in entity.get_atoms(include_alt=False):
-            coords.append(atom.coord)
-        return np.array(coords)
-
-    def _extract_coords_for_suggestion(self, model) -> np.ndarray:
-        """Extract coordinates excluding water and ion chains.
-
-        This is used by suggest_optimal_crystal() to match the behavior of
-        solvate(), which removes waters before calculating box dimensions.
+        only the first altloc atoms will be included in the returned array.
+        Parameters
+        ----------
+        entity : Structure, Model, or Chain level entity
+            The entity from which to extract coordinates.
+        non_solvent_only : bool, optional
+            If True and entity is Model level, exclude water and ion chains.
+            Default is False.
+        Returns
+        -------
+        np.ndarray
+            Array of coordinates.
         """
-        coords = []
-        for chain in model:
-            chain_type = getattr(chain, 'chain_type', None)
-            # Skip water and ion chains
-            if chain_type in ('Solvent', 'Ion'):
-                continue
-            for atom in chain.get_atoms(include_alt=False):
-                coords.append(atom.coord)
+        # get non-solvent atoms only if specified
+        if non_solvent_only and entity.level == 'M':
+            atoms = []
+            for chain in entity:
+                chain_type = getattr(chain, 'chain_type', None)
+                # Skip water and ion chains
+                if chain_type in ('Solvent', 'Ion'):
+                    continue
+                for atom in chain.get_atoms(include_alt=False):
+                    atoms.append(atom)
+        else:
+            # get all atoms
+            atoms = entity.get_atoms(include_alt=False)
+        
+        coords = [atom.coord for atom in atoms]
         return np.array(coords)
 
     def remove_existing_water(self, model: Model) -> Model:
@@ -606,6 +624,9 @@ class Solvator:
         remove_list = []
         for chain in model.chains:
             if chain.chain_type == 'Solvent':
+                remove_list.append(chain.id)
+            elif chain.chain_type == 'Ion' and chain.source == 'generated':
+                # Also remove generated ions (not crystallographic)
                 remove_list.append(chain.id)
         for chain_id in remove_list:
             warnings.warn(

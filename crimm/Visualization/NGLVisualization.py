@@ -18,7 +18,10 @@ class NGLStructure(nv.Structure):
         self.entity = entity
 
     def get_structure_string(self):
-        return get_pdb_str(self.entity, include_alt=False, trunc_resname=True)
+        return get_pdb_str(
+            self.entity, include_alt=False, trunc_resname=True, 
+            use_charmm_format=False, convert_water=True
+        )
 
 class NGLRDKitStructure(nv.Structure):
     """NGLView Structure class for visualizing crimm.Structure.Structure on jupyter notebook"""

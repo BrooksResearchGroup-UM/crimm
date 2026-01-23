@@ -33,7 +33,7 @@ def _entity_has_lonepairs(entity) -> bool:
     return False
 
 
-def _load_psf_crd(entity, append=False):
+def _load_psf_crd(entity, append=False, separate_crystal_segids=False):
     """Load an entity into pyCHARMM using PSF/CRD format.
 
     This is the core helper that writes temp PSF/CRD files and loads them.
@@ -61,7 +61,7 @@ def _load_psf_crd(entity, append=False):
             crd_path = crd_f.name
 
         # Write PSF and CRD files (these functions handle their own file I/O)
-        write_psf(entity, psf_path)
+        write_psf(entity, psf_path, separate_crystal_segids=separate_crystal_segids)
         write_crd(entity, crd_path)
 
         # Validate files were written correctly
@@ -460,7 +460,7 @@ def load_ions(ion_chains, use_psf_crd=True, append=False):
     return segids
 
 
-def load_model(model, use_psf_crd=True, load_params=True):
+def load_model(model, use_psf_crd=True, load_params=True, separate_crystal_segids=False):
     """Load an entire OrganizedModel into pyCHARMM.
 
     This is a convenience function that loads all components of a model
@@ -475,6 +475,9 @@ def load_model(model, use_psf_crd=True, load_params=True):
         If False, load components individually using legacy PDB-based approach.
     load_params : bool, default True
         If True (default), also load topology parameters (RTF/PRM) via load_topology().
+    seperate_crystal_segids : bool, default False
+        If True, separate crystal segids in the PSF file that is loaded into CHARMM. This
+        will not affect segids that are already assigned to the residues in the model.
 
     Notes
     -----
@@ -500,7 +503,7 @@ def load_model(model, use_psf_crd=True, load_params=True):
     if use_psf_crd:
         # PSF/CRD approach (default) - single call for entire model
         # Topology is already in the PSF, including disulfides - no patching needed
-        _load_psf_crd(model, append=False)
+        _load_psf_crd(model, append=False, separate_crystal_segids=separate_crystal_segids)
     else:
         # Deprecated: load components separately using PDB-based approach
         warnings.warn(
@@ -745,7 +748,7 @@ def minimize(constrained_atoms='CA', sd_nstep=1000, abnr_nstep=500):
 
 def sd_minimize(
     nstep, non_bonded_script, tolenr=1e-3, tolgrd=1e-3, 
-    cons_harm_selection=None, cons_fix_selection=None
+    cons_harm_selection=None, harm_force_const=20, cons_fix_selection=None
 ):
     """Perform steepest-descent minimization in CHARMM."""
     # Implement the non-bonded parameters by "running" them.
@@ -762,12 +765,12 @@ def sd_minimize(
         else:
             status = cons_harm.setup_absolute(
                 selection=cons_harm_selection,
-                force_const=20
+                force_const=harm_force_const
             )
             has_cons_harm = not status
             # The status would return False if success
             warnings.warn(f"Absolute harmonic restraints setup success: {has_cons_harm}")
-    if cons_fix_selection is not None:
+    elif cons_fix_selection is not None:
         if cons_fix_selection.get_n_selected() == 0:
             warnings.warn(
                 "Atom selection resulted zero atoms for CONS FIX! Skip CONS FIX setup"
