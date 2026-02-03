@@ -1748,6 +1748,9 @@ class TopologyGenerator:
             for chain in model.ligand+model.co_solvent+model.phos_ligand:
                 for lig_residue in chain:
                     self.cgenff_loader.generate(lig_residue)
+                # Create chain topology after all residues are processed
+                topology = HeterogenTopology()
+                chain.topology = topology.load_chain(chain)
             if self.save_cgenff_output:
                 self.cgenff_loader.write_all()
         else:
