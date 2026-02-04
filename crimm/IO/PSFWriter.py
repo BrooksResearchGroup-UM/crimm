@@ -604,7 +604,7 @@ class PSFWriter:
             chain_info = [f"{c.id}" for c in skipped_chains]
             warnings.warn(
                 f"Chains excluded from PSF (no topology): {chain_info}. "
-                "Use TopologyGenerator with cgenff_path to generate ligand topology."
+                "Use TopologyGenerator with cgenff_excutable_path to generate ligand topology."
             )
 
     def _write_header(self, has_cmap: bool) -> str:
