@@ -1761,7 +1761,8 @@ class TopologyGenerator:
                 warnings.warn(
                     f"Ligand/co-solvent chains found but CGENFF is not configured: {chain_info}. "
                     "Topology will not be generated for these chains. "
-                    "To generate ligand topology, initialize TopologyGenerator with cgenff_path parameter."
+                    "To generate ligand topology, initialize TopologyGenerator with the "
+                    "cgenff_excutable_path parameter."
                 )
         model.topology_loader = self
         model.topology = ModelTopology(model)
