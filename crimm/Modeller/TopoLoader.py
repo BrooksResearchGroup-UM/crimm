@@ -1748,8 +1748,22 @@ class TopologyGenerator:
             for chain in model.ligand+model.co_solvent+model.phos_ligand:
                 for lig_residue in chain:
                     self.cgenff_loader.generate(lig_residue)
+                # Create chain topology after all residues are processed
+                topology = HeterogenTopology()
+                chain.topology = topology.load_chain(chain)
             if self.save_cgenff_output:
                 self.cgenff_loader.write_all()
+        else:
+            # Warn if ligands exist but CGENFF not configured
+            ligand_chains = model.ligand + model.co_solvent + model.phos_ligand
+            if ligand_chains and not QUIET:
+                chain_info = [f"{c.id}({len(list(c.get_residues()))})" for c in ligand_chains]
+                warnings.warn(
+                    f"Ligand/co-solvent chains found but CGENFF is not configured: {chain_info}. "
+                    "Topology will not be generated for these chains. "
+                    "To generate ligand topology, initialize TopologyGenerator with the "
+                    "cgenff_excutable_path parameter."
+                )
         model.topology_loader = self
         model.topology = ModelTopology(model)
 

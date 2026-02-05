@@ -562,7 +562,15 @@ class PSFWriter:
         idx = 1
         # Normalize input: if Chain, wrap in list; if Model, iterate directly
         chains = [model] if isinstance(model, BaseChain) else model
+        skipped_chains = []
+
         for chain in chains:
+            # Skip chains without topology (e.g., ligands without CGENFF)
+            if not isinstance(model, BaseChain):
+                if not hasattr(chain, 'topology') or chain.topology is None:
+                    skipped_chains.append(chain)
+                    continue
+
             for residue in chain:
                 # Regular atoms
                 for atom in residue.get_atoms():
@@ -590,6 +598,14 @@ class PSFWriter:
                                         angle=lp_def.lonepair_info.get('angle', 0.0),
                                         dihedral=lp_def.lonepair_info.get('dihedral', 0.0)
                                     ))
+
+        # Warn about skipped chains
+        if skipped_chains:
+            chain_info = [f"{c.id}" for c in skipped_chains]
+            warnings.warn(
+                f"Chains excluded from PSF (no topology): {chain_info}. "
+                "Use TopologyGenerator with cgenff_excutable_path to generate ligand topology."
+            )
 
     def _write_header(self, has_cmap: bool) -> str:
         """Write PSF header line with format keywords.
