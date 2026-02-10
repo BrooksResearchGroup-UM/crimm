@@ -4,7 +4,9 @@ import requests
 import pandas as pd
 from Bio.PDB.Selection import unfold_entities
 # Nucleoside phosphates and phosphonates
-from crimm.Data.components_dict import NUCLEOSIDE_PHOS, PDB_CHARMM_ION_NAMES, CHARMM_PDB_ION_NAMES 
+from crimm.Data.components_dict import (
+    NUCLEOSIDE_PHOS, PDB_CHARMM_ION_NAMES, CHARMM_PDB_ION_NAMES, COMMON_COSOLVENTS
+)
 from crimm.Utils.query_db import query_drugbank_info
 from crimm.Utils.StructureUtils import index_to_letters, letters_to_index
 from .Model import Model
@@ -68,16 +70,25 @@ class OrganizedModel(Model):
     }
     def __init__(
             self, entity, rename_charmm_ions=True, rename_solvent_oxygen=True,
-            identify_ligands=False
+            identify_ligands=False, fetch_web_data=None, heterogen_map=None
         ):
         """Initialize the OrganizedModel object.
         Args:
             entity (Entity): The entity to be organized.
-            rename_charmm_ions (bool): Whether to rename ions in the structure to 
+            rename_charmm_ions (bool): Whether to rename ions in the structure to
             CHARMM ion name defined in water_ions.str
-            rename_solvent_oxygen (bool): Whether to rename solvent oxygen to CHARMM 
-            name "OH2" in the crystallographic water. Doing so will allow crimm to 
+            rename_solvent_oxygen (bool): Whether to rename solvent oxygen to CHARMM
+            name "OH2" in the crystallographic water. Doing so will allow crimm to
             generate topology definitions on the water
+            fetch_web_data (bool or None): Whether to fetch binding affinity and
+            molecule features from RCSB. Default None auto-detects: fetches only
+            when identify_ligands=True. Set to False to always skip, True to
+            always fetch.
+            heterogen_map (dict, optional): Manual heterogen classification mapping
+            3-letter residue names to chain type strings (e.g. {'NAD': 'Ligand',
+            'GOL': 'CoSolvent'}). Valid types: 'Ligand', 'CoSolvent', 'Ion',
+            'Glycosylation', 'NucleosidePhosphate'. Entries in this map take
+            precedence over automatic classification.
         """
         if entity.level == 'M':
             model = entity
@@ -97,6 +108,10 @@ class OrganizedModel(Model):
         ## for glycosylation
         self._ref_connect_atoms = model.connect_atoms
         self.identify_ligands = identify_ligands
+        if fetch_web_data is None:
+            fetch_web_data = identify_ligands
+        self.fetch_web_data = fetch_web_data
+        self.heterogen_map = self._normalize_heterogen_map(heterogen_map) or {}
         self.rcsb_web_data = None
         # Binding Affinity Information
         self.binding_info = None
@@ -108,23 +123,25 @@ class OrganizedModel(Model):
         # Biologically Interesting Molecules databases
         self.bio_mol_names = set()
         self.topology_loader = None
-        
+
         if model.pdb_id is not None:
             self.pdb_id = model.pdb_id
-            self._get_rcsb_web_data()
-            self.binding_info = self._get_keyword_info('rcsb_binding_affinity')
-            self.bio_mol_info = self._get_keyword_info('pdbx_molecule_features')
-        elif model.parent.id is not None:
+        elif model.parent is not None and model.parent.id is not None:
             self.pdb_id = model.parent.id
-            self._get_rcsb_web_data()
-            self.binding_info = self._get_keyword_info('rcsb_binding_affinity')
-            self.bio_mol_info = self._get_keyword_info('pdbx_molecule_features')
         else:
-            warnings.warn(
-                "PDB ID not set for this model! "
-                "Binding affinity information will not be fetched. Possible errors "
-                "in ligand classification."
-            )
+            self.pdb_id = None
+
+        if self.fetch_web_data:
+            if self.pdb_id is not None:
+                self._get_rcsb_web_data()
+                self.binding_info = self._get_keyword_info('rcsb_binding_affinity')
+                self.bio_mol_info = self._get_keyword_info('pdbx_molecule_features')
+            else:
+                warnings.warn(
+                    "PDB ID not set for this model! "
+                    "Binding affinity information will not be fetched. Possible errors "
+                    "in ligand classification."
+                )
 
         if self.binding_info is not None:
             self.lig_names = set(self.binding_info.comp_id)
@@ -200,7 +217,14 @@ class OrganizedModel(Model):
     
     def _get_rcsb_web_data(self):
         query_url = f'https://data.rcsb.org/rest/v1/core/entry/{self.pdb_id}'
-        response = requests.get(query_url, timeout=500)
+        try:
+            response = requests.get(query_url, timeout=500)
+        except requests.exceptions.RequestException:
+            warnings.warn(
+                f"Could not connect to RCSB for \"{self.pdb_id}\". "
+                "Binding affinity and molecule features will not be available."
+            )
+            return
         if (code := response.status_code) != 200:
             warnings.warn(
                 f"GET request on RCSB for \"{self.pdb_id}\" for binding affinity data "
@@ -231,6 +255,10 @@ class OrganizedModel(Model):
             return residue.resname in self.lig_names
         elif len(self.bio_mol_names) > 0:
             return residue.pdbx_description in self.bio_mol_names
+        elif residue.resname in COMMON_COSOLVENTS:
+            return False
+        elif not self.fetch_web_data:
+            return False
         else:
             return query_drugbank_info(residue.resname) is not None
     
@@ -264,6 +292,46 @@ class OrganizedModel(Model):
         hetero_chain.resnames = ', '.join(resnames)
         return hetero_chain
 
+    _valid_heterogen_types = frozenset({
+        'Ion', 'Glycosylation', 'Ligand', 'NucleosidePhosphate', 'CoSolvent'
+    })
+
+    def _normalize_heterogen_map(self, heterogen_map):
+        """Normalize and validate heterogen_map values.
+
+        Accepts both friendly names ('ligand', 'co_solvent') and internal names
+        ('Ligand', 'CoSolvent'). Returns a new dict with all values normalized
+        to internal names. Warns on unrecognized types.
+        """
+        if heterogen_map is None:
+            return None
+        normalized = {}
+        for resname, chain_type in heterogen_map.items():
+            # Already a valid internal type
+            if chain_type in self._valid_heterogen_types:
+                normalized[resname] = chain_type
+            # Try friendly name lookup (e.g. 'ligand' -> 'Ligand', 'co_solvent' -> 'CoSolvent')
+            elif chain_type.rstrip('s').lower() in self.organized_chains:
+                resolved = self.organized_chains[chain_type.rstrip('s').lower()]
+                if resolved in self._valid_heterogen_types:
+                    normalized[resname] = resolved
+                else:
+                    warnings.warn(
+                        f"Resolved heterogen type '{resolved}' (from '{chain_type}') "
+                        f"for residue '{resname}' is not a valid heterogen type. "
+                        f"Valid types are: {sorted(self._valid_heterogen_types)}. "
+                        f"This entry will be ignored."
+                    )
+            else:
+                warnings.warn(
+                    f"Unrecognized heterogen type '{chain_type}' for residue "
+                    f"'{resname}' in heterogen_map. Valid types are: "
+                    f"{sorted(self._valid_heterogen_types)} or friendly names "
+                    f"{list(self.organized_chains.keys())}. "
+                    f"This entry will be ignored."
+                )
+        return normalized
+
     def determine_heterogen_type(self, heterogens, identify_ligands=False):
         """Determine the type of heterogens in the model."""
         heterogen_type_dict = {
@@ -271,10 +339,16 @@ class OrganizedModel(Model):
             'Glycosylation': [],
             'Ligand': [],
             'NucleosidePhosphate': [],
-            'CoSolvent': []   
+            'CoSolvent': []
         }
-        
+
         for res in heterogens:
+            # Check heterogen_map first for manual classification
+            if res.resname in self.heterogen_map:
+                mapped_type = self.heterogen_map[res.resname]
+                if mapped_type in heterogen_type_dict:
+                    heterogen_type_dict[mapped_type].append(res)
+                    continue
             if len(res.resname) <= 2 or res.resname in CHARMM_PDB_ION_NAMES:
                 heterogen_type_dict['Ion'].append(res)
             elif self.is_glycosylation(res):
