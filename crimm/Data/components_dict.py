@@ -49,3 +49,50 @@ PDB_CHARMM_ION_NAMES = {
 }
 
 CHARMM_PDB_ION_NAMES = {k:v for v,k in PDB_CHARMM_ION_NAMES.items()}
+
+# Common co-solvent / crystallization additive residue names.
+# Used as a local fallback to avoid network calls for known non-ligand heterogens.
+COMMON_COSOLVENTS = frozenset({
+    # Cryoprotectants / Precipitants
+    'GOL',  # Glycerol
+    'EDO',  # Ethylene glycol
+    'PEG',  # Polyethylene glycol
+    'MPD',  # 2-Methyl-2,4-pentanediol
+    'PGE',  # Triethylene glycol
+    'P6G',  # Hexaethylene glycol
+    '1PE',  # Pentaethylene glycol
+    '2PE',  # Nonaethylene glycol
+    'PG4',  # Tetraethylene glycol
+    'IPA',  # Isopropanol
+    'EOH',  # Ethanol
+    'MOH',  # Methanol
+    'BU3',  # tert-Butanol
+    'PDO',  # 1,3-Propanediol
+    # Buffers
+    'TRS',  # Tris buffer
+    'MES',  # MES buffer
+    'EPE',  # HEPES buffer
+    'IMD',  # Imidazole
+    'BCN',  # Bicine
+    'CIT',  # Citrate
+    'TAM',  # Tris (alternate)
+    'BTB',  # Bis-tris propane
+    'CAC',  # Cacodylate
+    # Carboxylic acids
+    'ACT',  # Acetate
+    'FMT',  # Formate
+    'ACY',  # Acetic acid
+    'MLI',  # Malonate
+    'TAR',  # D(+)-Tartaric acid
+    'OXL',  # Oxalic acid
+    'ACA',  # 6-Aminohexanoic acid
+    # Other common additives
+    'DMS',  # DMSO
+    'BME',  # Beta-mercaptoethanol
+    'SO4',  # Sulfate
+    'PO4',  # Phosphate
+    'SCN',  # Thiocyanate
+    'NO3',  # Nitrate
+    'NH4',  # Ammonium
+    'BCT',  # Bicarbonate
+})
