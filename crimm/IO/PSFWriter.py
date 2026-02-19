@@ -572,11 +572,20 @@ class PSFWriter:
                     continue
 
             for residue in chain:
-                # Regular atoms
-                for atom in residue.get_atoms():
-                    self._atom_map[atom] = idx
-                    self._atoms.append(atom)
-                    idx += 1
+                # Regular atoms — use atom_groups order (RTF order) when
+                # available so PSF atom indices match NGRP group boundaries.
+                # Fall back to child_list order for residues without topology.
+                if hasattr(residue, 'atom_groups') and residue.atom_groups:
+                    for group in residue.atom_groups:
+                        for atom in group:
+                            self._atom_map[atom] = idx
+                            self._atoms.append(atom)
+                            idx += 1
+                else:
+                    for atom in residue.get_atoms():
+                        self._atom_map[atom] = idx
+                        self._atoms.append(atom)
+                        idx += 1
 
                 # Lone pairs (for CGENFF ligands)
                 if hasattr(residue, 'lone_pair_dict') and residue.lone_pair_dict:
