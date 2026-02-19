@@ -33,6 +33,18 @@ _STD_ATOM_FORMAT = (
 )
 
 
+def _get_residue_atoms(residue) -> List[Atom]:
+    """Get atoms from a residue in RTF group order when available.
+
+    Uses atom_groups (RTF order) so that CRD atom ordering matches
+    the PSFWriter, which also iterates atom_groups. Falls back to
+    child_list order for residues without topology.
+    """
+    if hasattr(residue, 'atom_groups') and residue.atom_groups:
+        return [atom for group in residue.atom_groups for atom in group]
+    return list(residue.get_atoms())
+
+
 def _get_atoms_from_entity(entity, include_lonepairs: bool = True) -> List[Atom]:
     """Get all atoms from an entity, optionally including lone pairs.
 
@@ -46,11 +58,16 @@ def _get_atoms_from_entity(entity, include_lonepairs: bool = True) -> List[Atom]
     Returns
     -------
     List[Atom]
-        List of atoms in order
+        List of atoms in order, using RTF group order when available
     """
     atoms = []
 
-    if hasattr(entity, 'get_atoms'):
+    if hasattr(entity, 'get_residues'):
+        for residue in entity.get_residues():
+            atoms.extend(_get_residue_atoms(residue))
+    elif isinstance(entity, Residue):
+        atoms.extend(_get_residue_atoms(entity))
+    elif hasattr(entity, 'get_atoms'):
         atoms.extend(list(entity.get_atoms()))
     elif isinstance(entity, Atom):
         atoms.append(entity)
