@@ -40,7 +40,7 @@ def _get_residue_atoms(residue) -> List[Atom]:
     the PSFWriter, which also iterates atom_groups. Falls back to
     child_list order for residues without topology.
     """
-    if hasattr(residue, 'atom_groups') and residue.atom_groups:
+    if hasattr(residue, "atom_groups") and residue.atom_groups:
         return [atom for group in residue.atom_groups for atom in group]
     return list(residue.get_atoms())
 
@@ -62,26 +62,80 @@ def _get_atoms_from_entity(entity, include_lonepairs: bool = True) -> List[Atom]
     """
     atoms = []
 
-    if hasattr(entity, 'get_residues'):
+    if hasattr(entity, "get_residues"):
         for residue in entity.get_residues():
             atoms.extend(_get_residue_atoms(residue))
     elif isinstance(entity, Residue):
         atoms.extend(_get_residue_atoms(entity))
-    elif hasattr(entity, 'get_atoms'):
+    elif hasattr(entity, "get_atoms"):
         atoms.extend(list(entity.get_atoms()))
     elif isinstance(entity, Atom):
         atoms.append(entity)
 
     # Include lone pairs if present and requested
     if include_lonepairs:
-        if hasattr(entity, 'get_residues'):
+        if hasattr(entity, "get_residues"):
             for residue in entity.get_residues():
-                if hasattr(residue, 'lone_pair_dict') and residue.lone_pair_dict:
+                if hasattr(residue, "lone_pair_dict") and residue.lone_pair_dict:
                     atoms.extend(residue.lone_pair_dict.values())
-        elif hasattr(entity, 'lone_pair_dict') and entity.lone_pair_dict:
+        elif hasattr(entity, "lone_pair_dict") and entity.lone_pair_dict:
             atoms.extend(entity.lone_pair_dict.values())
 
     return atoms
+
+
+def _wrap_title_line(text, max_len=78):
+    """Wrap a title line to fit within CHARMM's 80-character limit.
+
+    CHARMM uses Fortran fixed-width reads that truncate at 80 characters.
+    Since title lines are prefixed with "* " (2 chars), content must be
+    at most max_len (default 78) characters per line.
+
+    Splits at ", " boundaries first (natural for chain/solvation lists),
+    then at spaces. Returns a list of wrapped line segments.
+
+    Parameters
+    ----------
+    text : str
+        The title line content (without "* " prefix)
+    max_len : int, optional
+        Maximum content length per line, default 78
+
+    Returns
+    -------
+    list of str
+        Wrapped line segments, each <= max_len characters
+    """
+    if len(text) <= max_len:
+        return [text]
+
+    lines = []
+    remaining = text
+
+    while len(remaining) > max_len:
+        # Try to split at ", " boundary (natural for lists like chain info)
+        split_pos = remaining.rfind(", ", 0, max_len)
+        if split_pos > 0:
+            # Include the comma in this line, continue after ", "
+            lines.append(remaining[: split_pos + 1])
+            remaining = remaining[split_pos + 2 :]
+            continue
+
+        # Fall back to splitting at space
+        split_pos = remaining.rfind(" ", 0, max_len)
+        if split_pos > 0:
+            lines.append(remaining[:split_pos])
+            remaining = remaining[split_pos + 1 :]
+            continue
+
+        # No good break point — hard break (safety fallback)
+        lines.append(remaining[:max_len])
+        remaining = remaining[max_len:]
+
+    if remaining:
+        lines.append(remaining)
+
+    return lines
 
 
 def _generate_system_info(entity) -> list:
@@ -120,19 +174,19 @@ def _generate_system_info(entity) -> list:
     structure_id = None
     model = None
 
-    if hasattr(entity, 'level'):
-        if entity.level == 'M':  # Model
+    if hasattr(entity, "level"):
+        if entity.level == "M":  # Model
             model = entity
-            if hasattr(entity, 'parent') and entity.parent is not None:
+            if hasattr(entity, "parent") and entity.parent is not None:
                 structure_id = entity.parent.id
-        elif entity.level == 'S':  # Structure
+        elif entity.level == "S":  # Structure
             structure_id = entity.id
             models = list(entity.get_models())
             if models:
                 model = models[0]
-        elif entity.level == 'C':  # Chain
+        elif entity.level == "C":  # Chain
             model = entity.parent
-            if model and hasattr(model, 'parent') and model.parent:
+            if model and hasattr(model, "parent") and model.parent:
                 structure_id = model.parent.id
 
     # Build first line
@@ -145,40 +199,39 @@ def _generate_system_info(entity) -> list:
     chain_info = []
     disu_count = 0
     has_cgenff = False
-    has_tip3 = False
     ion_types = set()
 
     if model is not None:
         for chain in model:
             chain_id = chain.id
-            chain_type = getattr(chain, 'chain_type', 'Unknown')
+            chain_type = getattr(chain, "chain_type", "Unknown")
 
             # Count disulfide bonds from patches
-            if hasattr(chain, 'topology') and chain.topology is not None:
+            if hasattr(chain, "topology") and chain.topology is not None:
                 topo = chain.topology
-                if hasattr(topo, 'inter_res_patches'):
+                if hasattr(topo, "inter_res_patches"):
                     for patch in topo.inter_res_patches:
-                        if hasattr(patch, 'name') and 'DISU' in patch.name.upper():
+                        if hasattr(patch, "name") and "DISU" in patch.name.upper():
                             disu_count += 1
                 # Check for CGenFF
-                if hasattr(topo, 'source') and topo.source:
-                    if 'cgenff' in str(topo.source).lower():
+                if hasattr(topo, "source") and topo.source:
+                    if "cgenff" in str(topo.source).lower():
                         has_cgenff = True
 
             # Categorize chains
-            if chain_type in ('Polypeptide(L)', 'Protein'):
+            if chain_type in ("Polypeptide(L)", "Protein"):
                 n_res = len(list(chain.get_residues()))
                 chain_info.append(f"{chain_id}(protein,{n_res}res)")
-            elif chain_type == 'Solvent':
-                has_tip3 = True
-            elif chain_type == 'Ion':
+            elif chain_type == "Solvent":
+                pass  # Solvent counted separately below via n_waters
+            elif chain_type == "Ion":
                 for res in chain.get_residues():
                     ion_types.add(res.resname.strip())
-            elif chain_type == 'Ligand':
+            elif chain_type == "Ligand":
                 chain_info.append(f"{chain_id}(ligand)")
-            elif chain_type in ('Polyribonucleotide', 'RNA'):
+            elif chain_type in ("Polyribonucleotide", "RNA"):
                 chain_info.append(f"{chain_id}(RNA)")
-            elif chain_type in ('Polydeoxyribonucleotide', 'DNA'):
+            elif chain_type in ("Polydeoxyribonucleotide", "DNA"):
                 chain_info.append(f"{chain_id}(DNA)")
 
     # Add chain summary
@@ -190,21 +243,21 @@ def _generate_system_info(entity) -> list:
     n_ions = 0
     if model is not None:
         for chain in model:
-            chain_type = getattr(chain, 'chain_type', 'Unknown')
-            if chain_type == 'Solvent':
+            chain_type = getattr(chain, "chain_type", "Unknown")
+            if chain_type == "Solvent":
                 n_waters = len(list(chain.get_residues()))
-            elif chain_type == 'Ion':
+            elif chain_type == "Ion":
                 n_ions = len(list(chain.get_residues()))
 
     # Check for solvation metadata (salt concentration, preserved waters)
     solvation_info = []
-    if model is not None and hasattr(model, '_solvation_info'):
+    if model is not None and hasattr(model, "_solvation_info"):
         sol_info = model._solvation_info
-        if 'concentration' in sol_info:
-            solvation_info.append(f"{sol_info['concentration']*1000:.0f} mM salt")
-        if sol_info.get('preserved_waters', 0) > 0:
+        if "concentration" in sol_info:
+            solvation_info.append(f"{sol_info['concentration'] * 1000:.0f} mM salt")
+        if sol_info.get("preserved_waters", 0) > 0:
             solvation_info.append(f"{sol_info['preserved_waters']} crystal waters kept")
-        if sol_info.get('preserved_ions', 0) > 0:
+        if sol_info.get("preserved_ions", 0) > 0:
             solvation_info.append(f"{sol_info['preserved_ions']} crystal ions kept")
 
     # Add solvation summary
@@ -219,26 +272,26 @@ def _generate_system_info(entity) -> list:
         lines.append(f"Solvation: {', '.join(solv_parts)}")
 
     # Add crystal/box information
-    if model is not None and hasattr(model, '_solvation_info'):
+    if model is not None and hasattr(model, "_solvation_info"):
         sol_info = model._solvation_info
-        box_type = sol_info.get('box_type')
-        box_dim = sol_info.get('box_dim')
+        box_type = sol_info.get("box_type")
+        box_dim = sol_info.get("box_dim")
         if box_type and box_dim:
             box_type_names = {
-                'cube': 'Cubic',
-                'octa': 'Truncated Octahedron',
-                'rhdo': 'Rhombic Dodecahedron',
-                'ortho': 'Orthorhombic',
-                'tetra': 'Tetragonal',
-                'hexa': 'Hexagonal',
-                'mono': 'Monoclinic',
-                'tric': 'Triclinic',
-                'rhomb': 'Rhombohedral',
+                "cube": "Cubic",
+                "octa": "Truncated Octahedron",
+                "rhdo": "Rhombic Dodecahedron",
+                "ortho": "Orthorhombic",
+                "tetra": "Tetragonal",
+                "hexa": "Hexagonal",
+                "mono": "Monoclinic",
+                "tric": "Triclinic",
+                "rhomb": "Rhombohedral",
             }
             box_name = box_type_names.get(box_type, box_type.capitalize())
             # Handle orthorhombic with different a, b, c dimensions
-            box_dims = sol_info.get('box_dims')
-            if box_type == 'ortho' and box_dims is not None:
+            box_dims = sol_info.get("box_dims")
+            if box_type == "ortho" and box_dims is not None:
                 a, b, c = box_dims
                 lines.append(f"Crystal: {box_name} box, {a:.2f} x {b:.2f} x {c:.2f} A")
             else:
@@ -286,12 +339,10 @@ def _format_title_lines(title: str = "", entity=None) -> str:
     lines = []
     if title:
         # User-provided title
-        for line in title.strip().split('\n'):
-            lines.append(f"* {line}\n")
+        raw_lines = title.strip().split("\n")
     elif entity is not None:
         # Auto-generate informative title from entity
-        for line in _generate_system_info(entity):
-            lines.append(f"* {line}\n")
+        raw_lines = _generate_system_info(entity)
     else:
         # Basic default title
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -299,8 +350,15 @@ def _format_title_lines(title: str = "", entity=None) -> str:
             user = getpass.getuser()
         except Exception:
             user = "unknown"
-        lines.append(f"* CRD file generated by crimm\n")
-        lines.append(f"* Created: {timestamp} by {user}\n")
+        raw_lines = [
+            "CRD file generated by crimm",
+            f"Created: {timestamp} by {user}",
+        ]
+
+    # Wrap lines to respect CHARMM's 80-character line limit
+    for raw_line in raw_lines:
+        for segment in _wrap_title_line(raw_line):
+            lines.append(f"* {segment}\n")
     # Terminating asterisk (required by CHARMM format)
     lines.append("*\n")
     return "".join(lines)
@@ -311,7 +369,7 @@ def get_crd_str(
     extended: bool = True,
     title: str = "",
     include_lonepairs: bool = True,
-    reset_serial: bool = True
+    reset_serial: bool = True,
 ) -> str:
     """Get CHARMM CRD format string from a crimm entity.
 
@@ -382,9 +440,10 @@ def get_crd_str(
         residue = atom.parent
         if residue is not None:
             resname = residue.resname[:str_width]
-            if resname == 'HIS' and residue.topo_definition is not None:
+            topo_def = getattr(residue, "topo_definition", None)
+            if resname == "HIS" and topo_def is not None:
                 # Use residue definition resname for HIS variants
-                resname = residue.topo_definition.resname
+                resname = topo_def.resname
             segid = (residue.segid or "")[:str_width]
             # Use global sequential RESNO for CHARMM compatibility
             resno = resno_map.get(residue, 1)
@@ -405,6 +464,7 @@ def get_crd_str(
 
         # Validate coordinates are finite numbers
         import numpy as np
+
         if not all(np.isfinite([x, y, z])):
             raise ValueError(
                 f"Atom {atom.name} (serial {serial}) has invalid coordinates: "
@@ -414,18 +474,20 @@ def get_crd_str(
         # Weight/temperature factor
         weight = atom.bfactor if atom.bfactor is not None else 0.0
 
-        lines.append(atom_fmt.format(
-            serial=serial,
-            resno=resno,
-            resname=resname,
-            atomname=atomname,
-            x=x,
-            y=y,
-            z=z,
-            segid=segid,
-            resid=resid,
-            weight=weight
-        ))
+        lines.append(
+            atom_fmt.format(
+                serial=serial,
+                resno=resno,
+                resname=resname,
+                atomname=atomname,
+                x=x,
+                y=y,
+                z=z,
+                segid=segid,
+                resid=resid,
+                weight=weight,
+            )
+        )
 
     return "".join(lines)
 
@@ -436,7 +498,7 @@ def write_crd(
     extended: bool = True,
     title: str = "",
     include_lonepairs: bool = True,
-    reset_serial: bool = True
+    reset_serial: bool = True,
 ) -> None:
     """Write CHARMM CRD format file from a crimm entity.
 
@@ -460,8 +522,8 @@ def write_crd(
         extended=extended,
         title=title,
         include_lonepairs=include_lonepairs,
-        reset_serial=reset_serial
+        reset_serial=reset_serial,
     )
 
-    with open(filepath, 'w', encoding='utf-8') as f:
+    with open(filepath, "w", encoding="utf-8") as f:
         f.write(crd_str)
