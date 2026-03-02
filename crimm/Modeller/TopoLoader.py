@@ -1840,6 +1840,15 @@ class TopologyGenerator:
         # 2. Parse PSF → atom metadata (charges, masses, types)
         psf_data = read_psf(psf_path)
 
+        # 2a. Validate PSF/CRD atom count consistency
+        crd_atom_count = sum(1 for _ in model.get_atoms())
+        psf_atom_count = len(psf_data.atoms)
+        if crd_atom_count != psf_atom_count:
+            raise ValueError(
+                f"PSF/CRD atom count mismatch: CRD has {crd_atom_count} atoms, "
+                f"PSF has {psf_atom_count} atoms."
+            )
+
         # 3. Wrap in OrganizedModel for chain classification
         organized = OrganizedModel(model)
 
@@ -1897,7 +1906,12 @@ class TopologyGenerator:
                 self.param_dict[entity_type] = ParameterLoader(entity_type)
             self.cur_defs = self.res_def_dict[entity_type]
             self.cur_param = self.param_dict[entity_type]
-            self.cur_param.fill_ic(self.cur_defs, preserve=False)
+            # Only fill IC once per entity type (shared across chains)
+            if not getattr(self, "_ic_filled", set()):
+                self._ic_filled = set()
+            if entity_type not in self._ic_filled:
+                self.cur_param.fill_ic(self.cur_defs, preserve=False)
+                self._ic_filled.add(entity_type)
 
             # Handle solvent name mapping (HOH/WAT → TIP3)
             if entity_type == "water_ions" and chain_type.lower() == "solvent":
@@ -1962,8 +1976,10 @@ class TopologyGenerator:
             return "water_ions"
         if ct == "ion":
             return "water_ions"
-        if ct in ("ligand", "co_solvent", "cosolvent"):
+        if ct == "ligand":
             return "cgenff"
+        if ct in ("co_solvent", "cosolvent"):
+            return "synthetic_polymer"
         return None
 
     @staticmethod
@@ -1990,6 +2006,9 @@ class TopologyGenerator:
                 psf_atom = psf_atom_map.get(key)
                 if psf_atom is not None:
                     if atom.topo_definition is not None:
+                        # Copy before mutating — AtomDefinition instances are
+                        # shared across residues via ResidueTopologySet
+                        atom.topo_definition = copy(atom.topo_definition)
                         atom.topo_definition.charge = psf_atom.charge
                         atom.topo_definition.mass = psf_atom.mass
                         atom.topo_definition.atom_type = psf_atom.atomtype
