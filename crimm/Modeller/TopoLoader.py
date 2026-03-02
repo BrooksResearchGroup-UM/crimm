@@ -2001,6 +2001,18 @@ class ResiduePatcher:
         for iterable in remove_keys:
             param_attr.remove(iterable)
 
+    def _remove_atom_from_groups(self, atom_name: str):
+        """Remove an atom from atom_groups, keeping the remaining group members."""
+        new_groups = []
+        for group in self.res.atom_groups:
+            if atom_name in group:
+                remaining = tuple(a for a in group if a != atom_name)
+                if remaining:
+                    new_groups.append(remaining)
+            else:
+                new_groups.append(group)
+        self.res.atom_groups = new_groups
+
     def _remove_atom_from_cmap(self, cmaps, atom_name:str):
         """Remove the residue from the parameter attribute of the residue"""
         remove_keys = set()
@@ -2026,9 +2038,10 @@ class ResiduePatcher:
             self._remove_atom_from_ic(atom_name)
             for param_attr in (
                 self.res.impropers, self.res.H_donors,
-                self.res.H_acceptors, self.res.atom_groups
+                self.res.H_acceptors,
             ):
                 self._remove_atom_from_param(param_attr, atom_name)
+            self._remove_atom_from_groups(atom_name)
             self._remove_atom_from_cmap(self.res.cmap, atom_name)
 
     def _apply_patch(self):
@@ -2107,9 +2120,10 @@ class ResiduePatcher:
         self._remove_atom_from_ic(remove_name)
         for param_attr in (
             self.res.impropers, self.res.H_donors,
-            self.res.H_acceptors, self.res.atom_groups
+            self.res.H_acceptors,
         ):
             self._remove_atom_from_param(param_attr, remove_name)
+        self._remove_atom_from_groups(remove_name)
         self._remove_atom_from_cmap(self.res.cmap, remove_name)
         self.res.assign_donor_acceptor()
         self.res.create_atom_lookup_dict()

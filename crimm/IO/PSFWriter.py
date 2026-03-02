@@ -25,6 +25,7 @@ from crimm.StructEntities.TopoElements import CMap
 @dataclass
 class LonePairInfo:
     """Information about a lone pair for PSF output."""
+
     lp_atom: Atom
     host_atom: Atom
     distance: float = 0.0
@@ -72,7 +73,7 @@ class PSFWriter:
         self,
         extended: bool = True,
         xplor: bool = True,
-        separate_crystal_segids: bool = False
+        separate_crystal_segids: bool = False,
     ):
         self.extended = extended
         self.xplor = xplor
@@ -114,12 +115,12 @@ class PSFWriter:
         chains = self._get_chains(model)
 
         for chain in chains:
-            chain_id = chain.id if hasattr(chain, 'id') else str(chain)
+            chain_id = chain.id if hasattr(chain, "id") else str(chain)
 
             # Check 1: Missing parameters (like CHARMM's "BOND NOT FOUND" etc.)
-            if hasattr(chain, 'topology') and chain.topology is not None:
+            if hasattr(chain, "topology") and chain.topology is not None:
                 topo = chain.topology
-                if hasattr(topo, 'missing_param_dict') and topo.missing_param_dict:
+                if hasattr(topo, "missing_param_dict") and topo.missing_param_dict:
                     for param_type, missing_list in topo.missing_param_dict.items():
                         if missing_list:
                             issues.append(
@@ -130,12 +131,11 @@ class PSFWriter:
             # Check 2: Atoms without topology definitions
             for residue in chain.get_residues():
                 res_id = f"{residue.resname} {residue.id[1]}"
-                res_def = getattr(residue, 'topo_definition', None)
+                res_def = getattr(residue, "topo_definition", None)
 
                 if res_def is None:
                     issues.append(
-                        f"Chain {chain_id}, Residue {res_id}: "
-                        f"No topology definition"
+                        f"Chain {chain_id}, Residue {res_id}: No topology definition"
                     )
                     continue
 
@@ -149,7 +149,7 @@ class PSFWriter:
                         )
                     else:
                         atom_def = res_def[atom.name]
-                        if not hasattr(atom_def, 'charge') or atom_def.charge is None:
+                        if not hasattr(atom_def, "charge") or atom_def.charge is None:
                             issues.append(
                                 f"Chain {chain_id}, Residue {res_id}, Atom {atom.name}: "
                                 f"No charge defined (will use 0.0)"
@@ -187,7 +187,7 @@ class PSFWriter:
             Title line(s) for the PSF header
         """
         psf_str = self.get_psf_string(model, title)
-        with open(filepath, 'w', encoding='utf-8') as f:
+        with open(filepath, "w", encoding="utf-8") as f:
             f.write(psf_str)
 
     def _get_chains(self, entity: Union[Model, BaseChain]) -> List[BaseChain]:
@@ -215,7 +215,6 @@ class PSFWriter:
             f" or a list of Chain objects, but got {type(entity)}"
         )
 
-
     def _get_topology(self, entity: Union[Model, BaseChain]):
         """Get topology container from entity.
 
@@ -234,7 +233,7 @@ class PSFWriter:
 
         # For Model, use existing ModelTopology if available
         # This avoids recreating topology and adding duplicate elements
-        if hasattr(entity, 'topology') and entity.topology is not None:
+        if hasattr(entity, "topology") and entity.topology is not None:
             return entity.topology
 
         # Otherwise create new ModelTopology which properly handles:
@@ -242,6 +241,7 @@ class PSFWriter:
         # - Inter-chain bonds
         # - Combined topology elements from all chains
         from crimm.Modeller.TopoLoader import ModelTopology
+
         return ModelTopology(entity)
 
     def _combine_chain_topologies(self, model: Model):
@@ -257,8 +257,10 @@ class PSFWriter:
         CombinedTopology
             Object with combined bonds, angles, dihedrals, impropers, cmap
         """
+
         class CombinedTopology:
             """Simple container for combined topology elements."""
+
             def __init__(self):
                 self.bonds = []
                 self.angles = []
@@ -269,7 +271,7 @@ class PSFWriter:
         combined = CombinedTopology()
 
         for chain in model:
-            chain_topo = getattr(chain, 'topology', None)
+            chain_topo = getattr(chain, "topology", None)
             if chain_topo is None:
                 continue
 
@@ -282,7 +284,7 @@ class PSFWriter:
                 combined.dihedrals.extend(chain_topo.dihedrals)
             if chain_topo.impropers:
                 combined.impropers.extend(chain_topo.impropers)
-            if hasattr(chain_topo, 'cmap') and chain_topo.cmap:
+            if hasattr(chain_topo, "cmap") and chain_topo.cmap:
                 combined.cmap.extend(chain_topo.cmap)
 
         return combined
@@ -326,7 +328,7 @@ class PSFWriter:
         # First check topology.cmap, then fall back to extracting from residues
         # where ChainTopology.cmap may be None or empty but residues have CMAP definitions
         cmap_terms = None
-        if hasattr(topology, 'cmap') and topology.cmap:  # Check for non-empty
+        if hasattr(topology, "cmap") and topology.cmap:  # Check for non-empty
             cmap_terms = topology.cmap
         else:
             # Try to get CMAP from residues directly
@@ -380,8 +382,8 @@ class PSFWriter:
             The Model or Chain object
         """
         # Track counts for each type to assign letters
-        type_counts = {'PRO': 0, 'DNA': 0, 'RNA': 0, 'LIG': 0}
-        letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+        type_counts = {"PRO": 0, "DNA": 0, "RNA": 0, "LIG": 0}
+        letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
         chains = [model] if isinstance(model, BaseChain) else model
         for chain in chains:
@@ -389,7 +391,7 @@ class PSFWriter:
             # Note: segid might be whitespace-only ('    '), which is truthy but empty
             has_segid = False
             for residue in chain:
-                segid = getattr(residue, 'segid', None)
+                segid = getattr(residue, "segid", None)
                 if segid and segid.strip():  # Must have non-whitespace content
                     has_segid = True
                     break
@@ -399,42 +401,44 @@ class PSFWriter:
                 continue
 
             # Determine chain type
-            chain_type = getattr(chain, 'chain_type', None) or ''
+            chain_type = getattr(chain, "chain_type", None) or ""
 
-            if 'polypeptide' in chain_type.lower():
-                prefix = 'PRO'
-            elif 'polydeoxyribonucleotide' in chain_type.lower():
-                prefix = 'DNA'
-            elif 'polyribonucleotide' in chain_type.lower():
-                prefix = 'RNA'
-            elif chain_type.lower() == 'solvent':
+            if "polypeptide" in chain_type.lower():
+                prefix = "PRO"
+            elif "polydeoxyribonucleotide" in chain_type.lower():
+                prefix = "DNA"
+            elif "polyribonucleotide" in chain_type.lower():
+                prefix = "RNA"
+            elif chain_type.lower() == "solvent":
                 # By default, all waters share SOLV segid
                 # If separate_crystal_segids=True, crystallographic waters get CRWT
+                source = getattr(chain, "source", None)
                 if self.separate_crystal_segids and (
-                    chain.source is None or chain.source.lower() != 'generated'
+                    source is None or source.lower() != "generated"
                 ):
-                    segid = 'CRWT'
+                    segid = "CRWT"
                 else:
-                    segid = 'SOLV'
+                    segid = "SOLV"
                 self._segid_map[chain] = segid
                 for residue in chain:
                     residue.segid = segid
                 continue
-            elif chain_type.lower() == 'ion':
+            elif chain_type.lower() == "ion":
                 # By default, all ions share IONS segid
                 # If separate_crystal_segids=True, crystallographic ions get CION
+                source = getattr(chain, "source", None)
                 if self.separate_crystal_segids and (
-                    chain.source is None or chain.source.lower() != 'generated'
+                    source is None or source.lower() != "generated"
                 ):
-                    segid = 'CION'
+                    segid = "CION"
                 else:
-                    segid = 'IONS'
+                    segid = "IONS"
                 self._segid_map[chain] = segid
                 for residue in chain:
                     residue.segid = segid
                 continue
             else:
-                prefix = 'LIG'
+                prefix = "LIG"
 
             # Get the letter to use
             letter_idx = type_counts[prefix]
@@ -453,7 +457,9 @@ class PSFWriter:
             for residue in chain:
                 residue.segid = segid
 
-    def _get_cmaps_from_model(self, model: Union[Model, BaseChain]) -> List[Tuple[Tuple[Atom, ...], Tuple[Atom, ...]]]:
+    def _get_cmaps_from_model(
+        self, model: Union[Model, BaseChain]
+    ) -> Optional[List[Tuple[Tuple[Atom, ...], Tuple[Atom, ...]]]]:
         """Extract CMAP terms from residues in the model.
 
         Each residue may have a .cmap attribute containing CMAP definitions
@@ -471,7 +477,7 @@ class PSFWriter:
         for chain in self._get_chains(model):
             residues = list(chain.get_residues())
             for i, res in enumerate(residues):
-                if not hasattr(res, 'cmap') or not res.cmap:
+                if not hasattr(res, "cmap") or not res.cmap:
                     continue
 
                 prev_res = residues[i - 1] if i > 0 else None
@@ -492,14 +498,17 @@ class PSFWriter:
                         warnings.warn(
                             f"Could not resolve CMAP for residue {res.resname} {res.id}: {e}. "
                             f"CMAP term will be omitted from PSF file.",
-                            UserWarning
+                            UserWarning,
                         )
 
         return cmaps if cmaps else None
 
     def _resolve_cmap_atoms(
-        self, atom_names: Tuple[str, ...], res: Residue,
-        prev_res: Optional[Residue], next_res: Optional[Residue]
+        self,
+        atom_names: Tuple[str, ...],
+        res: Residue,
+        prev_res: Optional[Residue],
+        next_res: Optional[Residue],
     ) -> Optional[Tuple[Atom, ...]]:
         """Resolve CMAP atom names to actual Atom objects.
 
@@ -521,11 +530,11 @@ class PSFWriter:
         atoms = []
         for name in atom_names:
             atom = None
-            if name.startswith('-'):
+            if name.startswith("-"):
                 # Previous residue atom
                 if prev_res is not None:
                     atom = self._get_atom_by_name(prev_res, name[1:])
-            elif name.startswith('+'):
+            elif name.startswith("+"):
                 # Next residue atom
                 if next_res is not None:
                     atom = self._get_atom_by_name(next_res, name[1:])
@@ -567,37 +576,57 @@ class PSFWriter:
         for chain in chains:
             # Skip chains without topology (e.g., ligands without CGENFF)
             if not isinstance(model, BaseChain):
-                if not hasattr(chain, 'topology') or chain.topology is None:
+                if not hasattr(chain, "topology") or chain.topology is None:
                     skipped_chains.append(chain)
                     continue
 
             for residue in chain:
-                # Regular atoms
-                for atom in residue.get_atoms():
-                    self._atom_map[atom] = idx
-                    self._atoms.append(atom)
-                    idx += 1
+                # Regular atoms — use atom_groups order (RTF order) when
+                # available so PSF atom indices match NGRP group boundaries.
+                # Fall back to child_list order for residues without topology.
+                if hasattr(residue, "atom_groups") and residue.atom_groups:
+                    for group in residue.atom_groups:
+                        for atom in group:
+                            self._atom_map[atom] = idx
+                            self._atoms.append(atom)
+                            idx += 1
+                else:
+                    for atom in residue.get_atoms():
+                        self._atom_map[atom] = idx
+                        self._atoms.append(atom)
+                        idx += 1
 
                 # Lone pairs (for CGENFF ligands)
-                if hasattr(residue, 'lone_pair_dict') and residue.lone_pair_dict:
+                if hasattr(residue, "lone_pair_dict") and residue.lone_pair_dict:
                     for lp_name, lp_atom in residue.lone_pair_dict.items():
                         self._atom_map[lp_atom] = idx
                         self._atoms.append(lp_atom)
                         idx += 1
                         # Track lone pair info for NUMLP section
                         # Find host atom from topology definition
-                        if hasattr(residue, 'topo_definition') and residue.topo_definition:
+                        if (
+                            hasattr(residue, "topo_definition")
+                            and residue.topo_definition
+                        ):
                             lp_def = residue.topo_definition.get(lp_name)
-                            if lp_def and hasattr(lp_def, 'lonepair_info'):
-                                host_name = lp_def.lonepair_info.get('host')
+                            if lp_def and hasattr(lp_def, "lonepair_info"):
+                                host_name = lp_def.lonepair_info.get("host")
                                 if host_name and host_name in residue:
-                                    self._lonepairs.append(LonePairInfo(
-                                        lp_atom=lp_atom,
-                                        host_atom=residue[host_name],
-                                        distance=lp_def.lonepair_info.get('distance', 0.0),
-                                        angle=lp_def.lonepair_info.get('angle', 0.0),
-                                        dihedral=lp_def.lonepair_info.get('dihedral', 0.0)
-                                    ))
+                                    self._lonepairs.append(
+                                        LonePairInfo(
+                                            lp_atom=lp_atom,
+                                            host_atom=residue[host_name],
+                                            distance=lp_def.lonepair_info.get(
+                                                "distance", 0.0
+                                            ),
+                                            angle=lp_def.lonepair_info.get(
+                                                "angle", 0.0
+                                            ),
+                                            dihedral=lp_def.lonepair_info.get(
+                                                "dihedral", 0.0
+                                            ),
+                                        )
+                                    )
 
         # Warn about skipped chains
         if skipped_chains:
@@ -622,7 +651,9 @@ class PSFWriter:
         keywords.append("CMAP")
         return " ".join(keywords)
 
-    def _write_title(self, title: str, model: Model = None) -> str:
+    def _write_title(
+        self, title: str, model: Union[Model, BaseChain, None] = None
+    ) -> str:
         """Write NTITLE section.
 
         CHARMM format requires title lines to start with asterisk (*).
@@ -636,37 +667,43 @@ class PSFWriter:
         model : Model, optional
             Model to extract system information from for auto-generated title
         """
-        # Import system info generator from CRDWriter
-        from crimm.IO.CRDWriter import _generate_system_info
+        # Import system info generator and line wrapper from CRDWriter
+        from crimm.IO.CRDWriter import _generate_system_info, _wrap_title_line
 
         lines = []
         if title:
-            title_lines = title.strip().split('\n')
+            raw_lines = title.strip().split("\n")
         elif model is not None:
             # Auto-generate informative title from model
-            title_lines = _generate_system_info(model)
+            raw_lines = _generate_system_info(model)
         else:
             # Basic default title
             import datetime
             import getpass
+
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             try:
                 user = getpass.getuser()
             except Exception:
                 user = "unknown"
-            title_lines = [
+            raw_lines = [
                 "PSF file generated by crimm",
-                f"Created: {timestamp} by {user}"
+                f"Created: {timestamp} by {user}",
             ]
 
-        lines.append(self._format_section_header(len(title_lines), "NTITLE"))
-        for line in title_lines:
+        # Wrap lines to respect CHARMM's 80-character line limit
+        wrapped_lines = []
+        for raw_line in raw_lines:
+            wrapped_lines.extend(_wrap_title_line(raw_line))
+
+        lines.append(self._format_section_header(len(wrapped_lines), "NTITLE"))
+        for line in wrapped_lines:
             # Pad to 80 chars as CHARMM does
             padded_line = f"* {line}".ljust(80)
             lines.append(padded_line)
         return "\n".join(lines)
 
-    def _write_atoms(self, model: Model) -> str:
+    def _write_atoms(self, model: Union[Model, BaseChain]) -> str:
         """Write NATOM section with atom properties."""
         lines = []
         lines.append(self._format_section_header(len(self._atoms), "NATOM"))
@@ -692,17 +729,21 @@ class PSFWriter:
                 atomtype = atom.topo_definition.atom_type
                 charge = atom.topo_definition.charge
                 mass = atom.topo_definition.mass
-                if resname == 'HIS':
-                    # Use residue definition resname for HIS variants
-                    resname = residue.topo_definition.resname
+                if resname == "HIS" and residue is not None:
+                    topo_def = getattr(residue, "topo_definition", None)
+                    if topo_def is not None:
+                        resname = topo_def.resname
             else:
                 # Missing topology - use fallback values with warning
+                res_label = (
+                    f"{residue.resname} {residue.id}" if residue is not None else "UNK"
+                )
                 warnings.warn(
-                    f"Atom {atom.name} in residue {residue.resname} {residue.id} "
+                    f"Atom {atom.name} in residue {res_label} "
                     f"has no topology definition. Using fallback values: "
                     f"type={atom.element or 'X'}, charge=0.0, mass={atom.mass or 0.0}. "
                     f"Simulation results may be incorrect!",
-                    UserWarning
+                    UserWarning,
                 )
                 atomtype = atom.element or "X"
                 charge = 0.0
@@ -710,10 +751,19 @@ class PSFWriter:
 
             imove = 0  # Movement flag (0 = free to move, non-zero = constrained)
 
-            lines.append(self._format_atom_line(
-                serial, segid, resid, resname, atomname,
-                atomtype, charge, mass, imove
-            ))
+            lines.append(
+                self._format_atom_line(
+                    serial,
+                    segid,
+                    resid,
+                    resname,
+                    atomname,
+                    atomtype,
+                    charge,
+                    mass,
+                    imove,
+                )
+            )
 
         return "\n".join(lines)
 
@@ -737,8 +787,16 @@ class PSFWriter:
             return f"{value:>14.6f}"
 
     def _format_atom_line(
-        self, serial: int, segid: str, resid: str, resname: str,
-        atomname: str, atomtype: str, charge: float, mass: float, imove: int
+        self,
+        serial: int,
+        segid: str,
+        resid: str,
+        resname: str,
+        atomname: str,
+        atomtype: str,
+        charge: float,
+        mass: float,
+        imove: int,
     ) -> str:
         """Format a single atom line using Fortran-compatible G14.6 format."""
         charge_str = self._format_g14_6(charge)
@@ -774,11 +832,9 @@ class PSFWriter:
         for angle in angles:
             a1, a2, a3 = angle
             if all(a in self._atom_map for a in (a1, a2, a3)):
-                indices.extend([
-                    self._atom_map[a1],
-                    self._atom_map[a2],
-                    self._atom_map[a3]
-                ])
+                indices.extend(
+                    [self._atom_map[a1], self._atom_map[a2], self._atom_map[a3]]
+                )
         return self._format_index_section(indices, "NTHETA: angles", items_per_line=3)
 
     def _write_dihedrals(self, topology) -> str:
@@ -799,7 +855,9 @@ class PSFWriter:
             atoms = list(impr)
             if all(a in self._atom_map for a in atoms):
                 indices.extend([self._atom_map[a] for a in atoms])
-        return self._format_index_section(indices, "NIMPHI: impropers", items_per_line=2)
+        return self._format_index_section(
+            indices, "NIMPHI: impropers", items_per_line=2
+        )
 
     def _write_donors(self, model: Union[Model, BaseChain]) -> str:
         """Write NDON section.
@@ -810,7 +868,7 @@ class PSFWriter:
         indices = []
         for chain in self._get_chains(model):
             for residue in chain:
-                if hasattr(residue, 'H_donors') and residue.H_donors:
+                if hasattr(residue, "H_donors") and residue.H_donors:
                     for donor_pair in residue.H_donors:
                         if len(donor_pair) >= 2:
                             # RTF stores (hydrogen, heavy) but PSF writes (heavy, hydrogen)
@@ -831,10 +889,9 @@ class PSFWriter:
 
                             if d_atom in self._atom_map and h_atom in self._atom_map:
                                 # Write as (heavy, hydrogen) for PSF format
-                                indices.extend([
-                                    self._atom_map[d_atom],
-                                    self._atom_map[h_atom]
-                                ])
+                                indices.extend(
+                                    [self._atom_map[d_atom], self._atom_map[h_atom]]
+                                )
         return self._format_index_section(indices, "NDON: donors", items_per_line=4)
 
     def _write_acceptors(self, model: Union[Model, BaseChain]) -> str:
@@ -846,7 +903,7 @@ class PSFWriter:
         indices = []
         for chain in self._get_chains(model):
             for residue in chain:
-                if hasattr(residue, 'H_acceptors') and residue.H_acceptors:
+                if hasattr(residue, "H_acceptors") and residue.H_acceptors:
                     for acc_info in residue.H_acceptors:
                         # Handle both tuple of names and Atom objects
                         if isinstance(acc_info, (list, tuple)):
@@ -886,7 +943,7 @@ class PSFWriter:
                             acc_idx = self._atom_map[acc_atom]
                             # Use antecedent index if available, otherwise 0
                             if ante_atom is not None:
-                                ante_idx = self._atom_map.get(ante_atom, 0)  
+                                ante_idx = self._atom_map.get(ante_atom, 0)
                             else:
                                 ante_idx = 0
                             indices.extend([acc_idx, ante_idx])
@@ -967,17 +1024,20 @@ class PSFWriter:
                 # Type 2: charged (non-zero net charge, e.g., ions, ASP, GLU, LYS, ARG)
                 group_type = self._determine_group_type(residue)
 
-                if hasattr(residue, 'atom_groups') and residue.atom_groups:
+                if hasattr(residue, "atom_groups") and residue.atom_groups:
                     for group in residue.atom_groups:
                         # Each group entry: (first_atom_in_group, group_type, move_flag)
                         if group:
                             first_atom = group[0]
                             if first_atom in self._atom_map:
-                                groups.append((
-                                    self._atom_map[first_atom] - 1,  # 0-based pointer
-                                    group_type,  # Group type (1=neutral, 2=charged)
-                                    0   # Move flag (0 = free)
-                                ))
+                                groups.append(
+                                    (
+                                        self._atom_map[first_atom]
+                                        - 1,  # 0-based pointer
+                                        group_type,  # Group type (1=neutral, 2=charged)
+                                        0,  # Move flag (0 = free)
+                                    )
+                                )
 
         # CRITICAL: Groups must be sorted by first atom index (igpbs) in ascending order
         # CHARMM expects groups in order for proper charge neutrality calculations
@@ -1009,9 +1069,9 @@ class PSFWriter:
         otherwise falls back to topology.cmap.
         """
         # Prefer stored CMAP terms from residue extraction
-        if hasattr(self, '_cmap_terms') and self._cmap_terms:
+        if hasattr(self, "_cmap_terms") and self._cmap_terms:
             cmaps = self._cmap_terms
-        elif hasattr(topology, 'cmap') and topology.cmap:
+        elif hasattr(topology, "cmap") and topology.cmap:
             cmaps = topology.cmap
         else:
             cmaps = []
@@ -1035,7 +1095,9 @@ class PSFWriter:
                 indices.extend([self._atom_map[a] for a in atoms])
 
         # CMAP uses 8 atoms per entry, 1 entry per line (8 integers per line)
-        return self._format_index_section(indices, "NCRTERM: cross-terms", items_per_line=8)
+        return self._format_index_section(
+            indices, "NCRTERM: cross-terms", items_per_line=8
+        )
 
     def _write_lonepairs(self) -> str:
         """Write NUMLP NUMLPH section for lone pairs.
@@ -1097,7 +1159,9 @@ class PSFWriter:
         elif "cross-terms" in label.lower():
             count = len(indices) // 8
         elif "donors" in label.lower() or "acceptors" in label.lower():
-            count = len(indices) // 2  # Donors/acceptors are pairs (atom, hydrogen/antecedent)
+            count = (
+                len(indices) // 2
+            )  # Donors/acceptors are pairs (atom, hydrogen/antecedent)
         else:
             count = len(indices)
 
@@ -1105,7 +1169,11 @@ class PSFWriter:
 
         if indices:
             # Calculate actual integers per line (bonds: 4 pairs = 8 ints)
-            if "bonds" in label.lower() or "donors" in label.lower() or "acceptors" in label.lower():
+            if (
+                "bonds" in label.lower()
+                or "donors" in label.lower()
+                or "acceptors" in label.lower()
+            ):
                 ints_per_line = items_per_line * 2
             elif "angles" in label.lower():
                 ints_per_line = items_per_line * 3
@@ -1129,7 +1197,7 @@ class PSFWriter:
         int_width = 10 if self.extended else 8
 
         for i in range(0, len(indices), items_per_line):
-            chunk = indices[i:i + items_per_line]
+            chunk = indices[i : i + items_per_line]
             line = "".join(f"{idx:>{int_width}d}" for idx in chunk)
             lines.append(line)
 
@@ -1138,13 +1206,14 @@ class PSFWriter:
 
 # Convenience functions
 
+
 def write_psf(
     model: Model,
     filepath: str,
     extended: bool = True,
     xplor: bool = True,
     title: str = "",
-    separate_crystal_segids: bool = False
+    separate_crystal_segids: bool = False,
 ) -> None:
     """Write CHARMM PSF format file from a crimm Model.
 
@@ -1175,9 +1244,7 @@ def write_psf(
     >>> write_psf(model, 'system.psf', separate_crystal_segids=True)
     """
     writer = PSFWriter(
-        extended=extended,
-        xplor=xplor,
-        separate_crystal_segids=separate_crystal_segids
+        extended=extended, xplor=xplor, separate_crystal_segids=separate_crystal_segids
     )
     writer.write(model, filepath, title)
 
@@ -1187,7 +1254,7 @@ def get_psf_str(
     extended: bool = True,
     xplor: bool = True,
     title: str = "",
-    separate_crystal_segids: bool = False
+    separate_crystal_segids: bool = False,
 ) -> str:
     """Get CHARMM PSF format string from a crimm Model.
 
@@ -1212,17 +1279,12 @@ def get_psf_str(
         PSF format string
     """
     writer = PSFWriter(
-        extended=extended,
-        xplor=xplor,
-        separate_crystal_segids=separate_crystal_segids
+        extended=extended, xplor=xplor, separate_crystal_segids=separate_crystal_segids
     )
     return writer.get_psf_string(model, title)
 
 
-def validate_psf(
-    model: Model,
-    strict: bool = False
-) -> List[str]:
+def validate_psf(model: Model, strict: bool = False) -> List[str]:
     """Validate model topology before writing PSF.
 
     Performs CHARMM-style validation checks that would normally occur

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "crimm"
-version = "2026.1.4"
+version = "2026.1.5"
 authors = [
   { name="Truman Xu", email="ziqiaoxu@umich.edu" },
   { name="Stanislav Cherepanov", email="stanislc@umich.edu" },
@@ -37,6 +37,19 @@ all = ["propka>=3.5.1", "rdkit"]
 [project.urls]
 "Homepage" = "https://github.com/BrooksResearchGroup-UM/crimm"
 "Bug Tracker" = "https://github.com/BrooksResearchGroup-UM/crimm/issues"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "gpu: marks tests that require GPU",
+]
+
+[tool.mypy]
+# Only check files explicitly passed; don't follow imports into
+# untyped/third-party modules that have their own pre-existing issues.
+follow_imports = "silent"
+ignore_missing_imports = true
 
 [tool.setuptools.packages.find]
 where = ["./"]
