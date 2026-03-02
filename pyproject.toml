@@ -61,3 +61,6 @@ exclude = [
     "tests"
 ]
 namespaces = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
