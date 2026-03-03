@@ -116,8 +116,8 @@ def _find_atom_in_residue(residue: Residue, atom_name: str) -> Atom:
     if atom_name in residue:
         return residue[atom_name]
     if atom_name.startswith("H"):
-        return residue.missing_hydrogens[atom_name]
-    return residue.missing_atoms[atom_name]
+        return residue.missing_hydrogens.get(atom_name)
+    return residue.missing_atoms.get(atom_name)
 
 
 def _find_atom_from_neighbor(cur_residue: Residue, atom_name: str) -> Atom:
@@ -1363,6 +1363,43 @@ class TopologyGenerator:
                     )
 
     @staticmethod
+    def _apply_topo_def_for_loading(residue, res_definition, QUIET=False):
+        """Apply topology definition for PSF/CRD loading (no missing atoms).
+
+        Unlike apply_topo_def_on_residue, this only assigns definitions to
+        atoms that actually exist in the residue.  Atoms removed by patches
+        (e.g. HG1 from DISU) won't be recreated as phantom missing atoms.
+        """
+        residue.topo_definition = res_definition
+        residue.impropers = res_definition.impropers
+        residue.cmap = res_definition.cmap
+        residue.H_donors = res_definition.H_donors
+        residue.H_acceptors = res_definition.H_acceptors
+        residue.param_desc = res_definition.desc
+        # Build atom_groups from only present atoms
+        residue.atom_groups = []
+        residue.missing_atoms, residue.missing_hydrogens = {}, {}
+        for atom_names in res_definition.atom_groups:
+            group = []
+            for atom_name in atom_names:
+                if atom_name in residue:
+                    atom = residue[atom_name]
+                    atom.topo_definition = res_definition[atom_name]
+                    group.append(atom)
+            if group:
+                residue.atom_groups.append(group)
+        residue.undefined_atoms = []
+        for atom in residue:
+            if atom.name not in res_definition:
+                residue.undefined_atoms.append(atom)
+                if not QUIET:
+                    parent_id = (atom.parent.id[1], atom.parent.resname)
+                    warnings.warn(
+                        f"Atom {atom.name} from {parent_id} is not defined in "
+                        "the topology file!"
+                    )
+
+    @staticmethod
     def _create_missing_atom(residue: Residue, atom_name: str) -> list:
         """Create and separate missing heavy atoms and missing hydrogen atom by atom name"""
         missing_atom: Atom = residue.topo_definition[atom_name].create_new_atom()
@@ -1850,7 +1887,7 @@ class TopologyGenerator:
             )
 
         # 3. Wrap in OrganizedModel for chain classification
-        organized = OrganizedModel(model)
+        organized = OrganizedModel(model, fetch_web_data=False)
 
         # 4. Apply topology definitions from bundled toppar
         self._apply_topology_from_toppar(organized, psf_data, QUIET=QUIET)
@@ -1920,13 +1957,14 @@ class TopologyGenerator:
                     self.cur_defs.res_defs["WAT"] = self.cur_defs["TIP3"]
                     self.cur_defs.res_defs["SOL"] = self.cur_defs["TIP3"]
 
-            # Apply topo_definition to each residue
+            # Apply topo_definition to each residue (loading-safe: no
+            # missing atoms created, since the PSF/CRD is the ground truth)
             chain.undefined_res = []
             for residue in chain.get_residues():
                 resname = residue.resname
                 if resname in self.cur_defs:
                     res_def = self.cur_defs[resname]
-                    self.apply_topo_def_on_residue(residue, res_def, QUIET=QUIET)
+                    self._apply_topo_def_for_loading(residue, res_def, QUIET=QUIET)
                 else:
                     chain.undefined_res.append(residue)
                     if not QUIET:
