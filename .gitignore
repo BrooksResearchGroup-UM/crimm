@@ -1,7 +1,10 @@
 .gitignore
 __pycache__/
 .ipynb_checkpoints/
-test*/
+test*.log
+test*.psf
+test*.crd
+!tests/
 .vscode/
 .output/
 notebooks/

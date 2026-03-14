@@ -12,7 +12,7 @@ from crimm.StructEntities.Chain import PolymerChain, Chain
 from crimm.StructEntities.Residue import Residue, Heterogen, DisorderedResidue
 from crimm.StructEntities.Atom import Atom
 from crimm.StructEntities.TopoElements import Bond, Angle, Dihedral, Improper
-from crimm.StructEntities.TopoDefinitions import PatchDefinition,  ResidueDefinition
+from crimm.StructEntities.TopoDefinitions import PatchDefinition, ResidueDefinition
 from crimm.StructEntities.OrganizedModel import OrganizedModel
 from crimm.IO.PRMParser import categorize_lines, parse_line_dict
 from crimm.IO.RTFParser import RTFParser
@@ -22,75 +22,79 @@ from crimm.Data.cgenff_mass_dict import CGENFF_MASS_TABLE
 
 from crimm.Adaptors.RDKitConverter import RDKitHetConverter, MolToMol2Block
 
-toppar_dir = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), '../Data/toppar')
-)
+toppar_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../Data/toppar"))
 
 # Core topology types - commonly used, typically loaded by default in pyCHARMM
 CORE_TOPOLOGY_TYPES = [
-    "protein", "nucleic", "lipid", "carb", "ethers", "cgenff", "water_ions"
+    "protein",
+    "nucleic",
+    "lipid",
+    "carb",
+    "ethers",
+    "cgenff",
+    "water_ions",
 ]
 
 # Extended topology types - less common, loaded on demand for specific use cases
 # These correspond to CHARMM stream files that are not part of the default toppar
 EXTENDED_TOPOLOGY_TYPES = [
-    "synthetic_polymer",   # PEG/PEO polymers
-    "moreions",            # Additional ions (PO4, HPO4, etc.)
-    "prot_heme",           # Heme group for hemoproteins
-    "prot_modify_res",     # Modified amino acids (phosphorylation, methylation, etc.)
-    "na_rna_modified",     # Modified RNA nucleotides
-    "carb_glycopeptide",   # Glycopeptide linkages
-    "label_fluorophore",   # Fluorescent labels
-    "label_spin",          # Spin labels for EPR
-    "lipid_cholesterol",   # Cholesterol
-    "lipid_sphingo",       # Sphingolipids
-    "polymer_solvent",     # Polymer solvents
+    "synthetic_polymer",  # PEG/PEO polymers
+    "moreions",  # Additional ions (PO4, HPO4, etc.)
+    "prot_heme",  # Heme group for hemoproteins
+    "prot_modify_res",  # Modified amino acids (phosphorylation, methylation, etc.)
+    "na_rna_modified",  # Modified RNA nucleotides
+    "carb_glycopeptide",  # Glycopeptide linkages
+    "label_fluorophore",  # Fluorescent labels
+    "label_spin",  # Spin labels for EPR
+    "lipid_cholesterol",  # Cholesterol
+    "lipid_sphingo",  # Sphingolipids
+    "polymer_solvent",  # Polymer solvents
 ]
 
 rtf_path_dict = {
     # Core topologies
-    "protein": os.path.join(toppar_dir, 'prot.rtf'),
-    "nucleic": os.path.join(toppar_dir, 'na.rtf'),
-    "lipid": os.path.join(toppar_dir, 'lipid.rtf'),
-    "carb": os.path.join(toppar_dir, 'carb.rtf'),
-    "ethers": os.path.join(toppar_dir, 'ethers.rtf'),
-    "cgenff": os.path.join(toppar_dir, 'cgenff.rtf'),
-    "water_ions": os.path.join(toppar_dir, 'water_ions.rtf'),
+    "protein": os.path.join(toppar_dir, "prot.rtf"),
+    "nucleic": os.path.join(toppar_dir, "na.rtf"),
+    "lipid": os.path.join(toppar_dir, "lipid.rtf"),
+    "carb": os.path.join(toppar_dir, "carb.rtf"),
+    "ethers": os.path.join(toppar_dir, "ethers.rtf"),
+    "cgenff": os.path.join(toppar_dir, "cgenff.rtf"),
+    "water_ions": os.path.join(toppar_dir, "water_ions.rtf"),
     # Extended topologies
-    "synthetic_polymer": os.path.join(toppar_dir, 'synthetic_polymer.rtf'),
-    "moreions": os.path.join(toppar_dir, 'moreions.rtf'),
-    "prot_heme": os.path.join(toppar_dir, 'prot_heme.rtf'),
-    "prot_modify_res": os.path.join(toppar_dir, 'prot_modify_res.rtf'),
-    "na_rna_modified": os.path.join(toppar_dir, 'na_rna_modified.rtf'),
-    "carb_glycopeptide": os.path.join(toppar_dir, 'carb_glycopeptide.rtf'),
-    "label_fluorophore": os.path.join(toppar_dir, 'label_fluorophore.rtf'),
-    "label_spin": os.path.join(toppar_dir, 'label_spin.rtf'),
-    "lipid_cholesterol": os.path.join(toppar_dir, 'lipid_cholesterol.rtf'),
-    "lipid_sphingo": os.path.join(toppar_dir, 'lipid_sphingo.rtf'),
-    "polymer_solvent": os.path.join(toppar_dir, 'polymer_solvent.rtf'),
+    "synthetic_polymer": os.path.join(toppar_dir, "synthetic_polymer.rtf"),
+    "moreions": os.path.join(toppar_dir, "moreions.rtf"),
+    "prot_heme": os.path.join(toppar_dir, "prot_heme.rtf"),
+    "prot_modify_res": os.path.join(toppar_dir, "prot_modify_res.rtf"),
+    "na_rna_modified": os.path.join(toppar_dir, "na_rna_modified.rtf"),
+    "carb_glycopeptide": os.path.join(toppar_dir, "carb_glycopeptide.rtf"),
+    "label_fluorophore": os.path.join(toppar_dir, "label_fluorophore.rtf"),
+    "label_spin": os.path.join(toppar_dir, "label_spin.rtf"),
+    "lipid_cholesterol": os.path.join(toppar_dir, "lipid_cholesterol.rtf"),
+    "lipid_sphingo": os.path.join(toppar_dir, "lipid_sphingo.rtf"),
+    "polymer_solvent": os.path.join(toppar_dir, "polymer_solvent.rtf"),
 }
 
 prm_path_dict = {
     # Core topologies
-    "protein": os.path.join(toppar_dir, 'prot.prm'),
-    "nucleic": os.path.join(toppar_dir, 'na.prm'),
-    "lipid": os.path.join(toppar_dir, 'lipid.prm'),
-    "carb": os.path.join(toppar_dir, 'carb.prm'),
-    "ethers": os.path.join(toppar_dir, 'ethers.prm'),
-    "cgenff": os.path.join(toppar_dir, 'cgenff.prm'),
-    "water_ions": os.path.join(toppar_dir, 'water_ions.prm'),
+    "protein": os.path.join(toppar_dir, "prot.prm"),
+    "nucleic": os.path.join(toppar_dir, "na.prm"),
+    "lipid": os.path.join(toppar_dir, "lipid.prm"),
+    "carb": os.path.join(toppar_dir, "carb.prm"),
+    "ethers": os.path.join(toppar_dir, "ethers.prm"),
+    "cgenff": os.path.join(toppar_dir, "cgenff.prm"),
+    "water_ions": os.path.join(toppar_dir, "water_ions.prm"),
     # Extended topologies
-    "synthetic_polymer": os.path.join(toppar_dir, 'synthetic_polymer.prm'),
-    "moreions": os.path.join(toppar_dir, 'moreions.prm'),
-    "prot_heme": os.path.join(toppar_dir, 'prot_heme.prm'),
-    "prot_modify_res": os.path.join(toppar_dir, 'prot_modify_res.prm'),
-    "na_rna_modified": os.path.join(toppar_dir, 'na_rna_modified.prm'),
-    "carb_glycopeptide": os.path.join(toppar_dir, 'carb_glycopeptide.prm'),
-    "label_fluorophore": os.path.join(toppar_dir, 'label_fluorophore.prm'),
-    "label_spin": os.path.join(toppar_dir, 'label_spin.prm'),
-    "lipid_cholesterol": os.path.join(toppar_dir, 'lipid_cholesterol.prm'),
-    "lipid_sphingo": os.path.join(toppar_dir, 'lipid_sphingo.prm'),
-    "polymer_solvent": os.path.join(toppar_dir, 'polymer_solvent.prm'),
+    "synthetic_polymer": os.path.join(toppar_dir, "synthetic_polymer.prm"),
+    "moreions": os.path.join(toppar_dir, "moreions.prm"),
+    "prot_heme": os.path.join(toppar_dir, "prot_heme.prm"),
+    "prot_modify_res": os.path.join(toppar_dir, "prot_modify_res.prm"),
+    "na_rna_modified": os.path.join(toppar_dir, "na_rna_modified.prm"),
+    "carb_glycopeptide": os.path.join(toppar_dir, "carb_glycopeptide.prm"),
+    "label_fluorophore": os.path.join(toppar_dir, "label_fluorophore.prm"),
+    "label_spin": os.path.join(toppar_dir, "label_spin.prm"),
+    "lipid_cholesterol": os.path.join(toppar_dir, "lipid_cholesterol.prm"),
+    "lipid_sphingo": os.path.join(toppar_dir, "lipid_sphingo.prm"),
+    "polymer_solvent": os.path.join(toppar_dir, "polymer_solvent.prm"),
 }
 
 chain_type_def_lookup = {
@@ -103,46 +107,40 @@ chain_type_def_lookup = {
     "CoSolvent": "synthetic_polymer",
 }
 
-protein_n_term_patch_correction = {
-    'PRO': 'PROP',
-    'GLY': 'GLYP'
-}
+protein_n_term_patch_correction = {"PRO": "PROP", "GLY": "GLYP"}
 
-def _find_atom_in_residue(
-        residue: Residue, atom_name: str
-    )->Atom:
-    if atom_name.startswith('+') or atom_name.startswith('-'):
+
+def _find_atom_in_residue(residue: Residue, atom_name: str) -> Atom:
+    if atom_name.startswith("+") or atom_name.startswith("-"):
         return None
     if atom_name in residue:
         return residue[atom_name]
-    if atom_name.startswith('H'):
-        return residue.missing_hydrogens[atom_name]
-    return residue.missing_atoms[atom_name]
+    if atom_name.startswith("H"):
+        return residue.missing_hydrogens.get(atom_name)
+    return residue.missing_atoms.get(atom_name)
 
-def _find_atom_from_neighbor(
-        cur_residue: Residue, atom_name: str
-    )->Atom:
+
+def _find_atom_from_neighbor(cur_residue: Residue, atom_name: str) -> Atom:
     """Get atom from neighbor residue. (Private function)"""
     resseq = cur_residue.id[1]
     chain = cur_residue.parent
-    if atom_name.startswith('-') and resseq-1 in chain:
+    if atom_name.startswith("-") and resseq - 1 in chain:
         atom_name = atom_name[1:]
-        neighbor_residue = chain[resseq-1]
+        neighbor_residue = chain[resseq - 1]
         return _find_atom_in_residue(neighbor_residue, atom_name)
-    elif atom_name.startswith('+') and resseq+1 in chain:
+    elif atom_name.startswith("+") and resseq + 1 in chain:
         atom_name = atom_name[1:]
-        neighbor_residue = chain[resseq+1]
+        neighbor_residue = chain[resseq + 1]
         return _find_atom_in_residue(neighbor_residue, atom_name)
     return None
 
-def get_bonds_within_residue(residue: Residue)->List[Bond]:
-    """Return a list of bonds within the residue (peptide bonds linking neighbor 
-    residues are excluded). Raise ValueError if the topology definition is 
+
+def get_bonds_within_residue(residue: Residue) -> List[Bond]:
+    """Return a list of bonds within the residue (peptide bonds linking neighbor
+    residues are excluded). Raise ValueError if the topology definition is
     not loaded."""
     if residue.topo_definition is None:
-        raise ValueError(
-            'Topology definition is not loaded for this residue!'
-        )
+        raise ValueError("Topology definition is not loaded for this residue!")
     bonds = []
     bond_dict = residue.topo_definition.bonds
     for bond_type, bond_list in bond_dict.items():
@@ -152,17 +150,17 @@ def get_bonds_within_residue(residue: Residue)->List[Bond]:
             if atom1 is None or atom2 is None:
                 # one of the atoms has to be in the neighbor residue
                 continue
-            bonds.append(
-                Bond(atom1, atom2, bond_type)
-            )
+            bonds.append(Bond(atom1, atom2, bond_type))
     return bonds
+
 
 def atom_add_neighbors(atom1: Atom, atom2: Atom):
     """Add atom2 to atom1's neighbors and vice versa"""
     atom1.neighbors.add(atom2)
     atom2.neighbors.add(atom1)
 
-def residue_trace_atom_neigbors(residue: Residue)->List[Bond]:
+
+def residue_trace_atom_neigbors(residue: Residue) -> List[Bond]:
     """Trace all bonds within the residue and add the atoms to each other's
     neighbors list. Return a list of bonds within the residue."""
     bonds = get_bonds_within_residue(residue)
@@ -171,22 +169,23 @@ def residue_trace_atom_neigbors(residue: Residue)->List[Bond]:
         atom_add_neighbors(a1, a2)
     return bonds
 
+
 def clear_atom_neighbors(entity):
     """Clear all neighbors of atoms in an entity"""
     if isinstance(entity, Atom):
         entity.neighbors = set()
         return
-    elif not hasattr(entity, 'get_atoms'):
+    elif not hasattr(entity, "get_atoms"):
         raise ValueError(
-            'Entity does not have get_atoms method, cannot clear neighbors.'
+            "Entity does not have get_atoms method, cannot clear neighbors."
         )
     for atom in entity.get_atoms():
         atom.neighbors = set()
 
+
 def chain_trace_atom_neighbors(
-        chain: PolymerChain, inter_res_bonding_atoms: Tuple[str],
-        bond_type='single'
-    )->List[Bond]:
+    chain: PolymerChain, inter_res_bonding_atoms: Tuple[str], bond_type="single"
+) -> List[Bond]:
     """Trace all bonds within the chain and add the atoms to each other's
     neighbors list. Return a list of bonds within the chain."""
     end_atom, start_atom = inter_res_bonding_atoms
@@ -197,7 +196,7 @@ def chain_trace_atom_neighbors(
     clear_atom_neighbors(chain)
     all_bonds = []
     for i, cur_res in enumerate(chain.residues[:-1]):
-        next_res = chain.residues[i+1]
+        next_res = chain.residues[i + 1]
         bonds = residue_trace_atom_neigbors(cur_res)
         all_bonds.extend(bonds)
         # add inter-residue neigbors from peptide/nucleotide bond
@@ -213,6 +212,7 @@ def chain_trace_atom_neighbors(
     all_bonds.extend(bonds)
     return all_bonds
 
+
 def _add_dihedral(cur_atom, nei_atom, second_nei_atom, dihedral_set):
     """Add dihedral angle to the dihedral set. (Private function)"""
     for third_nei_atom in second_nei_atom.neighbors:
@@ -220,6 +220,7 @@ def _add_dihedral(cur_atom, nei_atom, second_nei_atom, dihedral_set):
             continue
         dihe = Dihedral(cur_atom, nei_atom, second_nei_atom, third_nei_atom)
         dihedral_set.add(dihe)
+
 
 def _add_angle_and_dihedral(cur_atom, nei_atom, angle_set, dihedral_set):
     """Add angle and dihedral angle to the angle and dihedral sets. (Private function)"""
@@ -229,6 +230,7 @@ def _add_angle_and_dihedral(cur_atom, nei_atom, angle_set, dihedral_set):
         angle = Angle(cur_atom, nei_atom, second_nei_atom)
         angle_set.add(angle)
         _add_dihedral(cur_atom, nei_atom, second_nei_atom, dihedral_set)
+
 
 def traverse_graph(cur_atom, angle_set, dihedral_set, visited_set):
     """Traverse the graph of atoms and add all angles and dihedral angles to the
@@ -241,13 +243,12 @@ def traverse_graph(cur_atom, angle_set, dihedral_set, visited_set):
             continue
         traverse_graph(nei_atom, angle_set, dihedral_set, visited_set)
 
-def _get_improper_from_atom_names(
-        residue: Residue, atom_names: Tuple[str]
-    )->Improper:
+
+def _get_improper_from_atom_names(residue: Residue, atom_names: Tuple[str]) -> Improper:
     """Get improper from atom names. (Private function)"""
     atoms = []
     for atom_name in atom_names:
-        if atom_name.startswith('-') or atom_name.startswith('+'):
+        if atom_name.startswith("-") or atom_name.startswith("+"):
             atom = _find_atom_from_neighbor(residue, atom_name)
         else:
             atom = _find_atom_in_residue(residue, atom_name)
@@ -258,13 +259,14 @@ def _get_improper_from_atom_names(
     for atom in (a2, a3, a4):
         if atom not in a1.neighbors:
             raise ValueError(
-                'Improper angle definition is incorrect: '
-                f'Atom {atom} is not neighbor of atom {a1}!'
+                "Improper angle definition is incorrect: "
+                f"Atom {atom} is not neighbor of atom {a1}!"
             )
     return Improper(a1, a2, a3, a4)
 
-def _is_terminal_or_orphan_residue(residue: Residue)->bool:
-    """Check if the residue is a terminal residue or does not belong to a chain. 
+
+def _is_terminal_or_orphan_residue(residue: Residue) -> bool:
+    """Check if the residue is a terminal residue or does not belong to a chain.
     (Private function)"""
     chain: PolymerChain = residue.parent
     if chain is None:
@@ -272,56 +274,57 @@ def _is_terminal_or_orphan_residue(residue: Residue)->bool:
         return True
     return residue in (chain.residues[0], chain.residues[-1])
 
-def residue_get_impropers(residue: Residue)->List[Improper]:
-    """Return a list of improper angles within the residue. Raise ValueError if the 
+
+def residue_get_impropers(residue: Residue) -> List[Improper]:
+    """Return a list of improper angles within the residue. Raise ValueError if the
     topology definition is not loaded."""
     if residue.topo_definition is None:
-        raise ValueError(
-            'Topology definition is not loaded for this residue!'
-        )
+        raise ValueError("Topology definition is not loaded for this residue!")
     impropers = []
     for impr_atom_names in residue.topo_definition.impropers:
         improper = _get_improper_from_atom_names(residue, impr_atom_names)
         if improper is None:
             if not _is_terminal_or_orphan_residue(residue):
                 warnings.warn(
-                    f'Cannot find improper {impr_atom_names} in residue {residue}'
+                    f"Cannot find improper {impr_atom_names} in residue {residue}"
                 )
             continue
         impropers.append(improper)
     return impropers
 
-def get_impropers(chain: PolymerChain)->List[Improper]:
-    """Return a list of improper angles within the chain. Raise ValueError if the 
+
+def get_impropers(chain: PolymerChain) -> List[Improper]:
+    """Return a list of improper angles within the chain. Raise ValueError if the
     topology definition is not loaded."""
     impropers = []
     for res in chain.residues:
         impropers.extend(residue_get_impropers(res))
     return impropers
 
+
 def _get_cmap_from_atom_names(res, cmap_atom_names):
     """Get cmap from atom names. (Private function)"""
     raise NotImplementedError
 
+
 def get_cmap(chain: PolymerChain):
-    """Return a list of CMap terms within the chain. Raise ValueError if the 
+    """Return a list of CMap terms within the chain. Raise ValueError if the
     topology definition is not loaded."""
     cmaps = []
     for res in chain.residues:
         if res.topo_definition is None:
-            raise ValueError(
-                'Topology definition is not loaded for this residue!'
-            )
+            raise ValueError("Topology definition is not loaded for this residue!")
         for cmap_atom_names in res.topo_definition.cmaps:
             cmap = _get_cmap_from_atom_names(res, cmap_atom_names)
             if cmap is None:
                 if not _is_terminal_or_orphan_residue(res):
                     warnings.warn(
-                        f'Cannot find cmap {cmap_atom_names} in residue {res}'
+                        f"Cannot find cmap {cmap_atom_names} in residue {res}"
                     )
                 continue
             cmaps.append(cmap)
     return cmaps
+
 
 def excute_cgenff(cgenff_path, input_mol2_block):
     """Excute cgenff to generate topology and parameter files for a given molecule.
@@ -329,22 +332,25 @@ def excute_cgenff(cgenff_path, input_mol2_block):
     completed = subprocess.run(
         [cgenff_path],
         input=input_mol2_block,
-        encoding='ascii',
+        encoding="ascii",
         capture_output=True,
-        check=False
+        check=False,
     )
 
     if completed.returncode != 0:
-        raise ValueError(
-            f'CGENFF Error:\n{completed.stderr}\n{completed.stdout}'
-        )
+        raise ValueError(f"CGENFF Error:\n{completed.stderr}\n{completed.stdout}")
 
     return completed.stdout
 
+
 class BaseTopology:
     topo_types = [
-        'bonds', 'angles', 'dihedrals', 'impropers', # 'cmap'
+        "bonds",
+        "angles",
+        "dihedrals",
+        "impropers",  # 'cmap'
     ]
+
     def __init__(self):
         self.bonds = None
         self.angles = None
@@ -393,30 +399,25 @@ class BaseTopology:
     def create_atom_lookup_table(self) -> dict:
         """Create a lookup table for all topology elements for a given atom in the chain"""
         atom_lookup = {
-            atom:{
-                'bonds': [],
-                'angles': [],
-                'dihedrals': [],
-                'impropers': []
-            }
+            atom: {"bonds": [], "angles": [], "dihedrals": [], "impropers": []}
             for atom in self._visited_atoms
         }
 
         for bond in self.bonds:
             for atom in bond:
-                atom_lookup[atom]['bonds'].append(bond)
-            
+                atom_lookup[atom]["bonds"].append(bond)
+
         for angle in self.angles:
             for atom in angle:
-                atom_lookup[atom]['angles'].append(angle)
+                atom_lookup[atom]["angles"].append(angle)
 
         for dihedral in self.dihedrals:
             for atom in dihedral:
-                atom_lookup[atom]['dihedrals'].append(dihedral)
+                atom_lookup[atom]["dihedrals"].append(dihedral)
 
         for improper in self.impropers:
             for atom in improper:
-                atom_lookup[atom]['impropers'].append(improper)
+                atom_lookup[atom]["impropers"].append(improper)
 
         self.atom_lookup = atom_lookup
 
@@ -424,17 +425,17 @@ class BaseTopology:
         """Find all topology elements in the entity"""
         raise NotImplementedError
 
+
 class DisulfideTopology:
     """A class object that stores disulfide bonds for a model."""
-    topo_types = [
-        'bonds', 'angles', 'dihedrals'
-    ]
+
+    topo_types = ["bonds", "angles", "dihedrals"]
+
     def __init__(self, model):
         """Find all disulfide bonds from the model"""
         if not isinstance(model, Model):
             raise ValueError(
-                'Model is not an instance of Model!'
-                f' {type(model)} is provided.'
+                f"Model is not an instance of Model! {type(model)} is provided."
             )
         self.bonds = []
         self.angles = []
@@ -445,7 +446,7 @@ class DisulfideTopology:
     def __iter__(self):
         for topo_type_name in self.topo_types:
             yield topo_type_name, getattr(self, topo_type_name)
-    
+
     def __repr__(self) -> str:
         repr_str = f"<DisulfideTopology with "
         for attr in self.topo_types:
@@ -458,67 +459,69 @@ class DisulfideTopology:
         repr_str = repr_str[:-2] + ">"
         return repr_str
 
-    def _disu_patch_applied(self, res)->bool:
+    def _disu_patch_applied(self, res) -> bool:
         """Check if disulfide patch has already been applied"""
         if res.topo_definition is None:
             return False
-        return getattr(res.topo_definition, 'patch_with', None) == 'DISU'
-    
+        return getattr(res.topo_definition, "patch_with", None) == "DISU"
+
     def _generate_disulide_bond_angles(self, SG1, SG2):
         """Generate angles for the disulfide bond"""
         res1 = SG1.parent
         res2 = SG2.parent
-        bond = Bond(SG1, SG2, 'single')
-        angle1 = Angle(res1['CB'], SG1, SG2)
-        angle2 = Angle(res2['CB'], SG2, SG1)
+        bond = Bond(SG1, SG2, "single")
+        angle1 = Angle(res1["CB"], SG1, SG2)
+        angle2 = Angle(res2["CB"], SG2, SG1)
         return bond, angle1, angle2
 
     def _generate_disulide_dihedrals(self, SG1, SG2):
         """Generate dihedrals for the disulfide bond"""
         res1 = SG1.parent
         res2 = SG2.parent
-        dihedral1 = Dihedral(res1['CA'], res1['CB'], SG1, SG2)
-        dihedral2 = Dihedral(res2['CA'], res2['CB'], SG2, SG1)
-        dihedral3 = Dihedral(res1['N'], res1['CA'], res1['CB'], SG1)
-        dihedral4 = Dihedral(res2['N'], res2['CA'], res2['CB'], SG2)
-        dihedral5 = Dihedral(res1['C'], res1['CA'], res1['CB'], SG1)
-        dihedral6 = Dihedral(res2['C'], res2['CA'], res2['CB'], SG2)
-        dihedral7 = Dihedral(res1['CB'], SG1, SG2, res2['CB'])
+        dihedral1 = Dihedral(res1["CA"], res1["CB"], SG1, SG2)
+        dihedral2 = Dihedral(res2["CA"], res2["CB"], SG2, SG1)
+        dihedral3 = Dihedral(res1["N"], res1["CA"], res1["CB"], SG1)
+        dihedral4 = Dihedral(res2["N"], res2["CA"], res2["CB"], SG2)
+        dihedral5 = Dihedral(res1["C"], res1["CA"], res1["CB"], SG1)
+        dihedral6 = Dihedral(res2["C"], res2["CA"], res2["CB"], SG2)
+        dihedral7 = Dihedral(res1["CB"], SG1, SG2, res2["CB"])
         return [
-            dihedral1, dihedral2, dihedral3, dihedral4, 
-            dihedral5, dihedral6, dihedral7
+            dihedral1,
+            dihedral2,
+            dihedral3,
+            dihedral4,
+            dihedral5,
+            dihedral6,
+            dihedral7,
         ]
 
     def _remove_CYS_HG1(self, res):
         """Remove HG1 and associated records from the residue"""
-        if 'HG1' not in res:
-            return 
-        HG1 = res['HG1']
+        if "HG1" not in res:
+            return
+        HG1 = res["HG1"]
         chain = res.parent
         if chain.topology is not None:
             chain.topology.delete_atom_related_elements(HG1)
-        res.detach_child('HG1')
+        res.detach_child("HG1")
         for atom_group in res.atom_groups:
             if HG1 in atom_group:
                 atom_group.remove(HG1)
-        warnings.warn(
-            f"Removing HG1 from residue {res} for disulfide bond formation."
-        )
-
+        warnings.warn(f"Removing HG1 from residue {res} for disulfide bond formation.")
 
     def _create_disulfide(self, model: Model):
-        if 'disulf' not in model.connect_atoms:
+        if "disulf" not in model.connect_atoms:
             return
         patcher = ResiduePatcher()
-        for (SG1, SG2) in model.connect_atoms['disulf']:
+        for SG1, SG2 in model.connect_atoms["disulf"]:
             res1 = SG1.parent
             res2 = SG2.parent
             chain1 = res1.parent
             chain2 = res2.parent
             if chain1.topology is None or chain2.topology is None:
                 warnings.warn(
-                    f'Disulfide bond found between {res1} and {res2}! '
-                    'But topology not generated for the chains.'
+                    f"Disulfide bond found between {res1} and {res2}! "
+                    "But topology not generated for the chains."
                 )
                 continue
 
@@ -529,17 +532,17 @@ class DisulfideTopology:
             # Check if disulfide patch has already been applied
             # (e.g., if ModelTopology was already created earlier)
             if not (self._disu_patch_applied(res1) and self._disu_patch_applied(res2)):
-                ## TODO: implement full DISU patching using patch definition 
+                ## TODO: implement full DISU patching using patch definition
                 ## and update atom topo_definition automatically when patching
                 cys_def = patcher.patch_disulfide(
                     res1.topo_definition, res2.topo_definition
                 )
                 res1.topo_definition = cys_def
                 res2.topo_definition = cys_def
-                res1['SG'].topo_definition = cys_def['SG']
-                res2['SG'].topo_definition = cys_def['SG']
-                res1['CB'].topo_definition = cys_def['CB']
-                res2['CB'].topo_definition = cys_def['CB']
+                res1["SG"].topo_definition = cys_def["SG"]
+                res2["SG"].topo_definition = cys_def["SG"]
+                res1["CB"].topo_definition = cys_def["CB"]
+                res2["CB"].topo_definition = cys_def["CB"]
 
             chain1.topology.update()
             chain2.topology.update()
@@ -549,12 +552,13 @@ class DisulfideTopology:
             self.angles.append(angle2)
             self.dihedrals.extend(self._generate_disulide_dihedrals(SG1, SG2))
 
+
 class ModelTopology:
-    """A class object that stores topology elements (bond, angles, dihe, etc) 
+    """A class object that stores topology elements (bond, angles, dihe, etc)
     for a model."""
-    topo_types = [
-        'bonds', 'angles', 'dihedrals', 'impropers', 'cmap'
-    ]
+
+    topo_types = ["bonds", "angles", "dihedrals", "impropers", "cmap"]
+
     def __init__(self, model):
         """Find all topology elements from the model"""
         self.containing_entity = model
@@ -565,8 +569,6 @@ class ModelTopology:
             #     'Entity provided is not an instance of Model!'
             #     f' {type(model)} is provided.'
             # )
-        
-        
 
     def __iter__(self):
         for topo_type_name in self.topo_types:
@@ -576,9 +578,7 @@ class ModelTopology:
         elements = []
         for chain in self.containing_entity:
             if chain.topology is None:
-                warnings.warn(
-                    f'Topology not generated for chain {chain}!'
-                )
+                warnings.warn(f"Topology not generated for chain {chain}!")
                 continue
             if hasattr(chain.topology, element_name):
                 chain_elements = getattr(chain.topology, element_name)
@@ -590,62 +590,69 @@ class ModelTopology:
             if disu_elements is not None:
                 elements.extend(disu_elements)
         return elements
-            
+
     @property
     def bonds(self):
-        return self._gather_topo('bonds')
+        return self._gather_topo("bonds")
+
     @property
     def angles(self):
-        return self._gather_topo('angles')
+        return self._gather_topo("angles")
+
     @property
     def dihedrals(self):
-        return self._gather_topo('dihedrals')
+        return self._gather_topo("dihedrals")
+
     @property
     def impropers(self):
-        return self._gather_topo('impropers')
+        return self._gather_topo("impropers")
+
     @property
     def cmap(self):
-        return self._gather_topo('cmap')
+        return self._gather_topo("cmap")
+
     # @property
     # def nonbonded(self):
     #     return self._gather_topo('nonbonded')
-    
+
     def __repr__(self):
-        repr_str = ''
+        repr_str = ""
         if self.containing_entity is None:
             return "<EmptyTopology>"
         s = f"<Topology of {self.containing_entity} with "
-        for attr, value in self:    
+        for attr, value in self:
             if value is None:
                 n = 0
             else:
                 n = len(value)
             s += f"{attr}={n}, "
         if self.disulfide_topology is not None:
-            s += 'including ' + repr(self.disulfide_topology)[1:-1] + ', '
+            s += "including " + repr(self.disulfide_topology)[1:-1] + ", "
         s = s[:-2] + ">"
-        repr_str += s + '\nTopology by Chains:\n'
-        
+        repr_str += s + "\nTopology by Chains:\n"
+
         for chain in self.containing_entity:
             if chain.topology is None:
-                repr_str += f'<Topology of {chain} not generated!>\n'
+                repr_str += f"<Topology of {chain} not generated!>\n"
             else:
-                repr_str += repr(chain.topology) + '\n'
+                repr_str += repr(chain.topology) + "\n"
         return repr_str
 
+
 class HeterogenTopology(BaseTopology):
-    """A class object that stores topology elements (bond, angles, dihe, etc) 
+    """A class object that stores topology elements (bond, angles, dihe, etc)
     for a heterogen residue, e.g. ligand, water, ions, etc."""
+
     def __init__(self):
         super().__init__()
-        
+
     def load_chain(self, heterogen_chain):
         """Find all topology elements from the heterogen chain"""
         self.containing_entity = heterogen_chain
         self.find_topo_elements(heterogen_chain)
         self.create_atom_lookup_table()
         return self
-                        
+
     def find_topo_elements(self, heterogen_chain: Chain):
         """Find all topology elements in the chain"""
         self.bonds = []
@@ -674,17 +681,18 @@ class HeterogenTopology(BaseTopology):
             if len(atom.neighbors) > 0:
                 return atom
         raise ValueError(
-            f'No seeding atom found in residue {residue}!'
-            'This is possibly due to the heterogen residue '
-            'not being defined in the topology file.'
+            f"No seeding atom found in residue {residue}!"
+            "This is possibly due to the heterogen residue "
+            "not being defined in the topology file."
         )
 
+
 class ChainTopology(BaseTopology):
-    """A class object that stores topology elements (bond, angles, dihe, etc) 
+    """A class object that stores topology elements (bond, angles, dihe, etc)
     of bio-polymer chains, e.g. Protein, RNA, DNA."""
-    topo_types = [
-        'bonds', 'angles', 'dihedrals', 'impropers', 'cmap'
-    ]
+
+    topo_types = ["bonds", "angles", "dihedrals", "impropers", "cmap"]
+
     def __init__(self):
         super().__init__()
         self.cmap = None
@@ -721,10 +729,10 @@ class ChainTopology(BaseTopology):
                 "loop modeling tool to construct the missing residues first."
             )
 
-        if chain.chain_type == 'Polypeptide(L)':
-            inter_res_bond = ('C','N') # peptide bond
-        elif chain.chain_type == 'Polyribonucleotide':
-            inter_res_bond = ("O3'",'P') # phosphodiester bond
+        if chain.chain_type == "Polypeptide(L)":
+            inter_res_bond = ("C", "N")  # peptide bond
+        elif chain.chain_type == "Polyribonucleotide":
+            inter_res_bond = ("O3'", "P")  # phosphodiester bond
         else:
             raise NotImplementedError("Chain type not supported!")
 
@@ -737,55 +745,56 @@ class ChainTopology(BaseTopology):
         self._visited_atoms = list(visited_atoms)
         self.angles = list(angles)
         self.dihedrals = list(dihedrals)
-        self.impropers = get_impropers(chain) 
+        self.impropers = get_impropers(chain)
 
 
 class ParameterLoader:
     ic_position_dict = {
-        'R(I-J)': (0, 1),
-        'T(I-J-K)': (0, 1, 2),
-        'T(J-K-L)': (1, 2, 3),
-        'R(K-L)': (2, 3),
-        'T(I-K-J)': (0, 2, 1),
-        'R(I-K)': (0, 2),
+        "R(I-J)": (0, 1),
+        "T(I-J-K)": (0, 1, 2),
+        "T(J-K-L)": (1, 2, 3),
+        "R(K-L)": (2, 3),
+        "T(I-K-J)": (0, 2, 1),
+        "R(I-K)": (0, 2),
     }
     """A dictionary that stores parameters for CHARMM force field."""
+
     def __init__(self, entity_type=None):
         self.param_dict = {}
         self._raw_data_strings = []
         if entity_type is not None:
             self.load_type(entity_type=entity_type)
 
-    def load_type(self, entity_type:str):
+    def load_type(self, entity_type: str):
         """Load parameters from a CHARMM prm file."""
         entity_type = entity_type.lower()
         if entity_type not in prm_path_dict:
-            raise ValueError(f'No parameter file for {entity_type}')
+            raise ValueError(f"No parameter file for {entity_type}")
         filename = prm_path_dict[entity_type]
-        with open(filename, 'r', encoding='utf-8') as f:
-
+        with open(filename, "r", encoding="utf-8") as f:
             self._raw_data_strings = [
-                l.rstrip() for l in f.readlines() #if not skip_line(l)
+                l.rstrip()
+                for l in f.readlines()  # if not skip_line(l)
             ]
             param_line_dict = categorize_lines(self._raw_data_strings)
         self.param_dict.update(parse_line_dict(param_line_dict))
 
     def __repr__(self):
-        n_bonds = len(self.param_dict['bonds'])
-        n_angles = len(self.param_dict['angles'])
-        n_urey_bradley = len(self.param_dict['urey_bradley'])
-        n_dihedrals = len(self.param_dict['dihedrals'])
-        n_impropers = len(self.param_dict['improper'])
-        n_cmaps = len(self.param_dict['cmap'])
-        n_nonbonds = len(self.param_dict['nonbonded'])
-        n_nonbond14s = len(self.param_dict['nonbonded14'])
-        n_nbfixes = len(self.param_dict['nbfix'])
+        n_bonds = len(self.param_dict["bonds"])
+        n_angles = len(self.param_dict["angles"])
+        n_urey_bradley = len(self.param_dict["urey_bradley"])
+        n_dihedrals = len(self.param_dict["dihedrals"])
+        n_impropers = len(self.param_dict["improper"])
+        n_cmaps = len(self.param_dict["cmap"])
+        n_nonbonds = len(self.param_dict["nonbonded"])
+        n_nonbond14s = len(self.param_dict["nonbonded14"])
+        n_nbfixes = len(self.param_dict["nbfix"])
         return (
-            f'<ParameterDict Bond: {n_bonds}, Angle: {n_angles}, '
-            f'Urey Bradley: {n_urey_bradley}, Dihedral: {n_dihedrals}, '
-            f'Improper: {n_impropers}, CMAP: {n_cmaps}, '
-            f'Nonbond: {n_nonbonds}, Nonbond14: {n_nonbond14s}, '
-            f'NBfix: {n_nbfixes}>'
+            f"<ParameterDict Bond: {n_bonds}, Angle: {n_angles}, "
+            f"Urey Bradley: {n_urey_bradley}, Dihedral: {n_dihedrals}, "
+            f"Improper: {n_impropers}, CMAP: {n_cmaps}, "
+            f"Nonbond: {n_nonbonds}, Nonbond14: {n_nonbond14s}, "
+            f"NBfix: {n_nbfixes}>"
         )
 
     def __str__(self):
@@ -795,9 +804,7 @@ class ParameterLoader:
         return self.param_dict[key]
 
     def _get_param(self, param_dict: dict, key):
-        return (
-            param_dict.get(key) or param_dict.get(tuple(reversed(key)))
-        )
+        return param_dict.get(key) or param_dict.get(tuple(reversed(key)))
 
     def _get_from_choices(self, param_dict: dict, matching_orders: tuple):
         for choice in matching_orders:
@@ -806,12 +813,12 @@ class ParameterLoader:
 
     def get_bond(self, key):
         """Get bond parameters for a given bond instance."""
-        bond_dict = self.param_dict['bonds']
+        bond_dict = self.param_dict["bonds"]
         return self._get_param(bond_dict, key)
 
     def get_angle(self, key):
         """Get angle parameters for a given angle instance."""
-        angle_dict = self.param_dict['angles']
+        angle_dict = self.param_dict["angles"]
         return self._get_param(angle_dict, key)
 
     def get_dihedral(self, key):
@@ -819,27 +826,27 @@ class ParameterLoader:
         A, B, C, D = key
         matching_orders = (
             (A, B, C, D),
-            ('X', B, C, 'X'),
+            ("X", B, C, "X"),
         )
-        dihedral_dict = self.param_dict['dihedrals']
+        dihedral_dict = self.param_dict["dihedrals"]
         return self._get_from_choices(dihedral_dict, matching_orders)
 
     def get_improper(self, key):
         """Get improper parameters for a given improper instance."""
         A, B, C, D = key
         matching_orders = (
-            ( A,   B,   C,  D ),
-            ( A,  'X', 'X', D ),
-            ('X',  B,   C,  D ),
-            ('X',  B,   C, 'X'),
-            ('X', 'X',  C,  D )
+            (A, B, C, D),
+            (A, "X", "X", D),
+            ("X", B, C, D),
+            ("X", B, C, "X"),
+            ("X", "X", C, D),
         )
-        improper_dict = self.param_dict['improper']
+        improper_dict = self.param_dict["improper"]
         return self._get_from_choices(improper_dict, matching_orders)
 
     def get_nonbonded(self, key):
         """Get nonbonded parameters for a given atom type."""
-        nonbonded_param = self.param_dict['nonbonded'][key]
+        nonbonded_param = self.param_dict["nonbonded"][key]
         return nonbonded_param
 
     def get_from_topo_element(self, topo_element):
@@ -853,20 +860,20 @@ class ParameterLoader:
         elif isinstance(topo_element, Improper):
             return self.get_improper(topo_element.atom_types)
         else:
-            raise ValueError('Invalid topology element type')
+            raise ValueError("Invalid topology element type")
 
     def _apply_to_element_list(self, topo_type, topo_element_list):
         """Apply the parameter for a list of topology element"""
-        if topo_type == 'bonds':
+        if topo_type == "bonds":
             param_get_func = self.get_bond
-        elif topo_type == 'angles':
+        elif topo_type == "angles":
             param_get_func = self.get_angle
-        elif topo_type == 'dihedrals':
+        elif topo_type == "dihedrals":
             param_get_func = self.get_dihedral
-        elif topo_type == 'impropers':
+        elif topo_type == "impropers":
             param_get_func = self.get_improper
         else:
-            raise ValueError('Invalid topology element type')
+            raise ValueError("Invalid topology element type")
         no_param_list = []
         for topo_element in topo_element_list:
             param = param_get_func(topo_element.atom_types)
@@ -875,29 +882,27 @@ class ParameterLoader:
             else:
                 topo_element.param = param
         return no_param_list
-    
+
     def apply(self, topo_element_container: ChainTopology):
         """Apply the parameter for a list of topology element"""
         if not isinstance(topo_element_container, (ChainTopology, HeterogenTopology)):
             raise TypeError(
-                'Invalid argument type provided! Topology'
-                f' is expected. {type(topo_element_container)} is provided.'
+                "Invalid argument type provided! Topology"
+                f" is expected. {type(topo_element_container)} is provided."
             )
         missing_param_dict = {}
-        
+
         for topo_type, topo_element_list in topo_element_container:
             if topo_element_list is None:
                 warnings.warn(
-                    f'No {topo_type} found in '
-                    f'{topo_element_container.containing_entity}.')
+                    f"No {topo_type} found in "
+                    f"{topo_element_container.containing_entity}."
+                )
                 continue
-            no_param_list = self._apply_to_element_list(
-                topo_type, topo_element_list
-            )
+            no_param_list = self._apply_to_element_list(topo_type, topo_element_list)
             if no_param_list:
                 warnings.warn(
-                    f'{len(no_param_list)} {topo_type} failed to find '
-                    'parameters.'
+                    f"{len(no_param_list)} {topo_type} failed to find parameters."
                 )
                 missing_param_dict[topo_type] = no_param_list
         topo_element_container.missing_param_dict = missing_param_dict
@@ -911,27 +916,27 @@ class ParameterLoader:
                 atom_type = residue_definition[atom].atom_type
             elif atom in residue_definition.removed_atom_dict:
                 atom_type = residue_definition.removed_atom_dict[atom].atom_type
-            elif atom == 'BLNK':
+            elif atom == "BLNK":
                 ## TODO: use logging to log this
-                return None # ic containing BLNK atom should be ignored
+                return None  # ic containing BLNK atom should be ignored
             else:
                 raise ValueError(
-                    f'Atom {atom} not found in residue definition: {residue_definition}'
+                    f"Atom {atom} not found in residue definition: {residue_definition}"
                 )
             atom_type_list.append(atom_type)
         return atom_type_list
-    
+
     def res_def_fill_ic(self, residue_definition, preserve):
         """Fill in the missing parameters for the internal coordinates table
         of a residue definition."""
         for atom_key, ic_table in residue_definition.ic.items():
-            atom_key = [atom.lstrip('+').lstrip('-') for atom in atom_key]
+            atom_key = [atom.lstrip("+").lstrip("-") for atom in atom_key]
             atom_types = self._find_atom_type(atom_key, residue_definition)
             if atom_types is None:
                 # ic containing BLNK atom should be ignored
                 continue
             for ic_type in ic_table:
-                if ic_type == 'Phi' or ic_type == 'improper':
+                if ic_type == "Phi" or ic_type == "improper":
                     continue
                 if (ic_table[ic_type] is not None) and preserve:
                     continue
@@ -962,30 +967,32 @@ class ParameterLoader:
         for residue_definition in topology_loader.patched_defs.values():
             self.res_def_fill_ic(residue_definition, preserve)
 
+
 class ResidueTopologySet:
     """Class for loading topology definition to the residue and find any missing atoms.
     Any HIS will be renamed as HSD for protein."""
+
     def __init__(self, entity_type=None, rtf_parser=None):
         self.rtf_version = None
         self.res_defs = {}
         self.residues = []
         self.patches = []
         self.patched_defs = {}
-        self._raw_data_strings = []    
+        self._raw_data_strings = []
         self.entity_type = entity_type.lower()
-        
+
         if rtf_parser is not None:
             self.load_data_dict(rtf_parser.topo_dict, rtf_parser.rtf_version)
             return
         if self.entity_type not in rtf_path_dict:
-            raise ValueError(f'Unknown entity type: {entity_type}')
-        self.is_hetero = self.entity_type not in ('protein', 'nucleic')
+            raise ValueError(f"Unknown entity type: {entity_type}")
+        self.is_hetero = self.entity_type not in ("protein", "nucleic")
 
         rtf = RTFParser(file_path=rtf_path_dict[self.entity_type])
         self._raw_data_strings = rtf.lines
         self.load_data_dict(rtf.topo_dict, rtf.rtf_version)
 
-    def load_data_dict(self, topo_data_dict: dict, rtf_version:str=None):
+    def load_data_dict(self, topo_data_dict: dict, rtf_version: str = None):
         """Load topology data from a dictionary. The dictionary should be parsed
         from a RTF file."""
         self.rtf_version = rtf_version
@@ -995,7 +1002,7 @@ class ResidueTopologySet:
             #     # acids, since biopython uses 1-letter residue name for them.
             #     resname = ResidueDefinition.na_3to1[resname]
 
-            if res_topo_dict['is_patch']:
+            if res_topo_dict["is_patch"]:
                 res_def = PatchDefinition(
                     self.rtf_version, resname, res_topo_dict, is_hetero=self.is_hetero
                 )
@@ -1008,40 +1015,42 @@ class ResidueTopologySet:
 
             self.res_defs[resname] = res_def
 
-        if 'HIS' not in self.res_defs and 'HSD' in self.res_defs:
+        if "HIS" not in self.res_defs and "HSD" in self.res_defs:
             # Map all histidines HIS to HSD
-            self.res_defs['HIS'] = self.res_defs['HSD']
+            self.res_defs["HIS"] = self.res_defs["HSD"]
 
     def __repr__(self):
         return (
-            f'<TopologyDefinitions for {self.entity_type.upper()} Ver={self.rtf_version} '
-            f'Contains {len(self.residues)} RESIDUE and '
-            f'{len(self.patches)} PATCH definitions>'
+            f"<TopologyDefinitions for {self.entity_type.upper()} Ver={self.rtf_version} "
+            f"Contains {len(self.residues)} RESIDUE and "
+            f"{len(self.patches)} PATCH definitions>"
         )
 
-    def __getitem__(self, __key: 'str'):
+    def __getitem__(self, __key: "str"):
         if __key in ResidueDefinition.na_1to3:
             __key = ResidueDefinition.na_1to3[__key]
         return self.res_defs[__key]
-    
-    def __contains__(self, __key: 'str'):
+
+    def __contains__(self, __key: "str"):
         if __key in ResidueDefinition.na_1to3:
             __key = ResidueDefinition.na_1to3[__key]
         return __key in self.res_defs
-    
+
     def __iter__(self):
         return iter(self.res_defs.values())
-    
+
+
 class CGENFFTopologySet:
-    """Class for loading topology definition to the heterogen residues where 
+    """Class for loading topology definition to the heterogen residues where
     the topology and parameters are generated by cgenff."""
+
     def __init__(self):
-        self.rtf_version = '36.1'
+        self.rtf_version = "36.1"
         self.mass_dict = CGENFF_MASS_TABLE
         self.res_defs = {}
         self.residues = []
-        self._raw_data_strings = [] 
-        self.entity_type = 'cgenff'
+        self._raw_data_strings = []
+        self.entity_type = "cgenff"
 
     def load_rtf_block(self, rtf_block: str):
         """Load topology data from a dictionary. The dictionary should be parsed
@@ -1051,10 +1060,11 @@ class CGENFFTopologySet:
         if len(rtf.topo_dict) == 0:
             return False
         for resname, res_atom_dict in rtf.topo_dict.items():
-            for info_dict in res_atom_dict['atoms'][0].values():
-                atype = info_dict['atom_type']
-                info_dict['mass'], info_dict['desc'], info_dict['element'] =\
+            for info_dict in res_atom_dict["atoms"][0].values():
+                atype = info_dict["atom_type"]
+                info_dict["mass"], info_dict["desc"], info_dict["element"] = (
                     self.mass_dict[atype]
+                )
 
             res_def = ResidueDefinition(
                 rtf.rtf_version, resname, res_atom_dict, is_hetero=True
@@ -1065,22 +1075,24 @@ class CGENFFTopologySet:
 
     def __repr__(self):
         return (
-            f'<TopologyDefinitions for {self.entity_type.upper()} Ver={self.rtf_version} '
-            f'Contains {len(self.residues)} MOLECULE definitions>'
+            f"<TopologyDefinitions for {self.entity_type.upper()} Ver={self.rtf_version} "
+            f"Contains {len(self.residues)} MOLECULE definitions>"
         )
 
-    def __getitem__(self, __key: 'str'):
+    def __getitem__(self, __key: "str"):
         return self.res_defs[__key]
-    
-    def __contains__(self, __key: 'str'):
+
+    def __contains__(self, __key: "str"):
         return __key in self.res_defs
-    
+
     def __iter__(self):
         return iter(self.residues)
 
+
 class CGENFFTopologyLoader:
-    """Class for loading topology definition to the heterogen residues where 
+    """Class for loading topology definition to the heterogen residues where
     the topology and parameters are generated by cgenff."""
+
     def __init__(self, cgenff_path=None, save_path=None):
         self.cgenff_path = cgenff_path
         self.rdconvert = RDKitHetConverter()
@@ -1089,7 +1101,7 @@ class CGENFFTopologyLoader:
         self.mol2_blocks = {}
         self.save_path = save_path
         if self.save_path is not None and not os.path.exists(self.save_path):
-            warnings.warn(f'Path does not exist: {self.save_path}, creating...')
+            warnings.warn(f"Path does not exist: {self.save_path}, creating...")
             os.makedirs(self.save_path)
         self.rdkit_mols = {}
         if self.save_path is None:
@@ -1097,39 +1109,39 @@ class CGENFFTopologyLoader:
 
     ## TODO: parse parameters from the toppar block as well
     def _get_cgenff_topology(self, input_mol2_block, resname, ligand_toppar_file=None):
-        """Load mol2 block and generate topology definition. """
+        """Load mol2 block and generate topology definition."""
 
         if ligand_toppar_file is not None:
-            with open(ligand_toppar_file, 'r', encoding='utf-8') as f:
+            with open(ligand_toppar_file, "r", encoding="utf-8") as f:
                 toppar_block = f.read()
         else:
             toppar_block = excute_cgenff(self.cgenff_path, input_mol2_block)
-        toppar_lines=toppar_block.split('\n')
-        rtf_end = toppar_lines.index('END')+1
+        toppar_lines = toppar_block.split("\n")
+        rtf_end = toppar_lines.index("END") + 1
 
-        rtf_block = '\n'.join(toppar_lines[:rtf_end])
-        prm_block = '\n'.join(toppar_lines[rtf_end:])
+        rtf_block = "\n".join(toppar_lines[:rtf_end])
+        prm_block = "\n".join(toppar_lines[rtf_end:])
         success = self.cgenff_topo_set.load_rtf_block(rtf_block)
         if not success:
             raise ValueError(
-                f'Failed to generate parameters for ligand {resname}! '
-                'Either CGENFF fail to generate the topology (check the CGENFF log) ' 
-                'or the user supplied RTF file does not match the ligand supplied.'
+                f"Failed to generate parameters for ligand {resname}! "
+                "Either CGENFF fail to generate the topology (check the CGENFF log) "
+                "or the user supplied RTF file does not match the ligand supplied."
             )
-        
+
         return toppar_block
 
-    ## TODO: need to find topology element from rtf. Currently only add 
+    ## TODO: need to find topology element from rtf. Currently only add
     ## topology definition to the atom
     def generate(self, lig_res: Heterogen, ligand_toppar_file=None):
         """Generate topology definition for the ligand residue using cgenff.
-        
+
         Parameters
         ----------
-        
+
         lig_res: Heterogen
             The ligand residue object.
-        
+
         ligand_toppar_file: str, optional
             The path to the ligand topology file. If not provided, the topology
             will be generated by cgenff.
@@ -1142,7 +1154,7 @@ class CGENFFTopologyLoader:
             mol2_block = self.rdconvert.get_mol2_block()
 
         self.rdkit_mols[lig_res.resname] = rdk_mol
-        mol2_block = MolToMol2Block(rdk_mol, ligname = lig_res.resname)
+        mol2_block = MolToMol2Block(rdk_mol, ligname=lig_res.resname)
         self.mol2_blocks[lig_res.resname] = mol2_block
         toppar_block = self._get_cgenff_topology(
             mol2_block, lig_res.resname, ligand_toppar_file
@@ -1151,22 +1163,22 @@ class CGENFFTopologyLoader:
         residue_definition = self.cgenff_topo_set.res_defs[lig_res.resname]
         for atom_def in residue_definition:
             atom_def_name = atom_def.name
-            if atom_def_name.startswith('LP'):
+            if atom_def_name.startswith("LP"):
                 lp = atom_def.create_new_atom()
                 lig_res.lone_pair_dict[atom_def_name] = lp
                 lp.parent = lig_res
             if atom_def_name not in lig_res:
                 raise ValueError(
-                    f'Atom {atom_def_name} not found in the residue {lig_res}!'
-                    'If generating topology using a provided ligand_toppar_file, '
-                    'make sure the file matches the ligand.'
+                    f"Atom {atom_def_name} not found in the residue {lig_res}!"
+                    "If generating topology using a provided ligand_toppar_file, "
+                    "make sure the file matches the ligand."
                 )
             atom = lig_res[atom_def.name]
             atom.topo_definition = atom_def
         lig_res.topo_definition = residue_definition
 
     def generate_from_rdkit(self, rdkit_mol, resname, ligand_toppar_file=None):
-        """Generate topology definition for the ligand residue using cgenff. A 
+        """Generate topology definition for the ligand residue using cgenff. A
         ligand Residue object will be returned"""
         resname = resname.upper()
         self.rdconvert.load_rdkit_mol(rdkit_mol, ligand_resname=resname)
@@ -1185,63 +1197,65 @@ class CGENFFTopologyLoader:
             atom.topo_definition = atom_def
         ligand.topo_definition = residue_definition
         return ligand
-    
+
     def write_all(self, pathname=None):
         """Write all the generated files to the specified directory."""
         filenames = []
-        filenames.extend(self._write_data_dict(self.mol2_blocks, 'mol2', pathname))
-        filenames.extend(self._write_data_dict(self.toppar_blocks, 'str', pathname))
+        filenames.extend(self._write_data_dict(self.mol2_blocks, "mol2", pathname))
+        filenames.extend(self._write_data_dict(self.toppar_blocks, "str", pathname))
         return filenames
-    
+
     def write_mol2(self, ligname, filename=None):
-        """Write the ligand mol2 file. Only path to the directory is needed. If 
+        """Write the ligand mol2 file. Only path to the directory is needed. If
         path name is not provided, current working directory will be used.
         The file name will be the ligand residue name."""
         if filename is None:
             pathname = self.save_path
-            filename = f'{pathname}/{ligname}.mol2'
-        with open(filename, 'w', encoding='utf-8') as f:
+            filename = f"{pathname}/{ligname}.mol2"
+        with open(filename, "w", encoding="utf-8") as f:
             f.write(self.mol2_blocks[ligname])
         return filename
 
     def write_ligand_str(self, ligname, filename=None):
-        """Write the content of cgenff rtf block to a file. Only path to the 
-        directory is needed. If path name is not provided, current working 
+        """Write the content of cgenff rtf block to a file. Only path to the
+        directory is needed. If path name is not provided, current working
         directory will be used. The file name will be the ligand residue name."""
         if filename is None:
             pathname = self.save_path
-            filename = f'{pathname}/{ligname}.str'
-        with open(filename, 'w', encoding='utf-8') as f:
+            filename = f"{pathname}/{ligname}.str"
+        with open(filename, "w", encoding="utf-8") as f:
             f.write(self.toppar_blocks[ligname])
         return filename
 
     def _write_data_dict(self, data_dict, extension, pathname):
-        """(PRIVATE) Write the content of data dict to a file. Only path to the 
+        """(PRIVATE) Write the content of data dict to a file. Only path to the
         directory is needed. The file name will be the ligand residue name."""
         if pathname is None:
             pathname = self.save_path
         if pathname is None:
-            raise ValueError('Pathname is not provided!')
+            raise ValueError("Pathname is not provided!")
         if not os.path.exists(pathname):
-            warnings.warn(f'Path does not exist: {pathname}, creating...')
+            warnings.warn(f"Path does not exist: {pathname}, creating...")
             os.makedirs(pathname)
         filenames = []
         for ligname, data_block in data_dict.items():
-            filename = f'{pathname}/{ligname}.{extension}'
-            with open(filename, 'w', encoding='utf-8') as f:
+            filename = f"{pathname}/{ligname}.{extension}"
+            with open(filename, "w", encoding="utf-8") as f:
                 f.write(data_block)
-                f.write('\n')
+                f.write("\n")
             filenames.append(filename)
         return filenames
+
 
 class TopologyGenerator:
     """Class for generating topology elements from the topology definition
     and parameters.
-    The topology definition the parameters are loaded from the CHARMM 36 RTF and 
+    The topology definition the parameters are loaded from the CHARMM 36 RTF and
     PRM files.
-    If the cgenff_excutable_path is provided, the topology definition and 
+    If the cgenff_excutable_path is provided, the topology definition and
     parameters for the heterogen residues are generated by cgenff, and ligand mol2
     file and cgenff rtf file will be saved if cgenff_output_path is specified."""
+
     def __init__(self, cgenff_excutable_path=None, cgenff_output_path=None):
         """Initialize the topology generator."""
         self.res_def_dict = {}
@@ -1249,17 +1263,16 @@ class TopologyGenerator:
         self.cur_defs: ResidueTopologySet = None
         self.cur_param: ParameterLoader = None
         if cgenff_excutable_path is not None:
-            self.save_cgenff_output = (cgenff_output_path is not None)
+            self.save_cgenff_output = cgenff_output_path is not None
             self.cgenff_loader = CGENFFTopologyLoader(
-                cgenff_excutable_path, cgenff_output_path)
-            self.res_def_dict['cgenff'] = self.cgenff_loader.cgenff_topo_set
+                cgenff_excutable_path, cgenff_output_path
+            )
+            self.res_def_dict["cgenff"] = self.cgenff_loader.cgenff_topo_set
         else:
             self.save_cgenff_output = False
             self.cgenff_loader = None
 
-    def load_residue_definitions(
-            self, chain_type: str, preserve = False
-        ):
+    def load_residue_definitions(self, chain_type: str, preserve=False):
         """Load topology definition from the RTF file
         Argument:
             chain_type: the type of the chain, e.g. Polypeptide(L), Polyribonucleotide
@@ -1268,14 +1281,14 @@ class TopologyGenerator:
         Return:
             cur_defs: the ResidueTopologySet object for the chain type
             cur_param: the ParameterLoader object for the chain type"""
-        
+
         if chain_type not in self.res_def_dict:
             self._load_residue_definitions(chain_type, preserve)
         else:
             self.cur_defs = self.res_def_dict[chain_type_def_lookup[chain_type]]
             self.cur_param = self.param_dict[chain_type_def_lookup[chain_type]]
         return self.cur_defs, self.cur_param
-    
+
     def _load_residue_definitions(self, chain_type: str, preserve):
         """Load topology definition from the RTF file"""
         entity_type = chain_type_def_lookup.get(chain_type)
@@ -1287,14 +1300,12 @@ class TopologyGenerator:
             self.res_def_dict[entity_type] = ResidueTopologySet(entity_type)
         if entity_type not in self.param_dict:
             self.param_dict[entity_type] = ParameterLoader(entity_type)
-        
+
         self.cur_defs = self.res_def_dict[entity_type]
         self.cur_param = self.param_dict[entity_type]
         self.cur_param.fill_ic(self.cur_defs, preserve=preserve)
-        
-    def _generate_residue_topology(
-            self, residue: Residue, coerce = False, QUIET = False
-        ):
+
+    def _generate_residue_topology(self, residue: Residue, coerce=False, QUIET=False):
         """Load topology definition into the residue and find any missing atoms.
         Argument:
             residue: the Residue object whose topology is to be defined
@@ -1329,13 +1340,9 @@ class TopologyGenerator:
         res_definition = self.cur_defs[residue.resname]
         self.apply_topo_def_on_residue(residue, res_definition, QUIET=QUIET)
         return True
-    
+
     @staticmethod
-    def apply_topo_def_on_residue(
-            residue,
-            res_definition,
-            QUIET = False
-        ):
+    def apply_topo_def_on_residue(residue, res_definition, QUIET=False):
         """Apply the topology definition to the residue"""
         residue.topo_definition = res_definition
         residue.impropers = res_definition.impropers
@@ -1356,11 +1363,48 @@ class TopologyGenerator:
                     )
 
     @staticmethod
-    def _create_missing_atom(residue: Residue, atom_name: str)-> list:
+    def _apply_topo_def_for_loading(residue, res_definition, QUIET=False):
+        """Apply topology definition for PSF/CRD loading (no missing atoms).
+
+        Unlike apply_topo_def_on_residue, this only assigns definitions to
+        atoms that actually exist in the residue.  Atoms removed by patches
+        (e.g. HG1 from DISU) won't be recreated as phantom missing atoms.
+        """
+        residue.topo_definition = res_definition
+        residue.impropers = res_definition.impropers
+        residue.cmap = res_definition.cmap
+        residue.H_donors = res_definition.H_donors
+        residue.H_acceptors = res_definition.H_acceptors
+        residue.param_desc = res_definition.desc
+        # Build atom_groups from only present atoms
+        residue.atom_groups = []
+        residue.missing_atoms, residue.missing_hydrogens = {}, {}
+        for atom_names in res_definition.atom_groups:
+            group = []
+            for atom_name in atom_names:
+                if atom_name in residue:
+                    atom = residue[atom_name]
+                    atom.topo_definition = res_definition[atom_name]
+                    group.append(atom)
+            if group:
+                residue.atom_groups.append(group)
+        residue.undefined_atoms = []
+        for atom in residue:
+            if atom.name not in res_definition:
+                residue.undefined_atoms.append(atom)
+                if not QUIET:
+                    parent_id = (atom.parent.id[1], atom.parent.resname)
+                    warnings.warn(
+                        f"Atom {atom.name} from {parent_id} is not defined in "
+                        "the topology file!"
+                    )
+
+    @staticmethod
+    def _create_missing_atom(residue: Residue, atom_name: str) -> list:
         """Create and separate missing heavy atoms and missing hydrogen atom by atom name"""
-        missing_atom : Atom = residue.topo_definition[atom_name].create_new_atom()
+        missing_atom: Atom = residue.topo_definition[atom_name].create_new_atom()
         missing_atom.set_parent(residue)
-        if atom_name.startswith('H'):
+        if atom_name.startswith("H"):
             residue.missing_hydrogens[atom_name] = missing_atom
         else:
             residue.missing_atoms[atom_name] = missing_atom
@@ -1368,10 +1412,10 @@ class TopologyGenerator:
 
     @staticmethod
     def _load_group_atom_topo_definition(
-            residue: Residue, atom_name_list: list
-        ) -> tuple:
-        """Load topology definition to each atom in the residue and find any missing 
-        atoms. 
+        residue: Residue, atom_name_list: list
+    ) -> tuple:
+        """Load topology definition to each atom in the residue and find any missing
+        atoms.
         Argument:
             atom_name_list: list of atom names that are in the same group
         Return:
@@ -1390,7 +1434,7 @@ class TopologyGenerator:
     @staticmethod
     def _load_atom_groups(residue: Residue):
         residue.atom_groups = []
-        residue.missing_atoms, residue.missing_hydrogens = {},{}
+        residue.missing_atoms, residue.missing_hydrogens = {}, {}
         atom_group_lists = residue.topo_definition.atom_groups
         for atom_names in atom_group_lists:
             cur_group = TopologyGenerator._load_group_atom_topo_definition(
@@ -1398,9 +1442,9 @@ class TopologyGenerator:
             )
             residue.atom_groups.append(cur_group)
 
-    def coerce_resname(self, residue: Residue, QUIET = False)->bool:
-        """Coerce the name of modified residue to reconstruct it as the canonical 
-        one that it is based on. 
+    def coerce_resname(self, residue: Residue, QUIET=False) -> bool:
+        """Coerce the name of modified residue to reconstruct it as the canonical
+        one that it is based on.
 
         Argument:
             residue: the residue whose name is to be coerced
@@ -1416,9 +1460,7 @@ class TopologyGenerator:
         code = protein_letters_3to1_extended[residue.resname]
         new_resname = protein_letters_1to3[code]
         if not QUIET:
-            warnings.warn(
-                f'Coerced Residue {residue.resname} to {new_resname}'
-            )
+            warnings.warn(f"Coerced Residue {residue.resname} to {new_resname}")
         old_resname = residue.resname
         residue.resname = new_resname
         _, resseq, icode = residue.id
@@ -1450,14 +1492,14 @@ class TopologyGenerator:
         assigning topology definitions.
         """
         solvent.undefined_res = []
-        self._load_residue_definitions('Solvent', preserve=False)
+        self._load_residue_definitions("Solvent", preserve=False)
         if solvent_model not in self.cur_defs:
-            raise ValueError(f'Unknown solvent model: {solvent_model}')
+            raise ValueError(f"Unknown solvent model: {solvent_model}")
 
         # Map HOH/WAT to the solvent model (e.g., TIP3)
-        self.cur_defs.res_defs['HOH'] = self.cur_defs[solvent_model]
-        self.cur_defs.res_defs['WAT'] = self.cur_defs[solvent_model]
-        self.cur_defs.res_defs['SOL'] = self.cur_defs[solvent_model]
+        self.cur_defs.res_defs["HOH"] = self.cur_defs[solvent_model]
+        self.cur_defs.res_defs["WAT"] = self.cur_defs[solvent_model]
+        self.cur_defs.res_defs["SOL"] = self.cur_defs[solvent_model]
 
         # Get atom definitions from solvent model for building hydrogens
         solvent_def = self.cur_defs[solvent_model]
@@ -1474,15 +1516,15 @@ class TopologyGenerator:
             )
             if not is_defined:
                 solvent.undefined_res.append(residue)
-            residue.resname = solvent_model  # set resname to solvent model for consistency
+            residue.resname = (
+                solvent_model  # set resname to solvent model for consistency
+            )
         if n_hydrogens_built > 0 and not QUIET:
             warnings.warn(
                 f"Built {n_hydrogens_built} missing hydrogens for crystallographic waters"
             )
-        if (n_undefined:=len(solvent.undefined_res)) > 0 and not QUIET:
-            warnings.warn(
-                f"{n_undefined} residue(s) not defined in the chain!"
-            )
+        if (n_undefined := len(solvent.undefined_res)) > 0 and not QUIET:
+            warnings.warn(f"{n_undefined} residue(s) not defined in the chain!")
 
         self.cur_param.fill_ic(self.cur_defs, False)
         topology = HeterogenTopology()
@@ -1495,34 +1537,34 @@ class TopologyGenerator:
 
         Returns the number of hydrogens built.
         """
-        if residue.resname not in ('HOH', 'WAT', 'SOL', 'TIP3'):
+        if residue.resname not in ("HOH", "WAT", "SOL", "TIP3"):
             return 0
 
-        oxygen_names = {'O', 'OW', 'OH2'}
+        oxygen_names = {"O", "OW", "OH2"}
         oxygen_atom = None
         n_hydrogens = 0
 
         for atom in residue.get_atoms():
-            if atom.name in oxygen_names or atom.element == 'O':
+            if atom.name in oxygen_names or atom.element == "O":
                 oxygen_atom = atom
-            elif atom.element == 'H':
+            elif atom.element == "H":
                 n_hydrogens += 1
 
         if oxygen_atom is None or n_hydrogens >= 2:
             return 0
 
-        if oxygen_atom.name != 'OH2':
-            oxygen_atom.name = 'OH2'
-            oxygen_atom.fullname = ' OH2'
+        if oxygen_atom.name != "OH2":
+            oxygen_atom.name = "OH2"
+            oxygen_atom.fullname = " OH2"
 
         h1_coord, h2_coord = self._compute_water_hydrogen_coords(oxygen_atom.coord)
 
         if n_hydrogens == 0:
-            h1 = solvent_def['H1'].create_new_atom()
+            h1 = solvent_def["H1"].create_new_atom()
             h1.coord = h1_coord
             residue.add(h1)
 
-        h2 = solvent_def['H2'].create_new_atom()
+        h2 = solvent_def["H2"].create_new_atom()
         h2.coord = h2_coord
         residue.add(h2)
 
@@ -1541,24 +1583,32 @@ class TopologyGenerator:
         random_vec /= np.linalg.norm(random_vec)
         h1_coord = oxygen_coord + oh_bond * random_vec
 
-        ref_axis = np.array([0, 1, 0]) if abs(random_vec[0]) > 0.9 else np.array([1, 0, 0])
+        ref_axis = (
+            np.array([0, 1, 0]) if abs(random_vec[0]) > 0.9 else np.array([1, 0, 0])
+        )
         perp = np.cross(random_vec, ref_axis)
         perp /= np.linalg.norm(perp)
 
         cos_a, sin_a = np.cos(hoh_angle), np.sin(hoh_angle)
-        h2_vec = (random_vec * cos_a +
-                  np.cross(perp, random_vec) * sin_a +
-                  perp * np.dot(perp, random_vec) * (1 - cos_a))
+        h2_vec = (
+            random_vec * cos_a
+            + np.cross(perp, random_vec) * sin_a
+            + perp * np.dot(perp, random_vec) * (1 - cos_a)
+        )
         h2_coord = oxygen_coord + oh_bond * h2_vec
 
         return h1_coord, h2_coord
 
     def generate(
-            self, chain: Chain, coerce: bool = False,
-            first_patch: str = None, last_patch: str = None,
-            auto_correct_first_patch=True,
-            preserve_ic = True, QUIET = False
-        ):
+        self,
+        chain: Chain,
+        coerce: bool = False,
+        first_patch: str = None,
+        last_patch: str = None,
+        auto_correct_first_patch=True,
+        preserve_ic=True,
+        QUIET=False,
+    ):
         """Load topology definition into the chain and find any missing atoms.
         Argument:
             chain: the Chain object whose topology is to be defined
@@ -1571,9 +1621,9 @@ class TopologyGenerator:
             QUIET: if True, suppress all warnings
         """
         chain.sort_residues()
-        if chain.residues[0].resname == 'ACE':
+        if chain.residues[0].resname == "ACE":
             # if the first residue is ACE, remove it
-            chain.truncate(start = 1)
+            chain.truncate(start=1)
         chain.undefined_res = []
         self._load_residue_definitions(chain.chain_type, preserve_ic)
         for residue in chain:
@@ -1582,19 +1632,19 @@ class TopologyGenerator:
             )
             if not is_defined:
                 chain.undefined_res.append(residue)
-        if (n_undefined:=len(chain.undefined_res)) > 0 and not QUIET:
-            warnings.warn(
-                f"{n_undefined} residue(s) not defined in the chain!"
-            )
+        if (n_undefined := len(chain.undefined_res)) > 0 and not QUIET:
+            warnings.warn(f"{n_undefined} residue(s) not defined in the chain!")
         if first_patch is not None or last_patch is not None:
             self.patch_termini(
-                chain, first_patch, last_patch, 
-                auto_correct_first_patch, 
-                QUIET=QUIET
+                chain, first_patch, last_patch, auto_correct_first_patch, QUIET=QUIET
             )
 
         self.cur_param.fill_ic(self.cur_defs, preserve_ic)
-        if chain.chain_type in ('Polypeptide(L)', 'Polyribonucleotide', 'Polydeoxyribonucleotide'):
+        if chain.chain_type in (
+            "Polypeptide(L)",
+            "Polyribonucleotide",
+            "Polydeoxyribonucleotide",
+        ):
             topology = ChainTopology()
         else:
             topology = HeterogenTopology()
@@ -1603,11 +1653,15 @@ class TopologyGenerator:
         return topology
 
     def patch_termini(
-            self, chain: PolymerChain,
-            first: str, last: str, auto_correct_first_patch=True, QUIET=False
-        ):
+        self,
+        chain: PolymerChain,
+        first: str,
+        last: str,
+        auto_correct_first_patch=True,
+        QUIET=False,
+    ):
         """Patch the terminal residues of the chain"""
-        if chain.chain_type not in ('Polypeptide(L)', 'Polyribonucleotide'):
+        if chain.chain_type not in ("Polypeptide(L)", "Polyribonucleotide"):
             raise NotImplementedError(
                 "Only polypeptide and polynucleotide chains are supported "
                 f"for patching! Got {chain.chain_type}"
@@ -1638,9 +1692,8 @@ class TopologyGenerator:
             chain.topology.update()
 
     def patch_residue(
-            self, residue: Residue, patch: str,
-            patch_loc = 'MIDCHAIN', QUIET = False
-        ):
+        self, residue: Residue, patch: str, patch_loc="MIDCHAIN", QUIET=False
+    ):
         """Patch the residue with the patch definition"""
         if residue.topo_definition is None:
             raise ValueError(
@@ -1674,20 +1727,26 @@ class TopologyGenerator:
                 res_def, patch_def, patch_loc=patch_loc
             )
             res_def_container.patched_defs[patched_def_name] = patched_res_def
-        
+
         self.apply_topo_def_on_residue(residue, patched_res_def, QUIET=QUIET)
         fixer = ResidueFixer()
         fixer.load_residue(residue)
         fixer.remove_undefined_atoms()
-    
+
     def generate_model(
-            self, model: OrganizedModel, coerce: bool = False,
-            prot_first_patch: str = 'ACE', prot_last_patch: str = 'CT3',
-            na_first_patch: str = '5TER', na_last_patch: str = '3PHO',
-            auto_correct_first_patch=True, build_coords = True,
-            preserve_ic = True, solvent_model = 'TIP3', 
-            QUIET = False
-        ):
+        self,
+        model: OrganizedModel,
+        coerce: bool = False,
+        prot_first_patch: str = "ACE",
+        prot_last_patch: str = "CT3",
+        na_first_patch: str = "5TER",
+        na_last_patch: str = "3PHO",
+        auto_correct_first_patch=True,
+        build_coords=True,
+        preserve_ic=True,
+        solvent_model="TIP3",
+        QUIET=False,
+    ):
         """Generate topology for a organized model. Protein, nucleic acid, ion and solvent will
         be generated separately. If cgenff executable path is provided, cgenff will be used to
         generate topology for the ligand, nucleoside phosphate, and co-solvent residues.
@@ -1716,36 +1775,47 @@ class TopologyGenerator:
         if not isinstance(model, OrganizedModel):
             raise TypeError(
                 "Invalid argument type provided! OrganizedModel"
-                f' is expected. {type(model)} is provided.'
+                f" is expected. {type(model)} is provided."
             )
         for chain in model.protein:
             self.generate(
-                chain, coerce=coerce, first_patch=prot_first_patch,
+                chain,
+                coerce=coerce,
+                first_patch=prot_first_patch,
                 last_patch=prot_last_patch,
                 auto_correct_first_patch=auto_correct_first_patch,
-                preserve_ic=preserve_ic, QUIET=QUIET
+                preserve_ic=preserve_ic,
+                QUIET=QUIET,
             )
             if build_coords:
                 fix_chain(chain)
-        for chain in (model.RNA + model.DNA):
+        for chain in model.RNA + model.DNA:
             self.generate(
-                chain, coerce=coerce, first_patch=na_first_patch,
-                last_patch=na_last_patch, auto_correct_first_patch=False,
-                preserve_ic=preserve_ic, QUIET=QUIET
+                chain,
+                coerce=coerce,
+                first_patch=na_first_patch,
+                last_patch=na_last_patch,
+                auto_correct_first_patch=False,
+                preserve_ic=preserve_ic,
+                QUIET=QUIET,
             )
             if build_coords:
                 fix_chain(chain)
         for chain in model.ion:
             self.generate(
-                chain, coerce=coerce, first_patch=None,
-                last_patch=None, auto_correct_first_patch=False,
-                preserve_ic=False, QUIET=QUIET
+                chain,
+                coerce=coerce,
+                first_patch=None,
+                last_patch=None,
+                auto_correct_first_patch=False,
+                preserve_ic=False,
+                QUIET=QUIET,
             )
         for chain in model.solvent:
             self.generate_solvent(chain, solvent_model, QUIET=QUIET)
 
         if self.cgenff_loader is not None:
-            for chain in model.ligand+model.co_solvent+model.phos_ligand:
+            for chain in model.ligand + model.co_solvent + model.phos_ligand:
                 for lig_residue in chain:
                     self.cgenff_loader.generate(lig_residue)
                 # Create chain topology after all residues are processed
@@ -1757,7 +1827,9 @@ class TopologyGenerator:
             # Warn if ligands exist but CGENFF not configured
             ligand_chains = model.ligand + model.co_solvent + model.phos_ligand
             if ligand_chains and not QUIET:
-                chain_info = [f"{c.id}({len(list(c.get_residues()))})" for c in ligand_chains]
+                chain_info = [
+                    f"{c.id}({len(list(c.get_residues()))})" for c in ligand_chains
+                ]
                 warnings.warn(
                     f"Ligand/co-solvent chains found but CGENFF is not configured: {chain_info}. "
                     "Topology will not be generated for these chains. "
@@ -1767,13 +1839,230 @@ class TopologyGenerator:
         model.topology_loader = self
         model.topology = ModelTopology(model)
 
+    def load_psf_crd(
+        self,
+        psf_path: str,
+        crd_path: str,
+        QUIET: bool = False,
+    ):
+        """Load a PSF/CRD file pair into a fully manipulable OrganizedModel.
+
+        Produces a model equivalent to one created via the PDB workflow
+        (fetch_pdb + OrganizedModel + generate_model). Topology definitions
+        come from bundled CHARMM36m toppar files; charges and masses are
+        overridden from the PSF to reflect any patches applied.
+
+        Parameters
+        ----------
+        psf_path : str
+            Path to CHARMM PSF file
+        crd_path : str
+            Path to CHARMM CRD file
+        QUIET : bool, default False
+            Suppress warnings
+
+        Returns
+        -------
+        OrganizedModel
+            Fully topology-populated model
+        """
+        from crimm.IO.CRDParser import CRDParser
+        from crimm.IO.PSFReader import read_psf
+
+        # 1. Parse CRD → Structure hierarchy with coordinates
+        parser = CRDParser(include_solvent=True, QUIET=QUIET)
+        structure = parser.get_structure(crd_path)
+        model = structure.models[0]
+
+        # 2. Parse PSF → atom metadata (charges, masses, types)
+        psf_data = read_psf(psf_path)
+
+        # 2a. Validate PSF/CRD atom count consistency
+        crd_atom_count = sum(1 for _ in model.get_atoms())
+        psf_atom_count = len(psf_data.atoms)
+        if crd_atom_count != psf_atom_count:
+            raise ValueError(
+                f"PSF/CRD atom count mismatch: CRD has {crd_atom_count} atoms, "
+                f"PSF has {psf_atom_count} atoms."
+            )
+
+        # 3. Wrap in OrganizedModel for chain classification
+        organized = OrganizedModel(model, fetch_web_data=False)
+
+        # 4. Apply topology definitions from bundled toppar
+        self._apply_topology_from_toppar(organized, psf_data, QUIET=QUIET)
+
+        return organized
+
+    def _apply_topology_from_toppar(self, model, psf_data, QUIET=False):
+        """Apply topology definitions to all residues and override from PSF.
+
+        For each chain:
+        1. Load the appropriate toppar (protein, nucleic, water_ions, etc.)
+        2. Apply ResidueDefinition to each residue
+        3. Override atom charges/masses from PSF data
+        4. Build ChainTopology
+
+        Parameters
+        ----------
+        model : OrganizedModel
+            The model to populate with topology
+        psf_data : PSFData
+            Parsed PSF data for charge/mass overrides
+        QUIET : bool
+            Suppress warnings
+        """
+        # Build a lookup: (segid, resid, atomname) → PSFAtom
+        psf_atom_map = {}
+        for psf_atom in psf_data.atoms:
+            key = (
+                psf_atom.segid.strip(),
+                psf_atom.resid.strip(),
+                psf_atom.atomname.strip(),
+            )
+            psf_atom_map[key] = psf_atom
+
+        # Process each chain
+        for chain in model:
+            chain_type = getattr(chain, "chain_type", "")
+
+            # Determine which toppar to load
+            entity_type = self._chain_type_to_entity_type(chain_type)
+            if entity_type is None:
+                if not QUIET:
+                    warnings.warn(
+                        f"No toppar mapping for chain type '{chain_type}', "
+                        f"skipping chain {chain.id}"
+                    )
+                continue
+
+            # Load residue definitions for this entity type
+            if entity_type not in self.res_def_dict:
+                self.res_def_dict[entity_type] = ResidueTopologySet(entity_type)
+            if entity_type not in self.param_dict:
+                self.param_dict[entity_type] = ParameterLoader(entity_type)
+            self.cur_defs = self.res_def_dict[entity_type]
+            self.cur_param = self.param_dict[entity_type]
+            # Only fill IC once per entity type (shared across chains)
+            if not getattr(self, "_ic_filled", set()):
+                self._ic_filled = set()
+            if entity_type not in self._ic_filled:
+                self.cur_param.fill_ic(self.cur_defs, preserve=False)
+                self._ic_filled.add(entity_type)
+
+            # Handle solvent name mapping (HOH/WAT → TIP3)
+            if entity_type == "water_ions" and chain_type.lower() == "solvent":
+                if "TIP3" in self.cur_defs:
+                    self.cur_defs.res_defs["HOH"] = self.cur_defs["TIP3"]
+                    self.cur_defs.res_defs["WAT"] = self.cur_defs["TIP3"]
+                    self.cur_defs.res_defs["SOL"] = self.cur_defs["TIP3"]
+
+            # Apply topo_definition to each residue (loading-safe: no
+            # missing atoms created, since the PSF/CRD is the ground truth)
+            chain.undefined_res = []
+            for residue in chain.get_residues():
+                resname = residue.resname
+                if resname in self.cur_defs:
+                    res_def = self.cur_defs[resname]
+                    self._apply_topo_def_for_loading(residue, res_def, QUIET=QUIET)
+                else:
+                    chain.undefined_res.append(residue)
+                    if not QUIET:
+                        warnings.warn(
+                            f"No topology definition for residue {resname} "
+                            f"in {entity_type} toppar"
+                        )
+
+            # Override charges/masses from PSF
+            self._override_from_psf(chain, psf_atom_map, QUIET=QUIET)
+
+            # Build chain topology
+            if chain_type in (
+                "Polypeptide(L)",
+                "Polyribonucleotide",
+                "Polydeoxyribonucleotide",
+            ):
+                topology = ChainTopology()
+            else:
+                topology = HeterogenTopology()
+            chain.topology = topology.load_chain(chain)
+
+        # Build model topology
+        model.topology = ModelTopology(model)
+        model.topology_loader = self
+
+    @staticmethod
+    def _chain_type_to_entity_type(chain_type):
+        """Map chain_type string to toppar entity type.
+
+        Parameters
+        ----------
+        chain_type : str
+            Chain type from OrganizedModel (e.g. 'Polypeptide(L)', 'Solvent')
+
+        Returns
+        -------
+        str or None
+            Entity type for toppar loading, or None if unmapped
+        """
+        ct = chain_type.lower()
+        if "polypeptide" in ct:
+            return "protein"
+        if "polyribonucleotide" in ct or "polydeoxyribonucleotide" in ct:
+            return "nucleic"
+        if ct == "solvent":
+            return "water_ions"
+        if ct == "ion":
+            return "water_ions"
+        if ct == "ligand":
+            return "cgenff"
+        if ct in ("co_solvent", "cosolvent"):
+            return "synthetic_polymer"
+        return None
+
+    @staticmethod
+    def _override_from_psf(chain, psf_atom_map, QUIET=False):
+        """Override atom charges and masses from PSF data.
+
+        PSF values reflect the actual system (including patches), so they
+        take precedence over the base RTF values.
+
+        Parameters
+        ----------
+        chain : Chain
+            Chain whose atoms to override
+        psf_atom_map : dict
+            Mapping of (segid, resid, atomname) → PSFAtom
+        QUIET : bool
+            Suppress warnings
+        """
+        for residue in chain.get_residues():
+            segid = (getattr(residue, "segid", "") or "").strip()
+            resid = str(residue.id[1]).strip()
+            for atom in residue:
+                key = (segid, resid, atom.name.strip())
+                psf_atom = psf_atom_map.get(key)
+                if psf_atom is not None:
+                    if atom.topo_definition is not None:
+                        # Copy before mutating — AtomDefinition instances are
+                        # shared across residues via ResidueTopologySet
+                        atom.topo_definition = copy(atom.topo_definition)
+                        atom.topo_definition.charge = psf_atom.charge
+                        atom.topo_definition.mass = psf_atom.mass
+                        atom.topo_definition.atom_type = psf_atom.atomtype
+                elif not QUIET:
+                    warnings.warn(
+                        f"Atom {atom.name} in {residue.resname} {residue.id} "
+                        f"not found in PSF data (segid={segid}, resid={resid})"
+                    )
+
     def write_toppar(
-            self,
-            path: str = '.',
-            toppar_folder: str = 'toppar',
-            load_script: str = 'load_toppar.str',
-            include_water_ions: bool = True
-        ) -> list:
+        self,
+        path: str = ".",
+        toppar_folder: str = "toppar",
+        load_script: str = "load_toppar.str",
+        include_water_ions: bool = True,
+    ) -> list:
         """Export all loaded topology/parameter files for standalone CHARMM use.
 
         Creates a toppar directory with RTF, PRM, and STR files based on what
@@ -1815,9 +2104,7 @@ class TopologyGenerator:
         import shutil
 
         if not self.res_def_dict:
-            raise ValueError(
-                "No topology loaded. Call generate() on chains first."
-            )
+            raise ValueError("No topology loaded. Call generate() on chains first.")
 
         # Create output directory
         output_dir = os.path.join(path, toppar_folder)
@@ -1829,120 +2116,127 @@ class TopologyGenerator:
         stream_files = []
 
         # Determine which types to export (exclude cgenff and water_ions - handled separately)
-        biopolymer_types = [t for t in self.res_def_dict.keys()
-                          if t not in ('cgenff', 'water_ions')]
+        biopolymer_types = [
+            t for t in self.res_def_dict.keys() if t not in ("cgenff", "water_ions")
+        ]
 
         # Write biopolymer RTF files
         for topo_type in biopolymer_types:
             topo_loader = self.res_def_dict[topo_type]
-            rtf_path = os.path.join(output_dir, f'{topo_type}.rtf')
-            with open(rtf_path, 'w', encoding='utf-8') as f:
-                f.write(f'* {topo_type.upper()} RTF exported by crimm\n')
-                f.write('*\n')
+            rtf_path = os.path.join(output_dir, f"{topo_type}.rtf")
+            with open(rtf_path, "w", encoding="utf-8") as f:
+                f.write(f"* {topo_type.upper()} RTF exported by crimm\n")
+                f.write("*\n")
                 for line in topo_loader._raw_data_strings:
-                    if line.upper().startswith('RESI') or line.upper().startswith('PRES'):
-                        line = '\n' + line
-                    f.write(line + '\n')
-                f.write('\nEND\n')
+                    if line.upper().startswith("RESI") or line.upper().startswith(
+                        "PRES"
+                    ):
+                        line = "\n" + line
+                    f.write(line + "\n")
+                f.write("\nEND\n")
             written_files.append(rtf_path)
-            rtf_files.append(f'{topo_type}.rtf')
+            rtf_files.append(f"{topo_type}.rtf")
 
         # Write biopolymer PRM files
         for topo_type in biopolymer_types:
             if topo_type in self.param_dict:
                 param_loader = self.param_dict[topo_type]
-                prm_path = os.path.join(output_dir, f'{topo_type}.prm')
-                with open(prm_path, 'w', encoding='utf-8') as f:
-                    f.write(f'* {topo_type.upper()} PRM exported by crimm\n')
-                    f.write('*\n')
+                prm_path = os.path.join(output_dir, f"{topo_type}.prm")
+                with open(prm_path, "w", encoding="utf-8") as f:
+                    f.write(f"* {topo_type.upper()} PRM exported by crimm\n")
+                    f.write("*\n")
                     for line in param_loader._raw_data_strings:
-                        f.write(line + '\n')
-                    f.write('\nEND\n')
+                        f.write(line + "\n")
+                    f.write("\nEND\n")
                 written_files.append(prm_path)
-                prm_files.append(f'{topo_type}.prm')
+                prm_files.append(f"{topo_type}.prm")
 
         # Handle CGenFF if ligands were parameterized
-        if 'cgenff' in self.res_def_dict and self.cgenff_loader is not None:
+        if "cgenff" in self.res_def_dict and self.cgenff_loader is not None:
             # Copy cgenff.rtf
-            src_rtf = os.path.join(toppar_dir, 'cgenff.rtf')
-            dst_rtf = os.path.join(output_dir, 'cgenff.rtf')
+            src_rtf = os.path.join(toppar_dir, "cgenff.rtf")
+            dst_rtf = os.path.join(output_dir, "cgenff.rtf")
             shutil.copy2(src_rtf, dst_rtf)
             written_files.append(dst_rtf)
-            rtf_files.append('cgenff.rtf')
+            rtf_files.append("cgenff.rtf")
 
             # Copy cgenff.prm
-            src_prm = os.path.join(toppar_dir, 'cgenff.prm')
-            dst_prm = os.path.join(output_dir, 'cgenff.prm')
+            src_prm = os.path.join(toppar_dir, "cgenff.prm")
+            dst_prm = os.path.join(output_dir, "cgenff.prm")
             shutil.copy2(src_prm, dst_prm)
             written_files.append(dst_prm)
-            prm_files.append('cgenff.prm')
+            prm_files.append("cgenff.prm")
 
             # Write individual ligand STR files
             for resname, toppar_block in self.cgenff_loader.toppar_blocks.items():
-                str_path = os.path.join(output_dir, f'{resname}.str')
-                with open(str_path, 'w', encoding='utf-8') as f:
-                    f.write(f'* CGenFF topology and parameters for {resname}\n')
-                    f.write('* Generated by crimm\n')
-                    f.write('*\n')
+                str_path = os.path.join(output_dir, f"{resname}.str")
+                with open(str_path, "w", encoding="utf-8") as f:
+                    f.write(f"* CGenFF topology and parameters for {resname}\n")
+                    f.write("* Generated by crimm\n")
+                    f.write("*\n")
                     f.write(toppar_block)
-                    if not toppar_block.endswith('\n'):
-                        f.write('\n')
+                    if not toppar_block.endswith("\n"):
+                        f.write("\n")
                 written_files.append(str_path)
-                stream_files.append(f'{resname}.str')
+                stream_files.append(f"{resname}.str")
 
         # Handle water_ions
         if include_water_ions:
-            src_str = os.path.join(toppar_dir, 'water_ions.str')
-            dst_str = os.path.join(output_dir, 'water_ions.str')
+            src_str = os.path.join(toppar_dir, "water_ions.str")
+            dst_str = os.path.join(output_dir, "water_ions.str")
             shutil.copy2(src_str, dst_str)
             written_files.append(dst_str)
-            stream_files.append('water_ions.str')
+            stream_files.append("water_ions.str")
 
         # Generate load script if requested
         if load_script is not None:
             load_script_path = os.path.join(path, load_script)
-            with open(load_script_path, 'w', encoding='utf-8') as f:
-                f.write('* Toppar loader script generated by crimm\n')
-                f.write('*\n\n')
+            with open(load_script_path, "w", encoding="utf-8") as f:
+                f.write("* Toppar loader script generated by crimm\n")
+                f.write("*\n\n")
 
                 # Write RTF read commands
                 for i, rtf_file in enumerate(rtf_files):
-                    append = ' append' if i > 0 else ''
-                    f.write(f'read rtf card{append} name {toppar_folder}/{rtf_file}\n')
+                    append = " append" if i > 0 else ""
+                    f.write(f"read rtf card{append} name {toppar_folder}/{rtf_file}\n")
 
                 if rtf_files:
-                    f.write('\n')
+                    f.write("\n")
 
                 # Write PRM read commands
                 for i, prm_file in enumerate(prm_files):
-                    append = ' append' if i > 0 else ''
-                    f.write(f'read param card flex{append} name {toppar_folder}/{prm_file}\n')
+                    append = " append" if i > 0 else ""
+                    f.write(
+                        f"read param card flex{append} name {toppar_folder}/{prm_file}\n"
+                    )
 
                 if prm_files:
-                    f.write('\n')
+                    f.write("\n")
 
                 # Write stream commands
                 for str_file in stream_files:
-                    f.write(f'stream {toppar_folder}/{str_file}\n')
+                    f.write(f"stream {toppar_folder}/{str_file}\n")
 
-                f.write('\n')
+                f.write("\n")
 
             written_files.append(load_script_path)
 
         return written_files
 
+
 ##TODO: Rewrite TopoDef and this class to use the Topology instead
 ## of removing entries one by one here
 class ResiduePatcher:
     """Class Object for patching a residue with a patch definition"""
+
     def __init__(self):
         self.res: ResidueDefinition = None
         self.patch: PatchDefinition = None
-        # for marking the ic entry to be removed from terminal residue during 
+        # for marking the ic entry to be removed from terminal residue during
         # patching, either '+' or '-' depending on the patch location
         self.remove_nei_ic_prefix: str = None
 
-    def _remove_atom_from_bonds(self, atom_name:str):
+    def _remove_atom_from_bonds(self, atom_name: str):
         """Remove the atom from the bonds"""
         for bonds in self.res.bonds.values():
             remove_list = []
@@ -1951,7 +2245,7 @@ class ResiduePatcher:
                     remove_list.append(bond)
             for bond in remove_list:
                 bonds.remove(bond)
-        
+
     def _remove_neighbor_atom_from_ic(self):
         remove_keys = set()
         for ic_key in self.res.ic:
@@ -1982,7 +2276,7 @@ class ResiduePatcher:
         for improper in remove_keys:
             self.res.impropers.remove(improper)
 
-    def _remove_atom_from_ic(self, atom_name:str):
+    def _remove_atom_from_ic(self, atom_name: str):
         """Remove the atom from the ic table dictionary"""
         remove_keys = []
         for ic_atom_names in self.res.ic:
@@ -1991,13 +2285,13 @@ class ResiduePatcher:
         for key in remove_keys:
             self.res.ic.pop(key)
 
-    def _remove_atom_from_param(self, param_attr, atom_name:str):
+    def _remove_atom_from_param(self, param_attr, atom_name: str):
         """Remove the residue from the parameter attribute of the residue"""
         remove_keys = set()
         for iterable in param_attr:
             if atom_name in iterable:
                 remove_keys.add(iterable)
-        
+
         for iterable in remove_keys:
             param_attr.remove(iterable)
 
@@ -2013,7 +2307,7 @@ class ResiduePatcher:
                 new_groups.append(group)
         self.res.atom_groups = new_groups
 
-    def _remove_atom_from_cmap(self, cmaps, atom_name:str):
+    def _remove_atom_from_cmap(self, cmaps, atom_name: str):
         """Remove the residue from the parameter attribute of the residue"""
         remove_keys = set()
         for cmap in cmaps:
@@ -2030,14 +2324,15 @@ class ResiduePatcher:
             return
         delete_atom_names = []
         for entity_type, entity_name in self.patch.delete:
-            if entity_type == 'ATOM' and entity_name in self.res:
+            if entity_type == "ATOM" and entity_name in self.res:
                 delete_atom_names.append(entity_name)
         for atom_name in delete_atom_names:
             self.res.removed_atom_dict[atom_name] = self.res.atom_dict.pop(atom_name)
             self._remove_atom_from_bonds(atom_name)
             self._remove_atom_from_ic(atom_name)
             for param_attr in (
-                self.res.impropers, self.res.H_donors,
+                self.res.impropers,
+                self.res.H_donors,
                 self.res.H_acceptors,
             ):
                 self._remove_atom_from_param(param_attr, atom_name)
@@ -2054,7 +2349,8 @@ class ResiduePatcher:
         # Remove groups fully redefined by patch to avoid duplicates (e.g., CT3 patch)
         patch_atoms = set(self.patch.atom_dict.keys())
         self.res.atom_groups = [
-            group for group in self.res.atom_groups
+            group
+            for group in self.res.atom_groups
             if not all(atom_name in patch_atoms for atom_name in group)
         ]
         self.res.atom_groups.extend(self.patch.atom_groups)
@@ -2072,20 +2368,19 @@ class ResiduePatcher:
         self.res.is_modified = True
 
     def patch_residue_definition(
-            self,
-            residue_definition,
-            patch_definition,
-            patch_loc: str = "MIDCHAIN",
-        ):
-        """Patch a residue definition with a patch definition. Return the patched residue definition
-        """
+        self,
+        residue_definition,
+        patch_definition,
+        patch_loc: str = "MIDCHAIN",
+    ):
+        """Patch a residue definition with a patch definition. Return the patched residue definition"""
         patch_loc = patch_loc.upper()
         if patch_loc not in ("MIDCHAIN", "NTER", "CTER"):
             raise ValueError("Patch type must be 'MIDCHAIN', 'NTER' or 'CTER'")
         if patch_loc == "NTER":
-            self.remove_nei_ic_prefix = '-'
+            self.remove_nei_ic_prefix = "-"
         elif patch_loc == "CTER":
-            self.remove_nei_ic_prefix = '+'
+            self.remove_nei_ic_prefix = "+"
 
         # need to make a copy of the patch definition
         # to avoid modifying the original patch definition
@@ -2099,27 +2394,28 @@ class ResiduePatcher:
         self.res.create_atom_lookup_dict()
         self.res.patch_with = self.patch.resname
         return self.res
-    
-    def patch_disulfide(
-            self, res1: ResidueDefinition, res2: ResidueDefinition
-        ):
+
+    def patch_disulfide(self, res1: ResidueDefinition, res2: ResidueDefinition):
         """Patch the disulfide bond between two cysteine residues"""
         ## Disulfide bond patching is hard coded. The residue and atom definitions
         ## are modified here directly without using the DISU patch definition.
-        if not isinstance(res1, ResidueDefinition) or not isinstance(res2, ResidueDefinition):
+        if not isinstance(res1, ResidueDefinition) or not isinstance(
+            res2, ResidueDefinition
+        ):
             raise TypeError("res1 and res2 must be ResidueDefinition objects")
-        if res1.resname != 'CYS' or res2.resname != 'CYS':
+        if res1.resname != "CYS" or res2.resname != "CYS":
             raise ValueError("res1 and res2 must be CYS residues")
         if res1.is_modified or res2.is_modified:
             raise ValueError("res1 and res2 must not be modified")
-        
+
         self.res = deepcopy(res1)
-        remove_name = 'HG1'
+        remove_name = "HG1"
         self.res.removed_atom_dict[remove_name] = self.res.atom_dict.pop(remove_name)
         self._remove_atom_from_bonds(remove_name)
         self._remove_atom_from_ic(remove_name)
         for param_attr in (
-            self.res.impropers, self.res.H_donors,
+            self.res.impropers,
+            self.res.H_donors,
             self.res.H_acceptors,
         ):
             self._remove_atom_from_param(param_attr, remove_name)
@@ -2127,13 +2423,13 @@ class ResiduePatcher:
         self._remove_atom_from_cmap(self.res.cmap, remove_name)
         self.res.assign_donor_acceptor()
         self.res.create_atom_lookup_dict()
-        self.res.patch_with = 'DISU'
+        self.res.patch_with = "DISU"
         # Modify atom types and charges for disulfide bond
-        sulfur_def = self.res['SG']
-        sulfur_def.atom_type = 'SM'
+        sulfur_def = self.res["SG"]
+        sulfur_def.atom_type = "SM"
         sulfur_def.charge = -0.08
-        CB_def = self.res['CB']
+        CB_def = self.res["CB"]
         CB_def.charge = -0.10
-        self.res.is_modified = True       
+        self.res.is_modified = True
 
         return self.res
