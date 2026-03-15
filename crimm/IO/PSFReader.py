@@ -379,25 +379,48 @@ class PSFReader:
         return cmaps
 
     def _parse_lonepairs(self, line: str) -> List[Dict[str, Any]]:
-        """Parse NUMLP NUMLPH section."""
+        """Parse NUMLP NUMLPH section (psfres.F90:717-733).
+
+        CHARMM format:
+            NUMLP  NUMLPH !NUMLP NUMLPH
+            LPNHOST  LPHPTR  LPWGHT  VALUE1  VALUE2  VALUE3  (per LP)
+            LPHOST(1) LPHOST(2) ... LPHOST(NUMLPH)           (packed)
+        """
         parts = line.split('!')
         nums = parts[0].split()
         nlp = int(nums[0]) if nums else 0
+        numlph = int(nums[1]) if len(nums) > 1 else 0
 
         lonepairs = []
         for _ in range(nlp):
             self._next_line()
             lp_line = self._current_line()
             parts = lp_line.split()
-            if len(parts) >= 6:
-                lonepairs.append({
-                    'host': int(parts[0]),
-                    'lp': int(parts[1]),
-                    'type': parts[2],
-                    'distance': float(parts[3]),
-                    'angle': float(parts[4]),
-                    'dihedral': float(parts[5])
-                })
+            lonepairs.append({
+                'nhost': int(parts[0]),
+                'ptr': int(parts[1]),
+                'weight': parts[2] == 'T' if len(parts) > 2 else False,
+                'values': (
+                    float(parts[3]) if len(parts) > 3 else 0.0,
+                    float(parts[4]) if len(parts) > 4 else 0.0,
+                    float(parts[5]) if len(parts) > 5 else 0.0,
+                ),
+            })
+
+        # Read packed LPHOST array
+        lphost = []
+        if numlph > 0:
+            self._next_line()
+            while len(lphost) < numlph:
+                lphost.extend(int(x) for x in self._current_line().split())
+                if len(lphost) < numlph:
+                    self._next_line()
+
+        # Attach host indices to each LP entry
+        for lp in lonepairs:
+            start = lp['ptr'] - 1  # convert to 0-based
+            n_entries = lp['nhost'] + 1  # nhost + LP atom itself
+            lp['host_indices'] = lphost[start:start + n_entries]
 
         self._line_idx += 1
         return lonepairs

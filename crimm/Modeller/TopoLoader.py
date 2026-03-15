@@ -1406,7 +1406,9 @@ class TopologyGenerator:
         """Create and separate missing heavy atoms and missing hydrogen atom by atom name"""
         missing_atom: Atom = residue.topo_definition[atom_name].create_new_atom()
         missing_atom.set_parent(residue)
-        if atom_name.startswith("H"):
+        if atom_name.startswith('LP') and hasattr(residue, 'lone_pair_dict'):
+            residue.lone_pair_dict[atom_name] = missing_atom
+        elif atom_name.startswith('H'):
             residue.missing_hydrogens[atom_name] = missing_atom
         else:
             residue.missing_atoms[atom_name] = missing_atom
