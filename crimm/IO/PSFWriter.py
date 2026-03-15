@@ -1059,6 +1059,11 @@ class PSFWriter:
 
         if indices:
             lines.append(self._format_indices(indices, items_per_line=9))
+        else:
+            # Empty NGRP needs a blank line for gfortran zero-trip READ
+            # compatibility. When NGRP=0, the implied-DO READ still consumes
+            # one record; without this blank, subsequent section reads shift.
+            lines.append("")
 
         return "\n".join(lines)
 
