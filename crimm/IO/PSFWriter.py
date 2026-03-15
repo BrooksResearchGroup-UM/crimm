@@ -24,7 +24,12 @@ from crimm.StructEntities.TopoElements import CMap
 
 @dataclass
 class LonePairInfo:
-    """Information about a lone pair for PSF output."""
+    """Information about a lone pair for PSF output (CHARMM format).
+
+    CHARMM PSF stores LP data as: LPNHOST, LPHPTR, LPWGHT, VALUE1-3
+    plus a packed LPHOST array of atom indices.
+    See psfres.F90:1319-1328.
+    """
 
     lp_atom: Atom
     host_atom: Atom
@@ -80,7 +85,8 @@ class PSFWriter:
         self.separate_crystal_segids = separate_crystal_segids
         self._atom_map: Dict[Atom, int] = {}
         self._atoms: List[Atom] = []
-        self._lonepairs: List[LonePairInfo] = []
+        self._lonepairs: List[dict] = []  # CHARMM format LP entries
+        self._lp_atoms: set = set()  # LP atoms for IMOVE=-1
         self._segid_map: Dict[Any, str] = {}  # Maps chain to assigned segid
 
     def validate_for_simulation(
@@ -308,6 +314,7 @@ class PSFWriter:
         self._atom_map = {}
         self._atoms = []
         self._lonepairs = []
+        self._lp_atoms = set()
         self._segid_map = {}
 
         # Validate topology before writing (CHARMM-style pre-generation checks)
@@ -601,32 +608,41 @@ class PSFWriter:
                     for lp_name, lp_atom in residue.lone_pair_dict.items():
                         self._atom_map[lp_atom] = idx
                         self._atoms.append(lp_atom)
+                        self._lp_atoms.add(lp_atom)
                         idx += 1
-                        # Track lone pair info for NUMLP section
-                        # Find host atom from topology definition
-                        if (
-                            hasattr(residue, "topo_definition")
-                            and residue.topo_definition
-                        ):
-                            lp_def = residue.topo_definition.get(lp_name)
-                            if lp_def and hasattr(lp_def, "lonepair_info"):
-                                host_name = lp_def.lonepair_info.get("host")
-                                if host_name and host_name in residue:
-                                    self._lonepairs.append(
-                                        LonePairInfo(
-                                            lp_atom=lp_atom,
-                                            host_atom=residue[host_name],
-                                            distance=lp_def.lonepair_info.get(
-                                                "distance", 0.0
-                                            ),
-                                            angle=lp_def.lonepair_info.get(
-                                                "angle", 0.0
-                                            ),
-                                            dihedral=lp_def.lonepair_info.get(
-                                                "dihedral", 0.0
-                                            ),
-                                        )
-                                    )
+                        # Build CHARMM-format LP entry for NUMLP section
+                        lp_def = lp_atom.topo_definition
+                        if lp_def is not None and lp_def.lonepair_info is not None:
+                            info = lp_def.lonepair_info
+                            lp_type = info['type']
+                            # Build host_atoms list: [LP, host1, host2, ...]
+                            # This matches CHARMM's LPHOST array layout
+                            host_atom_list = [lp_atom]
+                            for h_name in info['host_atoms']:
+                                if h_name in residue:
+                                    host_atom_list.append(residue[h_name])
+                            # Build values triple per CHARMM convention
+                            if lp_type == 'COLI':
+                                nhost = 2
+                                values = (info['distance'], info.get('scale', 0.0), 0.0)
+                            elif lp_type == 'RELA':
+                                nhost = 3
+                                values = (info['distance'], info['angle'], info['dihedral'])
+                            elif lp_type == 'BISE':
+                                nhost = 3
+                                values = (-info['distance'], info['angle'], info['dihedral'])
+                            elif lp_type == 'CENT':
+                                nhost = len(info['host_atoms'])
+                                values = (0.0, 0.0, 0.0)
+                            else:
+                                continue
+                            self._lonepairs.append({
+                                'lp_atom': lp_atom,
+                                'nhost': nhost,
+                                'host_atoms': host_atom_list,
+                                'weight': False,
+                                'values': values,
+                            })
 
         # Warn about skipped chains
         if skipped_chains:
@@ -749,7 +765,9 @@ class PSFWriter:
                 charge = 0.0
                 mass = atom.mass if atom.mass else 0.0
 
-            imove = 0  # Movement flag (0 = free to move, non-zero = constrained)
+            imove = 0  # Movement flag (0=free, -1=lonepair, 1=fixed)
+            if atom in self._lp_atoms:
+                imove = -1
 
             lines.append(
                 self._format_atom_line(
@@ -1105,34 +1123,51 @@ class PSFWriter:
         )
 
     def _write_lonepairs(self) -> str:
-        """Write NUMLP NUMLPH section for lone pairs.
+        """Write NUMLP NUMLPH section (psfres.F90:1319-1328).
 
-        CHARMM always writes this section, even when there are no lone pairs.
+        CHARMM format:
+            NUMLP  NUMLPH !NUMLP NUMLPH
+            LPNHOST  LPHPTR  LPWGHT  VALUE1  VALUE2  VALUE3   (per LP)
+            LPHOST(1) LPHOST(2) ... LPHOST(NUMLPH)            (packed)
+
+        Where NUMLPH = total entries in the packed LPHOST array.
         """
         lines = []
         nlp = len(self._lonepairs)
-        nlph = nlp  # Number of LP hosts
+        # NUMLPH = total number of entries in LPHOST array
+        numlph = sum(len(lp['host_atoms']) for lp in self._lonepairs)
 
         if self.extended:
-            lines.append(f"{nlp:>10d}{nlph:>10d} !NUMLP NUMLPH")
+            lines.append(f"{nlp:>10d}{numlph:>10d} !NUMLP NUMLPH")
         else:
-            lines.append(f"{nlp:>8d}{nlph:>8d} !NUMLP NUMLPH")
+            lines.append(f"{nlp:>8d}{numlph:>8d} !NUMLP NUMLPH")
 
-        # Lone pair host information (only if there are lone pairs)
-        for lp_info in self._lonepairs:
-            host_idx = self._atom_map.get(lp_info.host_atom, 0)
-            lp_idx = self._atom_map.get(lp_info.lp_atom, 0)
-            # Format: host_atom, lp_atom, type, distance, angle, dihedral
-            if self.extended:
-                lines.append(
-                    f"{host_idx:>10d}{lp_idx:>10d}   F"
-                    f"{lp_info.distance:>14.6f}{lp_info.angle:>14.6f}{lp_info.dihedral:>14.6f}"
-                )
-            else:
-                lines.append(
-                    f"{host_idx:>8d}{lp_idx:>8d}   F"
-                    f"{lp_info.distance:>14.6f}{lp_info.angle:>14.6f}{lp_info.dihedral:>14.6f}"
-                )
+        if nlp > 0:
+            # Per-LP lines: LPNHOST, LPHPTR, LPWGHT, VALUE1-3
+            # Format: fmt06 = (2I10,3X,L1,3G14.6) for extended
+            ptr = 1  # 1-based pointer into LPHOST array
+            for lp_info in self._lonepairs:
+                nhost = lp_info['nhost']
+                weight = 'T' if lp_info['weight'] else 'F'
+                v1, v2, v3 = lp_info['values']
+                if self.extended:
+                    lines.append(
+                        f"{nhost:>10d}{ptr:>10d}   {weight}"
+                        f"{v1:>14.6E}{v2:>14.6E}{v3:>14.6E}"
+                    )
+                else:
+                    lines.append(
+                        f"{nhost:>8d}{ptr:>8d}   {weight}"
+                        f"{v1:>14.6E}{v2:>14.6E}{v3:>14.6E}"
+                    )
+                ptr += len(lp_info['host_atoms'])
+
+            # Packed LPHOST array: all host atom indices
+            host_indices = []
+            for lp_info in self._lonepairs:
+                for atom in lp_info['host_atoms']:
+                    host_indices.append(self._atom_map.get(atom, 0))
+            lines.append(self._format_indices(host_indices))
 
         return "\n".join(lines)
 
