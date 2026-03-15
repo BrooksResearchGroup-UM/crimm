@@ -23,11 +23,12 @@ class AtomDefinition:
         self.mass = mass
         self.desc = desc
         self.element = element
+        self.lonepair_info = None
         if element is None:
             # if element is not specified, take the first letter of the atom name
             # as the element
             # TODO: this is not a good way to determine the element
-            self.element = name[0] 
+            self.element = name[0]
 
     def __repr__(self):
         repr_str = f"<Atom Definition name={self.name} type={self.atom_type}>"
@@ -114,6 +115,10 @@ class ResidueDefinition:
         """Check if there is an atom element with the given atom name."""
         return id in self.atom_dict
 
+    def get(self, id, default=None):
+        """Return atom definition by name, or default if not found."""
+        return self.atom_dict.get(id, default)
+
     def __iter__(self):
         """Iterate over atom definitions."""
         yield from self.atom_dict.values()
@@ -125,8 +130,26 @@ class ResidueDefinition:
         for key, val in res_topo_dict.items():
             if key == 'atoms':
                 self.process_atom_groups(val)
+            elif key == 'lonepairs':
+                self._process_lonepairs(val)
             else:
                 setattr(self, key, val)
+
+    def _process_lonepairs(self, lonepair_list):
+        """Attach lonepair_info to the corresponding AtomDefinitions."""
+        for lp_entry in lonepair_list:
+            lp_name = lp_entry['lp_atom']
+            if lp_name not in self.atom_dict:
+                continue
+            self.atom_dict[lp_name].lonepair_info = {
+                'type': lp_entry['type'],
+                'host': lp_entry['host_atoms'][0] if lp_entry['host_atoms'] else None,
+                'host_atoms': lp_entry['host_atoms'],
+                'distance': lp_entry['distance'],
+                'angle': lp_entry['angle'],
+                'dihedral': lp_entry['dihedral'],
+                'scale': lp_entry.get('scale', 0.0),
+            }
 
     def process_atom_groups(self, atom_dict):
         self.atom_groups = []

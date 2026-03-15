@@ -172,6 +172,61 @@ def delete_parser(line):
         )
     return (fields[0],fields[1])
 
+# Keywords that signal end of atom names and start of keyword=value pairs
+_LP_VALUE_KEYWORDS = frozenset({
+    'DIST', 'DISTANCE',
+    'ANGL', 'ANGLE',
+    'DIHE', 'DIHED', 'DIHEDRAL',
+    'SCAL', 'SCALE',
+    'MASS',
+})
+
+
+def lonepair_parser(line):
+    """Parse a LONEPAIR directive from an RTF file.
+
+    Handles all 4 types: COLINEAR (COLI), RELATIVE (RELA),
+    BISECTOR (BISE), CENTER (CENT).
+
+    CHARMM matches type by first 4 characters, uppercased (rtfio.F90:581,1967).
+    Value keywords (DIST, ANGL, DIHE, SCAL) are case-insensitive.
+    """
+    field_str = comment_parser(line)[0]
+    tokens = field_str.split()
+    # tokens[0] = 'LONEPAIR' (or 'LONE' etc.)
+    # tokens[1] = type keyword
+    lp_type = tokens[1][:4].upper()
+
+    # Separate atom names from keyword=value pairs
+    atom_names = []
+    kv_pairs = {}
+    i = 2
+    while i < len(tokens):
+        if tokens[i].upper() in _LP_VALUE_KEYWORDS:
+            key = tokens[i].upper()[:4]
+            if i + 1 < len(tokens):
+                kv_pairs[key] = float(tokens[i + 1])
+                i += 2
+            else:
+                i += 1
+        else:
+            atom_names.append(tokens[i])
+            i += 1
+
+    lp_atom = atom_names[0] if atom_names else ''
+    host_atoms = atom_names[1:] if len(atom_names) > 1 else []
+
+    return {
+        'type': lp_type,
+        'lp_atom': lp_atom,
+        'host_atoms': host_atoms,
+        'distance': kv_pairs.get('DIST', 0.0),
+        'angle': kv_pairs.get('ANGL', 0.0),
+        'dihedral': kv_pairs.get('DIHE', 0.0),
+        'scale': kv_pairs.get('SCAL', 0.0),
+    }
+
+
 class RTFParser:
     """A parser class to load rtf (residue topology files) into dictionary.
     Parser is initialized with RTF file from file path. If any lines from the 
@@ -234,6 +289,7 @@ class RTFParser:
                         },
                         'impropers':[],
                         'cmap':[],
+                        'lonepairs': [],
                         'ic':{},
                         'is_patch': l.startswith('PRES')
                     }
@@ -308,6 +364,9 @@ class RTFParser:
                 # Internal Coordinates
                 ic_key, ic_param_dict = ic_parser(l)
                 cur_res['ic'][ic_key] = ic_param_dict
+            elif l.startswith('LONE'):
+                lp_entry = lonepair_parser(l)
+                cur_res['lonepairs'].append(lp_entry)
             elif l.startswith('DELE'):
                 if 'delete' not in cur_res:
                     cur_res['delete'] = []
