@@ -606,10 +606,12 @@ class PSFWriter:
                 # Lone pairs (for CGENFF ligands)
                 if hasattr(residue, "lone_pair_dict") and residue.lone_pair_dict:
                     for lp_name, lp_atom in residue.lone_pair_dict.items():
-                        self._atom_map[lp_atom] = idx
-                        self._atoms.append(lp_atom)
+                        # LP may already be in atom_map via atom_groups
+                        if lp_atom not in self._atom_map:
+                            self._atom_map[lp_atom] = idx
+                            self._atoms.append(lp_atom)
+                            idx += 1
                         self._lp_atoms.add(lp_atom)
-                        idx += 1
                         # Build CHARMM-format LP entry for NUMLP section
                         lp_def = lp_atom.topo_definition
                         if lp_def is not None and lp_def.lonepair_info is not None:
