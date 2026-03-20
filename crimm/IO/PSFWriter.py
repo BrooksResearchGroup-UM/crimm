@@ -617,13 +617,7 @@ class PSFWriter:
                         if lp_def is not None and lp_def.lonepair_info is not None:
                             info = lp_def.lonepair_info
                             lp_type = info['type']
-                            # Build host_atoms list: [LP, host1, host2, ...]
-                            # This matches CHARMM's LPHOST array layout
-                            host_atom_list = [lp_atom]
-                            for h_name in info['host_atoms']:
-                                if h_name in residue:
-                                    host_atom_list.append(residue[h_name])
-                            # Build values triple per CHARMM convention
+                            # Determine nhost and values triple per CHARMM convention
                             if lp_type == 'COLI':
                                 nhost = 2
                                 values = (info['distance'], info.get('scale', 0.0), 0.0)
@@ -637,6 +631,23 @@ class PSFWriter:
                                 nhost = len(info['host_atoms'])
                                 values = (0.0, 0.0, 0.0)
                             else:
+                                continue
+                            # Build host_atoms list: [LP, host1, host2, ...]
+                            # This matches CHARMM's LPHOST array layout
+                            host_atom_list = [lp_atom]
+                            for h_name in info['host_atoms']:
+                                if h_name in residue:
+                                    host_atom_list.append(residue[h_name])
+                            # Validate all host atoms were found
+                            if len(host_atom_list) != nhost + 1:
+                                missing = [
+                                    h for h in info['host_atoms']
+                                    if h not in residue
+                                ]
+                                warnings.warn(
+                                    f"LP '{lp_name}' in residue {residue.resname}: "
+                                    f"missing host atoms {missing}, skipping NUMLP entry"
+                                )
                                 continue
                             self._lonepairs.append({
                                 'lp_atom': lp_atom,
