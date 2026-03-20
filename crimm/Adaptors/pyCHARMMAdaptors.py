@@ -28,7 +28,7 @@ def _entity_has_lonepairs(entity) -> bool:
     """Check if entity contains any residues with lone pairs (e.g., CGENFF ligands)."""
     res_list = unfold_entities(entity, 'R')
     for res in res_list:
-        if isinstance(res, Heterogen) and len(res.lone_pairs) > 0:
+        if res.lone_pair_dict:
             return True
     return False
 

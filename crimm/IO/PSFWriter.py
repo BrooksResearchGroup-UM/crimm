@@ -604,7 +604,7 @@ class PSFWriter:
                         idx += 1
 
                 # Lone pairs (for CGENFF ligands)
-                if hasattr(residue, "lone_pair_dict") and residue.lone_pair_dict:
+                if residue.lone_pair_dict:
                     for lp_name, lp_atom in residue.lone_pair_dict.items():
                         # LP may already be in atom_map via atom_groups
                         if lp_atom not in self._atom_map:

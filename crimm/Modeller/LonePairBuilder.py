@@ -92,7 +92,7 @@ def build_lonepair_coords(entity):
     """
     count = 0
     for residue in entity.get_residues():
-        if not hasattr(residue, 'lone_pair_dict') or not residue.lone_pair_dict:
+        if not residue.lone_pair_dict:
             continue
         for lp_name, lp_atom in residue.lone_pair_dict.items():
             lp_def = lp_atom.topo_definition
