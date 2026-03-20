@@ -1179,7 +1179,7 @@ class PSFWriter:
             host_indices = []
             for lp_info in self._lonepairs:
                 for atom in lp_info['host_atoms']:
-                    host_indices.append(self._atom_map.get(atom, 0))
+                    host_indices.append(self._atom_map[atom])
             lines.append(self._format_indices(host_indices, items_per_line=8))
 
         return "\n".join(lines)
