@@ -193,6 +193,10 @@ def lonepair_parser(line):
     """
     field_str = comment_parser(line)[0]
     tokens = field_str.split()
+    if len(tokens) < 2:
+        raise ValueError(
+            f"Malformed LONEPAIR directive (no type keyword): '{field_str.strip()}'"
+        )
     # tokens[0] = 'LONEPAIR' (or 'LONE' etc.)
     # tokens[1] = type keyword
     lp_type = tokens[1][:4].upper()
@@ -213,6 +217,10 @@ def lonepair_parser(line):
             atom_names.append(tokens[i])
             i += 1
 
+    if len(atom_names) < 1:
+        raise ValueError(
+            f"LONEPAIR directive has no atom names: '{field_str.strip()}'"
+        )
     lp_atom = atom_names[0] if atom_names else ''
     host_atoms = atom_names[1:] if len(atom_names) > 1 else []
 
