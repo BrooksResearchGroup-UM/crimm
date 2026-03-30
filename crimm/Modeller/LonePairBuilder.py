@@ -146,6 +146,6 @@ def build_lonepair_coords(entity):
                     warnings.warn(f"Unknown LP type '{lp_type}' for {lp_name}")
                     continue
                 count += 1
-            except Exception as e:
+            except (ValueError, LA.LinAlgError) as e:
                 warnings.warn(f"Failed to build LP {lp_name}: {e}")
     return count
