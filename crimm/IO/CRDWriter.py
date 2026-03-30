@@ -76,8 +76,9 @@ def _get_atoms_from_entity(entity, include_lonepairs: bool = True) -> List[Atom]
     if include_lonepairs:
         if hasattr(entity, "get_residues"):
             for residue in entity.get_residues():
-                if residue.lone_pair_dict:
-                    atoms.extend(residue.lone_pair_dict.values())
+                lone_pair_dict = getattr(residue, "lone_pair_dict", None)
+                if lone_pair_dict:
+                    atoms.extend(lone_pair_dict.values())
         elif hasattr(entity, "lone_pair_dict") and entity.lone_pair_dict:
             atoms.extend(entity.lone_pair_dict.values())
 
