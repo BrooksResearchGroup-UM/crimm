@@ -50,6 +50,14 @@ class Residue(_Residue):
     def total_charge(self):
         """Return the total charge of the residue, including lone pairs."""
         total_charge = 0
+        if not self.lone_pair_dict:
+            for atom in self.child_list:
+                if atom.topo_definition is None:
+                    return None
+                total_charge += atom.topo_definition.charge
+            return round(total_charge, 2)
+        # Slow path: deduplicate LP atoms that may be in both child_list
+        # and lone_pair_dict (LP atoms are virtual sites, not regular children)
         lp_atoms = set(self.lone_pair_dict.values())
         for atom in self.child_list:
             if atom in lp_atoms:
@@ -57,7 +65,7 @@ class Residue(_Residue):
             if atom.topo_definition is None:
                 return None
             total_charge += atom.topo_definition.charge
-        for lp in self.lone_pairs:
+        for lp in lp_atoms:
             if lp.topo_definition is not None:
                 total_charge += lp.topo_definition.charge
         return round(total_charge, 2)

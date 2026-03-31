@@ -221,8 +221,8 @@ def lonepair_parser(line):
         raise ValueError(
             f"LONEPAIR directive has no atom names: '{field_str.strip()}'"
         )
-    lp_atom = atom_names[0] if atom_names else ''
-    host_atoms = atom_names[1:] if len(atom_names) > 1 else []
+    lp_atom = atom_names[0]
+    host_atoms = atom_names[1:]
 
     return {
         'type': lp_type,

@@ -14,28 +14,11 @@ Format specification (from CHARMM source io/psfres.F90):
 
 import warnings
 from typing import Union, List, Dict, Tuple, Optional, Any
-from dataclasses import dataclass
 from crimm.StructEntities.Atom import Atom
 from crimm.StructEntities.Residue import Residue
 from crimm.StructEntities.Chain import BaseChain
 from crimm.StructEntities.Model import Model
 from crimm.StructEntities.TopoElements import CMap
-
-
-@dataclass
-class LonePairInfo:
-    """Information about a lone pair for PSF output (CHARMM format).
-
-    CHARMM PSF stores LP data as: LPNHOST, LPHPTR, LPWGHT, VALUE1-3
-    plus a packed LPHOST array of atom indices.
-    See psfres.F90:1319-1328.
-    """
-
-    lp_atom: Atom
-    host_atom: Atom
-    distance: float = 0.0
-    angle: float = 0.0
-    dihedral: float = 0.0
 
 
 class PSFWriter:
