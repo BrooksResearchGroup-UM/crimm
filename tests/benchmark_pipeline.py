@@ -42,10 +42,12 @@ import random
 import signal
 import sys
 import tempfile
+import threading
 import time
 import traceback
 import warnings
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, fields as dc_fields
 from datetime import datetime, timezone
 from pathlib import Path
@@ -510,6 +512,10 @@ def parse_args():
                     help="Path to the CGenFF executable (enables ligand topology).")
     ap.add_argument("--timeout", type=int, default=300,
                     help="Per-structure timeout in seconds (0 = disabled).")
+    ap.add_argument("--workers", type=int, default=1,
+                    help="Number of structures to process in parallel. "
+                         "Each worker runs in its own subprocess, so "
+                         "pyCHARMM crashes are isolated per structure.")
     ap.add_argument("--verbose", "-v", action="store_true",
                     help="Show DEBUG-level log messages.")
     return ap.parse_args()
@@ -545,19 +551,24 @@ def main():
 
     run_charmm = not args.no_charmm
     log.info(
-        "Will process %d structures → %s  (charmm_load=%s, timeout=%ds)",
-        len(pdb_ids), args.out, run_charmm, args.timeout,
+        "Will process %d structures → %s  "
+        "(workers=%d, charmm_load=%s, timeout=%ds)",
+        len(pdb_ids), args.out, args.workers, run_charmm, args.timeout,
     )
 
     # ── Set up CSV output ─────────────────────────────────────────────────────
     csv_fh, csv_writer = open_csv(args.out, resume=args.resume)
 
-    # ── Graceful interrupt handler ────────────────────────────────────────────
+    # ── Shared state (accessed from worker threads) ───────────────────────────
     results: list[Result] = []
+    # Lock serialises CSV writes, stage_counts updates, and pbar postfix refreshes.
+    _lock = threading.Lock()
 
+    # ── Graceful interrupt handler ────────────────────────────────────────────
     def _handle_signal(*_):
         log.info("Interrupted — printing partial summary …")
-        print_summary(results)
+        with _lock:
+            print_summary(results)
         csv_fh.close()
         sys.exit(0)
 
@@ -565,14 +576,13 @@ def main():
     signal.signal(signal.SIGTERM, _handle_signal)
 
     # ── Live per-stage counters for tqdm postfix ──────────────────────────────
-    # Track counts for statuses that indicate something actually happened.
     COUNTED = (STATUS_OK, STATUS_PARTIAL, STATUS_FAIL, STATUS_CRASH, STATUS_TIMEOUT)
     stage_counts: dict[str, dict[str, int]] = {
         s: {st: 0 for st in COUNTED} for s in STAGES
     }
 
     def _postfix() -> dict:
-        """Compact per-stage ok/fail counts for the tqdm bar."""
+        """Compact per-stage ok/fail counts for the tqdm bar (call under _lock)."""
         out = {}
         for s in STAGES:
             c = stage_counts[s]
@@ -591,51 +601,62 @@ def main():
         return out
 
     # ── Main loop ─────────────────────────────────────────────────────────────
+    # Each thread calls _dispatch_worker(), which itself spawns a subprocess and
+    # blocks until it finishes.  The GIL is released during proc.join(), so
+    # N threads give true N-way parallelism over the subprocess work.
     with logging_redirect_tqdm():
         pbar = tqdm(
-            pdb_ids,
-            desc="benchmark",
+            total=len(pdb_ids),
+            desc=f"benchmark ({args.workers}w)",
             unit="struct",
             dynamic_ncols=True,
             colour="cyan",
         )
-        for pdb_id in pbar:
-            pdb_id = pdb_id.upper()
-            pbar.set_description(f"benchmark [{pdb_id}]")
-            log.info("Dispatching worker for %s …", pdb_id)
 
+        def _process_one(pdb_id: str) -> Result:
+            """Called from a thread-pool thread."""
+            pdb_id = pdb_id.upper()
+            log.info("Dispatching worker for %s …", pdb_id)
             try:
-                result = _dispatch_worker(
-                    pdb_id, args.cgenff, run_charmm, args.timeout
-                )
+                return _dispatch_worker(pdb_id, args.cgenff, run_charmm, args.timeout)
             except Exception as exc:
-                # Unexpected failure in the dispatch machinery itself.
-                result = Result(
+                log.error("[%s] dispatch error: %s", pdb_id, exc)
+                log.debug(traceback.format_exc())
+                return Result(
                     pdb_id=pdb_id,
                     timestamp=datetime.now(timezone.utc).isoformat(),
                     fetch=STATUS_FAIL,
                     fetch_err=f"Dispatch error: {_short_err(exc)}",
                 )
-                log.error("[%s] dispatch error: %s", pdb_id, exc)
-                log.debug(traceback.format_exc())
 
-            # Update counters and refresh tqdm postfix.
-            for stage in STAGES:
-                s = getattr(result, stage)
-                if s in COUNTED:
-                    stage_counts[stage][s] += 1
-            pbar.set_postfix(_postfix())
+        with ThreadPoolExecutor(max_workers=args.workers) as executor:
+            future_to_id = {
+                executor.submit(_process_one, pid): pid.upper()
+                for pid in pdb_ids
+            }
+            for future in as_completed(future_to_id):
+                pdb_id = future_to_id[future]
+                result = future.result()   # never raises; _process_one catches all
 
-            log.info(
-                "[%s] %.1fs — %s",
-                pdb_id,
-                result.elapsed_s,
-                "  ".join(f"{s}={getattr(result, s)}" for s in STAGES),
-            )
+                with _lock:
+                    for stage in STAGES:
+                        s = getattr(result, stage)
+                        if s in COUNTED:
+                            stage_counts[stage][s] += 1
+                    pbar.set_postfix(_postfix())
+                    pbar.update(1)
+                    results.append(result)
+                    csv_writer.writerow(result.as_dict())
+                    csv_fh.flush()
 
-            results.append(result)
-            csv_writer.writerow(result.as_dict())
-            csv_fh.flush()
+                log.info(
+                    "[%s] %.1fs — %s",
+                    pdb_id,
+                    result.elapsed_s,
+                    "  ".join(f"{s}={getattr(result, s)}" for s in STAGES),
+                )
+
+        pbar.close()
 
     # ── Final summary ─────────────────────────────────────────────────────────
     csv_fh.close()
