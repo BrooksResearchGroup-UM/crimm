@@ -326,11 +326,13 @@ def get_cmap(chain: PolymerChain):
     return cmaps
 
 
-def excute_cgenff(cgenff_path, input_mol2_block):
+def execute_cgenff(cgenff_path, input_mol2_block):
     """Excute cgenff to generate topology and parameter files for a given molecule.
     Takes mol2 block as input and return the output as string."""
     completed = subprocess.run(
-        [cgenff_path],
+        # -a is needed for CGenFF to generate the full topology and parameter files
+        # instead of just the missing parameters
+        [cgenff_path, '-a'],
         input=input_mol2_block,
         encoding="ascii",
         capture_output=True,
@@ -1115,7 +1117,7 @@ class CGENFFTopologyLoader:
             with open(ligand_toppar_file, "r", encoding="utf-8") as f:
                 toppar_block = f.read()
         else:
-            toppar_block = excute_cgenff(self.cgenff_path, input_mol2_block)
+            toppar_block = execute_cgenff(self.cgenff_path, input_mol2_block)
         toppar_lines = toppar_block.split("\n")
         rtf_end = toppar_lines.index("END") + 1
 
