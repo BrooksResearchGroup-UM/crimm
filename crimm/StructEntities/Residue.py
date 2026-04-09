@@ -44,21 +44,42 @@ class Residue(_Residue):
         self.is_patch = None
         self.param_desc = None
         self.undefined_atoms = None
-    
+        self.lone_pair_dict = {}
+
     @property
     def total_charge(self):
-        """Return the total charge of the residue."""
+        """Return the total charge of the residue, including lone pairs."""
         total_charge = 0
         for atom in self.child_list:
             if atom.topo_definition is None:
                 return None
             total_charge += atom.topo_definition.charge
+        for lp in self.lone_pairs:
+            if lp.topo_definition is not None:
+                total_charge += lp.topo_definition.charge
         return round(total_charge, 2)
 
     @property
     def atoms(self):
         """Alias for child_list. Return the list of atoms in the residue."""
         return self.child_list
+
+    @property
+    def lone_pairs(self):
+        """Return the list of lone pairs in the residue."""
+        return list(self.lone_pair_dict.values())
+
+    def __getitem__(self, id):
+        """Return the child with given id, including lone pairs."""
+        try:
+            return super().__getitem__(id)
+        except KeyError:
+            if id in self.lone_pair_dict:
+                return self.lone_pair_dict[id]
+            raise
+
+    def __contains__(self, id):
+        return super().__contains__(id) or id in self.lone_pair_dict
     
     def get_atoms(self, include_alt=False):
         """Return the list of all atoms. If include_alt is True, all altloc of 
@@ -150,33 +171,9 @@ class Heterogen(Residue):
         super().__init__(res_id, resname, segid)
         self.pdbx_description = None
         self._rdkit_mol = rdkit_mol
-        self.lone_pair_dict = {}
-        # This is for the purpose of visualization and rdkit mol conversion. 
+        # This is for the purpose of visualization and rdkit mol conversion.
         # The actual bond information should stored in the topo_definition attribute.
         self._bonds = None
-
-    def __getitem__(self, id):
-        """Return the child with given id."""
-        return {**self.child_dict, **self.lone_pair_dict}[id]
-    
-    def __contains__(self, id):
-        return super().__contains__(id) or id in self.lone_pair_dict
-    
-    @property
-    def lone_pairs(self):
-        """Return the list of lone pairs in the residue."""
-        return list(self.lone_pair_dict.values())
-
-    @property
-    def total_charge(self):
-        """Return the total charge of the residue."""
-        total_charge = super().total_charge
-        if total_charge is None:
-            return None
-        for lp in self.lone_pairs:
-            if lp.topo_definition is not None:
-                total_charge += lp.topo_definition.charge
-        return round(total_charge, 2)
 
     @property
     def bonds(self):
