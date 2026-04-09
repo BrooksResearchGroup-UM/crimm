@@ -205,9 +205,9 @@ def load_chain(chain, hbuild=False, report=False, use_psf_crd=True, append=False
 
     # Determine segment ID based on chain type
     if chain.chain_type == 'Polyribonucleotide':
-        segid = f'NUC{chain.id[0]}'
+        segid = f'NUC{chain.id}'
     else:
-        segid = f'PRO{chain.id[0]}'
+        segid = f'PRO{chain.id}'
 
     # Set segid on all residues
     for res in chain:

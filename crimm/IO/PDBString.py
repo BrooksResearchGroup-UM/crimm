@@ -26,7 +26,7 @@ def _get_atom_line_with_parent_info(
     segid = residue.segid
     hetfield, resseq, icode = residue.id
     if (chain:=residue.parent) is not None:
-        chain_id = chain.get_id()[0]
+        chain_id = chain.get_id()
     else:
         chain_id = '_'
     return _get_atom_line(
@@ -35,16 +35,25 @@ def _get_atom_line_with_parent_info(
         use_charmm_format=use_charmm_format
     )
 
-def _get_ter_line(atom: Atom, trunc_resname=False):
+def _get_ter_line(atom: Atom, trunc_resname=False, use_charmm_format=False):
     """Return the parent info of the atom (PRIVATE). Atom must have a parent residue."""
     residue = atom.parent
     resname = residue.resname
     hetfield, resseq, icode = residue.id
     if (chain:=residue.parent) is not None:
-        chain_id = chain.get_id()[0]
+        chain_id = chain.get_id()
     else:
         # no chain info, no standard TER line
         return 'TER\n'
+
+    if use_charmm_format:
+        return 'TER\n'
+
+    if len(chain_id) > 1:
+        raise ValueError(
+            f"Chain ID '{chain_id}' exceeds the standard PDB limit of 1 character. "
+            "Use CHARMM-format PDB output or an mmCIF writer instead."
+        )
     
     if len(resname) > 3 and trunc_resname:
         # Truncate residue name to 3 characters so it does not mess up
@@ -90,6 +99,11 @@ def _get_atom_line(
         format_string = _CHARMM_ATOM_FORMAT_STRING
         record_type = "ATOM  "
     else:
+        if len(chain_id) > 1:
+            raise ValueError(
+                f"Chain ID '{chain_id}' exceeds the standard PDB limit of 1 "
+                "character. Use CHARMM-format PDB output or an mmCIF writer instead."
+            )
         format_string = _ATOM_FORMAT_STRING
 
     if len(resname) > 3 and trunc_resname:
@@ -243,6 +257,8 @@ def get_pdb_str(
             pdb_str += _get_atom_line_with_parent_info(
                 atom, trunc_resname, use_charmm_format, convert_water
             )
-        pdb_str += _get_ter_line(atoms[-1], trunc_resname)
+        pdb_str += _get_ter_line(
+            atoms[-1], trunc_resname, use_charmm_format=use_charmm_format
+        )
     pdb_str += 'END\n'
     return pdb_str

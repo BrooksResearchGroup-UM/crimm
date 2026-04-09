@@ -1,4 +1,3 @@
-from string import ascii_uppercase
 import warnings
 import pathlib
 from Bio.PDB.PDBParser import PDBParser as _PDBParser
@@ -9,16 +8,9 @@ from Bio.Data.PDBData import (
 from crimm.IO.StructureBuilder import StructureBuilder
 from crimm.StructEntities.Chain import Solvent, Heterogens, PolymerChain, Chain, Ion
 from crimm.Data.components_dict import CHARMM_PDB_ION_NAMES
+from crimm.Utils.StructureUtils import index_to_letters
 
 protein_letters_3to1.update({'HSD': 'H', 'HSE': 'H', 'HSP': 'H'})
-
-
-def _index_to_chain_id(index, chain_id=''):
-    """Return spreadsheet-style chain IDs for indices beyond 25."""
-    chain_id = ascii_uppercase[index % 26] + chain_id
-    if (next_index := index // 26) > 0:
-        return _index_to_chain_id(next_index - 1, chain_id)
-    return chain_id
 
 
 def check_chain_type(residues, resname_lookup, extended_lookup=None):
@@ -96,7 +88,7 @@ def convert_chains(chains):
     ):
         if len(residues) == 0:
             continue
-        new_chain_id = _index_to_chain_id(len(new_chains))
+        new_chain_id = index_to_letters(len(new_chains))
         if chain_type in ('Polypeptide(L)', 'Polyribonucleotide'):
             new_chain = PolymerChain(
                 chain_id = new_chain_id,
