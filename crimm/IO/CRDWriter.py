@@ -45,6 +45,16 @@ def _get_residue_atoms(residue) -> List[Atom]:
     return list(residue.get_atoms())
 
 
+def _extend_unique_atoms(atoms: List[Atom], new_atoms, seen_atom_ids: set) -> None:
+    """Append atoms while preserving order and object uniqueness."""
+    for atom in new_atoms:
+        atom_id = id(atom)
+        if atom_id in seen_atom_ids:
+            continue
+        atoms.append(atom)
+        seen_atom_ids.add(atom_id)
+
+
 def _get_atoms_from_entity(entity, include_lonepairs: bool = True) -> List[Atom]:
     """Get all atoms from an entity, optionally including lone pairs.
 
@@ -61,22 +71,24 @@ def _get_atoms_from_entity(entity, include_lonepairs: bool = True) -> List[Atom]
         List of atoms in order, using RTF group order when available
     """
     atoms = []
+    seen_atom_ids = set()
 
     if hasattr(entity, "get_residues"):
         for residue in entity.get_residues():
-            atoms.extend(_get_residue_atoms(residue))
+            _extend_unique_atoms(atoms, _get_residue_atoms(residue), seen_atom_ids)
             if include_lonepairs:
                 lp_dict = getattr(residue, "lone_pair_dict", None)
                 if lp_dict:
-                    atoms.extend(lp_dict.values())
+                    _extend_unique_atoms(atoms, lp_dict.values(), seen_atom_ids)
     elif isinstance(entity, Residue):
-        atoms.extend(_get_residue_atoms(entity))
-        if include_lonepairs and entity.lone_pair_dict:
-            atoms.extend(entity.lone_pair_dict.values())
+        _extend_unique_atoms(atoms, _get_residue_atoms(entity), seen_atom_ids)
+        lp_dict = getattr(entity, "lone_pair_dict", None)
+        if include_lonepairs and lp_dict:
+            _extend_unique_atoms(atoms, lp_dict.values(), seen_atom_ids)
     elif hasattr(entity, "get_atoms"):
-        atoms.extend(list(entity.get_atoms()))
+        _extend_unique_atoms(atoms, entity.get_atoms(), seen_atom_ids)
     elif isinstance(entity, Atom):
-        atoms.append(entity)
+        _extend_unique_atoms(atoms, [entity], seen_atom_ids)
 
     return atoms
 
