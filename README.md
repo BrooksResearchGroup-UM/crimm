@@ -14,12 +14,13 @@ This is a Python toolkit for biomolecule structure preparation, designed to unif
 ## Features
 
 - Fetch structures from RCSB PDB or AlphaFold Database
-- Generate topology using **CHARMM36m** force field (proteins, nucleic acids, lipids, carbohydrates)
-- Parameterize small molecule ligands with **CGenFF** integration
+- Organize mmCIF structures into protein, nucleic acid, ligand, solvent, and ion components
+- Generate **CHARMM36m** topology for proteins and protein-containing systems
+- Parameterize small-molecule ligands with **CGenFF** integration, including lone-pair-aware workflows
+- Read, write, and reload native CHARMM PSF and CRD files
 - Solvate in cubic or truncated octahedral water boxes
-- Add ions at target concentrations (SPLIT, SLTCAP methods)
+- Add monovalent ions at target concentrations (SPLIT, SLTCAP methods)
 - Build missing loops from homology models
-- Read/write native CHARMM PSF and CRD files
 - Visualize structures in Jupyter notebooks with NGLView
 
 ## Installation
@@ -28,13 +29,19 @@ This is a Python toolkit for biomolecule structure preparation, designed to unif
 pip install crimm
 ```
 
-Requires Python >= 3.8. For a complete environment:
+Optional cheminformatics and protonation extras:
+
+```bash
+pip install "crimm[all]"
+```
+
+Requires Python >= 3.9. For a complete development environment:
 
 ```bash
 conda env create -f env.yaml
 ```
 
-> **Note**: pyCHARMM and OpenMM must be installed separately if needed.
+> **Note**: pyCHARMM, OpenMM, and the external CGenFF executable must be installed separately when those workflows are needed.
 
 ## Quick Example
 
@@ -65,13 +72,13 @@ write_crd(model, 'system.crd')
 | Module | Purpose |
 |--------|---------|
 | `Fetchers` | Download structures from RCSB PDB or AlphaFold |
-| `Modeller` | Topology generation, solvation, loop building |
-| `IO` | Read/write PDB, mmCIF, PSF, CRD files |
+| `Modeller` | Topology generation, PSF/CRD loading, solvation, loop building |
+| `IO` | Read/write PDB, mmCIF, PSF, and CRD files |
 | `Adaptors` | Connect to pyCHARMM, RDKit, PropKa |
 
 ## Documentation
 
-See `tutorials/` for Jupyter notebooks on structure preparation, topology generation, loop building, and more.
+See `tutorials/` for Jupyter notebooks on structure preparation, topology generation, PSF/CRD workflows, loop building, and more.
 
 ## License
 
