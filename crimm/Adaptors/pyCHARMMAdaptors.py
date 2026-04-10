@@ -17,6 +17,7 @@ from crimm.IO.PDBString import get_pdb_str
 from crimm.IO import write_psf, write_crd
 from crimm.Modeller.LonePairBuilder import build_lonepair_coords
 from crimm.Data.components_dict import nucleic_letters_1to3
+from crimm.Utils.StructureUtils import polymer_chain_to_charmm_segid
 
 def empty_charmm():
     """If any atom exists in current CHARMM runtime, remove them."""
@@ -203,11 +204,8 @@ def load_chain(chain, hbuild=False, report=False, use_psf_crd=True, append=False
     if not chain.is_continuous():
         raise ValueError("Chain is not continuous! Fix the chain first!")
 
-    # Determine segment ID based on chain type
-    if chain.chain_type == 'Polyribonucleotide':
-        segid = f'NUC{chain.id[0]}'
-    else:
-        segid = f'PRO{chain.id[0]}'
+    # Use the shared CHARMM SEGID policy for all loading modes.
+    segid = polymer_chain_to_charmm_segid(chain)
 
     # Set segid on all residues
     for res in chain:
@@ -588,9 +586,10 @@ def patch_disu_from_model(model):
     """Patch disulfide bonds found in a model object."""
     if 'disulf' in model.connect_dict:
         for res1, res2 in model.connect_dict['disulf']:
-            seg1, seg2 = res1['chain'], res2['chain']
+            seg1 = polymer_chain_to_charmm_segid(model[res1['chain']])
+            seg2 = polymer_chain_to_charmm_segid(model[res2['chain']])
             seq1, seq2 = res1['resseq'], res2['resseq']
-            patch_arg = f'PRO{seg1} {seq1} PRO{seg2} {seq2}'
+            patch_arg = f'{seg1} {seq1} {seg2} {seq2}'
             print('[Excuting CHARMM Command] patch DISU', patch_arg)
             generate.patch('DISU', patch_arg)
 

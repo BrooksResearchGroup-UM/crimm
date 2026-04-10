@@ -19,6 +19,7 @@ from crimm.StructEntities.Residue import Residue
 from crimm.StructEntities.Chain import BaseChain
 from crimm.StructEntities.Model import Model
 from crimm.StructEntities.TopoElements import CMap
+from crimm.Utils.StructureUtils import polymer_chain_to_charmm_segid
 
 
 class PSFWriter:
@@ -359,9 +360,7 @@ class PSFWriter:
         """Assign automatic segment IDs to chains without segids.
 
         Rules:
-        - Protein: PRO{A,B,C,...}
-        - DNA: DNA{A,B,C,...}
-        - RNA: RNA{A,B,C,...}
+        - Polymer chains: shared CHARMM-safe segid policy based on chain.id
         - Solvent: SOLV (single segment for all waters)
         - Ion: IONS (single segment for all ions)
         - Ligand/Other: LIG{A,B,C,...}
@@ -393,12 +392,16 @@ class PSFWriter:
             # Determine chain type
             chain_type = getattr(chain, "chain_type", None) or ""
 
-            if "polypeptide" in chain_type.lower():
-                prefix = "PRO"
-            elif "polydeoxyribonucleotide" in chain_type.lower():
-                prefix = "DNA"
-            elif "polyribonucleotide" in chain_type.lower():
-                prefix = "RNA"
+            if (
+                "polypeptide" in chain_type.lower()
+                or "polydeoxyribonucleotide" in chain_type.lower()
+                or "polyribonucleotide" in chain_type.lower()
+            ):
+                segid = polymer_chain_to_charmm_segid(chain)
+                self._segid_map[chain] = segid
+                for residue in chain:
+                    residue.segid = segid
+                continue
             elif chain_type.lower() == "solvent":
                 # By default, all waters share SOLV segid
                 # If separate_crystal_segids=True, crystallographic waters get CRWT

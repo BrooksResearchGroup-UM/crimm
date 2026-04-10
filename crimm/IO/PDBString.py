@@ -1,4 +1,5 @@
 import warnings
+from string import ascii_uppercase, ascii_lowercase, digits
 
 # Allowed Elements
 from Bio.Data.IUPACData import atom_weights
@@ -13,6 +14,44 @@ _CHARMM_ATOM_FORMAT_STRING = (
 _TER_FORMAT_STRING = (
     "TER   %5i      %3s %c%4i%c                                                      \n"
 )
+_STANDARD_PDB_CHAIN_IDS = ascii_uppercase + ascii_lowercase + digits
+_CHAIN_ID_POLICIES = {"preserve", "renumber"}
+
+
+def _make_standard_pdb_export_copy(entity):
+    """Return a copy of entity with single-character chain IDs for PDB export."""
+    export_entity = entity.copy()
+    if export_entity.level == 'C':
+        chains = [export_entity]
+    elif export_entity.level == 'M':
+        chains = list(export_entity.child_list)
+    elif export_entity.level == 'S':
+        if len(export_entity.child_list) == 0:
+            return export_entity
+        chains = list(export_entity.child_list[0].child_list)
+    else:
+        return export_entity
+
+    if len(chains) > len(_STANDARD_PDB_CHAIN_IDS):
+        raise ValueError(
+            "Standard PDB output can only remap up to "
+            f"{len(_STANDARD_PDB_CHAIN_IDS)} chains into unique single-character IDs. "
+            "Serialize chains separately or use CHARMM-format PDB/mmCIF output instead."
+        )
+
+    for i, chain in enumerate(chains):
+        chain.id = _STANDARD_PDB_CHAIN_IDS[i]
+    return export_entity
+
+
+def _normalize_chain_id_policy(chain_id_policy):
+    if chain_id_policy not in _CHAIN_ID_POLICIES:
+        valid = ", ".join(sorted(_CHAIN_ID_POLICIES))
+        raise ValueError(
+            f"Unknown chain_id_policy '{chain_id_policy}'. "
+            f"Expected one of: {valid}."
+        )
+    return chain_id_policy
 
 def _get_atom_line_with_parent_info(
         atom: Atom, trunc_resname=False, use_charmm_format=False, convert_water=False
@@ -26,7 +65,7 @@ def _get_atom_line_with_parent_info(
     segid = residue.segid
     hetfield, resseq, icode = residue.id
     if (chain:=residue.parent) is not None:
-        chain_id = chain.get_id()[0]
+        chain_id = chain.get_id()
     else:
         chain_id = '_'
     return _get_atom_line(
@@ -35,16 +74,25 @@ def _get_atom_line_with_parent_info(
         use_charmm_format=use_charmm_format
     )
 
-def _get_ter_line(atom: Atom, trunc_resname=False):
+def _get_ter_line(atom: Atom, trunc_resname=False, use_charmm_format=False):
     """Return the parent info of the atom (PRIVATE). Atom must have a parent residue."""
     residue = atom.parent
     resname = residue.resname
     hetfield, resseq, icode = residue.id
     if (chain:=residue.parent) is not None:
-        chain_id = chain.get_id()[0]
+        chain_id = chain.get_id()
     else:
         # no chain info, no standard TER line
         return 'TER\n'
+
+    if use_charmm_format:
+        return 'TER\n'
+
+    if len(chain_id) > 1:
+        raise ValueError(
+            f"Chain ID '{chain_id}' exceeds the standard PDB limit of 1 character. "
+            "Use CHARMM-format PDB output or an mmCIF writer instead."
+        )
     
     if len(resname) > 3 and trunc_resname:
         # Truncate residue name to 3 characters so it does not mess up
@@ -87,9 +135,19 @@ def _get_atom_line(
 
     if use_charmm_format:
         # CHARMM format does not have chain id and record type is always ATOM
+        if len(segid) > 4:
+            raise ValueError(
+                f"SEGID '{segid}' exceeds the CHARMM PDB limit of 4 characters. "
+                "Use a shorter segid or the default PSF/CRD loading path instead."
+            )
         format_string = _CHARMM_ATOM_FORMAT_STRING
         record_type = "ATOM  "
     else:
+        if len(chain_id) > 1:
+            raise ValueError(
+                f"Chain ID '{chain_id}' exceeds the standard PDB limit of 1 "
+                "character. Use CHARMM-format PDB output or an mmCIF writer instead."
+            )
         format_string = _ATOM_FORMAT_STRING
 
     if len(resname) > 3 and trunc_resname:
@@ -194,7 +252,8 @@ def _get_atom_line(
 def get_pdb_str(
         entity, reset_serial=True,
         include_alt=False, trunc_resname=False, 
-        use_charmm_format=False, convert_water=False
+        use_charmm_format=False, convert_water=False,
+        chain_id_policy="preserve"
     ):
     """Return the PDB string of the entity.
     Parameters
@@ -211,11 +270,20 @@ def get_pdb_str(
         Whether to use CHARMM PDB format (no chain ID), by default False.
     convert_water : bool, optional
         Whether to convert common water residue names to HOH, by default False.
+    chain_id_policy : {"preserve", "renumber"}, optional
+        Policy for standard PDB chain IDs. ``"preserve"`` keeps the original
+        chain IDs and raises if they exceed the one-character PDB limit.
+        ``"renumber"`` writes from a temporary copy with remapped single-
+        character chain IDs.
     Returns
     -------
     str
         The PDB string of the entity.
     """
+    chain_id_policy = _normalize_chain_id_policy(chain_id_policy)
+    if chain_id_policy == "renumber" and not use_charmm_format:
+        entity = _make_standard_pdb_export_copy(entity)
+
     if reset_serial and hasattr(entity, 'reset_atom_serial_numbers'):
         entity.reset_atom_serial_numbers(include_alt=include_alt)
 
@@ -243,6 +311,8 @@ def get_pdb_str(
             pdb_str += _get_atom_line_with_parent_info(
                 atom, trunc_resname, use_charmm_format, convert_water
             )
-        pdb_str += _get_ter_line(atoms[-1], trunc_resname)
+        pdb_str += _get_ter_line(
+            atoms[-1], trunc_resname, use_charmm_format=use_charmm_format
+        )
     pdb_str += 'END\n'
     return pdb_str

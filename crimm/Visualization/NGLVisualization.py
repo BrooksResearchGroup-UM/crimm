@@ -20,7 +20,8 @@ class NGLStructure(nv.Structure):
     def get_structure_string(self):
         return get_pdb_str(
             self.entity, include_alt=False, trunc_resname=True, 
-            use_charmm_format=False, convert_water=True
+            use_charmm_format=False, convert_water=True,
+            chain_id_policy='renumber'
         )
 
 class NGLRDKitStructure(nv.Structure):
