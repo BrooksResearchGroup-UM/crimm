@@ -15,7 +15,7 @@ from pycharmm.psf import get_natom, delete_atoms
 from Bio.PDB.Selection import unfold_entities
 from crimm.IO.PDBString import get_pdb_str
 from crimm.IO import write_psf, write_crd
-from crimm.StructEntities.Residue import Heterogen
+from crimm.Modeller.LonePairBuilder import build_lonepair_coords
 from crimm.Data.components_dict import nucleic_letters_1to3
 
 def empty_charmm():
@@ -28,7 +28,7 @@ def _entity_has_lonepairs(entity) -> bool:
     """Check if entity contains any residues with lone pairs (e.g., CGENFF ligands)."""
     res_list = unfold_entities(entity, 'R')
     for res in res_list:
-        if isinstance(res, Heterogen) and len(res.lone_pairs) > 0:
+        if getattr(res, "lone_pair_dict", None):
             return True
     return False
 
@@ -53,12 +53,16 @@ def _load_psf_crd(entity, append=False, separate_crystal_segids=False):
     import os
     psf_path = None
     crd_path = None
+    has_lonepairs = _entity_has_lonepairs(entity)
     try:
         # Create temp files with delete=False for cross-platform compatibility
         with tempfile.NamedTemporaryFile('w', suffix='.psf', delete=False) as psf_f:
             psf_path = psf_f.name
         with tempfile.NamedTemporaryFile('w', suffix='.crd', delete=False) as crd_f:
             crd_path = crd_f.name
+
+        if has_lonepairs:
+            build_lonepair_coords(entity)
 
         # Write PSF and CRD files (these functions handle their own file I/O)
         write_psf(entity, psf_path, separate_crystal_segids=separate_crystal_segids)
@@ -82,7 +86,7 @@ def _load_psf_crd(entity, append=False, separate_crystal_segids=False):
             os.unlink(crd_path)
 
     # Handle lone pairs if present (CGENFF ligands)
-    if _entity_has_lonepairs(entity):
+    if has_lonepairs:
         print("[crimm] Creating lone pair coordinates using COOR SHAKE")
         pcm.lingo.charmm_script("coor shake")
 
@@ -697,9 +701,9 @@ def fetch_coords_from_charmm(entity):
     charmm_coord_dict = get_charmm_coord_dict(all_charmm_atoms)
     for residue in res_list:
         atoms = list(residue.get_atoms())
-        # Update lone pairs coordinates for heterogens too
-        if isinstance(residue, Heterogen):
-            atoms.extend(residue.lone_pairs)
+        lp_dict = getattr(residue, "lone_pair_dict", None)
+        if lp_dict:
+            atoms.extend(lp_dict.values())
         resname = residue.resname
         if resname == 'HIS':
             # use histidine's CHARMM name

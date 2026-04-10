@@ -379,25 +379,48 @@ class PSFReader:
         return cmaps
 
     def _parse_lonepairs(self, line: str) -> List[Dict[str, Any]]:
-        """Parse NUMLP NUMLPH section."""
+        """Parse NUMLP NUMLPH section (psfres.F90:717-733).
+
+        CHARMM format:
+            NUMLP  NUMLPH !NUMLP NUMLPH
+            LPNHOST  LPHPTR  LPWGHT  VALUE1  VALUE2  VALUE3  (per LP)
+            LPHOST(1) LPHOST(2) ... LPHOST(NUMLPH)           (packed)
+        """
         parts = line.split('!')
         nums = parts[0].split()
         nlp = int(nums[0]) if nums else 0
+        numlph = int(nums[1]) if len(nums) > 1 else 0
 
         lonepairs = []
         for _ in range(nlp):
             self._next_line()
             lp_line = self._current_line()
             parts = lp_line.split()
-            if len(parts) >= 6:
-                lonepairs.append({
-                    'host': int(parts[0]),
-                    'lp': int(parts[1]),
-                    'type': parts[2],
-                    'distance': float(parts[3]),
-                    'angle': float(parts[4]),
-                    'dihedral': float(parts[5])
-                })
+            lonepairs.append({
+                'nhost': int(parts[0]),
+                'ptr': int(parts[1]),
+                'weight': parts[2] == 'T' if len(parts) > 2 else False,
+                'values': (
+                    float(parts[3]) if len(parts) > 3 else 0.0,
+                    float(parts[4]) if len(parts) > 4 else 0.0,
+                    float(parts[5]) if len(parts) > 5 else 0.0,
+                ),
+            })
+
+        # Read packed LPHOST array
+        lphost = []
+        if numlph > 0:
+            self._next_line()
+            while len(lphost) < numlph:
+                lphost.extend(int(x) for x in self._current_line().split())
+                if len(lphost) < numlph:
+                    self._next_line()
+
+        # Attach host indices to each LP entry
+        for lp in lonepairs:
+            start = lp['ptr'] - 1  # convert to 0-based
+            n_entries = lp['nhost'] + 1  # nhost + LP atom itself
+            lp['host_indices'] = lphost[start:start + n_entries]
 
         self._line_idx += 1
         return lonepairs
@@ -420,6 +443,18 @@ def read_psf(filepath: str) -> PSFData:
     """
     reader = PSFReader()
     return reader.read(filepath)
+
+
+def _normalize_lonepair_entry(lp: Dict[str, Any]) -> Tuple[Any, ...]:
+    """Normalize a lone-pair entry for structural comparison."""
+    values = tuple(round(float(value), 6) for value in lp.get('values', ()))
+    host_indices = tuple(int(idx) for idx in lp.get('host_indices', ()))
+    return (
+        int(lp.get('nhost', 0)),
+        bool(lp.get('weight', False)),
+        values,
+        host_indices,
+    )
 
 
 def compare_psf(psf1: PSFData, psf2: PSFData, verbose: bool = False) -> Dict[str, Any]:
@@ -464,6 +499,7 @@ def compare_psf(psf1: PSFData, psf2: PSFData, verbose: bool = False) -> Dict[str
         ('dihedrals', len(psf1.dihedrals), len(psf2.dihedrals)),
         ('impropers', len(psf1.impropers), len(psf2.impropers)),
         ('cmap', len(psf1.cmap), len(psf2.cmap)),
+        ('lonepairs', len(psf1.lonepairs), len(psf2.lonepairs)),
     ]
 
     for name, c1, c2 in counts:
@@ -480,6 +516,11 @@ def compare_psf(psf1: PSFData, psf2: PSFData, verbose: bool = False) -> Dict[str
             differences.append(f"Bonds in psf2 but not psf1: {len(missing1)}")
         if missing2:
             differences.append(f"Bonds in psf1 but not psf2: {len(missing2)}")
+
+    lonepairs1 = [_normalize_lonepair_entry(lp) for lp in psf1.lonepairs]
+    lonepairs2 = [_normalize_lonepair_entry(lp) for lp in psf2.lonepairs]
+    if lonepairs1 != lonepairs2:
+        differences.append("Lonepair definitions differ")
 
     result = {
         'equal': len(differences) == 0,
