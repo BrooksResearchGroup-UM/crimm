@@ -643,7 +643,9 @@ def heterogen_to_rdkit(het_res, smiles=None):
     Returns:
         rdkit.Chem.rdchem.Mol: The rdkit mol of the heterogen.
     """
-    mol = Chem.MolFromPDBBlock(get_pdb_str(het_res))
+    mol = Chem.MolFromPDBBlock(
+        get_pdb_str(het_res, pdb_compatible_chain_ids=True)
+    )
     if smiles is None:
         smiles = query_rcsb_for_smiles(het_res)
     # We do not allow rdkit mol return if the correct bond orders are not set
