@@ -69,15 +69,20 @@ def _get_polymer_segid(chain, legacy_pdb_compatible: bool = False) -> str:
     """Return the segid used for a polymer chain in the selected loading mode."""
     if chain.chain_type == 'Polyribonucleotide':
         prefix = 'NUC'
-        legacy_prefix = 'N'
+        legacy_two_char_prefix = 'NR'
+        legacy_fallback_prefix = 'N'
     else:
         prefix = 'PRO'
-        legacy_prefix = 'P'
+        legacy_two_char_prefix = 'PR'
+        legacy_fallback_prefix = 'P'
 
-    segid = f'{prefix}{chain.id}'
+    chain_id = chain.id.upper()
+    segid = f'{prefix}{chain_id}'
     if not legacy_pdb_compatible or len(segid) <= 4:
         return segid
-    return f'{legacy_prefix}{_compact_legacy_chain_id(chain.id)}'
+    if len(chain_id) == 2 and chain_id.isalnum():
+        return f'{legacy_two_char_prefix}{chain_id}'
+    return f'{legacy_fallback_prefix}{_compact_legacy_chain_id(chain_id)}'
 
 def empty_charmm():
     """If any atom exists in current CHARMM runtime, remove them."""
