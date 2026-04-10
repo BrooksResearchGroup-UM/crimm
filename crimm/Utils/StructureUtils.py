@@ -1,10 +1,13 @@
-from string import ascii_uppercase
+from string import ascii_uppercase, digits
 from Bio.Data.PDBData import protein_letters_3to1_extended
 from Bio.Data.PDBData import nucleic_letters_3to1_extended
 from crimm.Data.components_dict import nucleic_letters_1to3
 from crimm.StructEntities.Chain import Solvent, Ion, PolymerChain
 from copy import copy
 import numpy as np
+
+
+_BASE36_ALPHABET = digits + ascii_uppercase
 
 def index_to_letters(index, letter = ''):
     """Enumerate a sequence of letters based on the alphabet from a integer number.
@@ -40,6 +43,79 @@ def letters_to_index(letters):
         cur_index = ascii_uppercase.find(l)+1
         index += cur_index * (26 ** i)
     return index
+
+
+def _to_base36(value: int) -> str:
+    """Encode a non-negative integer as an uppercase base36 string."""
+    if value < 0:
+        raise ValueError("value must be non-negative")
+    if value == 0:
+        return "0"
+
+    encoded = []
+    while value:
+        value, remainder = divmod(value, 36)
+        encoded.append(_BASE36_ALPHABET[remainder])
+    return "".join(reversed(encoded))
+
+
+def compact_charmm_chain_id(chain_id: str, max_len: int = 3) -> str:
+    """Return a compact uppercase token for CHARMM's 4-character SEGID limit."""
+    chain_id = str(chain_id).upper()
+    if len(chain_id) <= max_len and chain_id.isalnum():
+        return chain_id
+    if not chain_id.isalpha():
+        raise ValueError(
+            f"Cannot compact chain ID '{chain_id}' into a CHARMM SEGID token."
+        )
+
+    compact = _to_base36(letters_to_index(chain_id))
+    if len(compact) > max_len:
+        raise ValueError(
+            f"Chain ID '{chain_id}' cannot be represented within CHARMM's "
+            "4-character SEGID limit."
+        )
+    return compact
+
+
+def polymer_chain_id_to_charmm_segid(chain_type: str, chain_id: str) -> str:
+    """Map a polymer chain ID to a single CHARMM-safe 4-character SEGID policy.
+
+    Rules:
+        Protein A   -> PROA
+        Protein AA  -> PRAA
+        RNA A       -> RNAA
+        RNA AA      -> RRAA
+        DNA A       -> DNAA
+        DNA AA      -> DRAA
+        Longer IDs  -> type letter + compact token
+    """
+    chain_id = str(chain_id).upper()
+    normalized_type = (chain_type or "").lower()
+
+    if "polydeoxyribonucleotide" in normalized_type:
+        full_prefix = "DNA"
+        rollover_prefix = "DR"
+        fallback_prefix = "D"
+    elif "polyribonucleotide" in normalized_type:
+        full_prefix = "RNA"
+        rollover_prefix = "RR"
+        fallback_prefix = "R"
+    else:
+        full_prefix = "PRO"
+        rollover_prefix = "PR"
+        fallback_prefix = "P"
+
+    if len(chain_id) == 1 and chain_id.isalnum():
+        return f"{full_prefix}{chain_id}"
+    if len(chain_id) == 2 and chain_id.isalnum():
+        return f"{rollover_prefix}{chain_id}"
+    return f"{fallback_prefix}{compact_charmm_chain_id(chain_id)}"
+
+
+def polymer_chain_to_charmm_segid(chain) -> str:
+    """Return the CHARMM SEGID for a polymer chain object."""
+    return polymer_chain_id_to_charmm_segid(chain.chain_type, chain.id)
 
 def get_coords(entity, include_alt=False):
     """Get atom coordinates from any structure entity level or a list of entities.

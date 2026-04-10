@@ -5,6 +5,7 @@ from crimm.Modeller.TopoFixer import fix_chain
 from crimm.StructEntities.Model import Model
 import crimm.Adaptors.pyCHARMMAdaptors as pcm_interface
 from crimm.Adaptors.PropKaAdaptors import PropKaProtonator
+from crimm.Utils.StructureUtils import polymer_chain_to_charmm_segid
 
 from pycharmm.psf import delete_atoms as pcm_del_atoms
 from pycharmm.psf import get_natom as pcm_get_natom
@@ -74,7 +75,7 @@ def protonate_and_patch(model, pH, rtf_loader, param_loader):
 
     for chain_id, patch_dict in protonator.patches.items():
         for resid, patch_name in patch_dict.items():
-            pcm_patch(patch_name, f'PRO{chain_id} {resid}')
+            pcm_patch(patch_name, f'{polymer_chain_to_charmm_segid(model[chain_id])} {resid}')
 
 def load_pdbid_in_charmm(
     pdb_id,
@@ -171,7 +172,10 @@ def load_pdbid_in_charmm(
         for res1, res2 in structure.models[0].connect_dict['disulf']:
             seg1, seg2 = res1['chain'], res2['chain']
             seq1, seq2 = res1['resseq'], res2['resseq']
-            patch_arg = f'PRO{seg1} {seq1} PRO{seg2} {seq2}'
+            patch_arg = (
+                f'{polymer_chain_to_charmm_segid(new_model[seg1])} {seq1} '
+                f'{polymer_chain_to_charmm_segid(new_model[seg2])} {seq2}'
+            )
             pcm_patch('DISU', patch_arg)
 
     return structure

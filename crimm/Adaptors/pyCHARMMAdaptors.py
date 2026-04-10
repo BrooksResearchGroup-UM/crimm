@@ -2,7 +2,6 @@ import tempfile
 import warnings
 import numpy as np
 from pathlib import Path
-from string import digits, ascii_uppercase
 
 import pycharmm as pcm
 from pycharmm import read, psf, coor
@@ -18,71 +17,7 @@ from crimm.IO.PDBString import get_pdb_str
 from crimm.IO import write_psf, write_crd
 from crimm.Modeller.LonePairBuilder import build_lonepair_coords
 from crimm.Data.components_dict import nucleic_letters_1to3
-from crimm.Utils.StructureUtils import letters_to_index
-
-
-_BASE36_ALPHABET = digits + ascii_uppercase
-
-
-def _to_base36(value: int) -> str:
-    """Encode a non-negative integer as an uppercase base36 string."""
-    if value < 0:
-        raise ValueError("value must be non-negative")
-    if value == 0:
-        return "0"
-
-    encoded = []
-    while value:
-        value, remainder = divmod(value, 36)
-        encoded.append(_BASE36_ALPHABET[remainder])
-    return "".join(reversed(encoded))
-
-
-def _compact_legacy_chain_id(chain_id: str, max_len: int = 3) -> str:
-    """Return a CHARMM-PDB-safe token for legacy 4-character segids.
-
-    The deprecated PDB loading path writes CHARMM-format PDB records with a
-    4-character SEGID field. Preserve the existing PRO*/NUC* style when it fits;
-    otherwise compact alphabetic rollover chain IDs into <=3 characters so a
-    one-character type prefix can still produce a unique legacy segid.
-    """
-    chain_id = chain_id.upper()
-    if len(chain_id) <= max_len and chain_id.isalnum():
-        return chain_id
-    if not chain_id.isalpha():
-        raise ValueError(
-            f"Legacy PDB-based CHARMM loading cannot compact chain ID '{chain_id}'. "
-            "Use the default PSF/CRD loading path instead."
-        )
-
-    compact = _to_base36(letters_to_index(chain_id))
-    if len(compact) > max_len:
-        raise ValueError(
-            f"Legacy PDB-based CHARMM loading cannot represent chain ID '{chain_id}' "
-            "within CHARMM's 4-character SEGID limit. Use the default PSF/CRD "
-            "loading path instead."
-        )
-    return compact
-
-
-def _get_polymer_segid(chain, legacy_pdb_compatible: bool = False) -> str:
-    """Return the segid used for a polymer chain in the selected loading mode."""
-    if chain.chain_type == 'Polyribonucleotide':
-        prefix = 'NUC'
-        legacy_two_char_prefix = 'NR'
-        legacy_fallback_prefix = 'N'
-    else:
-        prefix = 'PRO'
-        legacy_two_char_prefix = 'PR'
-        legacy_fallback_prefix = 'P'
-
-    chain_id = chain.id.upper()
-    segid = f'{prefix}{chain_id}'
-    if not legacy_pdb_compatible or len(segid) <= 4:
-        return segid
-    if len(chain_id) == 2 and chain_id.isalnum():
-        return f'{legacy_two_char_prefix}{chain_id}'
-    return f'{legacy_fallback_prefix}{_compact_legacy_chain_id(chain_id)}'
+from crimm.Utils.StructureUtils import polymer_chain_to_charmm_segid
 
 def empty_charmm():
     """If any atom exists in current CHARMM runtime, remove them."""
@@ -269,8 +204,8 @@ def load_chain(chain, hbuild=False, report=False, use_psf_crd=True, append=False
     if not chain.is_continuous():
         raise ValueError("Chain is not continuous! Fix the chain first!")
 
-    # Determine segment ID based on chain type
-    segid = _get_polymer_segid(chain, legacy_pdb_compatible=not use_psf_crd)
+    # Use the shared CHARMM SEGID policy for all loading modes.
+    segid = polymer_chain_to_charmm_segid(chain)
 
     # Set segid on all residues
     for res in chain:
@@ -605,7 +540,7 @@ def load_model(model, use_psf_crd=True, load_params=True, separate_crystal_segid
             load_ions(model.ion, use_psf_crd=False)
         
         # Apply disulfide patches (only needed for PDB-based loading)
-        patch_disu_from_model(model, legacy_pdb_compatible=True)
+        patch_disu_from_model(model)
 
 def _get_charmm_named_chain(chain, segid):
     for res in chain:
@@ -647,16 +582,12 @@ def _load_chain(
     if hbuild:
         pcm.lingo.charmm_script("hbuild sele type H* end")
 
-def patch_disu_from_model(model, legacy_pdb_compatible=False):
+def patch_disu_from_model(model):
     """Patch disulfide bonds found in a model object."""
     if 'disulf' in model.connect_dict:
         for res1, res2 in model.connect_dict['disulf']:
-            seg1 = _get_polymer_segid(
-                model[res1['chain']], legacy_pdb_compatible=legacy_pdb_compatible
-            )
-            seg2 = _get_polymer_segid(
-                model[res2['chain']], legacy_pdb_compatible=legacy_pdb_compatible
-            )
+            seg1 = polymer_chain_to_charmm_segid(model[res1['chain']])
+            seg2 = polymer_chain_to_charmm_segid(model[res2['chain']])
             seq1, seq2 = res1['resseq'], res2['resseq']
             patch_arg = f'{seg1} {seq1} {seg2} {seq2}'
             print('[Excuting CHARMM Command] patch DISU', patch_arg)
