@@ -96,6 +96,11 @@ def _get_atom_line(
 
     if use_charmm_format:
         # CHARMM format does not have chain id and record type is always ATOM
+        if len(segid) > 4:
+            raise ValueError(
+                f"SEGID '{segid}' exceeds the CHARMM PDB limit of 4 characters. "
+                "Use a shorter segid or the default PSF/CRD loading path instead."
+            )
         format_string = _CHARMM_ATOM_FORMAT_STRING
         record_type = "ATOM  "
     else:
