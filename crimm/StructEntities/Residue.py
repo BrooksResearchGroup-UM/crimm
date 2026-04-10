@@ -147,6 +147,24 @@ class Residue(_Residue):
                 )
         return bonds
 
+    def copy(self):
+        """Return a copy of the residue with independent lone-pair atoms."""
+        new = super().copy()
+        new.lone_pair_dict = {}
+
+        for lp_name in self.lone_pair_dict:
+            if lp_name in new.child_dict:
+                lp_atom = new.child_dict.pop(lp_name)
+                if lp_atom in new.child_list:
+                    new.child_list.remove(lp_atom)
+
+        for lp_name, lp_atom in self.lone_pair_dict.items():
+            lp_copy = lp_atom.copy()
+            lp_copy.set_parent(new)
+            new.lone_pair_dict[lp_name] = lp_copy
+
+        return new
+
 class DisorderedResidue(_DisorderedResidue):
     
     def get_top_parent(self):

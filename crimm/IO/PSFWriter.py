@@ -990,6 +990,29 @@ class PSFWriter:
 
         return "\n".join(lines)
 
+    @staticmethod
+    def _iter_residue_atoms_with_lonepairs(residue):
+        """Yield residue atoms plus lone pairs exactly once."""
+        seen_atom_ids = set()
+
+        for atom in residue.get_atoms():
+            atom_id = id(atom)
+            if atom_id in seen_atom_ids:
+                continue
+            seen_atom_ids.add(atom_id)
+            yield atom
+
+        lp_dict = getattr(residue, "lone_pair_dict", None)
+        if not lp_dict:
+            return
+
+        for atom in lp_dict.values():
+            atom_id = id(atom)
+            if atom_id in seen_atom_ids:
+                continue
+            seen_atom_ids.add(atom_id)
+            yield atom
+
     def _determine_group_type(self, residue) -> int:
         """Determine CHARMM group type based on residue charges.
 
@@ -1001,7 +1024,7 @@ class PSFWriter:
         has_any_charge = False
         total_charge = 0.0
 
-        for atom in residue.get_atoms():
+        for atom in self._iter_residue_atoms_with_lonepairs(residue):
             if atom.topo_definition is not None:
                 charge = atom.topo_definition.charge
                 if abs(charge) > 1e-6:

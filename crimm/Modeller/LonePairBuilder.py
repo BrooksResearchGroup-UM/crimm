@@ -82,7 +82,7 @@ def build_lonepair_coords(entity):
 
     Parameters
     ----------
-    entity : Model, Chain, or OrganizedModel
+    entity : Model, Chain, OrganizedModel, or Residue
         Entity containing residues with lone_pair_dict populated.
 
     Returns
@@ -91,7 +91,16 @@ def build_lonepair_coords(entity):
         Number of LP atoms positioned.
     """
     count = 0
-    for residue in entity.get_residues():
+    if hasattr(entity, "get_residues"):
+        residues = entity.get_residues()
+    elif hasattr(entity, "lone_pair_dict"):
+        residues = (entity,)
+    else:
+        raise ValueError(
+            "Entity must provide get_residues() or lone_pair_dict for LP building."
+        )
+
+    for residue in residues:
         if not residue.lone_pair_dict:
             continue
         for lp_name, lp_atom in residue.lone_pair_dict.items():

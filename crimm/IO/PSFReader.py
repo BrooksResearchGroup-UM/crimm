@@ -445,6 +445,18 @@ def read_psf(filepath: str) -> PSFData:
     return reader.read(filepath)
 
 
+def _normalize_lonepair_entry(lp: Dict[str, Any]) -> Tuple[Any, ...]:
+    """Normalize a lone-pair entry for structural comparison."""
+    values = tuple(round(float(value), 6) for value in lp.get('values', ()))
+    host_indices = tuple(int(idx) for idx in lp.get('host_indices', ()))
+    return (
+        int(lp.get('nhost', 0)),
+        bool(lp.get('weight', False)),
+        values,
+        host_indices,
+    )
+
+
 def compare_psf(psf1: PSFData, psf2: PSFData, verbose: bool = False) -> Dict[str, Any]:
     """Compare two PSF data structures.
 
@@ -487,6 +499,7 @@ def compare_psf(psf1: PSFData, psf2: PSFData, verbose: bool = False) -> Dict[str
         ('dihedrals', len(psf1.dihedrals), len(psf2.dihedrals)),
         ('impropers', len(psf1.impropers), len(psf2.impropers)),
         ('cmap', len(psf1.cmap), len(psf2.cmap)),
+        ('lonepairs', len(psf1.lonepairs), len(psf2.lonepairs)),
     ]
 
     for name, c1, c2 in counts:
@@ -503,6 +516,11 @@ def compare_psf(psf1: PSFData, psf2: PSFData, verbose: bool = False) -> Dict[str
             differences.append(f"Bonds in psf2 but not psf1: {len(missing1)}")
         if missing2:
             differences.append(f"Bonds in psf1 but not psf2: {len(missing2)}")
+
+    lonepairs1 = [_normalize_lonepair_entry(lp) for lp in psf1.lonepairs]
+    lonepairs2 = [_normalize_lonepair_entry(lp) for lp in psf2.lonepairs]
+    if lonepairs1 != lonepairs2:
+        differences.append("Lonepair definitions differ")
 
     result = {
         'equal': len(differences) == 0,

@@ -1051,6 +1051,8 @@ class CGENFFTopologySet:
         self.mass_dict = CGENFF_MASS_TABLE
         self.res_defs = {}
         self.residues = []
+        self.patches = []
+        self.patched_defs = {}
         self._raw_data_strings = []
         self.entity_type = "cgenff"
 
@@ -1133,6 +1135,55 @@ class CGENFFTopologyLoader:
 
         return toppar_block
 
+    @staticmethod
+    def _apply_ligand_topology_definition(
+        lig_res: Heterogen,
+        residue_definition: ResidueDefinition,
+    ) -> None:
+        """Apply a CGenFF residue definition without inventing missing real atoms."""
+        from crimm.Modeller.LonePairBuilder import build_lonepair_coords
+
+        for atom_def in residue_definition:
+            atom_name = atom_def.name
+            if atom_name.startswith("LP"):
+                continue
+            if atom_name not in lig_res:
+                raise ValueError(
+                    f"Atom {atom_name} not found in the residue {lig_res}!"
+                    "If generating topology using a provided ligand_toppar_file, "
+                    "make sure the file matches the ligand."
+                )
+
+        lig_res.topo_definition = residue_definition
+        lig_res.impropers = residue_definition.impropers
+        lig_res.cmap = residue_definition.cmap
+        lig_res.H_donors = residue_definition.H_donors
+        lig_res.H_acceptors = residue_definition.H_acceptors
+        lig_res.param_desc = residue_definition.desc
+        lig_res.atom_groups = []
+        lig_res.missing_atoms, lig_res.missing_hydrogens = {}, {}
+        lig_res.undefined_atoms = []
+        lig_res.lone_pair_dict = {}
+
+        for atom_names in residue_definition.atom_groups:
+            cur_group = []
+            for atom_name in atom_names:
+                if atom_name.startswith("LP"):
+                    cur_atom = residue_definition[atom_name].create_new_atom()
+                    cur_atom.set_parent(lig_res)
+                    lig_res.lone_pair_dict[atom_name] = cur_atom
+                else:
+                    cur_atom = lig_res[atom_name]
+                cur_atom.topo_definition = residue_definition[atom_name]
+                cur_group.append(cur_atom)
+            lig_res.atom_groups.append(cur_group)
+
+        for atom in lig_res:
+            if atom.name not in residue_definition:
+                lig_res.undefined_atoms.append(atom)
+
+        build_lonepair_coords(lig_res)
+
     ## TODO: need to find topology element from rtf. Currently only add
     ## topology definition to the atom
     def generate(self, lig_res: Heterogen, ligand_toppar_file=None):
@@ -1163,21 +1214,7 @@ class CGENFFTopologyLoader:
         )
         self.toppar_blocks[lig_res.resname] = toppar_block
         residue_definition = self.cgenff_topo_set.res_defs[lig_res.resname]
-        for atom_def in residue_definition:
-            atom_def_name = atom_def.name
-            if atom_def_name.startswith("LP"):
-                lp = atom_def.create_new_atom()
-                lig_res.lone_pair_dict[atom_def_name] = lp
-                lp.parent = lig_res
-            if atom_def_name not in lig_res:
-                raise ValueError(
-                    f"Atom {atom_def_name} not found in the residue {lig_res}!"
-                    "If generating topology using a provided ligand_toppar_file, "
-                    "make sure the file matches the ligand."
-                )
-            atom = lig_res[atom_def.name]
-            atom.topo_definition = atom_def
-        lig_res.topo_definition = residue_definition
+        self._apply_ligand_topology_definition(lig_res, residue_definition)
 
     def generate_from_rdkit(self, rdkit_mol, resname, ligand_toppar_file=None):
         """Generate topology definition for the ligand residue using cgenff. A
@@ -1193,11 +1230,7 @@ class CGENFFTopologyLoader:
         )
         self.toppar_blocks[resname] = toppar_block
         residue_definition = self.cgenff_topo_set.res_defs[resname]
-        for atom_def in residue_definition:
-            atom_def_name = atom_def.name
-            atom = ligand[atom_def_name]
-            atom.topo_definition = atom_def
-        ligand.topo_definition = residue_definition
+        self._apply_ligand_topology_definition(ligand, residue_definition)
         return ligand
 
     def write_all(self, pathname=None):
@@ -1925,6 +1958,7 @@ class TopologyGenerator:
                 psf_atom.atomname.strip(),
             )
             psf_atom_map[key] = psf_atom
+        psf_lonepair_map = self._build_psf_lonepair_map(psf_data)
 
         # Process each chain
         for chain in model:
@@ -1965,6 +1999,15 @@ class TopologyGenerator:
             # missing atoms created, since the PSF/CRD is the ground truth)
             chain.undefined_res = []
             for residue in chain.get_residues():
+                residue_key = (
+                    (getattr(residue, "segid", "") or "").strip(),
+                    str(residue.id[1]).strip(),
+                )
+                lonepair_names = psf_lonepair_map.get(residue_key)
+                if lonepair_names:
+                    self._restore_residue_lonepairs(
+                        residue, lonepair_names, QUIET=QUIET
+                    )
                 resname = residue.resname
                 if resname in self.cur_defs:
                     res_def = self.cur_defs[resname]
@@ -2025,6 +2068,70 @@ class TopologyGenerator:
         return None
 
     @staticmethod
+    def _build_psf_lonepair_map(psf_data):
+        """Build a lookup of lone-pair atom names keyed by (segid, resid)."""
+        lonepair_map = {}
+        for lp_entry in psf_data.lonepairs:
+            host_indices = lp_entry.get("host_indices", ())
+            if not host_indices:
+                continue
+            lp_index = host_indices[0] - 1
+            if lp_index < 0 or lp_index >= len(psf_data.atoms):
+                continue
+            lp_atom = psf_data.atoms[lp_index]
+            key = (lp_atom.segid.strip(), lp_atom.resid.strip())
+            lonepair_map.setdefault(key, set()).add(lp_atom.atomname.strip())
+        return lonepair_map
+
+    @staticmethod
+    def _restore_residue_lonepairs(residue, lonepair_names, QUIET=False):
+        """Move LP atoms parsed from CRD into the residue lone-pair dictionary."""
+        residue.lone_pair_dict = getattr(residue, "lone_pair_dict", {}) or {}
+
+        for lp_name in lonepair_names:
+            if lp_name in residue.lone_pair_dict:
+                residue.lone_pair_dict[lp_name].set_parent(residue)
+                continue
+
+            lp_atom = residue.child_dict.get(lp_name)
+            if lp_atom is None:
+                if not QUIET:
+                    warnings.warn(
+                        f"Lone-pair atom {lp_name} not found in residue "
+                        f"{residue.resname} {residue.id[1]} during PSF/CRD load."
+                    )
+                continue
+
+            residue.child_dict.pop(lp_name, None)
+            if lp_atom in residue.child_list:
+                residue.child_list.remove(lp_atom)
+            lp_atom.set_parent(residue)
+            residue.lone_pair_dict[lp_name] = lp_atom
+
+    @staticmethod
+    def _iter_residue_atoms_for_psf(residue):
+        """Yield residue atoms plus lone pairs exactly once."""
+        seen_atom_ids = set()
+
+        for atom in residue.get_atoms():
+            atom_id = id(atom)
+            if atom_id in seen_atom_ids:
+                continue
+            seen_atom_ids.add(atom_id)
+            yield atom
+
+        lp_dict = getattr(residue, "lone_pair_dict", None)
+        if not lp_dict:
+            return
+
+        for atom in lp_dict.values():
+            atom_id = id(atom)
+            if atom_id in seen_atom_ids:
+                continue
+            seen_atom_ids.add(atom_id)
+            yield atom
+
+    @staticmethod
     def _override_from_psf(chain, psf_atom_map, QUIET=False):
         """Override atom charges and masses from PSF data.
 
@@ -2043,7 +2150,7 @@ class TopologyGenerator:
         for residue in chain.get_residues():
             segid = (getattr(residue, "segid", "") or "").strip()
             resid = str(residue.id[1]).strip()
-            for atom in residue:
+            for atom in TopologyGenerator._iter_residue_atoms_for_psf(residue):
                 key = (segid, resid, atom.name.strip())
                 psf_atom = psf_atom_map.get(key)
                 if psf_atom is not None:
