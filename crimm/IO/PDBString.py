@@ -14,10 +14,11 @@ _CHARMM_ATOM_FORMAT_STRING = (
 _TER_FORMAT_STRING = (
     "TER   %5i      %3s %c%4i%c                                                      \n"
 )
-_PDB_CHAIN_IDS = ascii_uppercase + ascii_lowercase + digits
+_STANDARD_PDB_CHAIN_IDS = ascii_uppercase + ascii_lowercase + digits
+_CHAIN_ID_POLICIES = {"preserve", "renumber"}
 
 
-def _copy_with_standard_pdb_chain_ids(entity):
+def _make_standard_pdb_export_copy(entity):
     """Return a copy of entity with single-character chain IDs for PDB export."""
     export_entity = entity.copy()
     if export_entity.level == 'C':
@@ -31,16 +32,26 @@ def _copy_with_standard_pdb_chain_ids(entity):
     else:
         return export_entity
 
-    if len(chains) > len(_PDB_CHAIN_IDS):
+    if len(chains) > len(_STANDARD_PDB_CHAIN_IDS):
         raise ValueError(
             "Standard PDB output can only remap up to "
-            f"{len(_PDB_CHAIN_IDS)} chains into unique single-character IDs. "
+            f"{len(_STANDARD_PDB_CHAIN_IDS)} chains into unique single-character IDs. "
             "Serialize chains separately or use CHARMM-format PDB/mmCIF output instead."
         )
 
     for i, chain in enumerate(chains):
-        chain.id = _PDB_CHAIN_IDS[i]
+        chain.id = _STANDARD_PDB_CHAIN_IDS[i]
     return export_entity
+
+
+def _normalize_chain_id_policy(chain_id_policy):
+    if chain_id_policy not in _CHAIN_ID_POLICIES:
+        valid = ", ".join(sorted(_CHAIN_ID_POLICIES))
+        raise ValueError(
+            f"Unknown chain_id_policy '{chain_id_policy}'. "
+            f"Expected one of: {valid}."
+        )
+    return chain_id_policy
 
 def _get_atom_line_with_parent_info(
         atom: Atom, trunc_resname=False, use_charmm_format=False, convert_water=False
@@ -242,7 +253,7 @@ def get_pdb_str(
         entity, reset_serial=True,
         include_alt=False, trunc_resname=False, 
         use_charmm_format=False, convert_water=False,
-        pdb_compatible_chain_ids=False
+        chain_id_policy="preserve"
     ):
     """Return the PDB string of the entity.
     Parameters
@@ -259,16 +270,19 @@ def get_pdb_str(
         Whether to use CHARMM PDB format (no chain ID), by default False.
     convert_water : bool, optional
         Whether to convert common water residue names to HOH, by default False.
-    pdb_compatible_chain_ids : bool, optional
-        Whether to renumber chain IDs in a temporary copy so standard PDB output
-        stays within the single-character chain-ID limit, by default False.
+    chain_id_policy : {"preserve", "renumber"}, optional
+        Policy for standard PDB chain IDs. ``"preserve"`` keeps the original
+        chain IDs and raises if they exceed the one-character PDB limit.
+        ``"renumber"`` writes from a temporary copy with remapped single-
+        character chain IDs.
     Returns
     -------
     str
         The PDB string of the entity.
     """
-    if pdb_compatible_chain_ids and not use_charmm_format:
-        entity = _copy_with_standard_pdb_chain_ids(entity)
+    chain_id_policy = _normalize_chain_id_policy(chain_id_policy)
+    if chain_id_policy == "renumber" and not use_charmm_format:
+        entity = _make_standard_pdb_export_copy(entity)
 
     if reset_serial and hasattr(entity, 'reset_atom_serial_numbers'):
         entity.reset_atom_serial_numbers(include_alt=include_alt)

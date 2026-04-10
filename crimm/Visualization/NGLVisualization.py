@@ -21,7 +21,7 @@ class NGLStructure(nv.Structure):
         return get_pdb_str(
             self.entity, include_alt=False, trunc_resname=True, 
             use_charmm_format=False, convert_water=True,
-            pdb_compatible_chain_ids=True
+            chain_id_policy='renumber'
         )
 
 class NGLRDKitStructure(nv.Structure):
