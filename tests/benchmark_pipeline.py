@@ -270,7 +270,7 @@ def _run_stages(pdb_id: str, cgenff_path: Optional[str], run_charmm: bool,
         return
     _checkpoint()
 
-    if not model.protein:
+    if not (model.protein or model.RNA or model.DNA):
         # Nothing more to do; remaining stages stay as STATUS_SKIP.
         return
 
@@ -280,33 +280,36 @@ def _run_stages(pdb_id: str, cgenff_path: Optional[str], run_charmm: bool,
     loop_build_failed = False
     loop_build_err_msg = ""
 
-    for chain in model.protein:
-        if chain.is_continuous():
-            continue
-        gaps_found += 1
-        try:
-            looper = ChainLoopBuilder(chain, inplace=True)
-            looper.build_from_alphafold(include_terminal=False)
-            if chain.is_continuous():
-                gaps_repaired += 1
-        except Exception as exc:
-            loop_build_failed = True
-            loop_build_err_msg = _short_err(exc)
-
-    res.n_gaps_found = gaps_found
-    res.n_gaps_repaired = gaps_repaired
-
-    if gaps_found == 0:
-        res.loop_build = STATUS_OK
-    elif loop_build_failed and gaps_repaired == 0:
-        res.loop_build = STATUS_FAIL
-        res.loop_build_err = loop_build_err_msg
-        _checkpoint()
-        return
-    elif loop_build_failed or gaps_repaired < gaps_found:
-        res.loop_build = STATUS_PARTIAL
+    if not model.protein:
+        res.loop_build = STATUS_SKIP
     else:
-        res.loop_build = STATUS_OK
+        for chain in model.protein:
+            if chain.is_continuous():
+                continue
+            gaps_found += 1
+            try:
+                looper = ChainLoopBuilder(chain, inplace=True)
+                looper.build_from_alphafold(include_terminal=False)
+                if chain.is_continuous():
+                    gaps_repaired += 1
+            except Exception as exc:
+                loop_build_failed = True
+                loop_build_err_msg = _short_err(exc)
+
+        res.n_gaps_found = gaps_found
+        res.n_gaps_repaired = gaps_repaired
+
+        if gaps_found == 0:
+            res.loop_build = STATUS_OK
+        elif loop_build_failed and gaps_repaired == 0:
+            res.loop_build = STATUS_FAIL
+            res.loop_build_err = loop_build_err_msg
+            _checkpoint()
+            return
+        elif loop_build_failed or gaps_repaired < gaps_found:
+            res.loop_build = STATUS_PARTIAL
+        else:
+            res.loop_build = STATUS_OK
     _checkpoint()
 
     # ── Stage 4: topo_gen ─────────────────────────────────────────────────────
