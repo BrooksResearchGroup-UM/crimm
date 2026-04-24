@@ -107,6 +107,8 @@ class Atom(_Atom):
     def __setstate__(self, state):
         """Set state of the atom object for pickling"""
         self.__dict__.update(state)
+        if "neighbors" not in self.__dict__:
+            self.neighbors = set()
 
     def reset_atom_serial_numbers(self):
         """Reset all atom serial numbers in the entire structure starting from 1."""
@@ -178,6 +180,8 @@ class DisorderedAtom(_DisorderedAtom):
     def __setstate__(self, state):
         """Set state of the atom object for pickling"""
         self.__dict__.update(state)
+        if "neighbors" not in self.__dict__:
+            self.neighbors = set()
     
     @property
     def topo_definition(self):
@@ -190,4 +194,3 @@ class DisorderedAtom(_DisorderedAtom):
         self.selected_child.topo_definition = atom_def
         for atom in self.child_dict.values():
             atom.topo_definition = atom_def
-        
