@@ -100,6 +100,7 @@ prm_path_dict = {
 chain_type_def_lookup = {
     "Polypeptide(L)": "protein",
     "Polyribonucleotide": "nucleic",
+    "Polydeoxyribonucleotide": "nucleic",
     "Polynucleotide": "nucleic",
     "Solvent": "water_ions",
     "Ion": "water_ions",
@@ -108,6 +109,7 @@ chain_type_def_lookup = {
 }
 
 protein_n_term_patch_correction = {"PRO": "PROP", "GLY": "GLYP"}
+_DNA_PDB_RESNAME_MAP = {"DA": "ADE", "DC": "CYT", "DG": "GUA", "DT": "THY"}
 
 
 def _find_atom_in_residue(residue: Residue, atom_name: str) -> Atom:
@@ -450,7 +452,7 @@ class DisulfideTopology:
             yield topo_type_name, getattr(self, topo_type_name)
 
     def __repr__(self) -> str:
-        repr_str = f"<DisulfideTopology with "
+        repr_str = "<DisulfideTopology with "
         for attr in self.topo_types:
             value = getattr(self, attr)
             if value is None:
@@ -511,6 +513,18 @@ class DisulfideTopology:
                 atom_group.remove(HG1)
         warnings.warn(f"Removing HG1 from residue {res} for disulfide bond formation.")
 
+    @staticmethod
+    def _format_modified_disulfide_residue(residue):
+        topo_def = residue.topo_definition
+        patch_with = getattr(topo_def, "patch_with", None)
+        patch_loc = getattr(topo_def, "patch_loc", None)
+        patch_desc = "unpatched"
+        if patch_with is not None and patch_loc is not None:
+            patch_desc = f"{patch_with}@{patch_loc}"
+        elif patch_with is not None:
+            patch_desc = patch_with
+        return f"{residue.parent.id}:{residue.resname}{residue.id[1]} ({patch_desc})"
+
     def _create_disulfide(self, model: Model):
         if "disulf" not in model.connect_atoms:
             return
@@ -527,13 +541,21 @@ class DisulfideTopology:
                 )
                 continue
 
-            # Remove HG1 from both residues if present
-            self._remove_CYS_HG1(res1)
-            self._remove_CYS_HG1(res2)
-
             # Check if disulfide patch has already been applied
             # (e.g., if ModelTopology was already created earlier)
             if not (self._disu_patch_applied(res1) and self._disu_patch_applied(res2)):
+                if (
+                    getattr(res1.topo_definition, "is_modified", False)
+                    or getattr(res2.topo_definition, "is_modified", False)
+                ):
+                    raise ValueError(
+                        "Modified disulfides are not supported: "
+                        f"{self._format_modified_disulfide_residue(res1)} <-> "
+                        f"{self._format_modified_disulfide_residue(res2)}"
+                    )
+                # Remove HG1 from both residues if present
+                self._remove_CYS_HG1(res1)
+                self._remove_CYS_HG1(res2)
                 ## TODO: implement full DISU patching using patch definition
                 ## and update atom topo_definition automatically when patching
                 cys_def = patcher.patch_disulfide(
@@ -545,6 +567,9 @@ class DisulfideTopology:
                 res2["SG"].topo_definition = cys_def["SG"]
                 res1["CB"].topo_definition = cys_def["CB"]
                 res2["CB"].topo_definition = cys_def["CB"]
+            else:
+                self._remove_CYS_HG1(res1)
+                self._remove_CYS_HG1(res2)
 
             chain1.topology.update()
             chain2.topology.update()
@@ -733,7 +758,7 @@ class ChainTopology(BaseTopology):
 
         if chain.chain_type == "Polypeptide(L)":
             inter_res_bond = ("C", "N")  # peptide bond
-        elif chain.chain_type == "Polyribonucleotide":
+        elif chain.chain_type in ("Polyribonucleotide", "Polydeoxyribonucleotide"):
             inter_res_bond = ("O3'", "P")  # phosphodiester bond
         else:
             raise NotImplementedError("Chain type not supported!")
@@ -775,8 +800,8 @@ class ParameterLoader:
         filename = prm_path_dict[entity_type]
         with open(filename, "r", encoding="utf-8") as f:
             self._raw_data_strings = [
-                l.rstrip()
-                for l in f.readlines()  # if not skip_line(l)
+                line.rstrip()
+                for line in f.readlines()  # if not skip_line(line)
             ]
             param_line_dict = categorize_lines(self._raw_data_strings)
         self.param_dict.update(parse_line_dict(param_line_dict))
@@ -1124,7 +1149,6 @@ class CGENFFTopologyLoader:
         rtf_end = toppar_lines.index("END") + 1
 
         rtf_block = "\n".join(toppar_lines[:rtf_end])
-        prm_block = "\n".join(toppar_lines[rtf_end:])
         success = self.cgenff_topo_set.load_rtf_block(rtf_block)
         if not success:
             raise ValueError(
@@ -1377,6 +1401,76 @@ class TopologyGenerator:
         return True
 
     @staticmethod
+    def _update_chain_reported_res(chain, resseq, old_resname, new_resname):
+        if not hasattr(chain, "reported_res"):
+            return
+        reported_res = chain.reported_res
+        if (resseq, old_resname) in reported_res:
+            reported_res.remove((resseq, old_resname))
+            reported_res.append((resseq, new_resname))
+        chain.reported_res = sorted(reported_res)
+
+    def _canonicalize_dna_resname(self, residue: Residue, QUIET=False):
+        new_resname = _DNA_PDB_RESNAME_MAP.get(residue.resname.upper())
+        if new_resname is None or residue.resname == new_resname:
+            return False
+        if not QUIET:
+            warnings.warn(f"Canonicalized DNA residue {residue.resname} to {new_resname}")
+        old_resname = residue.resname
+        residue.original_resname = old_resname
+        residue.resname = new_resname
+        if residue.parent is not None:
+            _, resseq, _ = residue.id
+            self._update_chain_reported_res(
+                residue.parent, resseq, old_resname, new_resname
+            )
+        return True
+
+    @staticmethod
+    def _is_terminal_nh2_cap(residue: Residue) -> bool:
+        if residue.resname != "NH2":
+            return False
+        if not residue.id[0].startswith("H_"):
+            return False
+        atom_names = {atom.name for atom in residue.get_atoms()}
+        if "N" not in atom_names:
+            return False
+        allowed_names = {"N", "H", "HN", "H1", "H2", "HT1", "HT2"}
+        if not atom_names.issubset(allowed_names):
+            return False
+        heavy_atoms = [
+            atom
+            for atom in residue.get_atoms()
+            if getattr(atom, "element", None) != "H" and not atom.name.startswith("H")
+        ]
+        return len(heavy_atoms) == 1 and heavy_atoms[0].name == "N"
+
+    def _normalize_terminal_nh2_cap(
+        self, chain: PolymerChain, last_patch: str, QUIET=False
+    ) -> str:
+        if chain.chain_type != "Polypeptide(L)" or len(chain.residues) < 2:
+            return last_patch
+        chain.sort_residues()
+        terminal_residue = chain.residues[-1]
+        if not self._is_terminal_nh2_cap(terminal_residue):
+            return last_patch
+
+        capped_residue = chain.residues[-2]
+        if capped_residue.resname not in protein_letters_3to1_extended:
+            return last_patch
+
+        effective_last_patch = "CT2" if last_patch in (None, "CT3") else last_patch
+        if not QUIET:
+            warnings.warn(
+                f"Normalized terminal NH2 cap in chain {chain.id}; "
+                f"removing residue {terminal_residue.resname}{terminal_residue.id[1]} "
+                f"and applying {effective_last_patch} to "
+                f"{capped_residue.resname}{capped_residue.id[1]}"
+            )
+        chain.truncate(end=len(chain) - 1)
+        return effective_last_patch
+
+    @staticmethod
     def apply_topo_def_on_residue(residue, res_definition, QUIET=False):
         """Apply the topology definition to the residue"""
         residue.topo_definition = res_definition
@@ -1510,14 +1604,7 @@ class TopologyGenerator:
         if resseq in chain.het_resseq_lookup:
             chain.het_resseq_lookup.pop(resseq)
 
-        if hasattr(chain, "reported_res"):
-            # if the chain has reported_res attribute, update it
-            # to avoid generating new gaps due to mismatch resnames
-            reported_res = chain.reported_res
-            if (resseq, old_resname) in reported_res:
-                reported_res.remove((resseq, old_resname))
-                reported_res.append((resseq, new_resname))
-            chain.reported_res = sorted(reported_res)
+        self._update_chain_reported_res(chain, resseq, old_resname, new_resname)
 
         return True
 
@@ -1661,9 +1748,14 @@ class TopologyGenerator:
         if chain.residues[0].resname == "ACE":
             # if the first residue is ACE, remove it
             chain.truncate(start=1)
+        last_patch = self._normalize_terminal_nh2_cap(
+            chain, last_patch, QUIET=QUIET
+        )
         chain.undefined_res = []
         self._load_residue_definitions(chain.chain_type, preserve_ic)
         for residue in chain:
+            if chain.chain_type == "Polydeoxyribonucleotide":
+                self._canonicalize_dna_resname(residue, QUIET=QUIET)
             is_defined = self._generate_residue_topology(
                 residue, coerce=coerce, QUIET=QUIET
             )
@@ -1675,6 +1767,8 @@ class TopologyGenerator:
             self.patch_termini(
                 chain, first_patch, last_patch, auto_correct_first_patch, QUIET=QUIET
             )
+        if chain.chain_type == "Polydeoxyribonucleotide":
+            self._apply_deoxyribose_patches(chain, QUIET=QUIET)
 
         self.cur_param.fill_ic(self.cur_defs, preserve_ic)
         if chain.chain_type in (
@@ -1698,7 +1792,11 @@ class TopologyGenerator:
         QUIET=False,
     ):
         """Patch the terminal residues of the chain"""
-        if chain.chain_type not in ("Polypeptide(L)", "Polyribonucleotide"):
+        if chain.chain_type not in (
+            "Polypeptide(L)",
+            "Polyribonucleotide",
+            "Polydeoxyribonucleotide",
+        ):
             raise NotImplementedError(
                 "Only polypeptide and polynucleotide chains are supported "
                 f"for patching! Got {chain.chain_type}"
@@ -1728,6 +1826,24 @@ class TopologyGenerator:
             # Update topology elements if they are already defined
             chain.topology.update()
 
+    def _apply_deoxyribose_patches(self, chain, QUIET=False):
+        residues = chain.child_list
+        if not residues:
+            return
+        self.patch_residue(residues[0], "DEO5", patch_loc="NTER", QUIET=QUIET)
+        for residue in residues[1:]:
+            self.patch_residue(residue, "DEOX", QUIET=QUIET)
+
+    @staticmethod
+    def _patched_definition_cache_key(res_def, patch, patch_loc):
+        key_parts = [res_def.resname]
+        if getattr(res_def, "patch_with", None) is not None:
+            key_parts.append(res_def.patch_with)
+        if getattr(res_def, "patch_loc", None) is not None:
+            key_parts.append(res_def.patch_loc)
+        key_parts.extend([patch_loc.upper(), patch])
+        return "__".join(key_parts)
+
     def patch_residue(
         self, residue: Residue, patch: str, patch_loc="MIDCHAIN", QUIET=False
     ):
@@ -1738,7 +1854,9 @@ class TopologyGenerator:
                 "because it is undefined (no topology definition exists)!"
             )
         res_def = residue.topo_definition
-        patched_def_name = res_def.resname + "_" + patch
+        patched_def_name = self._patched_definition_cache_key(
+            res_def, patch, patch_loc
+        )
         # if patched_def_name in self.cur_defs.patched_defs:
         #     patched_res_def = self.cur_defs.patched_defs[patched_def_name]
         # else:
@@ -2504,6 +2622,7 @@ class ResiduePatcher:
         self.res.assign_donor_acceptor()
         self.res.create_atom_lookup_dict()
         self.res.patch_with = self.patch.resname
+        self.res.patch_loc = patch_loc
         return self.res
 
     def patch_disulfide(self, res1: ResidueDefinition, res2: ResidueDefinition):

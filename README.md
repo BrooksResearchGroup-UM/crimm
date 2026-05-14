@@ -15,7 +15,8 @@ This is a Python toolkit for biomolecule structure preparation, designed to unif
 
 - Fetch structures from RCSB PDB or AlphaFold Database
 - Organize mmCIF structures into protein, nucleic acid, ligand, solvent, and ion components
-- Generate **CHARMM36m** topology for proteins and protein-containing systems
+- Generate **CHARMM36m** topology for proteins, canonical DNA/RNA, and protein-containing systems
+- Normalize common terminal caps and report unsupported modified chemistry explicitly
 - Parameterize small-molecule ligands with **CGenFF** integration, including lone-pair-aware workflows
 - Read, write, and reload native CHARMM PSF and CRD files
 - Solvate in cubic or truncated octahedral water boxes

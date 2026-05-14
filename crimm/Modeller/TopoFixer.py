@@ -14,32 +14,55 @@ def sep_by_priorities(atom_list):
         else:
             missing_atoms.append(atom)
     return missing_atoms, missing_hydrogens
-    
-def recur_find_build_seq(
-    running_dict: OrderedDict, missing_atoms, build_seq, exclude_list
+
+
+def _find_build_seq(
+    running_dict: OrderedDict, missing_atoms, exclude_list, topo_name
 ):
-
-    if len(missing_atoms) == 0:
-        return build_seq
- 
-    atom_name, ic_list = running_dict.popitem(last=False)
-    for ic_keys in ic_list:
-        cur_ic_set = set(ic_keys)
-        if (len(cur_ic_set.intersection(missing_atoms)) > 1) or (
-            cur_ic_set.intersection(exclude_list)
-        ):
+    missing_atoms = list(missing_atoms)
+    build_seq = []
+    while missing_atoms:
+        progressed = False
+        for atom_name, ic_list in list(running_dict.items()):
+            if atom_name not in missing_atoms:
+                running_dict.pop(atom_name, None)
+                continue
+            for ic_keys in ic_list:
+                cur_ic_set = set(ic_keys)
+                if (len(cur_ic_set.intersection(missing_atoms)) > 1) or (
+                    cur_ic_set.intersection(exclude_list)
+                ):
+                    continue
+                missing_atoms.remove(atom_name)
+                build_seq.append((atom_name, ic_keys))
+                running_dict.pop(atom_name, None)
+                progressed = True
+                break
+        if progressed:
             continue
-
-        missing_atoms.remove(atom_name)
-        build_seq.append((atom_name, ic_keys))
-        return recur_find_build_seq(
-            running_dict, missing_atoms, build_seq, exclude_list
+        blocked_ic = []
+        for atom_name in missing_atoms:
+            for ic_keys in running_dict.get(atom_name, ()):
+                blocked_ic.append(f"{atom_name}:{ic_keys}")
+        unresolved = ", ".join(missing_atoms)
+        blocked_desc = ", ".join(blocked_ic)
+        raise ValueError(
+            f"Cannot determine a build sequence for residue {topo_name}; "
+            f"unresolved atoms: {unresolved}; blocked IC keys: {blocked_desc}"
         )
+    return build_seq
 
-    running_dict[atom_name] = ic_list
-    return recur_find_build_seq(
-        running_dict, missing_atoms, build_seq, exclude_list
+
+def recur_find_build_seq(
+    running_dict: OrderedDict, missing_atoms, build_seq, exclude_list, topo_name="<unknown>"
+):
+    remaining_build_seq = _find_build_seq(
+        running_dict,
+        missing_atoms,
+        exclude_list=exclude_list,
+        topo_name=topo_name,
     )
+    return list(build_seq) + remaining_build_seq
 
 def get_coord_from_dihedral_ic(i_coord, j_coord, k_coord, phi, t_jkl, r_kl):
     origin = j_coord
@@ -74,22 +97,18 @@ def get_coord_from_improper_ic(i_coord, j_coord, k_coord, phi, t_jkl, r_kl):
 def find_build_seq(topo_def, missing_atoms, missing_hydrogens):
     missing_atoms = list(missing_atoms)
     missing_hydrogens = list(missing_hydrogens)
-    all_missing = missing_atoms + missing_hydrogens
     lookup_dict = topo_def.atom_lookup_dict
-    running_dict = OrderedDict({k: lookup_dict[k] for k in all_missing})
-
-    heavy_build_seq = recur_find_build_seq(
-        running_dict,
-        missing_atoms.copy(), # Prevent element removal on the original list
-        build_seq = [], 
-        exclude_list = missing_hydrogens
+    heavy_build_seq = _find_build_seq(
+        OrderedDict({k: lookup_dict[k] for k in missing_atoms}),
+        missing_atoms,
+        exclude_list=missing_hydrogens,
+        topo_name=topo_def.resname,
     )
-
-    hydrogen_build_seq = recur_find_build_seq(
-        running_dict,
-        missing_hydrogens.copy(),
-        build_seq = [],
-        exclude_list = []
+    hydrogen_build_seq = _find_build_seq(
+        OrderedDict({k: lookup_dict[k] for k in missing_hydrogens}),
+        missing_hydrogens,
+        exclude_list=[],
+        topo_name=topo_def.resname,
     )
 
     return heavy_build_seq, hydrogen_build_seq
@@ -97,31 +116,39 @@ def find_build_seq(topo_def, missing_atoms, missing_hydrogens):
 def find_coords_by_ic(build_sequence, ic_dicts, coord_dict):
     computed_coords = []
     for atom_name, ic_key in build_sequence:
-        i, j, k, l = ic_key
+        i_atom, j_atom, k_atom, l_atom = ic_key
         ic_param_dict = ic_dicts[ic_key]
         is_improper = ic_param_dict['improper']
         phi = ic_param_dict['Phi']
-        if atom_name == i:
-            # the atom is i
+        if atom_name == i_atom:
+            # the atom is i_atom
             if is_improper:
-                # i, j, *k, l => l, *k, j, i = a1, a2, a3, cur_atom
-                a1, a2, a3 = coord_dict[j], coord_dict[l], coord_dict[k]
+                # i_atom, j_atom, *k_atom, l_atom => l_atom, *k_atom, j_atom, cur_atom
+                a1, a2, a3 = (
+                    coord_dict[j_atom],
+                    coord_dict[l_atom],
+                    coord_dict[k_atom],
+                )
                 bond_len = ic_param_dict['R(I-K)']
                 bond_angle = ic_param_dict['T(I-K-J)']
                 coord = get_coord_from_improper_ic(
                     a1, a2, a3, phi, bond_angle, bond_len
                 )
             else:
-                # i, j, k, l => l, k, j, i = a1, a2, a3, cur_atom
-                a1, a2, a3 = coord_dict[l], coord_dict[k], coord_dict[j]
+                # i_atom, j_atom, k_atom, l_atom => l_atom, k_atom, j_atom, cur_atom
+                a1, a2, a3 = (
+                    coord_dict[l_atom],
+                    coord_dict[k_atom],
+                    coord_dict[j_atom],
+                )
                 bond_len = ic_param_dict['R(I-J)']
                 bond_angle = ic_param_dict['T(I-J-K)']
                 coord = get_coord_from_dihedral_ic(
                     a1, a2, a3, phi, bond_angle, bond_len
                 )
         else:
-            # the atom is l
-            a1, a2, a3 = coord_dict[i], coord_dict[j], coord_dict[k]
+            # the atom is l_atom
+            a1, a2, a3 = coord_dict[i_atom], coord_dict[j_atom], coord_dict[k_atom]
             bond_len = ic_param_dict['R(K-L)']
             bond_angle = ic_param_dict['T(J-K-L)']
             if is_improper:
@@ -141,13 +168,11 @@ def ab_initio_ic_build(topo_def):
     ic_dicts = topo_def.ic
     lookup_dict = topo_def.atom_lookup_dict
     all_atoms = [k for k in lookup_dict.keys() if k not in ('-C','CA','N')]
-    running_dict = OrderedDict({k: lookup_dict[k] for k in all_atoms})
-
-    build_seq = recur_find_build_seq(
-        running_dict,
+    build_seq = _find_build_seq(
+        OrderedDict({k: lookup_dict[k] for k in all_atoms}),
         all_atoms,
-        build_seq = [],
-        exclude_list = []
+        exclude_list=[],
+        topo_name=topo_def.resname,
     )
 
     base_ic1 = ic_dicts[('-C', 'N', 'CA', 'C')]
@@ -270,7 +295,7 @@ class ResidueFixer:
         if residue.resname in self.topo_def.aa_3to1:
             self.res_type = 'aa'
             self.nei_atom_names = ('-C', '+N', '+CA')
-        elif residue.resname in ('A', 'G', 'C', 'U', 'T'):
+        elif residue.resname in ('A', 'G', 'C', 'U', 'T', 'ADE', 'GUA', 'CYT', 'URA', 'THY'):
             self.res_type = 'nuc'
             self.nei_atom_names = ("-O3'", "+P", "+O5'")
         else:
