@@ -10,6 +10,33 @@ from crimm.IO.MMCIF2Dict import MMCIF2Dict
 from crimm.Superimpose.ChainSuperimposer import ChainSuperimposer
 from crimm.Utils.query_db import uniprot_id_query
 
+PROXIES = None
+
+def define_proxy_socks(port=1080):
+    """For setting up DNS and HTTPS proxies for network access,
+    useful when using fetch functions in certain cluster configurations,
+    i.e. compute nodes do not have dirct internet access. 
+    Requires an established ssh port forwarding to a machine with internet access, 
+    e.g. `ssh -N -D 1080 headnode &`
+    Also requires the optional dependency `requests[socks]` installed. 
+    
+    args:
+    port (int): The port number for the SOCKS proxy; default to 1080
+
+    """
+    global PROXIES
+    PROXIES = {'http': f'socks5h://localhost:{port}', 'https': f'socks5h://localhost:{port}'}
+    return PROXIES
+
+def _compare_proxy_args(proxies):
+    global PROXIES
+    if proxies is not None:
+        return proxies
+    elif PROXIES is not None:
+        return PROXIES
+    else:
+        return None
+
 def _find_local_cif_path(pdb_id, entry_point):
     """Find the path to a local cif file"""
     pdb_id = pdb_id.lower()
@@ -18,10 +45,11 @@ def _find_local_cif_path(pdb_id, entry_point):
     if os.path.exists(file_path):
         return file_path
 
-def _file_handle_from_url(cif_url):
+def _file_handle_from_url(cif_url, proxies=None):
     """Get a cif file from a url, return a file handle to the cif file"""
+    _proxies = _compare_proxy_args(proxies)
     f_handle = io.StringIO()
-    result = requests.get(cif_url,timeout=500)
+    result = requests.get(cif_url,timeout=500, proxies=_proxies)
     if (code := result.status_code) != 200:
         warnings.warn(
             "GET request for file did not return valid result!\n"
@@ -32,11 +60,12 @@ def _file_handle_from_url(cif_url):
     f_handle.seek(0)
     return f_handle
 
-def _get_alphafold_fh(uniprot_id):
+def _get_alphafold_fh(uniprot_id, proxies=None):
     """Get a mmcif file handle from the alphafold database for a given uniprot id
     """
     query_url = f"https://alphafold.ebi.ac.uk/api/prediction/{uniprot_id}"
-    response = requests.get(query_url, timeout=500)
+    _proxies = _compare_proxy_args(proxies)
+    response = requests.get(query_url, timeout=500, proxies=_proxies)
     if (code := response.status_code) != 200:
         warnings.warn(
             f"GET request on AlphaFold DB for \"{uniprot_id}\"  did not return "
@@ -44,16 +73,17 @@ def _get_alphafold_fh(uniprot_id):
         )
         return
     alphafold_cif_url = response.json()[0]['cifUrl']
-    return _file_handle_from_url(alphafold_cif_url)
+    return _file_handle_from_url(alphafold_cif_url, _proxies)
 
-def fetch_alphafold(uniprot_id, first_model_only = False):
+def fetch_alphafold(uniprot_id, first_model_only = False, proxies=None):
     """Get a structure from the alphafold database for a given uniprot id"""
+    _proxies = _compare_proxy_args(proxies)
     msg = f"AlphaFold DB failed find structure for {uniprot_id}"
     if uniprot_id is None:
         # We only issue warning here
         warnings.warn(msg)
         return
-    file = _get_alphafold_fh(uniprot_id)
+    file = _get_alphafold_fh(uniprot_id, proxies=_proxies)
     if file is None:
         # We only issue warning here
         warnings.warn(msg)
@@ -71,8 +101,9 @@ def fetch_alphafold(uniprot_id, first_model_only = False):
         structure = structure.models[0]
     return structure
 
-def _get_mmcif_fh(pdb_id):
+def _get_mmcif_fh(pdb_id, proxies=None):
     """Get a mmcif file handle from the rcsb database"""
+    _proxies = _compare_proxy_args(proxies)
     if len(pdb_id) == 4:
         entry_point = "https://files.rcsb.org/download"
     elif len(pdb_id) == 3:
@@ -80,11 +111,12 @@ def _get_mmcif_fh(pdb_id):
     else:
         raise ValueError(f"Invalid PDB ID {pdb_id}")
     rcsb_cif_url = f"{entry_point}/{pdb_id}.cif"
-    return _file_handle_from_url(rcsb_cif_url)
+    return _file_handle_from_url(rcsb_cif_url, _proxies)
 
-def fetch_rcsb_as_dict(pdb_id):
+def fetch_rcsb_as_dict(pdb_id, proxies=None):
     """Get info about a pdb entry as a dictionary from rcsb"""
-    file = _get_mmcif_fh(pdb_id)
+    _proxies = _compare_proxy_args(proxies)
+    file = _get_mmcif_fh(pdb_id, proxies=_proxies)
     if file is None:
         raise ValueError(f"Could not load file for {pdb_id}")
     cifdict = MMCIF2Dict(file)
@@ -100,6 +132,7 @@ def fetch_rcsb(
         organize = False,
         rename_charmm_ions=True,
         rename_solvent_oxygen=True,
+        proxies=None,
     ):
     """Get a structure from rcsb with a pdb id or from a local mmcif file
     Args:
@@ -128,14 +161,16 @@ def fetch_rcsb(
     Returns:
         structure (Structure): The structure object
     """
+    _proxies = _compare_proxy_args(proxies)
     if len(pdb_id) == 3:
         raise ValueError("Ligand entries are not supported yet!")
     if local_entry is not None:
         file = _find_local_cif_path(pdb_id, entry_point = local_entry)
     else:
-        file = _get_mmcif_fh(pdb_id)
+        file = _get_mmcif_fh(pdb_id, proxies=_proxies)
     if file is None:
         raise ValueError(f"Could not load file for {pdb_id}")
+    
     parser = MMCIFParser(
         first_model_only = first_model_only,
         use_bio_assembly = use_bio_assembly,
@@ -152,7 +187,7 @@ def fetch_rcsb(
             )
     return structure
 
-def fetch_swiss_model(uniprot_id, first_model_only = False):
+def fetch_swiss_model(uniprot_id, first_model_only = False, proxies=None):
     """Get the first matching stucuture from the Swiss Model database for a given 
     uniprot id
     """
@@ -162,7 +197,8 @@ def fetch_swiss_model(uniprot_id, first_model_only = False):
     )
     header_url = base_url.format(uniprot_id = uniprot_id, ext = 'json')
     struct_url = base_url.format(uniprot_id = uniprot_id, ext = 'pdb')
-    result = requests.get(header_url,timeout=500)
+    _proxies = _compare_proxy_args(proxies)
+    result = requests.get(header_url,timeout=500, proxies=_proxies)
     if (code := result.status_code) != 200:
         warnings.warn(
             "GET request for header did not return valid result!\n"
@@ -175,7 +211,7 @@ def fetch_swiss_model(uniprot_id, first_model_only = False):
     desc = chain_info_dict['segments'][0]['smtl']['description']
 
     parser = PDBParser()
-    struct_fh = _file_handle_from_url(struct_url)
+    struct_fh = _file_handle_from_url(struct_url, proxies=_proxies)
     if struct_fh is None:
         return
     structure = parser.get_structure(struct_fh, f'{uniprot_id}-SwissModel')
@@ -190,14 +226,15 @@ def fetch_swiss_model(uniprot_id, first_model_only = False):
         structure = structure.models[0]
     return structure
 
-def fetch_swiss_model_multiple(uniprot_id, first_model_only = False):
+def fetch_swiss_model_multiple(uniprot_id, first_model_only = False, proxies=None):
     """Get all stucutures from the Swiss Model database for a given uniprot id
     """
     header_url = (
         f"https://swissmodel.expasy.org/repository/uniprot/{uniprot_id}.json"
         "?provider=swissmodel"
     )
-    result = requests.get(header_url,timeout=500)
+    _proxies = _compare_proxy_args(proxies)
+    result = requests.get(header_url,timeout=500, proxies=_proxies)
     if (code := result.status_code) != 200:
         warnings.warn(
             "GET request for header did not return valid result!\n"
@@ -220,10 +257,11 @@ def fetch_swiss_model_multiple(uniprot_id, first_model_only = False):
         structures = [struct.models[0] for struct in structures]
     return structures
 
-def _sm_struct_from_info_dict(uniprot_id, struct_info_dict, can_seq_str, desc):
+def _sm_struct_from_info_dict(uniprot_id, struct_info_dict, can_seq_str, desc, proxies=None):
+    _proxies = _compare_proxy_args(proxies)
     parser = PDBParser()
     structure_url = struct_info_dict['coordinates']
-    struct_fh = _file_handle_from_url(structure_url)
+    struct_fh = _file_handle_from_url(structure_url, proxies=_proxies)
     if struct_fh is None:
         return
     structure = parser.get_structure(struct_fh, f'{uniprot_id}-SwissModel')
@@ -237,15 +275,16 @@ def _sm_struct_from_info_dict(uniprot_id, struct_info_dict, can_seq_str, desc):
 
     return structure
 
-def _fetch_with_chain(chain, fetcher):
+def _fetch_with_chain(chain, fetcher, proxies=None):
+    _proxies = _compare_proxy_args(proxies)
     if not hasattr(chain.parent, 'parent') or chain.parent.parent is None:
         raise ValueError("Chain has no parent structure!")
     pdb_id = chain.parent.parent.id
     if pdb_id is None or len(pdb_id) != 4:
         raise ValueError(f"Chain's PDB ID {pdb_id} is invalid!")
     entity_id = chain.entity_id
-    uniprot_id = uniprot_id_query(pdb_id, entity_id)
-    new_struct =  fetcher(uniprot_id)
+    uniprot_id = uniprot_id_query(pdb_id, entity_id, proxies=_proxies)
+    new_struct =  fetcher(uniprot_id, proxies=_proxies)
     if new_struct is None:
         warnings.warn(
             f"Could not find AlphaFold structure for {pdb_id}-{entity_id}"
@@ -257,19 +296,21 @@ def _fetch_with_chain(chain, fetcher):
     imposer.apply_transform(new_struct)
     return new_struct
 
-def fetch_alphafold_from_chain(chain):
+def fetch_alphafold_from_chain(chain, proxies=None):
     """Find the alphafold structure for a given chain. The chain must have a parent 
     structure with a valid PDB ID. The chain must also have an entity id assigned 
     from mmCIF.
     The returned AlphaFold structure will have only one model and one chain, and the
     chain will be superimposed to the input chain.
     """
-    return _fetch_with_chain(chain, fetch_alphafold)
+    _proxies = _compare_proxy_args(proxies)
+    return _fetch_with_chain(chain, fetch_alphafold, proxies=_proxies)
 
-def fetch_swiss_model_from_chain(chain):
+def fetch_swiss_model_from_chain(chain, proxies=None):
     """Find the Swiss Model structure for a given chain. The chain must have a parent 
     structure with a valid PDB ID. The chain must also have an entity id assigned 
     from mmCIF.
     The returned Swiss Model chain will be superimposed to the input chain.
     """
-    return _fetch_with_chain(chain, fetch_swiss_model)
+    _proxies = _compare_proxy_args(proxies)
+    return _fetch_with_chain(chain, fetch_swiss_model, proxies=_proxies)
