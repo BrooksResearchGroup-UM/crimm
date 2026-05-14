@@ -2,12 +2,12 @@ import warnings
 import requests
 import pandas as pd
 
-def uniprot_id_query(pdbid, entity_id):
+def uniprot_id_query(pdbid, entity_id, proxies=None):
     """Query wth the RCSB PDB API for uniprot id for a given pdb id and 
     chain entity id
     """
     rcsb_url = f"https://data.rcsb.org/rest/v1/core/uniprot/{pdbid}/{entity_id}"
-    response = requests.get(rcsb_url, timeout=500)
+    response = requests.get(rcsb_url, timeout=500, proxies=proxies)
     if (code := response.status_code) != 200:
         warnings.warn(
             f"GET request on RCSB for \"{pdbid}-{entity_id}\" for uniprot ID "
@@ -19,13 +19,13 @@ def uniprot_id_query(pdbid, entity_id):
     uniprot_id = response.json()[0][kw1][kw2]
     return uniprot_id
 
-def query_drugbank_info(lig_id):
+def query_drugbank_info(lig_id, proxies=None):
     """Query the RCSB database for Drugbank info on a given ligand ID"""
     if len(lig_id) != 3:
         raise ValueError('Ligand ID has to be a three-letter code')
 
     query_url = f'https://data.rcsb.org/rest/v1/core/drugbank/{lig_id}'
-    response = requests.get(query_url, timeout=500)
+    response = requests.get(query_url, timeout=500, proxies=proxies)
     if (code := response.status_code) != 200:
         warnings.warn(
             f"GET request on RCSB for \"{lig_id}\" for Drugbank Info "
@@ -54,12 +54,12 @@ def organize_drugbank_info(info_dict):
         targets = pd.DataFrame(targets)
     return drugbank_id, info, drug_products, targets
 
-def get_rcsb_web_data(pdb_id):
+def get_rcsb_web_data(pdb_id, proxies=None):
     """Get the data from the RCSB REST API for a given PDB ID
     Args: pdb_id (str): The PDB ID to query
     Returns: The dictionary from the RCSB REST API"""
     query_url = f'https://data.rcsb.org/rest/v1/core/entry/{pdb_id}'
-    response = requests.get(query_url, timeout=500)
+    response = requests.get(query_url, timeout=500, proxies=proxies)
     if (code := response.status_code) != 200:
         warnings.warn(
             f"GET request on RCSB for \"{pdb_id}\" for binding affinity data "
@@ -68,11 +68,11 @@ def get_rcsb_web_data(pdb_id):
         return
     return response.json()
 
-def query_binding_affinity_info(pdb_id):
+def query_binding_affinity_info(pdb_id, proxies=None):
     """Query the RCSB PDB database for binding affinity info on a given PDB ID
     Args: pdb_id (str): The PDB ID to query
     Returns: The binding affinity info as a pandas DataFrame"""
-    data = get_rcsb_web_data(pdb_id)
+    data = get_rcsb_web_data(pdb_id, proxies=proxies)
     keyword = 'rcsb_binding_affinity'
     if data is None:
         raise ValueError(
