@@ -277,9 +277,16 @@ def _sm_struct_from_info_dict(uniprot_id, struct_info_dict, can_seq_str, desc, p
 
 def _fetch_with_chain(chain, fetcher, proxies=None):
     _proxies = _compare_proxy_args(proxies)
-    if not hasattr(chain.parent, 'parent') or chain.parent.parent is None:
-        raise ValueError("Chain has no parent structure!")
-    pdb_id = chain.parent.parent.id
+    if not hasattr(chain, 'parent'):
+        raise ValueError("Chain has no parent Model!")
+    model = chain.parent
+    if hasattr(model, 'pdb_id'):
+        pdb_id = model.pdb_id
+    elif not hasattr(model, 'parent') or model.parent is None:
+        raise ValueError("Chain has no parent Structure!")
+    else:
+        pdb_id = model.parent.id
+        
     if pdb_id is None or len(pdb_id) != 4:
         raise ValueError(f"Chain's PDB ID {pdb_id} is invalid!")
     entity_id = chain.entity_id
