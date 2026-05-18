@@ -338,11 +338,12 @@ class RTFParser:
             elif l.startswith('DONO'):
                 if 'H_donors' not in cur_res:
                     cur_res['H_donors'] = []
-                donors = tuple(l.split()[1:])
-                cur_res['H_donors'].append(donors)
+                donors = pairwise_parser(l)
+                cur_res['H_donors'].extend(donors)
             elif l.startswith('ACCE'):
                 if 'H_acceptors' not in cur_res:
                     cur_res['H_acceptors'] = []
+                l = comment_parser(l)[0]
                 acceptors = tuple(l.split()[1:])
                 cur_res['H_acceptors'].append(acceptors)
             elif l.startswith('BOND'):

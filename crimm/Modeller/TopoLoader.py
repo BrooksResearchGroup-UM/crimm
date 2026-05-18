@@ -947,9 +947,10 @@ class ParameterLoader:
                 ## TODO: use logging to log this
                 return None  # ic containing BLNK atom should be ignored
             else:
-                raise ValueError(
-                    f"Atom {atom} not found in residue definition: {residue_definition}"
-                )
+                # Changed from error to warnings for cgenff topology 
+                msg = f"Atom {atom} not found in residue definition: {residue_definition}"
+                warnings.warn(msg)
+                return None
             atom_type_list.append(atom_type)
         return atom_type_list
 

@@ -35,7 +35,7 @@ import requests, json
 from crimm.Fetchers import fetch_rcsb_as_dict
 from crimm.IO.PDBString import get_pdb_str
 from crimm.StructEntities.Atom import Atom
-from crimm.StructEntities.Residue import Heterogen
+from crimm.StructEntities.Residue import Heterogen, Residue
 import numpy as np
 from rdkit import Chem
 from rdkit.Chem import AllChem
@@ -346,13 +346,14 @@ class RDKitHetConverter:
             update_hydrogens (bool): If True, hydrogens positions calculted by rdkit
                 will be updated on the crimm ligand residue. Defaults to True.
         """
-        if isinstance(lig, Heterogen):
+        if isinstance(lig, Residue):
             self.lig = lig
         else:
-            raise TypeError("Input must be a Heterogen object (Residue level).")
+            raise TypeError("Input must be a Residue object.")
 
         self.lig_pdbid = lig.resname
-        self.chain_id = lig.parent.id
+        if lig.parent is not None:
+            self.chain_id = lig.parent.id
         self.resname = lig.resname
         self.resnum = lig.id[1]
         self._edmol = Chem.EditableMol(Chem.Mol())
@@ -469,8 +470,9 @@ class RDKitHetConverter:
         self._rd_atoms = {}
         for atom in self.lig.atoms:
             rd_atom = Chem.Atom(atom.element.capitalize())
-            pdb_info = self._create_rdkit_PDBinfo(atom.name, atom.altloc)
-            rd_atom.SetPDBResidueInfo(pdb_info)
+            if self.chain_id is not None:
+                pdb_info = self._create_rdkit_PDBinfo(atom.name, atom.altloc)
+                rd_atom.SetPDBResidueInfo(pdb_info)
             charge = self.element_dict[atom.name][2]
             element = self.element_dict[atom.name][1].capitalize()
             rd_atom.SetFormalCharge(charge)
