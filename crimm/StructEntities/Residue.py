@@ -114,12 +114,11 @@ class Residue(_Residue):
             i+=1
 
     def _ipython_display_(self):
-        """Return the nglview interactive visualization window"""
         if len(self) == 0:
             return
-        from crimm.Visualization import show_nglview
+        from crimm.Visualization import show_residue
         from IPython.display import display
-        display(show_nglview(self))
+        display(show_residue(self))
         print(repr(self))
 
     def get_top_parent(self):

@@ -57,13 +57,11 @@ class Structure(_Structure):
         return hierarchy_str
     
     def _ipython_display_(self):
-        """Return the nglview interactive visualization window"""
         if len(self) == 0:
             return
-        from crimm.Visualization import show_nglview_multiple
+        from crimm.Visualization import show
         from IPython.display import display
-        # Only show the first model for now
-        display(show_nglview_multiple(self.child_list[0].child_list))
+        display(show(self))
         print(self.expanded_view())
 
     @property
