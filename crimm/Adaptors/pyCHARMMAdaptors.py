@@ -179,7 +179,7 @@ def load_cgenff_toppar():
             read.prm(tf.name, append=True, flex=True)
     pcm_settings.set_bomb_level(0)
 
-def load_chain(chain, hbuild=False, report=False, use_psf_crd=True, append=False):
+def load_chain(chain, hbuild=False, report=False, use_psf_crd=False, append=False):
     """Load a protein/nucleic chain into pyCHARMM.
 
     Parameters
@@ -218,13 +218,13 @@ def load_chain(chain, hbuild=False, report=False, use_psf_crd=True, append=False
         return segid
     else:
         # Deprecated PDB-based implementation
-        warnings.warn(
-            "PDB-based loading (use_psf_crd=False) is deprecated and will be removed "
-            "in a future version. Use PSF/CRD format (default) for simpler and more "
-            "reliable loading.",
-            DeprecationWarning,
-            stacklevel=2
-        )
+        # warnings.warn(
+        #     "PDB-based loading (use_psf_crd=False) is deprecated and will be removed "
+        #     "in a future version. Use PSF/CRD format (default) for simpler and more "
+        #     "reliable loading.",
+        #     DeprecationWarning,
+        #     stacklevel=2
+        # )
         m_chain = _get_charmm_named_chain(chain, segid)
         first_res = m_chain.child_list[0]
         last_res = m_chain.child_list[-1]
@@ -266,7 +266,7 @@ def load_chain(chain, hbuild=False, report=False, use_psf_crd=True, append=False
                 )
         return segid
 
-def load_ligands(ligand_chains, segids=None, use_psf_crd=True, append=False):
+def load_ligands(ligand_chains, segids=None, use_psf_crd=False, append=False):
     """Load a list of ligand chains into pyCHARMM.
 
     Parameters
@@ -302,13 +302,13 @@ def load_ligands(ligand_chains, segids=None, use_psf_crd=True, append=False):
             _load_psf_crd(lig_res, append=should_append)
     else:
         # Deprecated PDB-based implementation
-        warnings.warn(
-            "PDB-based loading (use_psf_crd=False) is deprecated and will be removed "
-            "in a future version. Use PSF/CRD format (default) for simpler and more "
-            "reliable loading.",
-            DeprecationWarning,
-            stacklevel=2
-        )
+        # warnings.warn(
+        #     "PDB-based loading (use_psf_crd=False) is deprecated and will be removed "
+        #     "in a future version. Use PSF/CRD format (default) for simpler and more "
+        #     "reliable loading.",
+        #     DeprecationWarning,
+        #     stacklevel=2
+        # )
         for segid, lig_res in zip(segids, all_ligands):
             lig_res.segid = segid
             print(f"[crimm] Loading ligand {lig_res.resname} SEG: {segid}")
@@ -337,7 +337,7 @@ def load_ligands(ligand_chains, segids=None, use_psf_crd=True, append=False):
 
     return segids
 
-def load_water(water_chains, segids=None, use_psf_crd=True, append=False):
+def load_water(water_chains, segids=None, use_psf_crd=False, append=False):
     """Load water chains into pyCHARMM.
 
     Parameters
@@ -372,13 +372,13 @@ def load_water(water_chains, segids=None, use_psf_crd=True, append=False):
             _load_psf_crd(chain, append=should_append)
     else:
         # Deprecated PDB-based implementation
-        warnings.warn(
-            "PDB-based loading (use_psf_crd=False) is deprecated and will be removed "
-            "in a future version. Use PSF/CRD format (default) for simpler and more "
-            "reliable loading.",
-            DeprecationWarning,
-            stacklevel=2
-        )
+        # warnings.warn(
+        #     "PDB-based loading (use_psf_crd=False) is deprecated and will be removed "
+        #     "in a future version. Use PSF/CRD format (default) for simpler and more "
+        #     "reliable loading.",
+        #     DeprecationWarning,
+        #     stacklevel=2
+        # )
         for segid, chain in zip(segids, water_chains):
             for res in chain:
                 res.segid = segid
@@ -404,7 +404,7 @@ def load_water(water_chains, segids=None, use_psf_crd=True, append=False):
 
     return segids
 
-def load_ions(ion_chains, use_psf_crd=True, append=False):
+def load_ions(ion_chains, use_psf_crd=False, append=False):
     """Load ion chains into pyCHARMM.
 
     Parameters
@@ -434,13 +434,13 @@ def load_ions(ion_chains, use_psf_crd=True, append=False):
             segids.append(segid)
     else:
         # Deprecated PDB-based implementation
-        warnings.warn(
-            "PDB-based loading (use_psf_crd=False) is deprecated and will be removed "
-            "in a future version. Use PSF/CRD format (default) for simpler and more "
-            "reliable loading.",
-            DeprecationWarning,
-            stacklevel=2
-        )
+        # warnings.warn(
+        #     "PDB-based loading (use_psf_crd=False) is deprecated and will be removed "
+        #     "in a future version. Use PSF/CRD format (default) for simpler and more "
+        #     "reliable loading.",
+        #     DeprecationWarning,
+        #     stacklevel=2
+        # )
         for i, chain in enumerate(ion_chains):
             segid = f'IO{i:02d}'
             print(f"[crimm] Loading ion chain {segid}")
@@ -469,7 +469,7 @@ def load_ions(ion_chains, use_psf_crd=True, append=False):
     return segids
 
 
-def load_model(model, use_psf_crd=True, load_params=True, separate_crystal_segids=False):
+def load_model(model, use_psf_crd=False, load_params=True, separate_crystal_segids=False):
     """Load an entire OrganizedModel into pyCHARMM.
 
     This is a convenience function that loads all components of a model
@@ -515,13 +515,13 @@ def load_model(model, use_psf_crd=True, load_params=True, separate_crystal_segid
         _load_psf_crd(model, append=False, separate_crystal_segids=separate_crystal_segids)
     else:
         # Deprecated: load components separately using PDB-based approach
-        warnings.warn(
-            "PDB-based loading (use_psf_crd=False) is deprecated and will be removed "
-            "in a future version. Use PSF/CRD format (default) for simpler and more "
-            "reliable loading.",
-            DeprecationWarning,
-            stacklevel=2
-        )
+        # warnings.warn(
+        #     "PDB-based loading (use_psf_crd=False) is deprecated and will be removed "
+        #     "in a future version. Use PSF/CRD format (default) for simpler and more "
+        #     "reliable loading.",
+        #     DeprecationWarning,
+        #     stacklevel=2
+        # )
         # Load protein chains
         for chain in model.protein:
             load_chain(chain, use_psf_crd=False)
