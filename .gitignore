@@ -11,4 +11,5 @@ notebooks/
 *.egg-info/
 build/
 dist/
+remote-kernel/
 *.so

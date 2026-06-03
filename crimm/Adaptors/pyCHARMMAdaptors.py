@@ -469,7 +469,7 @@ def load_ions(ion_chains, use_psf_crd=False, append=False):
     return segids
 
 
-def load_model(model, use_psf_crd=False, load_params=True, separate_crystal_segids=False):
+def load_model(model, use_psf_crd=True, load_params=True, separate_crystal_segids=False):
     """Load an entire OrganizedModel into pyCHARMM.
 
     This is a convenience function that loads all components of a model
@@ -484,7 +484,7 @@ def load_model(model, use_psf_crd=False, load_params=True, separate_crystal_segi
         If False, load components individually using legacy PDB-based approach.
     load_params : bool, default True
         If True (default), also load topology parameters (RTF/PRM) via load_topology().
-    seperate_crystal_segids : bool, default False
+    separate_crystal_segids : bool, default False
         If True, separate crystal segids in the PSF file that is loaded into CHARMM. This
         will not affect segids that are already assigned to the residues in the model.
 
@@ -515,13 +515,13 @@ def load_model(model, use_psf_crd=False, load_params=True, separate_crystal_segi
         _load_psf_crd(model, append=False, separate_crystal_segids=separate_crystal_segids)
     else:
         # Deprecated: load components separately using PDB-based approach
-        # warnings.warn(
-        #     "PDB-based loading (use_psf_crd=False) is deprecated and will be removed "
-        #     "in a future version. Use PSF/CRD format (default) for simpler and more "
-        #     "reliable loading.",
-        #     DeprecationWarning,
-        #     stacklevel=2
-        # )
+        warnings.warn(
+            "PDB-based loading (use_psf_crd=False) is deprecated and will be removed "
+            "in a future version. Use PSF/CRD format (default) for simpler and more "
+            "reliable loading.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         # Load protein chains
         for chain in model.protein:
             load_chain(chain, use_psf_crd=False)
