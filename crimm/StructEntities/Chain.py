@@ -163,12 +163,10 @@ class BaseChain(_Chain):
         return repr_str
     
     def _ipython_display_(self):
-        """Return the nglview interactive visualization window"""
         if len(self) != 0:
-            from crimm.Visualization import show_nglview
+            from crimm.Visualization import show
             from IPython.display import display
-            display(show_nglview(self))
-
+            display(show(self))
         print(self.expanded_view())
 
     def get_atoms(self, include_alt = False):

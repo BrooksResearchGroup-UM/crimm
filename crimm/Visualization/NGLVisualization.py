@@ -65,6 +65,31 @@ def show_nglview(entity):
         _load_ngl_view(entity, view)
     return view
 
+def show_nglview_residue(residue):
+    """Show a residue in context of its polymer chain.
+
+    The whole chain is rendered as a subdued grey cartoon and the residue is
+    shown as ball+stick on top. Falls back to a plain ball+stick view when the
+    residue has no parent polymer chain.
+    """
+    from crimm.StructEntities.Chain import PolymerChain
+    view = nv.NGLWidget()
+    chain = residue.parent
+    if chain is not None and isinstance(chain, PolymerChain):
+        res_id = residue.id[1]
+        ngl_structure = NGLStructure(chain)
+        component = view.add_component(ngl_structure)
+        comp_idx = component._index
+        view.clear_representations(component=comp_idx)
+        view.add_representation('cartoon', component=comp_idx, color='grey', opacity=0.5)
+        view.add_representation('ball+stick', selection=str(res_id), component=comp_idx)
+        view.center(selection=str(res_id)) # resid
+    else:
+        ngl_structure = NGLStructure(residue)
+        view.add_component(ngl_structure)
+    
+    return view
+
 def show_nglview_multiple(entity_list):
     """
     Load a list of entity into nglview instance
