@@ -15,9 +15,16 @@ from pycharmm.psf import get_natom, delete_atoms
 from Bio.PDB.Selection import unfold_entities
 from crimm.IO.PDBString import get_pdb_str
 from crimm.IO import write_psf, write_crd
+from crimm.IO.PSFWriter import validate_psf
 from crimm.Modeller.LonePairBuilder import build_lonepair_coords
 from crimm.Data.components_dict import nucleic_letters_1to3
 from crimm.Utils.StructureUtils import polymer_chain_to_charmm_segid
+
+# We need to set this global variable to keep track of which topology types have been loaded into CHARMM
+# this is an ugly solution to the fact that CHARMM does not provide a way to query which topology/parameter files have been loaded
+# we need to find/create APIs to query available CHARMM atom types
+global LOADED_TOPOLOGY_TYPES 
+LOADED_TOPOLOGY_TYPES = set()
 
 def empty_charmm():
     """If any atom exists in current CHARMM runtime, remove them."""
@@ -68,7 +75,6 @@ def _load_psf_crd(entity, append=False, separate_crystal_segids=False):
         # Write PSF and CRD files (these functions handle their own file I/O)
         write_psf(entity, psf_path, separate_crystal_segids=separate_crystal_segids)
         write_crd(entity, crd_path)
-
         # Validate files were written correctly
         if not os.path.exists(psf_path) or os.path.getsize(psf_path) == 0:
             raise RuntimeError(f"PSF file was not written correctly: {psf_path}")
@@ -117,6 +123,7 @@ def load_topology(topo_generator):
                 tf.write(line+'\n')
             tf.flush() # has to flush first for long files!
             read.rtf(tf.name, append = bool(i))
+        LOADED_TOPOLOGY_TYPES.add(topo_type)
 
     for i, (param_type, param_loader) in enumerate(topo_generator.param_dict.items()):
         if param_type == 'water_ions':
@@ -157,6 +164,7 @@ def load_solvent_toppar():
                 tf.write(line)
             tf.flush()
             read.stream(tf.name)
+    LOADED_TOPOLOGY_TYPES.add('water_ions')
 
 def load_cgenff_toppar():
     """Load default CGENFF parameters into pyCHARMM."""
@@ -178,6 +186,7 @@ def load_cgenff_toppar():
             tf.flush() # has to flush first for long files!
             read.prm(tf.name, append=True, flex=True)
     pcm_settings.set_bomb_level(0)
+    LOADED_TOPOLOGY_TYPES.add('cgenff')
 
 def load_chain(chain, hbuild=False, report=False, use_psf_crd=False, append=False):
     """Load a protein/nucleic chain into pyCHARMM.
@@ -286,6 +295,15 @@ def load_ligands(ligand_chains, segids=None, use_psf_crd=False, append=False):
     list
         The segment IDs used for each ligand
     """
+    if len(ligand_chains) == 0:
+        return []
+    
+    if 'cgenff' not in LOADED_TOPOLOGY_TYPES:
+        raise RuntimeError(
+            f"Cannot load ligands {[r.resname for r in [res for chain in ligand_chains for res in chain]]} due to missing CGENFF topology/parameters. "
+            "CGENFF program is needed to automatically generated the ligand topology for most drug-like ligands. " 
+            "To generate ligand topology, initialize TopologyGenerator with the cgenff_excutable_path parameter."
+        )
     all_ligands = [res for chain in ligand_chains for res in chain]
     if segids is None:
         segids = [f'LG{i:02d}' for i in range(len(all_ligands))]
@@ -357,6 +375,16 @@ def load_water(water_chains, segids=None, use_psf_crd=False, append=False):
     list
         The segment IDs used for each water chain
     """
+    if len(water_chains) == 0:
+        return []
+    if 'water_ions' not in LOADED_TOPOLOGY_TYPES:
+        load_solvent_toppar()
+        warnings.warn(
+            "Default solvent topology/parameters were not loaded before loading water. "
+            "crimm has now loaded the default TIP3 water and ion topology/parameters.",
+            UserWarning,
+            stacklevel=2
+        )
     # Currently only supports TIP3 water model
     if segids is None:
         segids = [f'WT{i:02d}' for i in range(len(water_chains))]
@@ -422,6 +450,16 @@ def load_ions(ion_chains, use_psf_crd=False, append=False):
     list
         The segment IDs used for each ion chain
     """
+    if len(ion_chains) == 0:
+        return []
+    if 'water_ions' not in LOADED_TOPOLOGY_TYPES:
+        load_solvent_toppar()
+        warnings.warn(
+            "Default solvent topology/parameters were not loaded before loading water. "
+            "crimm has now loaded the default TIP3 water and ion topology/parameters.",
+            UserWarning,
+            stacklevel=2
+        )
     segids = []
     
     if use_psf_crd:
@@ -506,6 +544,13 @@ def load_model(model, use_psf_crd=True, load_params=True, separate_crystal_segid
     >>> load_topology(model.topology_loader)
     >>> load_model(model, load_params=False)
     """
+    issues = validate_psf(model)
+    if issues:
+        raise ValueError(
+            f"PSF validation failed with the following issues:\n{issues}\n"
+            "Please fix these issues before loading the model into CHARMM."
+        )
+
     if load_params:
         load_topology(model.topology_loader)
 
