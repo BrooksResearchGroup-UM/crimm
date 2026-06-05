@@ -15,6 +15,7 @@ from pycharmm.psf import get_natom, delete_atoms
 from Bio.PDB.Selection import unfold_entities
 from crimm.IO.PDBString import get_pdb_str
 from crimm.IO import write_psf, write_crd
+from crimm.IO.PSFWriter import validate_psf
 from crimm.Modeller.LonePairBuilder import build_lonepair_coords
 from crimm.Data.components_dict import nucleic_letters_1to3
 from crimm.Utils.StructureUtils import polymer_chain_to_charmm_segid
@@ -74,7 +75,6 @@ def _load_psf_crd(entity, append=False, separate_crystal_segids=False):
         # Write PSF and CRD files (these functions handle their own file I/O)
         write_psf(entity, psf_path, separate_crystal_segids=separate_crystal_segids)
         write_crd(entity, crd_path)
-
         # Validate files were written correctly
         if not os.path.exists(psf_path) or os.path.getsize(psf_path) == 0:
             raise RuntimeError(f"PSF file was not written correctly: {psf_path}")
@@ -299,12 +299,10 @@ def load_ligands(ligand_chains, segids=None, use_psf_crd=False, append=False):
         return []
     
     if 'cgenff' not in LOADED_TOPOLOGY_TYPES:
-        load_cgenff_toppar()
-        warnings.warn(
-            "CGENFF topology/parameters were not loaded before loading ligands. "
-            "crimm has now loaded the default CGENFF topology/parameters.",
-            UserWarning,
-            stacklevel=2
+        raise RuntimeError(
+            f"Cannot load ligands {[r.resname for r in [res for chain in ligand_chains for res in chain]]} due to missing CGENFF topology/parameters. "
+            "CGENFF program is needed to automatically generated the ligand topology for most drug-like ligands. " 
+            "To generate ligand topology, initialize TopologyGenerator with the cgenff_excutable_path parameter."
         )
     all_ligands = [res for chain in ligand_chains for res in chain]
     if segids is None:
@@ -546,6 +544,13 @@ def load_model(model, use_psf_crd=True, load_params=True, separate_crystal_segid
     >>> load_topology(model.topology_loader)
     >>> load_model(model, load_params=False)
     """
+    issues = validate_psf(model)
+    if issues:
+        raise ValueError(
+            f"PSF validation failed with the following issues:\n{issues}\n"
+            "Please fix these issues before loading the model into CHARMM."
+        )
+
     if load_params:
         load_topology(model.topology_loader)
 

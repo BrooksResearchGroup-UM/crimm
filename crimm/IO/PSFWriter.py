@@ -1276,8 +1276,9 @@ def write_psf(
     xplor: bool = True,
     title: str = "",
     separate_crystal_segids: bool = False,
-) -> None:
-    """Write CHARMM PSF format file from a crimm Model.
+) -> List[str]:
+    """Write CHARMM PSF format file from a crimm Model. Return a list of issues found during validation (empty if no issues).
+    The PSF file will be written even if issues exist.
 
     Parameters
     ----------
@@ -1296,6 +1297,11 @@ def write_psf(
         from generated ones (SOLV/IONS). If False (default), all waters use
         SOLV and all ions use IONS regardless of source.
 
+    Returns
+    -------
+    List[str]
+        List of validation issues found during writing (empty if no issues)
+
     Examples
     --------
     >>> from crimm.IO import write_psf
@@ -1303,12 +1309,14 @@ def write_psf(
 
     To separate crystallographic from generated chains:
 
-    >>> write_psf(model, 'system.psf', separate_crystal_segids=True)
+    >>> issues = write_psf(model, 'system.psf', separate_crystal_segids=True)
     """
     writer = PSFWriter(
         extended=extended, xplor=xplor, separate_crystal_segids=separate_crystal_segids
     )
+    issues = writer.validate_for_simulation(model, strict=False)
     writer.write(model, filepath, title)
+    return issues
 
 
 def get_psf_str(
@@ -1342,6 +1350,11 @@ def get_psf_str(
     """
     writer = PSFWriter(
         extended=extended, xplor=xplor, separate_crystal_segids=separate_crystal_segids
+    )
+    issues = writer.validate_for_simulation(model, strict=False)
+    warnings.warn(
+        f"PSF validation found {len(issues)} issues. PSF string will be generated, but simulation results may be incorrect. Issues: {issues}",
+        UserWarning,
     )
     return writer.get_psf_string(model, title)
 
