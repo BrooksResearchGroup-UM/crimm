@@ -1352,10 +1352,11 @@ def get_psf_str(
         extended=extended, xplor=xplor, separate_crystal_segids=separate_crystal_segids
     )
     issues = writer.validate_for_simulation(model, strict=False)
-    warnings.warn(
-        f"PSF validation found {len(issues)} issues. PSF string will be generated, but simulation results may be incorrect. Issues: {issues}",
-        UserWarning,
-    )
+    if issues:
+        warnings.warn(
+            f"PSF validation found {len(issues)} issues. PSF string will be generated, but simulation results may be incorrect. Issues: {issues}",
+            UserWarning,
+        )
     return writer.get_psf_string(model, title)
 
 

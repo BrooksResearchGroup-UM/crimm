@@ -23,7 +23,7 @@ from crimm.Utils.StructureUtils import polymer_chain_to_charmm_segid
 # We need to set this global variable to keep track of which topology types have been loaded into CHARMM
 # this is an ugly solution to the fact that CHARMM does not provide a way to query which topology/parameter files have been loaded
 # we need to find/create APIs to query available CHARMM atom types
-global LOADED_TOPOLOGY_TYPES 
+global LOADED_TOPOLOGY_TYPES
 LOADED_TOPOLOGY_TYPES = set()
 
 def empty_charmm():
@@ -148,7 +148,7 @@ def load_topology(topo_generator):
                 tf.write(data_block)
                 tf.flush() # has to flush first for long files!
                 read.stream(tf.name)
-        
+
     # load water_ions.str at the end
     if load_water_ions:
         load_solvent_toppar()
@@ -188,7 +188,7 @@ def load_cgenff_toppar():
     pcm_settings.set_bomb_level(0)
     LOADED_TOPOLOGY_TYPES.add('cgenff')
 
-def load_chain(chain, hbuild=False, report=False, use_psf_crd=False, append=False):
+def load_chain(chain, hbuild=False, report=False, use_psf_crd=True, append=False):
     """Load a protein/nucleic chain into pyCHARMM.
 
     Parameters
@@ -240,7 +240,7 @@ def load_chain(chain, hbuild=False, report=False, use_psf_crd=False, append=Fals
         first_patch, last_patch = '', ''
         other_patches = {}
         for res in m_chain.residues[1:-1]:
-            # iterate over all residues except the first and last to find 
+            # iterate over all residues except the first and last to find
             # if any residue has been patched
             if (patch_name:=res.topo_definition.patch_with) is not None:
                 if patch_name == 'DISU':
@@ -253,10 +253,10 @@ def load_chain(chain, hbuild=False, report=False, use_psf_crd=False, append=Fals
                 other_patches[patch_loc] = patch_name
         if (patch_name:=first_res.topo_definition.patch_with) is not None:
             first_patch = patch_name
-            
+
         if (patch_name:=last_res.topo_definition.patch_with) is not None:
             last_patch = patch_name
-            
+
         with tempfile.NamedTemporaryFile('w') as tf:
             tf.write(get_pdb_str(m_chain, use_charmm_format=True))
             tf.write('END\n')
@@ -275,7 +275,7 @@ def load_chain(chain, hbuild=False, report=False, use_psf_crd=False, append=Fals
                 )
         return segid
 
-def load_ligands(ligand_chains, segids=None, use_psf_crd=False, append=False):
+def load_ligands(ligand_chains, segids=None, use_psf_crd=True, append=False):
     """Load a list of ligand chains into pyCHARMM.
 
     Parameters
@@ -297,11 +297,11 @@ def load_ligands(ligand_chains, segids=None, use_psf_crd=False, append=False):
     """
     if len(ligand_chains) == 0:
         return []
-    
+
     if 'cgenff' not in LOADED_TOPOLOGY_TYPES:
         raise RuntimeError(
             f"Cannot load ligands {[r.resname for r in [res for chain in ligand_chains for res in chain]]} due to missing CGENFF topology/parameters. "
-            "CGENFF program is needed to automatically generated the ligand topology for most drug-like ligands. " 
+            "CGENFF program is needed to automatically generated the ligand topology for most drug-like ligands. "
             "To generate ligand topology, initialize TopologyGenerator with the cgenff_excutable_path parameter."
         )
     all_ligands = [res for chain in ligand_chains for res in chain]
@@ -343,7 +343,7 @@ def load_ligands(ligand_chains, segids=None, use_psf_crd=False, append=False):
                     dihedral=True
                 )
                 read.pdb(tf.name, resid=True)
-        
+
         lone_pair_ligands = [lig.resname for lig in all_ligands if len(lig.lone_pairs) > 0]
 
         if len(lone_pair_ligands) > 0:
@@ -461,7 +461,7 @@ def load_ions(ion_chains, use_psf_crd=True, append=False):
             stacklevel=2
         )
     segids = []
-    
+
     if use_psf_crd:
         # PSF/CRD approach (default) - simpler and recommended
         for i, chain in enumerate(ion_chains):
@@ -487,7 +487,7 @@ def load_ions(ion_chains, use_psf_crd=True, append=False):
             # we need to copy the chain here, since we might modify atom_serial_number
             chain = chain.copy()
             chain.reset_atom_serial_numbers(reset_current_only=True)
-            
+
             with tempfile.NamedTemporaryFile('w') as tf:
                 tf.write(get_pdb_str(chain, use_charmm_format=True, reset_serial=False))
                 tf.write('END\n')
@@ -530,7 +530,7 @@ def load_model(model, use_psf_crd=True, load_params=True, separate_crystal_segid
     -----
     When use_psf_crd=True, the entire model is loaded at once via PSF/CRD.
     This is simpler and preserves all topology (including disulfide bonds) automatically.
-    
+
     When use_psf_crd=False, components are loaded individually using the deprecated
     PDB-based loading and requires separate patch_disu_from_model() call.
 
@@ -570,20 +570,20 @@ def load_model(model, use_psf_crd=True, load_params=True, separate_crystal_segid
         # Load protein chains
         for chain in model.protein:
             load_chain(chain, use_psf_crd=False)
-        
+
         # Load ligands (including phosphorylated ligands and co-solvents)
         all_ligand_chains = model.ligand + model.phos_ligand + model.co_solvent
         if all_ligand_chains:
             load_ligands(all_ligand_chains, use_psf_crd=False)
-        
+
         # Load water
         if model.solvent:
             load_water(model.solvent, use_psf_crd=False)
-        
+
         # Load ions
         if model.ion:
             load_ions(model.ion, use_psf_crd=False)
-        
+
         # Apply disulfide patches (only needed for PDB-based loading)
         patch_disu_from_model(model)
 
@@ -606,12 +606,12 @@ def _load_chain(
         pdb_filepath, segnames, hbuild = True, report = False,
         first_patch='', last_patch=''
     ):
-     
+
     read.sequence_pdb(pdb_filepath)
 
     for seg in segnames:
         generate.new_segment(
-            seg_name=seg, 
+            seg_name=seg,
             first_patch=first_patch,
             last_patch=last_patch,
             setup_ic=True,
@@ -671,7 +671,7 @@ def get_charmm_coord_dict(selected_atoms, include_resname = True):
     The dictionary is organized by SEGID, and then by residue sequence and atom name.
     """
     # atom_idx from CHARMM is zero-indexed
-    atom_idx = np.array(selected_atoms.get_atom_indexes()) 
+    atom_idx = np.array(selected_atoms.get_atom_indexes())
     pos = pcm.coor.get_positions().to_numpy()
     atom_pos = pos[atom_idx]
     resseq = []
@@ -683,7 +683,7 @@ def get_charmm_coord_dict(selected_atoms, include_resname = True):
     resnames = selected_atoms.get_res_names()
     a_types = selected_atoms.get_atom_types()
     segids = selected_atoms.get_seg_ids()
-    
+
     coords_dict = {}
     for segid, resseq, resname, a_name, coords in zip(
         segids, resseq, resnames, a_types, atom_pos
@@ -730,7 +730,7 @@ def create_water_hs_from_charmm(model):
             f'hbuild sele SEGI {segid} .and. .not. TYPE O* end'
         )
         charmm_water_hs = (
-            pcm.SelectAtoms().by_seg_id(segid) & 
+            pcm.SelectAtoms().by_seg_id(segid) &
             pcm.SelectAtoms().all_hydrogen_atoms()
         )
         h_coords_dict = get_charmm_coord_dict(
@@ -802,13 +802,13 @@ def minimize(constrained_atoms='CA', sd_nstep=1000, abnr_nstep=500):
     cons_harm.turn_off()
 
 def sd_minimize(
-    nstep, non_bonded_script, tolenr=1e-3, tolgrd=1e-3, 
+    nstep, non_bonded_script, tolenr=1e-3, tolgrd=1e-3,
     cons_harm_selection=None, harm_force_const=20, cons_fix_selection=None
 ):
     """Perform steepest-descent minimization in CHARMM."""
     # Implement the non-bonded parameters by "running" them.
     non_bonded_script.run()
-    # equivalent to: 
+    # equivalent to:
     # cons harm force 20 select type ca end
     has_cons_harm = False
     has_cons_fix = False
@@ -833,7 +833,7 @@ def sd_minimize(
         else:
             has_cons_fix = cons_fix.setup(cons_fix_selection)
             warnings.warn(f"Atom fix constraint setup success: {has_cons_fix}")
-    # equivalent CHARMM scripting command: 
+    # equivalent CHARMM scripting command:
     # minimize abnr nstep 1000 tole 1e-3 tolgr 1e-3
     _minimize.run_sd(nstep=nstep, tolenr=tolenr, tolgrd=tolgrd)
     if has_cons_harm:
