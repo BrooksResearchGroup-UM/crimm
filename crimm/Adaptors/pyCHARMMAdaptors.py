@@ -355,7 +355,7 @@ def load_ligands(ligand_chains, segids=None, use_psf_crd=False, append=False):
 
     return segids
 
-def load_water(water_chains, segids=None, use_psf_crd=False, append=False):
+def load_water(water_chains, segids=None, use_psf_crd=True, append=False):
     """Load water chains into pyCHARMM.
 
     Parameters
@@ -432,7 +432,7 @@ def load_water(water_chains, segids=None, use_psf_crd=False, append=False):
 
     return segids
 
-def load_ions(ion_chains, use_psf_crd=False, append=False):
+def load_ions(ion_chains, use_psf_crd=True, append=False):
     """Load ion chains into pyCHARMM.
 
     Parameters
