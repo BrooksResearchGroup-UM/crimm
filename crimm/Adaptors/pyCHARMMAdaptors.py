@@ -17,6 +17,7 @@ from crimm.IO.PDBString import get_pdb_str
 from crimm.IO import write_psf, write_crd
 from crimm.IO.PSFWriter import validate_psf
 from crimm.Modeller.LonePairBuilder import build_lonepair_coords
+from crimm.Modeller.TopoFixer import fix_chain
 from crimm.Data.components_dict import nucleic_letters_1to3
 from crimm.Utils.StructureUtils import polymer_chain_to_charmm_segid
 
@@ -39,6 +40,63 @@ def _entity_has_lonepairs(entity) -> bool:
         if getattr(res, "lone_pair_dict", None):
             return True
     return False
+
+
+def _iter_entity_chains(entity):
+    """Yield chain objects contained by an entity."""
+    level = getattr(entity, "level", None)
+    if level == "C":
+        yield entity
+        return
+    if level in ("S", "M"):
+        yield from entity.get_chains()
+        return
+
+    parent = getattr(entity, "parent", None)
+    while parent is not None:
+        if getattr(parent, "level", None) == "C":
+            yield parent
+            return
+        parent = getattr(parent, "parent", None)
+
+
+def _prepare_psf_crd_coordinates(entity):
+    """Build missing polymer atoms before writing PSF/CRD files."""
+    polymer_types = {
+        "Polypeptide(L)",
+        "Polyribonucleotide",
+        "Polydeoxyribonucleotide",
+    }
+    seen = set()
+    for chain in _iter_entity_chains(entity):
+        if id(chain) in seen:
+            continue
+        seen.add(id(chain))
+        if getattr(chain, "chain_type", None) not in polymer_types:
+            continue
+        if any(res.missing_atoms or res.missing_hydrogens for res in chain):
+            fix_chain(chain)
+            _refresh_residue_atom_groups(chain)
+
+
+def _refresh_residue_atom_groups(chain):
+    """Refresh residue atom groups after atoms have been rebuilt."""
+    for res in chain:
+        topo_def = getattr(res, "topo_definition", None)
+        if topo_def is None:
+            continue
+        atom_groups = []
+        for atom_names in topo_def.atom_groups:
+            group = []
+            for atom_name in atom_names:
+                if atom_name not in res:
+                    continue
+                atom = res[atom_name]
+                atom.topo_definition = topo_def[atom_name]
+                group.append(atom)
+            if group:
+                atom_groups.append(group)
+        res.atom_groups = atom_groups
 
 
 def _load_psf_crd(entity, append=False, separate_crystal_segids=False):
@@ -71,6 +129,7 @@ def _load_psf_crd(entity, append=False, separate_crystal_segids=False):
 
         if has_lonepairs:
             build_lonepair_coords(entity)
+        _prepare_psf_crd_coordinates(entity)
 
         # Write PSF and CRD files (these functions handle their own file I/O)
         write_psf(entity, psf_path, separate_crystal_segids=separate_crystal_segids)
