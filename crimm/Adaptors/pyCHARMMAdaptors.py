@@ -76,7 +76,7 @@ def _prepare_psf_crd_coordinates(entity):
             continue
         if any(res.missing_atoms or res.missing_hydrogens for res in chain):
             fix_chain(chain)
-            _refresh_residue_atom_groups(chain)
+        _refresh_residue_atom_groups(chain)
 
 
 def _refresh_residue_atom_groups(chain):
@@ -422,7 +422,8 @@ def load_water(water_chains, segids=None, use_psf_crd=True, append=False):
     water_chains : list
         List of water chains to load
     segids : list, optional
-        Segment IDs for each water chain. If None, auto-generates WT00, WT01, etc.
+        Segment IDs for each water chain. In PSF/CRD mode, provided segids are
+        assigned before writing; otherwise PSFWriter assigns solvent segids.
     use_psf_crd : bool, default True
         If True (default), use PSF/CRD format - simpler and recommended.
         If False, use deprecated PDB-based loading.
@@ -445,6 +446,7 @@ def load_water(water_chains, segids=None, use_psf_crd=True, append=False):
             stacklevel=2
         )
     # Currently only supports TIP3 water model
+    use_explicit_segids = segids is not None
     if segids is None:
         segids = [f'WT{i:02d}' for i in range(len(water_chains))]
     elif len(segids) != len(water_chains):
@@ -452,11 +454,13 @@ def load_water(water_chains, segids=None, use_psf_crd=True, append=False):
 
     if use_psf_crd:
         # PSF/CRD approach (default) - simpler and recommended
-        for i, chain in enumerate(water_chains):
-            # Segment ID for water chains is defined by PSFWriter based on water source
+        for i, (chain, segid) in enumerate(zip(water_chains, segids)):
+            if use_explicit_segids:
+                for res in chain:
+                    res.segid = segid
             should_append = append if i == 0 else True
-            segid = chain.residues[0].segid
             _load_psf_crd(chain, append=should_append)
+            segids[i] = chain.residues[0].segid
     else:
         # Deprecated PDB-based implementation
         # warnings.warn(

@@ -130,9 +130,9 @@ def fetch_rcsb(
             CHARMM ion name defined in water_ions.str. This only takes effect
             if `organize` is True
         rename_solvent_oxygen (bool): Whether to rename solvent oxygen to CHARMM
-        name "OH2" in the crystallographic water. Doing so will allow crimm to
-         generate topology definitions on the water. This only takeseffect
-         if `organize` is True
+            name "OH2" in the crystallographic water. Doing so will allow crimm to
+            generate topology definitions on the water. This only takes effect
+            if `organize` is True
         proxies (dict): Use proxy servers for Python requests. Proxy definition
          should comply with [requests library's standard](https://requests.readthedocs.io/en/latest/user/advanced/#proxies).
          For example,
@@ -172,7 +172,7 @@ def fetch_rcsb(
     return structure
 
 def fetch_swiss_model(uniprot_id, first_model_only = False, proxies=None):
-    """Get the first matching stucuture from the Swiss Model database for a given
+    """Get the first matching structure from the Swiss Model database for a given
     uniprot id
     """
     base_url = (
