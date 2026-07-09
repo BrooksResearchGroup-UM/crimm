@@ -19,7 +19,7 @@ class NGLStructure(nv.Structure):
 
     def get_structure_string(self):
         return get_pdb_str(
-            self.entity, include_alt=False, trunc_resname=True, 
+            self.entity, include_alt=False, trunc_resname=True,
             use_charmm_format=False, convert_water=True,
             chain_id_policy='renumber'
         )
@@ -42,7 +42,7 @@ class NGLRDKitStructure(nv.Structure):
         for i in range(n_conf):
             struct_str += Chem.MolToMolBlock(self.entity, confId=i)
         return struct_str
-    
+
 def _load_ngl_view(entity, view):
     """Load entity into nglview instance"""
     ngl_structure = NGLStructure(entity)
@@ -87,7 +87,7 @@ def show_nglview_residue(residue):
     else:
         ngl_structure = NGLStructure(residue)
         view.add_component(ngl_structure)
-    
+
     return view
 
 def show_nglview_multiple(entity_list):
@@ -116,7 +116,7 @@ class View(nv.NGLWidget):
         self._create_atom_lookup(entity, component._index)
         self.entity_dict[entity] = component
         return component
-    
+
     def _create_atom_lookup(self, entity, component_index):
         """create a lookup table for atom id and atom object"""
         for i, atom in enumerate(entity.get_atoms()):
@@ -165,12 +165,12 @@ class View(nv.NGLWidget):
             **kwargs
         ):
         """
-        Highlight the repaired gaps with red color and show licorice 
+        Highlight the repaired gaps with red color and show licorice
         representations
         """
         if len(self.entity_dict) == 0:
             raise ValueError('No entity loaded!')
-        
+
         if len(residues) == 0:
             warnings.warn('No residues provided for highlighting!')
             return
@@ -202,17 +202,17 @@ class View(nv.NGLWidget):
             )
             atom_id_selection = atom_id_dict[comp_idx]
             # TODO: Find API for changing color of specific residues
-            # since add cartoon representation will not render 
+            # since add cartoon representation will not render
             self.add_representation(
-                'cartoon', selection=atom_id_selection, 
-                component=comp_idx, 
+                'cartoon', selection=atom_id_selection,
+                component=comp_idx,
                 **kwargs
             )
 
             if add_licorice:
                 # Add licorice representations
                 self.add_representation(
-                    'licorice', selection=atom_id_selection, 
+                    'licorice', selection=atom_id_selection,
                     component=comp_idx,
                     **kwargs
                 )
@@ -228,13 +228,13 @@ class View(nv.NGLWidget):
         if len(atoms) == 0:
             warnings.warn('No atoms provided for highlighting!')
             return
-        
+
         loaded_entities = list(self.entity_dict.keys())
         entity_chains = set(unfold_entities(loaded_entities, 'C'))
         atom_chains = set(unfold_entities(atoms, 'C'))
         if not atom_chains.issubset(entity_chains):
             raise ValueError('Residues are not from the loaded entity!')
-        
+
         # Organize the selected atoms ids by component id
         atom_id_dict = self._create_selected_atom_id_lookup(atoms)
         representation = 'licorice' if add_licorice else 'cartoon'
@@ -252,7 +252,7 @@ class View(nv.NGLWidget):
                 'cartoon', component=comp_idx, color='grey', opacity=0.5
             )
             self.add_representation(
-                representation, selection=atom_ids, 
+                representation, selection=atom_ids,
                 component=comp_idx, **kwargs
             )
 
@@ -263,12 +263,12 @@ class View(nv.NGLWidget):
         if len(chains) == 0:
             warnings.warn('No chains provided for highlighting!')
             return
-        
+
         loaded_entities = list(self.entity_dict.keys())
         entity_chains = set(unfold_entities(loaded_entities, 'C'))
         if not set(chains).issubset(entity_chains):
             raise ValueError('Residues are not from the loaded entity!')
-        
+
         self.subdue_all_entities()
         if 'colorScheme' not in kwargs:
             kwargs['color'] = color

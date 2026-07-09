@@ -38,7 +38,7 @@ def _get_alphafold_fh(uniprot_id, proxies):
     """Get a mmcif file handle from the alphafold database for a given uniprot id
     """
     query_url = f"https://alphafold.ebi.ac.uk/api/prediction/{uniprot_id}"
-    
+
     response = requests.get(query_url, timeout=500, proxies=proxies)
     code = response.status_code
     if code != 200:
@@ -52,7 +52,7 @@ def _get_alphafold_fh(uniprot_id, proxies):
 
 def fetch_alphafold(uniprot_id, first_model_only = False, proxies=None):
     """Get a structure from the alphafold database for a given uniprot id"""
-    
+
     msg = f"AlphaFold DB failed find structure for {uniprot_id}"
     if uniprot_id is None:
         # We only issue warning here
@@ -64,7 +64,7 @@ def fetch_alphafold(uniprot_id, first_model_only = False, proxies=None):
         warnings.warn(msg)
         return
     parser = MMCIFParser(
-        # AlphaFold only has one model and does not have multiple 
+        # AlphaFold only has one model and does not have multiple
         # assemblies, solvent, or hydrogens
         first_model_only = True,
         use_bio_assembly = False,
@@ -78,7 +78,7 @@ def fetch_alphafold(uniprot_id, first_model_only = False, proxies=None):
 
 def _get_mmcif_fh(pdb_id, proxies):
     """Get a mmcif file handle from the rcsb database"""
-    
+
     if len(pdb_id) == 4:
         entry_point = "https://files.rcsb.org/download"
     elif len(pdb_id) == 3:
@@ -90,7 +90,7 @@ def _get_mmcif_fh(pdb_id, proxies):
 
 def fetch_rcsb_as_dict(pdb_id, proxies=None):
     """Get info about a pdb entry as a dictionary from rcsb"""
-    
+
     file = _get_mmcif_fh(pdb_id, proxies=proxies)
     if file is None:
         raise ValueError(f"Could not load file for {pdb_id}")
@@ -112,29 +112,29 @@ def fetch_rcsb(
     """Get a structure from rcsb with a pdb id or from a local mmcif file
     Args:
         pdb_id (str): The pdb id of the structure to fetch
-        local_entry (str): The path to the local mmcif file entry point if the 
-            PDB archive is downloaded. 
+        local_entry (str): The path to the local mmcif file entry point if the
+            PDB archive is downloaded.
         first_model_only (bool): Whether to return only the first model of the structure.
             Otherwise, the structure level entity will be returned
         use_bio_assembly (bool): Whether to use the bio assembly of the structure.
-            See this article for more about biological assembly: 
+            See this article for more about biological assembly:
             https://pdb101.rcsb.org/learn/guide-to-understanding-pdb-data/biological-assemblies
         include_solvent (bool): Whether to include solvent in the structure.
-        include_hydrogens (bool): Whether to include hydrogens in the structure 
+        include_hydrogens (bool): Whether to include hydrogens in the structure
             if they exist.
         organize (bool): Whether to return an organized model where the chains are
             identified and grouped by their chain types. This is useful for
             generating topology defined by CHARMM force field. Only takes effect
             if `first_model_only` is True
-        rename_charmm_ions (bool): Whether to rename ions in the structure to 
-            CHARMM ion name defined in water_ions.str. This only takes effect 
+        rename_charmm_ions (bool): Whether to rename ions in the structure to
+            CHARMM ion name defined in water_ions.str. This only takes effect
             if `organize` is True
-        rename_solvent_oxygen (bool): Whether to rename solvent oxygen to CHARMM 
-        name "OH2" in the crystallographic water. Doing so will allow crimm to 
-         generate topology definitions on the water. This only takeseffect 
-         if `organize` is True
-        proxies (dict): Use proxy servers for Python requests. Proxy definition 
-         should comply with [requests library's standard](https://requests.readthedocs.io/en/latest/user/advanced/#proxies). 
+        rename_solvent_oxygen (bool): Whether to rename solvent oxygen to CHARMM
+            name "OH2" in the crystallographic water. Doing so will allow crimm to
+            generate topology definitions on the water. This only takes effect
+            if `organize` is True
+        proxies (dict): Use proxy servers for Python requests. Proxy definition
+         should comply with [requests library's standard](https://requests.readthedocs.io/en/latest/user/advanced/#proxies).
          For example,
          ```
          proxies = {
@@ -145,7 +145,7 @@ def fetch_rcsb(
     Returns:
         structure (Structure): The structure object
     """
-    
+
     if len(pdb_id) == 3:
         raise ValueError("Ligand entries are not supported yet!")
     if local_entry is not None:
@@ -154,7 +154,7 @@ def fetch_rcsb(
         file = _get_mmcif_fh(pdb_id, proxies=proxies)
     if file is None:
         raise ValueError(f"Could not load file for {pdb_id}")
-    
+
     parser = MMCIFParser(
         first_model_only = first_model_only,
         use_bio_assembly = use_bio_assembly,
@@ -166,13 +166,13 @@ def fetch_rcsb(
         structure = structure.models[0]
         if organize:
             structure = OrganizedModel(
-                structure, rename_charmm_ions=rename_charmm_ions, 
+                structure, rename_charmm_ions=rename_charmm_ions,
                 rename_solvent_oxygen=rename_solvent_oxygen
             )
     return structure
 
 def fetch_swiss_model(uniprot_id, first_model_only = False, proxies=None):
-    """Get the first matching stucuture from the Swiss Model database for a given 
+    """Get the first matching structure from the Swiss Model database for a given
     uniprot id
     """
     base_url = (
@@ -181,7 +181,7 @@ def fetch_swiss_model(uniprot_id, first_model_only = False, proxies=None):
     )
     header_url = base_url.format(uniprot_id = uniprot_id, ext = 'json')
     struct_url = base_url.format(uniprot_id = uniprot_id, ext = 'pdb')
-    
+
     result = requests.get(header_url,timeout=500, proxies=proxies)
     code = result.status_code
     if code != 200:
@@ -218,7 +218,7 @@ def fetch_swiss_model_multiple(uniprot_id, first_model_only = False, proxies=Non
         f"https://swissmodel.expasy.org/repository/uniprot/{uniprot_id}.json"
         "?provider=swissmodel"
     )
-    
+
     result = requests.get(header_url,timeout=500, proxies=proxies)
     code = result.status_code
     if code != 200:
@@ -244,7 +244,7 @@ def fetch_swiss_model_multiple(uniprot_id, first_model_only = False, proxies=Non
     return structures
 
 def _sm_struct_from_info_dict(uniprot_id, struct_info_dict, can_seq_str, desc, proxies=None):
-    
+
     parser = PDBParser()
     structure_url = struct_info_dict['coordinates']
     struct_fh = _file_handle_from_url(structure_url, proxies=proxies)
@@ -262,7 +262,7 @@ def _sm_struct_from_info_dict(uniprot_id, struct_info_dict, can_seq_str, desc, p
     return structure
 
 def _fetch_with_chain(chain, fetcher, proxies=None):
-    
+
     if not hasattr(chain, 'parent'):
         raise ValueError("Chain has no parent Model!")
     model = chain.parent
@@ -272,7 +272,7 @@ def _fetch_with_chain(chain, fetcher, proxies=None):
         raise ValueError("Chain has no parent Structure!")
     else:
         pdb_id = model.parent.id
-        
+
     if pdb_id is None or len(pdb_id) != 4:
         raise ValueError(f"Chain's PDB ID {pdb_id} is invalid!")
     entity_id = chain.entity_id
@@ -290,20 +290,20 @@ def _fetch_with_chain(chain, fetcher, proxies=None):
     return new_struct
 
 def fetch_alphafold_from_chain(chain, proxies=None):
-    """Find the alphafold structure for a given chain. The chain must have a parent 
-    structure with a valid PDB ID. The chain must also have an entity id assigned 
+    """Find the alphafold structure for a given chain. The chain must have a parent
+    structure with a valid PDB ID. The chain must also have an entity id assigned
     from mmCIF.
     The returned AlphaFold structure will have only one model and one chain, and the
     chain will be superimposed to the input chain.
     """
-    
+
     return _fetch_with_chain(chain, fetch_alphafold, proxies=proxies)
 
 def fetch_swiss_model_from_chain(chain, proxies=None):
-    """Find the Swiss Model structure for a given chain. The chain must have a parent 
-    structure with a valid PDB ID. The chain must also have an entity id assigned 
+    """Find the Swiss Model structure for a given chain. The chain must have a parent
+    structure with a valid PDB ID. The chain must also have an entity id assigned
     from mmCIF.
     The returned Swiss Model chain will be superimposed to the input chain.
     """
-    
+
     return _fetch_with_chain(chain, fetch_swiss_model, proxies=proxies)
