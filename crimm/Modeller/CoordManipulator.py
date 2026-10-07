@@ -55,6 +55,14 @@ class CoordManipulator:
             self.op_mat = self._find_transformation_operators()
         return self.op_mat
 
+    def find_max_dim(self) -> float:
+        """find the maximum dimension of the molecular system (length of the major axis)."""
+        a1, a2 = self.end_i, self.end_j
+        # coordinates of the farthest atom pair
+        o1, o2 = self.coords[a1], self.coords[a2]
+        major_axis = o1 - o2
+        return norm(major_axis)
+
     def _find_transformation_operators(self) -> None:
         a1, a2 = self.end_i, self.end_j
         # coordinates of the farthest atom pair
