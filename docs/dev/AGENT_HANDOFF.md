@@ -158,7 +158,7 @@ Things that cost a previous agent time or would produce wrong results silently.
 Rewrite in place. True as of `2026-10-06`.
 
 ```yaml
-branches:                          # all local, none pushed; all start at fbb165d (master)
+branches:                          # all local, none pushed; all start at fbb165d
   cleanup/phase0-tests-and-dev-docs:     # agent cleanup work; continue here
     - d10c62d                      # tests/, tests/data/, pyproject.toml pytest config
     - fa7338a                      # docs/dev/*.md
@@ -167,6 +167,11 @@ branches:                          # all local, none pushed; all start at fbb165
     - 44e9bf6                      # CoordManipulator.find_max_dim; Solvator TODO comment
   solvator-coor-orient-options:    # old working branch; still points at fa7338a.
                                    # Redundant now. Owner decides whether to delete it.
+base_is_behind_remote: true        # origin/master is cf51387 (tag 2026.2.1, "Restore PSF/CRD
+                                   # loader defaults (#38)"), one commit past fbb165d as of the
+                                   # last fetch. Every finding and test result in this file was
+                                   # obtained on fbb165d. Rebase and re-run before trusting the
+                                   # PSF/CRD xfails.
 uncommitted_owner_work: none
 uncommitted_agent_work: none
 untracked_not_ours:
