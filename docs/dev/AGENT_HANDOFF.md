@@ -151,20 +151,23 @@ Things that cost a previous agent time or would produce wrong results silently.
 | G11 | The CGenFF ligand path queries RCSB for the ligand's chemistry, so `cgenff` tests also need the network. | `[inferred: RDKitConverter posts to RCSB; test passed only with network available]` |
 | G12 | Other sessions edit `docs/dev/*.md` concurrently. Re-read a file immediately before editing it, and make targeted edits, never whole-file rewrites. | `[ran 2026-10-06: ROADMAP.md and NOTES.md changed under an active session]` |
 | G13 | ROADMAP section numbers are not stable identifiers. 1.3 to 1.5 were renumbered on 2026-10-06. Cite the section title with the number. | `[ran 2026-10-06]` |
+| G14 | The test suite lives only on `cleanup/phase0-tests-and-dev-docs` until it is merged. A branch cut from `master` has no `tests/test_*.py`, so `pytest` there collects nothing and reports no failures. | `[ran 2026-10-06]` |
 
 ## 5. State
 
 Rewrite in place. True as of `2026-10-06`.
 
 ```yaml
-branch: solvator-coor-orient-options
-base: fbb165d                      # last commit before agent work
-committed_by_agents:               # local only, not pushed; on the branch above
-  - d10c62d                        # tests/, tests/data/, pyproject.toml pytest config
-  - "the commit after d10c62d"     # docs/dev/*.md (this file cannot hold its own hash)
-uncommitted_owner_work:            # do not edit, revert or stage
-  - crimm/Modeller/CoordManipulator.py   # new find_max_dim
-  - crimm/Modeller/Solvator.py           # one new TODO comment
+branches:                          # all local, none pushed; all start at fbb165d (master)
+  cleanup/phase0-tests-and-dev-docs:     # agent cleanup work; continue here
+    - d10c62d                      # tests/, tests/data/, pyproject.toml pytest config
+    - fa7338a                      # docs/dev/*.md
+    - "later commits: handoff updates"
+  feat/coordmanipulator-find-max-dim:    # the owner's solvation edits, kept separate
+    - 44e9bf6                      # CoordManipulator.find_max_dim; Solvator TODO comment
+  solvator-coor-orient-options:    # old working branch; still points at fa7338a.
+                                   # Redundant now. Owner decides whether to delete it.
+uncommitted_owner_work: none
 uncommitted_agent_work: none
 untracked_not_ours:
   - import-fix.md                  # work order, see standing instructions
@@ -221,6 +224,20 @@ Newest first. Append only. Template:
 - found: <bugs, surprises; point to ROADMAP rows or GOTCHAS>
 - next: <the obvious next step, and anything blocking it>
 ```
+
+### 2026-10-06 claude-opus/claude-code/cleanup (entry 5)
+
+- asked: put the owner's uncommitted edits on their own branch, the cleanup work on
+  another, and commit.
+- did: created `feat/coordmanipulator-find-max-dim` at `fbb165d` and committed the owner's
+  two files there (`44e9bf6`); created `cleanup/phase0-tests-and-dev-docs` at `fa7338a`
+  and switched to it. Entry 4's branch description is superseded by State.
+- verified: `git status` clean on both apart from the untracked files listed in State;
+  `git log` on each `[ran]`.
+- not verified: the test suite was not re-run on the feature branch. It does not contain
+  `tests/`, so there is nothing to run there until the branches meet.
+- found: G14.
+- next: unchanged from entry 2.
 
 ### 2026-10-06 claude-opus/claude-code/cleanup (entry 4)
 
