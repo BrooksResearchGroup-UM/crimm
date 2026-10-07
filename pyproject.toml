@@ -34,6 +34,7 @@ classifiers = [
 protonation = ["propka>=3.5.1"]
 cheminformatics = ["rdkit"]
 all = ["propka>=3.5.1", "rdkit"]
+test = ["pytest>=7"]
 
 [project.urls]
 "Homepage" = "https://github.com/BrooksResearchGroup-UM/crimm"
@@ -41,8 +42,14 @@ all = ["propka>=3.5.1", "rdkit"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# The default run is offline and fast. Select the others explicitly, e.g.
+# `pytest -m network` or `pytest -m "cgenff or slow"`; `pytest -m ""` runs all.
+addopts = "--strict-markers -m 'not network and not pycharmm and not cgenff and not slow and not gpu'"
 markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "network: needs internet access (RCSB, AlphaFold DB)",
+    "pycharmm: needs pyCHARMM and a CHARMM library",
+    "cgenff: needs the cgenff executable (set CRIMM_CGENFF_PATH or put it on PATH)",
+    "slow: takes more than a few seconds",
     "gpu: marks tests that require GPU",
 ]
 
