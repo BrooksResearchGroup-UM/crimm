@@ -208,4 +208,9 @@ Part of this codebase was written with Copilot and Claude, and that will continu
   in code that reads plausibly and is well commented.
 - Ask for tests in the same change, and read the tests first.
 - Keep work orders for agents as GitHub issues, not loose Markdown files at the repo root.
-- Do not commit agent scratch files or local tool settings; add them to `.gitignore`.
+  Status 2026-10-07: the issue forms exist; the existing work orders (`import-fix.md`,
+  ROADMAP rows) are not yet migrated.
+- Do not commit agent scratch files or local tool settings; add them to `.gitignore`, or for
+  files that are personal to one developer, to `.git/info/exclude`.
+- The root files for agents are `AGENTS.md` (the instructions) and `CLAUDE.md` (one line,
+  `@AGENTS.md`). Status 2026-10-07: done.

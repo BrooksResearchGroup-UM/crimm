@@ -7,7 +7,7 @@ humans read it second.
 schema: agent-handoff/1
 repo: github.com/BrooksResearchGroup-UM/crimm
 default_branch: master
-last_updated: 2026-10-06
+last_updated: 2026-10-07
 ```
 
 ## 0. Protocol
@@ -155,10 +155,10 @@ Things that cost a previous agent time or would produce wrong results silently.
 
 ## 5. State
 
-Rewrite in place. True as of `2026-10-06`.
+Rewrite in place. True as of `2026-10-07`.
 
 ```yaml
-branches:                          # all local, none pushed; all start at fbb165d
+branches:                          # all start at fbb165d; the cleanup branch is pushed
   cleanup/phase0-tests-and-dev-docs:     # agent cleanup work; continue here
     - d10c62d                      # tests/, tests/data/, pyproject.toml pytest config
     - fa7338a                      # docs/dev/*.md
@@ -167,13 +167,18 @@ branches:                          # all local, none pushed; all start at fbb165
     - 44e9bf6                      # CoordManipulator.find_max_dim; Solvator TODO comment
   solvator-coor-orient-options:    # old working branch; still points at fa7338a.
                                    # Redundant now. Owner decides whether to delete it.
+env_rebuild: in_progress           # conda env `crimm-dev-new` from environment-dev.yml; the
+                                   # first attempt failed (`build` is `python-build` on
+                                   # conda-forge). Old `crimm-dev` (py3.8) still exists; delete
+                                   # only with owner confirmation. Jupyter kernel `crimm-dev`
+                                   # points at it and needs re-registering.
 base_is_behind_remote: true        # origin/master is cf51387 (tag 2026.2.1, "Restore PSF/CRD
                                    # loader defaults (#38)"), one commit past fbb165d as of the
                                    # last fetch. Every finding and test result in this file was
                                    # obtained on fbb165d. Rebase and re-run before trusting the
                                    # PSF/CRD xfails.
 uncommitted_owner_work: none
-uncommitted_agent_work: none
+uncommitted_agent_work: none      # 2026-10-07 repo-setup work is committed and pushed
 untracked_not_ours:
   - import-fix.md                  # work order, see standing instructions
   - tests/slurm/                   # owner's benchmark job files
@@ -220,15 +225,23 @@ ROADMAP row.
 Newest first. Append only. Template:
 
 ```markdown
-### YYYY-MM-DD <model>/<tool>/<task>
+### 2026-10-07 claude-sonnet/claude-code/repo-setup
 
-- asked: <what the owner asked for, one line>
-- did: <what changed, with paths>
-- verified: <what you ran and the result>
-- not verified: <what you assumed or skipped>
-- found: <bugs, surprises; point to ROADMAP rows or GOTCHAS>
-- next: <the obvious next step, and anything blocking it>
-```
+- asked: set up the repo for agents and humans (BEST_PRACTICES last two items); rebuild the
+  dev environment.
+- did: wrote `AGENTS.md`, `CLAUDE.md` (`@AGENTS.md`), `CONTRIBUTING.md`, issue forms, PR
+  template and `CODEOWNERS` under `.github/` (Stan is `@stanislc`), `environment-dev.yml`.
+  Committed in three commits and pushed. Added personal-file patterns (`CLAUDE.local.md`,
+  `AGENTS.local.md`, `.claude/settings.local.json`, `.claude/commands/`) to
+  `.git/info/exclude`.
+  `[ran]`
+- env: first `conda env create` failed (`python-build`, not `build`); fixed and restarted.
+  The result was not checked before this entry was written. `[ran]`
+- not done: `gh` install, labels, milestones, converting work orders to issues, branch
+  protection, `env.yaml` removal, merging `origin/master` (1 commit behind), deleting the old
+  env.
+- resolves entry 3's open question: the root pointer is `AGENTS.md`.
+- next: finish and test the env, swap it in, merge master, set up `gh`.
 
 ### 2026-10-06 claude-opus/claude-code/cleanup (entry 5)
 

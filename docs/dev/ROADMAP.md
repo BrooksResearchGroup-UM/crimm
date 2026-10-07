@@ -23,6 +23,8 @@ Nothing here changes behaviour.
 | --- | --- | --- |
 | **Done 2026-10-06.** Offline pytest suite with small fixture structures checked into `tests/data/` (1UBQ, 1CRN, 2IGD, 3PTB, 1BNA) | `pytest` passes with no network; covers parsing, organizing, topology generation, PSF/CRD round trip, solvation. Result: 133 passed, 13 expected failures, each pinning a bug listed in Phase 1 | L |
 | **Done 2026-10-06.** Markers for `network`, `pycharmm`, `cgenff`, `slow` | Default `pytest` run skips them; each can be selected with `-m`. There are no `pycharmm` tests yet | S |
+| **Done 2026-10-07.** Agent and contributor files: `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, issue forms, PR template, `CODEOWNERS`, `environment-dev.yml` | A fresh agent session finds the handoff; contributors can set up an environment from one file | S |
+| Move work orders to GitHub issues; milestones mirror these phases; ROADMAP becomes an index linking `#N` | Every item below has an issue; needs `gh` set up (see BEST_PRACTICES, Project management) | M |
 | Golden-file tests for PSF and CRD output | A refactor that changes one byte of output fails a test | M |
 | `ruff` configured in `pyproject.toml`; current findings fixed or explicitly ignored | `ruff check crimm` is clean | S |
 | CI workflow: lint and tests on Python 3.9 to 3.13, on both NumPy 1.x and 2.x | Required check on pull requests to `master` | M |
