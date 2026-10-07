@@ -1,0 +1,29 @@
+name: Task (work order for a person or an AI agent)
+description: A bounded piece of work with checkable acceptance criteria
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and evidence
+      description: What is wrong or missing. Cite files as path::symbol and say how it was verified.
+    validations:
+      required: true
+  - type: textarea
+    id: change
+    attributes:
+      label: Change to make
+      description: Concrete steps; files to touch.
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: Done when
+      description: Checkable acceptance criteria, including the tests that must pass.
+    validations:
+      required: true
+  - type: textarea
+    id: avoid
+    attributes:
+      label: Do not touch / reviewers
+      description: Areas out of scope, and whose review is needed (solvation is Stan's, topology is Truman's).

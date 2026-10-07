@@ -1,0 +1,31 @@
+name: Bug report
+description: Something fails or gives wrong output
+labels: ["bug"]
+body:
+  - type: input
+    id: pdb
+    attributes:
+      label: PDB ID or input file
+      description: Attach the file if it is not a public entry.
+  - type: input
+    id: version
+    attributes:
+      label: crimm version and Python version
+      placeholder: "crimm 2026.2.2, Python 3.12, NumPy 2.2"
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal code that reproduces it
+      render: python
+    validations:
+      required: true
+  - type: textarea
+    id: traceback
+    attributes:
+      label: Traceback or wrong output
+      description: If the output is scientifically wrong rather than an error, say what you expected and how you checked.
+      render: text
+    validations:
+      required: true
