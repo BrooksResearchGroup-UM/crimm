@@ -1,7 +1,10 @@
 # crimm development notes
 
 A working description of the codebase as it stands, for anyone about to change it.
-Snapshot taken 2026-10-06 at commit `fbb165d` (branch `solvator-coor-orient-options`).
+Snapshot taken 2026-10-06 at commit `fbb165d` (branch `solvator-coor-orient-options`). Code
+facts below were checked on that commit; `origin/master` `cf51387` (PSF/CRD loader defaults,
+`pyCHARMMAdaptors`, `Fetchers`, `PSFWriter`, `NGLVisualization`) was merged on 2026-10-08 and
+the offline suite did not change.
 Companion documents: [ROADMAP.md](ROADMAP.md) and [BEST_PRACTICES.md](BEST_PRACTICES.md).
 
 ## Purpose and design goals
@@ -79,10 +82,10 @@ Changes to solvation should go to Stan for review.
 | Extras (declared) | `protonation`: propka. `cheminformatics`: rdkit. `all`: both. |
 | Used but not declared | py3Dmol |
 | Install separately | pyCHARMM, OpenMM, OpenBabel, the `cgenff` executable |
+| Licensed, not obtainable without a licence | CHARMM and pyCHARMM (the owner told us on 2026-10-08), and the CGenFF program. Contributors without a licence cannot run the `pycharmm` and `cgenff` tests. |
 
 `import crimm` currently imports **rdkit and nglview unconditionally**, even though rdkit is
 only an extra. The two import chains and the fix are written up in `import-fix.md` at the
-| Licensed, not obtainable without a licence | CHARMM and pyCHARMM (the owner told us on 2026-10-08), and the CGenFF program. Contributors without a licence cannot run the `pycharmm` and `cgenff` tests. |
 repo root and scheduled in the roadmap (Phase 1).
 
 There is no upper bound on numpy, and at least one call (`ndarray.ptp`) no longer exists in

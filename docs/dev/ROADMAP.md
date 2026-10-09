@@ -1,6 +1,6 @@
 # crimm cleanup and overhaul roadmap
 
-Written 2026-10-06 against commit `fbb165d`. Background is in [NOTES.md](NOTES.md); the
+Written 2026-10-06 against commit `fbb165d`; updated 2026-10-08 (base is now `origin/master` `cf51387`, issues #39 to #107 exist, CHARMM plan added). Background is in [NOTES.md](NOTES.md); the
 standards the work should meet are in [BEST_PRACTICES.md](BEST_PRACTICES.md).
 
 ## Ground rules
@@ -24,7 +24,7 @@ Nothing here changes behaviour.
 | **Done 2026-10-06.** Offline pytest suite with small fixture structures checked into `tests/data/` (1UBQ, 1CRN, 2IGD, 3PTB, 1BNA) | `pytest` passes with no network; covers parsing, organizing, topology generation, PSF/CRD round trip, solvation. Result: 133 passed, 13 expected failures, each pinning a bug listed in Phase 1 | L |
 | **Done 2026-10-06.** Markers for `network`, `pycharmm`, `cgenff`, `slow` | Default `pytest` run skips them; each can be selected with `-m`. There are no `pycharmm` tests yet | S |
 | **Done 2026-10-07.** Agent and contributor files: `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, issue forms, PR template, `CODEOWNERS`, `environment-dev.yml` | A fresh agent session finds the handoff; contributors can set up an environment from one file | S |
-| Move work orders to GitHub issues; milestones mirror these phases; ROADMAP becomes an index linking `#N` | Every item below has an issue; needs `gh` set up (see BEST_PRACTICES, Project management) | M |
+| **Issues created 2026-10-08 (#39 to #107), milestones set up.** Still open: make this ROADMAP an index linking `#N`, and put the issue numbers into the `xfail` reasons and the TODO comments | Every item below has an issue (done); every `xfail` and TODO names its issue number | M |
 | Golden-file tests for PSF and CRD output | A refactor that changes one byte of output fails a test | M |
 | `ruff` configured in `pyproject.toml`; current findings fixed or explicitly ignored | `ruff check crimm` is clean | S |
 | CI workflow: lint and tests on Python 3.9 to 3.13, on both NumPy 1.x and 2.x | Required check on pull requests to `master` | M |
@@ -117,6 +117,7 @@ and the marker is not removed.
 | Version strings | `pyproject.toml` 2026.2, `docs/conf.py` 2026.1a, tag 2026.2.1, no `crimm.__version__`. | Single source (see Phase 4); in the meantime align them. | S |
 | `crimm/Data/residues.xml` | Tracked, not packaged, not referenced. | Delete, or package and use it. | S |
 | `pyflakes` findings | Unused imports and variables in `Solvator.py`, `StructureUtils.py`, `PropKaAdaptors.py`, `RDKitConverter.py`, `charmm_struct_prep.py`. | Remove. | S |
+| `Adaptors/RDKitConverter.py` (`RDKitHetConverter`, `heterogen_to_rdkit`) | Raises `TypeError` for a plain `Residue`, and `heterogen_to_rdkit` reads `pdbx_description`, which a residue read from a CRD file lacks. A hotfix exists as `8075b75` on the local branch `RDKConverter-Het`; a downstream project needs it (see the handoff). Issue #59. | Add a test with a plain `Residue` read from a CRD file; review the removed `TypeError`; then merge. | S |
 
 ### 1.5 Make rdkit and nglview optional at import time
 
@@ -277,11 +278,10 @@ optional at import time" has landed**: `crimm[ml]` is pointless while `import cr
 
 | Item | Done when | Size |
 | --- | --- | --- |
-| New `crimm/Modeller/RFLoopBuilder.py`, a placeholder lifted from the RFdiffusion fork's `Tests.ipynb` (cell 7 and the gap loop in cells 9 to 13): `build_residues(chain, built_res_coords)` (real residue names from `chain.missing_res`, `ResidueTopologySet('protein')`, `TopologyGenerator.apply_topo_def_on_residue`, `ResidueFixer.build_missing_atoms`), `insert_built_residues(chain, residues, inplace=False)`, and `fill_gaps(chain, model, gaps=None, build_terminals=False, T=50, num_designs=1, seed=None, progress=None)`. `crimm_ml` is imported only inside functions. Mark it a placeholder in the docstring: this is the surface expected to change. | Filling every internal gap of 5IEV chain A matches the notebook: real residue names, complete side chains, a continuous chain. `import crimm` does not import `crimm_ml`. | M |
+| New `crimm/Modeller/RFLoopBuilder.py`, a placeholder lifted from the RFdiffusion fork's `Tests.ipynb` (cell 7 and the gap loop in cells 9 to 13): `build_residues(chain, built_res_coords)` (real residue names from `chain.missing_res`, `ResidueTopologySet('protein')`, `TopologyGenerator.apply_topo_def_on_residue`, `ResidueFixer.build_missing_atoms`), `insert_built_residues(chain, residues, inplace=False)`, and `fill_gaps(chain, model, gaps=None, build_terminals=False, T=50, num_designs=1, seed=None, progress=None)`. `crimm_ml` is imported only inside functions. Mark it a placeholder in the docstring: this is the surface expected to change. The owner intends the RFdiffusion model to become part of `LoopBuilder` (2026-10-08), so settle the module layout before starting (issue #101). | Filling every internal gap of 5IEV chain A matches the notebook: real residue names, complete side chains, a continuous chain. `import crimm` does not import `crimm_ml`. | M |
 | `ml = ["crimm-ml>=0.1"]` in `[project.optional-dependencies]`, kept **out of** `all`: crimm-ml depends on crimm, so `all` would pull in a package that depends back on crimm. | `pip install crimm[ml]` resolves in a clean venv from TestPyPI. | S |
 | `ml` pytest marker (skipped by default, like `network`) for the `fill_gaps` test, which needs the 275 MB model; the model path comes from `CRIMM_ML_TEST_MODEL`. | Default `pytest` stays offline and fast; `pytest -m ml` runs it. | S |
 | Document that crimm-ml needs Python 3.10 or newer (its oldest usable onnxruntime, 1.18, has no 3.9 wheel past 1.19), so `crimm[ml]` does not resolve on 3.9 even though crimm itself supports it. | README install section says so. | S |
-| Keep `RFLoopBuilder` separate from `Modeller/LoopBuilder.py`. The existing module is the classical builder; `ArcLoopBuilder` there has its own open bug ("1.4 Other bugs"). | Two modules, no shared state. | S |
 
 Once this lands, crimm-ml removes its deprecated copies of the old glue (`crimm_ml.crimm_utils`,
 `crimm_ml.minimal_pipeline_loop_builder`) in its next release.
