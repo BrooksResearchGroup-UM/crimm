@@ -186,7 +186,9 @@ Things that cost a previous agent time or would produce wrong results silently.
 Rewrite in place. True as of `2026-10-08`.
 
 ```yaml
-branches:                          # all start at fbb165d; the cleanup branch is pushed (2026-10-08)
+branches:                          # all start at fbb165d; the cleanup branch is on origin up to 72eef9f
+                                   # (2026-10-07); 5 commits of 2026-10-08 are local only, the push
+                                   # failed (see LOG 2026-10-08 wrapup)
   cleanup/phase0-tests-and-dev-docs:     # agent cleanup work; continue here
     - d10c62d                      # tests/, tests/data/, pyproject.toml pytest config
     - fa7338a                      # docs/dev/*.md
@@ -216,7 +218,8 @@ base_is_behind_remote: false       # `origin/master` (cf51387) merged into the c
                                    # after the merge (133 passed, 13 xfailed), so the PSF/CRD
                                    # xfails still hold on cf51387.
 uncommitted_owner_work: none
-uncommitted_agent_work: none      # all 2026-10-08 docs work is committed and pushed
+uncommitted_agent_work: none      # all 2026-10-08 crimm docs work is committed, NOT pushed. Also an
+                                   # uncommitted log entry in /home/ziqiaoxu/crimm-ml (its handoff)
 untracked_not_ours:
   - import-fix.md                  # work order, see standing instructions
   # tests/slurm/ (owner's benchmark job files) and .claude/ are ignored through
@@ -286,8 +289,11 @@ Newest first. Append only. Template:
 - asked: end-of-day wrap-up; review the msld-prep session's edits to the dev docs; then
   commit, push, delete merged branches, ignore `tests/slurm/`, and update all md docs and logs.
 - did: committed the day's docs in three commits (CHARMM licence and plan; roadmap issue
-  index and the LoopBuilder decision; this handoff) and pushed
-  `cleanup/phase0-tests-and-dev-docs`; deleted the local branches `cuda_util`, `list`,
+  index and the LoopBuilder decision; this handoff). `git push origin
+  cleanup/phase0-tests-and-dev-docs` FAILED: `Host key verification failed` although
+  `~/.ssh/known_hosts` holds a matching github.com key; `ssh -T git@github.com` fails the
+  same way inside the agent's sandbox. A retry outside the sandbox was refused, so nothing
+  was pushed. Cause not established. Deleted the local branches `cuda_util`, `list`,
   `mmcif-bug-fix`, `newGridGen`, `py3dmol` (all merged into master; their SHAs were noted
   before deleting, so `git branch <name> <sha>` restores one); added `tests/slurm/` to
   `.git/info/exclude`; corrected State (branches, uncommitted work, untracked files, test
@@ -304,7 +310,9 @@ Newest first. Append only. Template:
   merged into `origin/master` (issue #95). Issues #60 to #62 (RTF parser) and #90 (renames)
   change names msld-prep imports; their bodies do not say so, because msld-prep is not public.
   Old issues #24 and #29 may overlap with #46 and #80; not reconciled.
-- not done: branch protection; `xfail` reasons and TODO comments still lack issue numbers;
+- not done: the push (the owner runs `git push origin cleanup/phase0-tests-and-dev-docs` from
+  an ordinary terminal); the pointer entry in `/home/ziqiaoxu/crimm-ml/docs/dev/AGENT_HANDOFF.md`
+  is uncommitted in that repo; branch protection; `xfail` reasons and TODO comments still lack issue numbers;
   ROADMAP is not yet an index of `#N`; crimm-ml's own ROADMAP still names `RFLoopBuilder`;
   `solvator-coor-orient-options` kept (owner decides); `RDKConverter-Het` kept and unpushed.
 - next: Monday 2026-10-12, build CHARMM and pyCHARMM (issue #107); then link `xfail`/TODO to
