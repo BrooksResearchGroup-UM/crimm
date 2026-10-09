@@ -29,6 +29,28 @@ Nothing here changes behaviour.
 | `ruff` configured in `pyproject.toml`; current findings fixed or explicitly ignored | `ruff check crimm` is clean | S |
 | CI workflow: lint and tests on Python 3.9 to 3.13, on both NumPy 1.x and 2.x | Required check on pull requests to `master` | M |
 | Move `tests/benchmark_pipeline.py` to `benchmarks/` | `tests/` holds only pytest tests | S |
+| CHARMM and pyCHARMM in the developer environment: build the CHARMM library locally with pyCHARMM support and make it usable from `crimm-dev` (see "CHARMM and pyCHARMM" below). Planned for the session of Monday 2026-10-12 | `import pycharmm` works in `crimm-dev`, and the steps are written down | L |
+| `pycharmm` tests: load the PSF/CRD that crimm writes into pyCHARMM, and check energies and counts against CHARMM's own reading. Depends on the row above | `pytest -m pycharmm` passes on a machine with a CHARMM build and is skipped elsewhere | M |
+
+### CHARMM and pyCHARMM
+
+CHARMM is licensed software. Its source and binaries are not available to developers who do not
+hold a licence (owner, 2026-10-08), so:
+
+- The default test run and CI never need it. Anything that does is marked `pycharmm` and
+  skipped by default.
+- CI cannot run `pycharmm` tests. They are run by a maintainer who has a CHARMM build, before
+  a release and after any change to `crimm/Adaptors/pyCHARMMAdaptors.py`.
+- Nothing of CHARMM (source, binaries, libraries, output that embeds them) goes into the
+  repository, an issue or a pull request.
+- Contributors without a licence can still work on everything else; say in the pull request
+  when a change could affect the pyCHARMM path.
+
+The owner compiles CHARMM locally as part of the developer environment setup. Open points for
+that session, not decided yet: which CHARMM version and branch to build; whether to build
+against `crimm-dev` (Python 3.12) or keep a separate environment; where the library lives and
+how `pycharmm` finds it (environment variables); whether the shared builds on the cluster are
+usable instead; how the `pycharmm` tests are selected on that machine.
 
 ## Phase 1: Bugs
 

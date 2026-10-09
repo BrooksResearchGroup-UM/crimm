@@ -82,6 +82,7 @@ Changes to solvation should go to Stan for review.
 
 `import crimm` currently imports **rdkit and nglview unconditionally**, even though rdkit is
 only an extra. The two import chains and the fix are written up in `import-fix.md` at the
+| Licensed, not obtainable without a licence | CHARMM and pyCHARMM (the owner told us on 2026-10-08), and the CGenFF program. Contributors without a licence cannot run the `pycharmm` and `cgenff` tests. |
 repo root and scheduled in the roadmap (Phase 1).
 
 There is no upper bound on numpy, and at least one call (`ndarray.ptp`) no longer exists in

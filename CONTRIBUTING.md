@@ -14,6 +14,13 @@ pip install -e ".[all,test]" --no-deps
 CHARMM, pyCHARMM and the CGenFF program are not installable from conda. Tests that need them
 are skipped unless you set them up (`CRIMM_CGENFF_PATH` for CGenFF).
 
+**CHARMM needs a licence.** CHARMM (and so pyCHARMM) is licensed software, and its source and
+binaries are not available to contributors who do not hold a licence. You do not need it to
+contribute: the default test run is offline and never touches it, `pycharmm` tests are skipped,
+and CI cannot run them. If you change `crimm/Adaptors/pyCHARMMAdaptors.py` without access to
+CHARMM, say so in the pull request so a maintainer who has it can run `pytest -m pycharmm`.
+Never add CHARMM source, binaries or libraries to the repository or to an issue.
+
 ## Run the tests
 
 ```bash
