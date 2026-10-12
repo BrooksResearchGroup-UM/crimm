@@ -1,0 +1,82 @@
+# Lint and offline tests on every pull request to master and every push to master.
+# CHARMM, pyCHARMM, CGenFF and network tests are not run here (they are deselected by the
+# pytest markers in pyproject.toml); a maintainer runs them by hand before a release.
+name: CI
+
+on:
+  pull_request:
+    branches: ["master"]
+  push:
+    branches: ["master"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A new push to the same branch cancels the run that is still going for the old one.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Pinned: a new ruff release can add rules and turn a green build red by itself.
+      - name: Install ruff
+        run: pip install ruff==0.16.10
+      - name: Lint
+        run: ruff check crimm tests
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      # Let every combination finish, so the pattern of failures is visible.
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        numpy: ["<2", ">=2"]
+        exclude:
+          # NumPy 1.26 has no wheels for Python 3.13, so this combination cannot exist.
+          - python-version: "3.13"
+            numpy: "<2"
+    name: test (py${{ matrix.python-version }}, numpy${{ matrix.numpy }})
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      # Install the NumPy line under test first; pip then keeps it while resolving crimm.
+      # [all] is needed because `import crimm` still imports rdkit and nglview
+      # (ROADMAP 1.5 removes that).
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install "numpy${{ matrix.numpy }}"
+          pip install -e ".[all,test]"
+      - name: Show versions
+        run: |
+          python -c "import sys, numpy, scipy, Bio; print(sys.version); print('numpy', numpy.__version__, 'scipy', scipy.__version__, 'biopython', Bio.__version__)"
+      - name: Test (offline suite)
+        run: pytest -p no:cacheprovider -q
+
+  # One stable name for branch protection: the matrix cells above have many names that
+  # change whenever the matrix does.
+  all-green:
+    if: always()
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every job to have succeeded
+        run: |
+          echo "lint: ${{ needs.lint.result }}"
+          echo "test: ${{ needs.test.result }}"
+          [ "${{ needs.lint.result }}" = "success" ] && [ "${{ needs.test.result }}" = "success" ]

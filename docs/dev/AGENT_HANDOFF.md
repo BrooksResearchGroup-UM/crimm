@@ -7,7 +7,7 @@ humans read it second.
 schema: agent-handoff/1
 repo: github.com/BrooksResearchGroup-UM/crimm
 default_branch: master
-last_updated: 2026-10-08
+last_updated: 2026-10-12
 ```
 
 ## 0. Protocol
@@ -143,6 +143,7 @@ Machine: the owner's cluster login node (Rocky Linux 8, SLURM). Paths are specif
 | --- | --- |
 | There is no `python` on `PATH`. Use `/home/ziqiaoxu/.conda/envs/torch210/bin/python` (Python 3.13, NumPy 2.2.6, Biopython 1.86, pytest 9.0.3). | `[ran 2026-10-06]` |
 | In that env: rdkit, nglview, propka present. Missing: ruff, pytest-cov, pytest-xdist, openmm, pycharmm. pyflakes works as `python -m pyflakes crimm`. | `[ran 2026-10-06]` |
+| The env `crimm-dev` (`/home/ziqiaoxu/.conda/envs/crimm-dev/bin/`) has `ruff` 0.16.10, `pre-commit`, `nox`, `gh` (logged in as `Truman-Xu`, ssh protocol) and `pytest`; prefer it over `torch210`. Lint with `ruff check crimm tests`. | `[ran 2026-10-12]` |
 | No conda env under `~/.conda/envs` contains pycharmm. | `[ran 2026-10-06, searched site-packages names only]` |
 | `import crimm` took 47 to 145 s on a cold filesystem cache and a few seconds when warm. Give the first command of a session a timeout of at least 300 s. It is slow, not hung. | `[ran 2026-10-06]` |
 | The login node reaches `files.rcsb.org`. SLURM compute nodes do not resolve DNS. | `[ran 2026-10-06]` login; `[read tests/slurm/benchmark.log]` compute |
@@ -183,12 +184,13 @@ Things that cost a previous agent time or would produce wrong results silently.
 
 ## 5. State
 
-Rewrite in place. True as of `2026-10-08`.
+Rewrite in place. True as of `2026-10-12`.
 
 ```yaml
-branches:                          # all start at fbb165d; the cleanup branch is on origin up to 72eef9f
-                                   # (2026-10-07); 5 commits of 2026-10-08 are local only, the push
-                                   # failed (see LOG 2026-10-08 wrapup)
+branches:                          # all start at fbb165d; `cleanup/phase0-tests-and-dev-docs` is on
+                                   # origin at e5b855a `[ran 2026-10-12, git branch -vv]` (the
+                                   # 2026-10-08 push failed in the agent sandbox; the owner pushed
+                                   # later). The 2026-10-12 work is committed locally (734ffdb, b340111 and the CI/lesson/handoff commit after it); see `github` and LOG for push and PR state.
   cleanup/phase0-tests-and-dev-docs:     # agent cleanup work; continue here
     - d10c62d                      # tests/, tests/data/, pyproject.toml pytest config
     - fa7338a                      # docs/dev/*.md
@@ -218,8 +220,12 @@ base_is_behind_remote: false       # `origin/master` (cf51387) merged into the c
                                    # after the merge (133 passed, 13 xfailed), so the PSF/CRD
                                    # xfails still hold on cf51387.
 uncommitted_owner_work: none
-uncommitted_agent_work: none      # all 2026-10-08 crimm docs work is committed, NOT pushed. Also an
-                                   # uncommitted log entry in /home/ziqiaoxu/crimm-ml (its handoff)
+uncommitted_agent_work: none       # 2026-10-12 work is committed (three commits), see LOG
+  # Also an uncommitted log entry in /home/ziqiaoxu/crimm-ml (its handoff), from 2026-10-08.
+worktrees:                         # `[ran 2026-10-12, git worktree list]`
+  - "/home/ziqiaoxu/crimm-hotfix has RDKConverter-Het (8075b75), created by the owner for msld-prep.
+     Run msld-prep against it with PYTHONPATH; do not `pip install -e` there (user-site editable
+     install of crimm points at /home/ziqiaoxu/crimm)."
 untracked_not_ours:
   - import-fix.md                  # work order, see standing instructions
   # tests/slurm/ (owner's benchmark job files) and .claude/ are ignored through
@@ -231,17 +237,23 @@ github:                            # 2026-10-08
   branch_protection: not_set
 owner_reminders:                   # tell the owner at the start of the next session
   - "msld-prep needs the RDKConverter-Het hotfix (section 2); issue #59 tracks it"
-test_suite: {passed: 133, xfailed: 13, deselected: 3, date: 2026-10-08}
+  - "CHARMM and pyCHARMM build (#107) was postponed from 2026-10-12 to Tuesday 2026-10-13 (also in agent memory)"
+  - "Stan meeting 2026-10-13: owner will ask to edit his files (Solvator.py, CrystalSDF.py, CoordManipulator.py) for lint and format; per-file ignores in pyproject.toml mark what is left"
+test_suite: {passed: 133, xfailed: 13, deselected: 3, date: 2026-10-12}
 roadmap_done:
   - "Phase 0: offline pytest suite"
   - "Phase 0: markers"
+  - "Phase 0: move benchmark_pipeline.py to benchmarks/ (2026-10-12; tests/slurm/submit_pipeline.sh path updated by the owner's request)"
+  - "Phase 0: ruff config, lint only (2026-10-12)"
+  - "Phase 0: CI workflow written and checked locally (2026-10-12); first GitHub run: see LOG"
 roadmap_next:
-  - "Next session (likely Monday 2026-10-12): build CHARMM and pyCHARMM locally (owner), then the pycharmm tests"
-  - "Phase 0: golden-file tests for PSF and CRD"
-  - "Phase 0: ruff config"
-  - "Phase 0: CI workflow"
-  - "Phase 0: move tests/benchmark_pipeline.py to benchmarks/"
-library_code_changed_by_agents: none
+  - "Tuesday 2026-10-13: build CHARMM and pyCHARMM locally (owner, #107), then the pycharmm tests"
+  - "Run the CI workflow on GitHub (push + draft PR need the owner's go-ahead), read every matrix cell"
+  - "Branch protection on master requiring `all-green` (after a green run; owner decides)"
+  - "Phase 0: golden-file tests for PSF and CRD (Q1 first)"
+  - "Phase 0: issue numbers into xfail reasons and TODOs; ROADMAP as index"
+  - "Later: ruff format (own commit + .git-blame-ignore-revs), pre-commit, widen rules, core-install import guard in CI (with ROADMAP 1.5)"
+library_code_changed_by_agents: "2026-10-12, behaviour-neutral lint fixes only (import order, unused imports/variables, super(), open modes, yield from, one loop variable rename in pyCHARMMAdaptors.get_charmm_coord_dict); suite unchanged. Not verified under pyCHARMM."
 ```
 
 ## 6. Claims
@@ -283,6 +295,41 @@ Newest first. Append only. Template:
 - found:
 - next:
 ```
+
+### 2026-10-12 claude-sonnet/claude-code/phase0-lint-ci
+
+- asked: remind the owner of the skipped `git worktree` lesson (done; the owner then created
+  `/home/ziqiaoxu/crimm-hotfix`); list the working items; then do ROADMAP Phase 0 items
+  "move benchmark", "ruff", "CI workflow", and write a lesson on ruff and CI for the owner.
+  The CHARMM and pyCHARMM build (#107) was postponed to 2026-10-13 by the owner.
+- did (committed as 734ffdb, b340111 and the CI/lesson/handoff commit; push and draft PR: see below): `git mv tests/benchmark_pipeline.py benchmarks/`;
+  ruff in three steps: `ruff check --select I --fix` (54 files, excluding Stan's three files),
+  safe fixes (unused imports and variables, `super()`, open modes, `yield from`, f-string,
+  UP rules; one loop variable renamed in `get_charmm_coord_dict` to fix B020), then
+  `[tool.ruff]` in `pyproject.toml` (select F, E4, E7, E9, I, B, UP; documented ignores;
+  per-file ignores for `__init__.py`, `LoopBuilder.py` and Stan's files);
+  `.github/workflows/ci.yml` (jobs `lint`, `test` matrix Python 3.9 to 3.13 x NumPy `<2`/`>=2`
+  minus 3.13+`<2`, `all-green`); `docs/dev/lessons/ci-basics.md`; updated CONTRIBUTING, NOTES,
+  ROADMAP rows, this file.
+- verified `[ran]`: offline suite 133 passed, 13 xfailed, 3 deselected before the work and after
+  each step (about 50 s); `ruff check crimm tests` exits 0 (ruff 0.16.10, py39 target);
+  `import crimm` and subpackages import; the workflow YAML parses; `pip install --dry-run
+  --python-version 3.9/3.10/3.13 --only-binary` resolves numpy, scipy, pandas, biopython,
+  rdkit, ipywidgets for the edge matrix cells (nglview, propka and py3Dmol are sdist-only
+  and were not part of that check).
+- not verified: the workflow has not run on GitHub; no test was run on Python 3.9 to 3.11 or
+  NumPy 1.x (so a red cell there is expected information, not a surprise); the pyCHARMM path
+  (`get_charmm_coord_dict` rename is behaviour-neutral by reading, not run); `actionlint` is
+  not installed. Branch protection not set.
+- left for Stan (findings still in place, covered by per-file ignores in `pyproject.toml`):
+  `Solvator.py` (unused imports `Atom`, `get_bounding_cube_size`, unused `max_serial`,
+  f-string without placeholders, unsorted imports), `CrystalSDF.py` and
+  `CoordManipulator.py` (unsorted imports).
+- found: the handoff State said the 2026-10-08 commits were local only; git shows the branch on
+  origin at `e5b855a`. `LoopBuilder.py` still has the undefined `topo` (Q2), kept visible by a
+  per-file ignore with a comment.
+- next: see `roadmap_next` in State: run CI on GitHub (needs the owner's go-ahead to push and
+  open a draft PR), then read each matrix cell; CHARMM build on 2026-10-13.
 
 ### 2026-10-08 claude-sonnet/claude-code/wrapup
 
