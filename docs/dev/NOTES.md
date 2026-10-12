@@ -46,7 +46,7 @@ The chain classes in `StructEntities/Chain.py` are: `BaseChain`, `Chain`, `Polym
 4. `Solvator.solvate()` orients the solute, builds a water box, then `add_ions()`.
 5. `write_psf` / `write_crd`, or load straight into pyCHARMM through `pyCHARMMAdaptors`.
 
-`tests/benchmark_pipeline.py` runs stages 1 to 3 plus the pyCHARMM load across randomly
+`benchmarks/benchmark_pipeline.py` runs stages 1 to 3 plus the pyCHARMM load across randomly
 sampled PDB entries, one subprocess per structure.
 
 ## Who wrote what
@@ -96,7 +96,7 @@ NumPy 2.
 - `tests/` holds an offline pytest suite (added 2026-10-06) built on five small mmCIF
   fixtures in `tests/data/`. Run it with `pytest`; it takes under a minute once crimm is
   imported. Known bugs are pinned with `xfail(strict=True)` tests.
-- `tests/benchmark_pipeline.py` is not part of the suite. It needs network access and is
+- `benchmarks/benchmark_pipeline.py` (moved from `tests/` on 2026-10-12) is not part of the suite. It needs network access and is
   meant for a SLURM job (`tests/slurm/`, untracked).
 - The only GitHub workflow, `.github/workflows/static.yml`, publishes
   `docs/_build/html` from the `docs` branch to GitHub Pages. Nothing lints or tests code.
@@ -169,5 +169,5 @@ python -m pyflakes crimm
 grep -rn "TODO" --include="*.py" crimm
 
 # pipeline benchmark, small run, no pyCHARMM
-python tests/benchmark_pipeline.py --n 20 --no-charmm
+python benchmarks/benchmark_pipeline.py --n 20 --no-charmm
 ```

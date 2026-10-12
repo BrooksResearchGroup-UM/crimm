@@ -28,7 +28,7 @@ Nothing here changes behaviour.
 | Golden-file tests for PSF and CRD output | A refactor that changes one byte of output fails a test | M |
 | `ruff` configured in `pyproject.toml`; current findings fixed or explicitly ignored | `ruff check crimm` is clean | S |
 | CI workflow: lint and tests on Python 3.9 to 3.13, on both NumPy 1.x and 2.x | Required check on pull requests to `master` | M |
-| Move `tests/benchmark_pipeline.py` to `benchmarks/` | `tests/` holds only pytest tests | S |
+| **Done 2026-10-12.** Move `tests/benchmark_pipeline.py` to `benchmarks/` | `tests/` holds only pytest tests | S |
 | CHARMM and pyCHARMM in the developer environment: build the CHARMM library locally with pyCHARMM support and make it usable from `crimm-dev` (see "CHARMM and pyCHARMM" below). Planned for the session of Monday 2026-10-12 | `import pycharmm` works in `crimm-dev`, and the steps are written down | L |
 | `pycharmm` tests: load the PSF/CRD that crimm writes into pyCHARMM, and check energies and counts against CHARMM's own reading. Depends on the row above | `pytest -m pycharmm` passes on a machine with a CHARMM build and is skipped elsewhere | M |
 
