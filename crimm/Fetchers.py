@@ -1,12 +1,13 @@
-import os
 import io
-import requests
+import os
 import warnings
+
+import requests
 from Bio.Seq import Seq
 
-from crimm.StructEntities.OrganizedModel import OrganizedModel
 from crimm.IO import MMCIFParser, PDBParser
 from crimm.IO.MMCIF2Dict import MMCIF2Dict
+from crimm.StructEntities.OrganizedModel import OrganizedModel
 from crimm.Superimpose.ChainSuperimposer import ChainSuperimposer
 from crimm.Utils.query_db import uniprot_id_query
 

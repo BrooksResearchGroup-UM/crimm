@@ -1,7 +1,9 @@
 import warnings
 from copy import copy
+
 from Bio.PDB.Atom import Atom as _Atom
 from Bio.PDB.Atom import DisorderedAtom as _DisorderedAtom
+
 
 class Atom(_Atom):
     """Atom class derived from Biopython Residue and made compatible with

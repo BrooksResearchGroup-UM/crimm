@@ -1,11 +1,14 @@
 import warnings
-from typing import List, Dict, Tuple
 from collections import OrderedDict
+from typing import Dict, List, Tuple
+
 import numpy as np
 from Bio.Data.PDBData import protein_letters_3to1_extended
+
+from crimm.Modeller.TopoFixer import find_coords_by_ic, recur_find_build_seq
 from crimm.StructEntities.Atom import Atom
 from crimm.StructEntities.Residue import Residue
-from crimm.Modeller.TopoFixer import recur_find_build_seq, find_coords_by_ic
+
 
 class AtomDefinition:
     """Atom definition class. This class is used to define the atom type and

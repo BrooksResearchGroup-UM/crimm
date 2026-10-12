@@ -1,11 +1,14 @@
-from string import ascii_uppercase, digits
-from Bio.Data.PDBData import protein_letters_3to1_extended
-from Bio.Data.PDBData import nucleic_letters_3to1_extended
-from crimm.Data.components_dict import nucleic_letters_1to3
-from crimm.StructEntities.Chain import Solvent, Ion, PolymerChain
 from copy import copy
-import numpy as np
+from string import ascii_uppercase, digits
 
+import numpy as np
+from Bio.Data.PDBData import (
+    nucleic_letters_3to1_extended,
+    protein_letters_3to1_extended,
+)
+
+from crimm.Data.components_dict import nucleic_letters_1to3
+from crimm.StructEntities.Chain import PolymerChain
 
 _BASE36_ALPHABET = digits + ascii_uppercase
 

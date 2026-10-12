@@ -1,26 +1,25 @@
 import os
-import warnings
 import subprocess
+import warnings
+from copy import copy, deepcopy
 from typing import List, Tuple
-from copy import deepcopy, copy
-import numpy as np
-from Bio.Data.PDBData import protein_letters_3to1_extended
-from Bio.Data.PDBData import protein_letters_1to3
 
-from crimm.StructEntities.Model import Model
-from crimm.StructEntities.Chain import PolymerChain, Chain
-from crimm.StructEntities.Residue import Residue, Heterogen, DisorderedResidue
-from crimm.StructEntities.Atom import Atom
-from crimm.StructEntities.TopoElements import Bond, Angle, Dihedral, Improper
-from crimm.StructEntities.TopoDefinitions import PatchDefinition, ResidueDefinition
-from crimm.StructEntities.OrganizedModel import OrganizedModel
+import numpy as np
+from Bio.Data.PDBData import protein_letters_1to3, protein_letters_3to1_extended
+
+from crimm.Adaptors.RDKitConverter import MolToMol2Block, RDKitHetConverter
+from crimm.Data.cgenff_mass_dict import CGENFF_MASS_TABLE
 from crimm.IO.PRMParser import categorize_lines, parse_line_dict
 from crimm.IO.RTFParser import RTFParser
 from crimm.Modeller import ResidueFixer
 from crimm.Modeller.TopoFixer import fix_chain
-from crimm.Data.cgenff_mass_dict import CGENFF_MASS_TABLE
-
-from crimm.Adaptors.RDKitConverter import RDKitHetConverter, MolToMol2Block
+from crimm.StructEntities.Atom import Atom
+from crimm.StructEntities.Chain import Chain, PolymerChain
+from crimm.StructEntities.Model import Model
+from crimm.StructEntities.OrganizedModel import OrganizedModel
+from crimm.StructEntities.Residue import DisorderedResidue, Heterogen, Residue
+from crimm.StructEntities.TopoDefinitions import PatchDefinition, ResidueDefinition
+from crimm.StructEntities.TopoElements import Angle, Bond, Dihedral, Improper
 
 toppar_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../Data/toppar"))
 
@@ -798,7 +797,7 @@ class ParameterLoader:
         if entity_type not in prm_path_dict:
             raise ValueError(f"No parameter file for {entity_type}")
         filename = prm_path_dict[entity_type]
-        with open(filename, "r", encoding="utf-8") as f:
+        with open(filename, encoding="utf-8") as f:
             self._raw_data_strings = [
                 line.rstrip()
                 for line in f.readlines()  # if not skip_line(line)
@@ -1141,7 +1140,7 @@ class CGENFFTopologyLoader:
         """Load mol2 block and generate topology definition."""
 
         if ligand_toppar_file is not None:
-            with open(ligand_toppar_file, "r", encoding="utf-8") as f:
+            with open(ligand_toppar_file, encoding="utf-8") as f:
                 toppar_block = f.read()
         else:
             toppar_block = execute_cgenff(self.cgenff_path, input_mol2_block)

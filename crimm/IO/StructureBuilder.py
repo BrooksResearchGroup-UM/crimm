@@ -10,11 +10,12 @@ This is used by the MMCIFparser classes.
 # SMCRA hierarchy
 import warnings
 
-from crimm.StructEntities.Structure import Structure
-from crimm.StructEntities.Model import Model
-from crimm.StructEntities.Chain import Chain, PolymerChain, Heterogens
-from crimm.StructEntities.Residue import Residue, DisorderedResidue, Heterogen
 from crimm.StructEntities.Atom import Atom, DisorderedAtom
+from crimm.StructEntities.Chain import Chain, Heterogens, PolymerChain
+from crimm.StructEntities.Model import Model
+from crimm.StructEntities.Residue import DisorderedResidue, Heterogen, Residue
+from crimm.StructEntities.Structure import Structure
+
 
 class ChainConstructionWarning(Warning):
     """Define class ChainConstructionWarning."""
@@ -26,7 +27,7 @@ class AtomAltLocException(Exception):
     """Define class AtomAltLocException."""
 
 
-class StructureBuilder():
+class StructureBuilder:
     """Deals with constructing the Structure object.
     The StructureBuilder class is used by the PDBParser classes to
     translate a file to a Structure object.

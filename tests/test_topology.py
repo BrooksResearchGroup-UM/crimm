@@ -4,8 +4,8 @@ import warnings
 
 import numpy as np
 import pytest
-
 from conftest import ALL_IDS, EXPECTED
+
 from crimm.Modeller import TopologyGenerator
 
 POLYMER_TYPES = ("Polypeptide(L)", "Polydeoxyribonucleotide", "Polyribonucleotide")

@@ -2,8 +2,8 @@
 import shutil
 
 import pytest
-
 from conftest import DATA_DIR, EXPECTED
+
 from crimm.Fetchers import fetch_rcsb
 
 

@@ -162,8 +162,8 @@ The live record of branch, uncommitted work and who is editing what is the State
 ## Useful commands
 
 ```bash
-# lint (pyflakes is installed in the torch210 conda env; ruff is not yet)
-python -m pyflakes crimm
+# lint (ruff is in the crimm-dev env; configured in pyproject.toml, rules F E4 E7 E9 I B UP)
+ruff check crimm tests
 
 # list every TODO
 grep -rn "TODO" --include="*.py" crimm

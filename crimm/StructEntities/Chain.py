@@ -1,12 +1,17 @@
 import warnings
-from typing import List, Tuple, Dict
-from Bio.Seq import Seq
+from typing import Dict, List, Tuple
+
+from Bio.Data.PDBData import (
+    nucleic_letters_3to1_extended,
+    protein_letters_3to1_extended,
+)
 from Bio.PDB import PPBuilder
-from Bio.Data.PDBData import protein_letters_3to1_extended
-from Bio.Data.PDBData import nucleic_letters_3to1_extended
 from Bio.PDB.Chain import Chain as _Chain
 from Bio.PDB.PDBExceptions import PDBConstructionException
+from Bio.Seq import Seq
+
 from crimm.StructEntities.Residue import DisorderedResidue
+
 
 class BaseChain(_Chain):
     """Base class derived from and Biopython chain object and compatible with
@@ -164,8 +169,9 @@ class BaseChain(_Chain):
     
     def _ipython_display_(self):
         if len(self) != 0:
-            from crimm.Visualization import show
             from IPython.display import display
+
+            from crimm.Visualization import show
             display(show(self))
         print(self.expanded_view())
 

@@ -1,12 +1,13 @@
 import openmm.unit as unit
-from openmm.vec3 import Vec3
 from openmm.app import element
-from openmm.app.topology import Topology as OMMTop
 from openmm.app.internal.unitcell import computePeriodicBoxVectors
+from openmm.app.topology import Topology as OMMTop
+from openmm.vec3 import Vec3
 
 from crimm.StructEntities.Model import Model
 from crimm.StructEntities.Structure import Structure
-    
+
+
 class Topology(OMMTop):
     """Model/Topology class derived from Biopython Model and made compatible with
     OpenMM Topology."""
@@ -70,16 +71,14 @@ class Topology(OMMTop):
         """Iterate over all Residues in the Topology.
         (OpenMM compatible API)"""
         for chain in self.model:
-            for residue in chain:
-                yield residue
+            yield from chain
 
     def atoms(self):
         """Iterate over all Atoms in the Topology.
         (OpenMM compatible API)"""
         for chain in self.model:
             for residue in chain:
-                for atom in residue:
-                    yield atom
+                yield from residue
 
     def addChain(self, chain):
         """Add a Chain object into the topology"""

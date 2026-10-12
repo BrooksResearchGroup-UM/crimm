@@ -1,5 +1,6 @@
 import warnings
 
+
 def skip_line(l):
     """Return if the line should be skipped (empty lines or comment only)"""
     x = l.strip()
@@ -250,7 +251,7 @@ class RTFParser:
         if rtf_block is not None:
             self.lines = [l.strip() for l in rtf_block.split('\n') if not skip_line(l)]
         elif file_path is not None:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, encoding='utf-8') as f:
                 self.lines = [l.strip() for l in f.readlines() if not skip_line(l)]
         else:
             raise ValueError('Either file_path or rtf_block has to be provided!')

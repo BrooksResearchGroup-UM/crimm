@@ -34,6 +34,16 @@ Markers: `network`, `pycharmm`, `cgenff`, `slow`, `gpu`. Every bug fix adds a te
 without it. The standards behind this are in
 [docs/dev/BEST_PRACTICES.md](docs/dev/BEST_PRACTICES.md).
 
+## Lint
+
+```bash
+ruff check crimm tests         # must pass; configured in pyproject.toml
+ruff check --fix crimm tests   # applies the safe automatic fixes
+```
+
+`ruff` is in `environment-dev.yml`. If a rule is wrong for a line, prefer fixing the line; if
+you must silence it, add `# noqa: <code>` with a reason.
+
 ## Changing code
 
 - One concern per commit and per pull request. A fix does not ride along with a rename.

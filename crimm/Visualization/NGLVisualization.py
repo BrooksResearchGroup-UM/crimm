@@ -1,4 +1,5 @@
 from importlib.util import find_spec
+
 if find_spec("nglview") is None:
     raise ImportError(
         "nglview not found! Install nglview to show protein structures."
@@ -6,10 +7,13 @@ if find_spec("nglview") is None:
     )
 
 import warnings
+
 import nglview as nv
 from Bio.PDB.Selection import unfold_entities
-from crimm.IO.PDBString import get_pdb_str
 from rdkit import Chem
+
+from crimm.IO.PDBString import get_pdb_str
+
 
 class NGLStructure(nv.Structure):
     """NGLView Structure class for visualizing crimm.Structure.Structure on jupyter notebook"""

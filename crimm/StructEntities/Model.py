@@ -1,7 +1,10 @@
 """Model class, used in Structure objects."""
 import warnings
+
 from Bio.PDB.Model import Model as _Model
+
 from crimm.Utils.StructureUtils import index_to_letters
+
 
 class Model(_Model):
     """The extended Model class representing a model in a structure.
@@ -41,8 +44,9 @@ class Model(_Model):
     def _ipython_display_(self):
         if len(self) == 0:
             return
-        from crimm.Visualization import show
         from IPython.display import display
+
+        from crimm.Visualization import show
         display(show(self))
         print(self.expanded_view())
 

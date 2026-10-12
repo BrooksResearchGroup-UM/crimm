@@ -1,10 +1,13 @@
 
 import warnings
+
 import numpy as np
 from Bio.Align import PairwiseAligner
 from Bio.PDB import Superimposer
+
 from crimm.StructEntities.Chain import PolymerChain
 from crimm.Visualization.NGLVisualization import show_nglview_multiple
+
 
 ##TODO: Refactor this!! Add examples to docstrings
 class ChainSuperimposer(Superimposer):

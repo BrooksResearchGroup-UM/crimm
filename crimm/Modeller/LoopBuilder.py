@@ -1,12 +1,15 @@
 import json
 import warnings
-import requests
+
 import numpy as np
+import requests
 from Bio.Align import PairwiseAligner
+
+from crimm.Fetchers import fetch_alphafold, fetch_rcsb, uniprot_id_query
 from crimm.Modeller.TopoLoader import ResidueTopologySet
-from crimm.Superimpose.ChainSuperimposer import ChainSuperimposer
-from crimm.Fetchers import fetch_rcsb, fetch_alphafold, uniprot_id_query
 from crimm.StructEntities.Chain import PolymerChain
+from crimm.Superimpose.ChainSuperimposer import ChainSuperimposer
+
 
 def find_gaps_within_range(gaps, segment):
     in_range = []

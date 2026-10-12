@@ -10,13 +10,13 @@ Format specification (from CHARMM source io/coorio.F90):
 - Standard format: 2I5, 1X,A4, 1X,A4, 3F10.5, 1X,A4, 1X,A4, F10.5
 """
 
-from typing import Union, List
+from typing import List, Union
+
 from crimm.StructEntities.Atom import Atom
-from crimm.StructEntities.Residue import Residue
 from crimm.StructEntities.Chain import Chain
 from crimm.StructEntities.Model import Model
+from crimm.StructEntities.Residue import Residue
 from crimm.StructEntities.Structure import Structure
-
 
 # Extended format (EXT) - for systems with >99999 atoms
 _EXT_HEADER_FORMAT = "{:>10d}  EXT\n"

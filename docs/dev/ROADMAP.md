@@ -26,7 +26,7 @@ Nothing here changes behaviour.
 | **Done 2026-10-07.** Agent and contributor files: `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, issue forms, PR template, `CODEOWNERS`, `environment-dev.yml` | A fresh agent session finds the handoff; contributors can set up an environment from one file | S |
 | **Issues created 2026-10-08 (#39 to #107), milestones set up.** Still open: make this ROADMAP an index linking `#N`, and put the issue numbers into the `xfail` reasons and the TODO comments | Every item below has an issue (done); every `xfail` and TODO names its issue number | M |
 | Golden-file tests for PSF and CRD output | A refactor that changes one byte of output fails a test | M |
-| `ruff` configured in `pyproject.toml`; current findings fixed or explicitly ignored | `ruff check crimm` is clean | S |
+| **Done 2026-10-12 (lint only).** `ruff` configured in `pyproject.toml`; current findings fixed or explicitly ignored | `ruff check crimm tests` is clean. Ignored rules are listed with reasons in `pyproject.toml`; findings in Stan's files are left in place. Still open: `ruff format` (65 files would change; needs its own commit and `.git-blame-ignore-revs`), a `pre-commit` hook, and widening the rule set | S |
 | CI workflow: lint and tests on Python 3.9 to 3.13, on both NumPy 1.x and 2.x | Required check on pull requests to `master` | M |
 | **Done 2026-10-12.** Move `tests/benchmark_pipeline.py` to `benchmarks/` | `tests/` holds only pytest tests | S |
 | CHARMM and pyCHARMM in the developer environment: build the CHARMM library locally with pyCHARMM support and make it usable from `crimm-dev` (see "CHARMM and pyCHARMM" below). Planned for the session of Monday 2026-10-12 | `import pycharmm` works in `crimm-dev`, and the steps are written down | L |
