@@ -234,7 +234,8 @@ local_branches_deleted: [cuda_util, list, mmcif-bug-fix, newGridGen, py3dmol]   
 github:                            # 2026-10-08
   issues: "#39 to #107 (no #105), milestones 1 to 6 = Phases 0 to 5"
   labels_added: [correctness, refactor, agent-task, topology, solvation, io, visualization, loops, ml, infra]
-  branch_protection: not_set
+  branch_protection: "master is protected: 1 approving review required, NO required status checks, force pushes allowed, admins not enforced [ran 2026-10-12, gh api]. Requiring `all-green` was attempted and denied by the agent sandbox; the owner runs it (see LOG 2026-10-12 wrapup)."
+  pull_requests: "#108 draft, cleanup/phase0-tests-and-dev-docs into master; CI green (lint, 9 test cells, all-green)"
 owner_reminders:                   # tell the owner at the start of the next session
   - "msld-prep needs the RDKConverter-Het hotfix (section 2); issue #59 tracks it"
   - "CHARMM and pyCHARMM build (#107) was postponed from 2026-10-12 to Tuesday 2026-10-13 (also in agent memory)"
@@ -245,11 +246,11 @@ roadmap_done:
   - "Phase 0: markers"
   - "Phase 0: move benchmark_pipeline.py to benchmarks/ (2026-10-12; tests/slurm/submit_pipeline.sh path updated by the owner's request)"
   - "Phase 0: ruff config, lint only (2026-10-12)"
-  - "Phase 0: CI workflow written and checked locally (2026-10-12); first GitHub run: see LOG"
+  - "Phase 0: CI workflow written and checked locally (2026-10-12); first GitHub run green on draft PR #108, see LOG"
 roadmap_next:
   - "Tuesday 2026-10-13: build CHARMM and pyCHARMM locally (owner, #107), then the pycharmm tests"
-  - "Run the CI workflow on GitHub (push + draft PR need the owner's go-ahead), read every matrix cell"
-  - "Branch protection on master requiring `all-green` (after a green run; owner decides)"
+  - "Read the log of every CI matrix cell of #108 (only py3.9+NumPy1 and py3.13+NumPy2 were read)"
+  - "Branch protection: add `all-green` as a required status check on master (owner runs the gh command in the 2026-10-12 wrapup LOG entry); then mark #108 ready for review"
   - "Phase 0: golden-file tests for PSF and CRD (Q1 first)"
   - "Phase 0: issue numbers into xfail reasons and TODOs; ROADMAP as index"
   - "Later: ruff format (own commit + .git-blame-ignore-revs), pre-commit, widen rules, core-install import guard in CI (with ROADMAP 1.5)"
@@ -328,8 +329,48 @@ Newest first. Append only. Template:
 - found: the handoff State said the 2026-10-08 commits were local only; git shows the branch on
   origin at `e5b855a`. `LoopBuilder.py` still has the undefined `topo` (Q2), kept visible by a
   per-file ignore with a comment.
+- followed (same day, at the owner's request): updated the path in the owner's
+  `tests/slurm/submit_pipeline.sh`; made the three commits `734ffdb`, `b340111`, `8cd6204`;
+  pushed `cleanup/phase0-tests-and-dev-docs` (e5b855a..8cd6204) and opened **draft PR #108**
+  into `master`. First CI run `[ran 2026-10-12/13 UTC]`: `lint`, all nine `test` cells
+  (Python 3.9 to 3.13, NumPy 1.26.4 and 2.5.4) and `all-green` passed. The NumPy 1 cell shows
+  134 passed, 12 xfailed: the `box_dim` xfail is conditional on NumPy >= 2, as designed.
+  Not checked: the log of every cell, only py3.9+NumPy 1 and py3.13+NumPy 2. Branch
+  protection is not set.
+  This LOG addition and the State edits above are uncommitted (a fourth commit was not
+  authorised).
 - next: see `roadmap_next` in State: run CI on GitHub (needs the owner's go-ahead to push and
   open a draft PR), then read each matrix cell; CHARMM build on 2026-10-13.
+
+### 2026-10-12 claude-sonnet/claude-code/wrapup
+
+- asked: end-of-day wrap-up; commit and push this handoff; set branch protection on `master`
+  to require `all-green`; write a note for the owner's meeting with Stan (in the owner's private
+  vault, not in the repository).
+- did: committed and pushed the handoff (the commit that carries this entry); wrote the meeting
+  note in the vault. `git log @{u}..HEAD` was empty before this commit, so nothing else was
+  unpushed. No branch was deleted: no local branch other than `master` is merged into it.
+- found: **`master` is already protected** (the State said `not_set`, wrong): 1 approving review
+  required, no required status checks, force pushes allowed, admins not enforced `[ran,
+  gh api repos/BrooksResearchGroup-UM/crimm/branches/master/protection]`.
+- NOT done: requiring `all-green`. My `gh api -X PUT .../branches/master/protection` was denied
+  by the sandbox's permission classifier; I did not retry or work around it. A PUT replaces the
+  whole protection object, so the command must restate the existing settings. The owner runs, from an ordinary terminal
+  (`gh` is in `crimm-dev`):
+  `gh api -X PUT repos/BrooksResearchGroup-UM/crimm/branches/master/protection --input protection.json`
+  with `{"required_status_checks":{"strict":false,"contexts":["all-green"]},"enforce_admins":false,
+  "required_pull_request_reviews":{"required_approving_review_count":1,"dismiss_stale_reviews":false,
+  "require_code_owner_reviews":false,"require_last_push_approval":false},"restrictions":null,
+  "allow_force_pushes":true,"allow_deletions":false}`. Consider `allow_force_pushes: false`
+  (a decision for the owner; it was left as found). The check name `all-green` exists only
+  because PR #108 ran it, so set this after that run, as now.
+- out of date and fixed in this commit: State `branch_protection`, `roadmap_next`, the ROADMAP
+  CI row. Still out of date (not touched): ROADMAP is not an index of `#N`; `xfail` reasons and
+  TODOs lack issue numbers; no GitHub issue exists yet for the ruff follow-ups (ignored rules,
+  `ruff format`, `pre-commit`) or for Stan's lint findings; #107 stays open for tomorrow.
+- claims: none were held.
+- next: 2026-10-13 CHARMM and pyCHARMM build (#107, owner); meeting with Stan about linting and
+  formatting his three files; then read the remaining CI logs and make #108 ready.
 
 ### 2026-10-08 claude-sonnet/claude-code/wrapup
 
