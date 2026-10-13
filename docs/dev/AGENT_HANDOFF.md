@@ -234,7 +234,7 @@ local_branches_deleted: [cuda_util, list, mmcif-bug-fix, newGridGen, py3dmol]   
 github:                            # 2026-10-08
   issues: "#39 to #107 (no #105), milestones 1 to 6 = Phases 0 to 5"
   labels_added: [correctness, refactor, agent-task, topology, solvation, io, visualization, loops, ml, infra]
-  branch_protection: "master is protected: 1 approving review required, NO required status checks, force pushes allowed, admins not enforced [ran 2026-10-12, gh api]. Requiring `all-green` was attempted and denied by the agent sandbox; the owner runs it (see LOG 2026-10-12 wrapup)."
+  branch_protection: "master: all-green required (strict false), 1 approving review, force pushes disallowed, deletions disallowed, admins not enforced [ran 2026-10-12, gh api; set by the owner]"
   pull_requests: "#108 draft, cleanup/phase0-tests-and-dev-docs into master; CI green (lint, 9 test cells, all-green)"
 owner_reminders:                   # tell the owner at the start of the next session
   - "msld-prep needs the RDKConverter-Het hotfix (section 2); issue #59 tracks it"
@@ -250,7 +250,7 @@ roadmap_done:
 roadmap_next:
   - "Tuesday 2026-10-13: build CHARMM and pyCHARMM locally (owner, #107), then the pycharmm tests"
   - "Read the log of every CI matrix cell of #108 (only py3.9+NumPy1 and py3.13+NumPy2 were read)"
-  - "Branch protection: add `all-green` as a required status check on master (owner runs the gh command in the 2026-10-12 wrapup LOG entry); then mark #108 ready for review"
+  - "Mark #108 ready for review once Stan has seen the plan; add `Closes #40, #41, #42` to its body"
   - "Phase 0: golden-file tests for PSF and CRD (Q1 first)"
   - "Phase 0: issue numbers into xfail reasons and TODOs; ROADMAP as index"
   - "Later: ruff format (own commit + .git-blame-ignore-revs), pre-commit, widen rules, core-install import guard in CI (with ROADMAP 1.5)"
@@ -368,6 +368,12 @@ Newest first. Append only. Template:
   CI row. Still out of date (not touched): ROADMAP is not an index of `#N`; `xfail` reasons and
   TODOs lack issue numbers; no GitHub issue exists yet for the ruff follow-ups (ignored rules,
   `ruff format`, `pre-commit`) or for Stan's lint findings; #107 stays open for tomorrow.
+- addendum (same evening): the owner applied the protection themselves: `all-green` required,
+  force pushes now disallowed `[ran, gh api]`. ROADMAP is now an index: every item carries its
+  issue number, plus an "Index of issues" table (uncommitted when this was written).
+  Agent memory holds two start-of-session reminders for 2026-10-13 (CHARMM build; the
+  housekeeping items still out of date: `xfail`/TODO issue numbers, missing issues for the ruff
+  follow-ups and Stan's lint findings, unread CI logs and the `Closes` lines of #108).
 - claims: none were held.
 - next: 2026-10-13 CHARMM and pyCHARMM build (#107, owner); meeting with Stan about linting and
   formatting his three files; then read the remaining CI logs and make #108 ready.

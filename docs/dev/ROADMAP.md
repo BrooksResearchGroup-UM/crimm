@@ -1,6 +1,6 @@
 # crimm cleanup and overhaul roadmap
 
-Written 2026-10-06 against commit `fbb165d`; updated 2026-10-08 (base is now `origin/master` `cf51387`, issues #39 to #107 exist, CHARMM plan added). Background is in [NOTES.md](NOTES.md); the
+Written 2026-10-06 against commit `fbb165d`; updated 2026-10-12 (every item carries its issue number `#N`; the issues hold the status and the discussion). Background is in [NOTES.md](NOTES.md); the
 standards the work should meet are in [BEST_PRACTICES.md](BEST_PRACTICES.md).
 
 ## Ground rules
@@ -15,6 +15,23 @@ standards the work should meet are in [BEST_PRACTICES.md](BEST_PRACTICES.md).
 
 Sizes are rough: S is under a day, M is a few days, L is a week or more.
 
+## Index of issues
+
+Milestones 1 to 6 on GitHub are Phases 0 to 5. The issues hold status and discussion; this file
+holds the order and the reasoning. List what is open with `gh issue list --milestone "<name>"`.
+Issue #105 does not exist.
+
+| Where | Issues |
+| --- | --- |
+| Phase 0: Safety net | #39 golden files, #40 ruff, #41 CI, #42 benchmarks, #107 CHARMM and pyCHARMM. #40 to #42 are done on draft PR #108 and close when it merges |
+| Phase 1: Bugs | #43, #44 (Stan), #45 to #49 (found by tests), #50 to #57, #59 (hotfix, needed by a downstream project), #58 (optional imports, 1.5) |
+| Phase 2: TODOs | #60 to #70 (fix now), #87 (topology TODOs 16 to 21, resolved in Phase 4) |
+| Features, no milestone | #71 to #76 (TODOs 22 to 27) |
+| Phase 3: Refactor | #77 to #85 |
+| Phase 4: Restructure | #86 to #95 |
+| Phase 5: Release | #96 to #100, #106 (toppar licence) |
+| crimm-ml track, no milestone | #101 to #104 |
+
 ## Phase 0: Safety net
 
 Nothing here changes behaviour.
@@ -24,13 +41,13 @@ Nothing here changes behaviour.
 | **Done 2026-10-06.** Offline pytest suite with small fixture structures checked into `tests/data/` (1UBQ, 1CRN, 2IGD, 3PTB, 1BNA) | `pytest` passes with no network; covers parsing, organizing, topology generation, PSF/CRD round trip, solvation. Result: 133 passed, 13 expected failures, each pinning a bug listed in Phase 1 | L |
 | **Done 2026-10-06.** Markers for `network`, `pycharmm`, `cgenff`, `slow` | Default `pytest` run skips them; each can be selected with `-m`. There are no `pycharmm` tests yet | S |
 | **Done 2026-10-07.** Agent and contributor files: `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, issue forms, PR template, `CODEOWNERS`, `environment-dev.yml` | A fresh agent session finds the handoff; contributors can set up an environment from one file | S |
-| **Issues created 2026-10-08 (#39 to #107), milestones set up.** Still open: make this ROADMAP an index linking `#N`, and put the issue numbers into the `xfail` reasons and the TODO comments | Every item below has an issue (done); every `xfail` and TODO names its issue number | M |
-| Golden-file tests for PSF and CRD output | A refactor that changes one byte of output fails a test | M |
-| **Done 2026-10-12 (lint only).** `ruff` configured in `pyproject.toml`; current findings fixed or explicitly ignored | `ruff check crimm tests` is clean. Ignored rules are listed with reasons in `pyproject.toml`; findings in Stan's files are left in place. Still open: `ruff format` (65 files would change; needs its own commit and `.git-blame-ignore-revs`), a `pre-commit` hook, and widening the rule set | S |
-| **Done 2026-10-12 in `.github/workflows/ci.yml`; green on draft PR #108.** CI workflow: lint and tests on Python 3.9 to 3.13, on both NumPy 1.x and 2.x | Required check (`all-green`) on pull requests to `master`. Open: requiring `all-green` on `master` (protection exists but has no required checks), core-install import guard (with 1.5). Lesson: [lessons/ci-basics.md](lessons/ci-basics.md) | M |
-| **Done 2026-10-12.** Move `tests/benchmark_pipeline.py` to `benchmarks/` | `tests/` holds only pytest tests | S |
-| CHARMM and pyCHARMM in the developer environment: build the CHARMM library locally with pyCHARMM support and make it usable from `crimm-dev` (see "CHARMM and pyCHARMM" below). Planned for the session of Monday 2026-10-12 | `import pycharmm` works in `crimm-dev`, and the steps are written down | L |
-| `pycharmm` tests: load the PSF/CRD that crimm writes into pyCHARMM, and check energies and counts against CHARMM's own reading. Depends on the row above | `pytest -m pycharmm` passes on a machine with a CHARMM build and is skipped elsewhere | M |
+| **Issues created 2026-10-08 (#39 to #107), milestones set up.** This ROADMAP indexes the issues since 2026-10-12. Still open: put the issue numbers into the `xfail` reasons and the TODO comments | Every item below has an issue (done); every `xfail` and TODO names its issue number | M |
+| #39 Golden-file tests for PSF and CRD output | A refactor that changes one byte of output fails a test | M |
+| #40 **Done 2026-10-12 (lint only).** `ruff` configured in `pyproject.toml`; current findings fixed or explicitly ignored | `ruff check crimm tests` is clean. Ignored rules are listed with reasons in `pyproject.toml`; findings in Stan's files are left in place. Still open: `ruff format` (65 files would change; needs its own commit and `.git-blame-ignore-revs`), a `pre-commit` hook, and widening the rule set | S |
+| #41 **Done 2026-10-12 in `.github/workflows/ci.yml`; green on draft PR #108.** CI workflow: lint and tests on Python 3.9 to 3.13, on both NumPy 1.x and 2.x | Required check (`all-green`) on pull requests to `master`. Open: requiring `all-green` on `master` (protection exists but has no required checks), core-install import guard (with 1.5). Lesson: [lessons/ci-basics.md](lessons/ci-basics.md) | M |
+| #42 **Done 2026-10-12.** Move `tests/benchmark_pipeline.py` to `benchmarks/` | `tests/` holds only pytest tests | S |
+| #107 CHARMM and pyCHARMM in the developer environment: build the CHARMM library locally with pyCHARMM support and make it usable from `crimm-dev` (see "CHARMM and pyCHARMM" below). Planned for the session of Monday 2026-10-12 | `import pycharmm` works in `crimm-dev`, and the steps are written down | L |
+| #107 `pycharmm` tests: load the PSF/CRD that crimm writes into pyCHARMM, and check energies and counts against CHARMM's own reading. Depends on the row above | `pytest -m pycharmm` passes on a machine with a CHARMM build and is skipped elsewhere | M |
 
 ### CHARMM and pyCHARMM
 
@@ -57,7 +74,7 @@ usable instead; how the `pycharmm` tests are selected on that machine.
 Found while exploring the code. The first two are confirmed by running the code; the rest
 are from reading it and from `pyflakes`.
 
-### 1.1 Solvation can mirror the structure (Stan) — highest priority
+### 1.1 Solvation can mirror the structure (Stan) — highest priority (#43)
 
 `CoordManipulator.orient_coords_octa` (`crimm/Modeller/CoordManipulator.py`) rotates with the
 raw PCA axes from `np.linalg.svd` and never checks the determinant. When the determinant is
@@ -79,7 +96,7 @@ with every residue's N, C, CB arrangement around CA inverted
   boxes by affected versions may be mirror images, and how to check.
 - Size: S for the fix, plus the release note.
 
-### 1.2 PCA orientation stores a transform that does not match what it applied (Stan)
+### 1.2 PCA orientation stores a transform that does not match what it applied (Stan) (#44)
 
 The three PCA methods compute `new = centered @ rotation` (row-vector convention) and store
 the translation in row 3 of `op_mat`. `apply_coords` and `apply_entity` read `op_mat` as a
@@ -99,27 +116,27 @@ and the marker is not removed.
 
 | Where | Problem | Test | Size |
 | --- | --- | --- | --- |
-| `IO/PSFWriter.py`, DNA | For 1BNA the PSF has 394 atoms per strand where the model has 383 (one atom duplicated in 11 of 12 residues), and the PSF total charge is +9 where the model's is -24. The CRD has the model's count, so the pair cannot be loaded together. Cause not yet investigated. | `test_psf_crd.py::test_dna_psf_atom_count_matches_model`, `::test_dna_psf_charge_matches_model` | M |
-| `IO/PSFWriter.py` and `IO/CRDWriter.py` | A ligand without topology (no CGenFF) is left out of the PSF but written to the CRD (3PTB: 3416 against 3425 atoms). Decide on one behaviour for both writers. | `test_psf_crd.py::test_psf_and_crd_agree_with_untyped_ligand` | S |
-| `TopologyGenerator.load_psf_crd` | Terminal patch atoms (ACE and CT3 caps) come back without a `topo_definition`, so `total_charge` of a reloaded chain is `None`. | `test_psf_crd.py::test_load_psf_crd_restores_charges` | S |
-| `PolymerChain.seq` | Returns `X` for every DNA residue; `can_seq` is correct. | `test_parsing.py::test_dna_present_sequence_matches_canonical` | S |
-| `IO/PDBString.get_pdb_str` | With default options, 4-character `TIP3` residue names shift the chain column and crimm's own `PDBParser` cannot read the output. `convert_water=True` works. | `test_pdb_io.py::test_round_trip_after_topology_default_options` | S |
+| #45 `IO/PSFWriter.py`, DNA | For 1BNA the PSF has 394 atoms per strand where the model has 383 (one atom duplicated in 11 of 12 residues), and the PSF total charge is +9 where the model's is -24. The CRD has the model's count, so the pair cannot be loaded together. Cause not yet investigated. | `test_psf_crd.py::test_dna_psf_atom_count_matches_model`, `::test_dna_psf_charge_matches_model` | M |
+| #46 `IO/PSFWriter.py` and `IO/CRDWriter.py` | A ligand without topology (no CGenFF) is left out of the PSF but written to the CRD (3PTB: 3416 against 3425 atoms). Decide on one behaviour for both writers. | `test_psf_crd.py::test_psf_and_crd_agree_with_untyped_ligand` | S |
+| #47 `TopologyGenerator.load_psf_crd` | Terminal patch atoms (ACE and CT3 caps) come back without a `topo_definition`, so `total_charge` of a reloaded chain is `None`. | `test_psf_crd.py::test_load_psf_crd_restores_charges` | S |
+| #48 `PolymerChain.seq` | Returns `X` for every DNA residue; `can_seq` is correct. | `test_parsing.py::test_dna_present_sequence_matches_canonical` | S |
+| #49 `IO/PDBString.get_pdb_str` | With default options, 4-character `TIP3` residue names shift the chain column and crimm's own `PDBParser` cannot read the output. `convert_water=True` works. | `test_pdb_io.py::test_round_trip_after_topology_default_options` | S |
 
 ### 1.4 Other bugs
 
 | Where | Problem | Fix | Size |
 | --- | --- | --- | --- |
-| `Modeller/LoopBuilder.py:659` (`ArcLoopBuilder.reconstruct_backbone`) | Undefined name `topo`; the method raises `NameError` whenever it runs. `best_backbone` and `min_clashes` in `build` are assigned and never used, so the builder looks unfinished. | Decide whether `ArcLoopBuilder` is finished or removed; if kept, pass in a topology set and add a test. | M |
-| `Modeller/CoordManipulator.py:128` (`box_dim`) | `self.coords.ptp(0)`; `ndarray.ptp` was removed in NumPy 2. | `np.ptp(self.coords, axis=0)`. | S |
-| `CoordManipulator.load_entity` | Builds the full N by N distance matrix to find the farthest pair. Memory is quadratic: about 20 GB at 50,000 atoms. Runs even when a PCA method is used and the result is never needed. | Farthest pair over convex-hull vertices (`scipy.spatial.ConvexHull`), computed lazily. | S |
-| `StructEntities/TopoElements.py` (`Dihedral.angle`) | Returns `0.000` for any dihedral. | Implement (this is also TODO 5 below). | S |
-| `CoordManipulator`, `Solvator`, `OrganizedModel`, `Atom` | `assert` used for runtime validation; stripped under `python -O`. | Raise real exceptions. | S |
-| Version strings | `pyproject.toml` 2026.2, `docs/conf.py` 2026.1a, tag 2026.2.1, no `crimm.__version__`. | Single source (see Phase 4); in the meantime align them. | S |
-| `crimm/Data/residues.xml` | Tracked, not packaged, not referenced. | Delete, or package and use it. | S |
-| `pyflakes` findings | Unused imports and variables in `Solvator.py`, `StructureUtils.py`, `PropKaAdaptors.py`, `RDKitConverter.py`, `charmm_struct_prep.py`. | Remove. | S |
-| `Adaptors/RDKitConverter.py` (`RDKitHetConverter`, `heterogen_to_rdkit`) | Raises `TypeError` for a plain `Residue`, and `heterogen_to_rdkit` reads `pdbx_description`, which a residue read from a CRD file lacks. A hotfix exists as `8075b75` on the local branch `RDKConverter-Het`; a downstream project needs it (see the handoff). Issue #59. | Add a test with a plain `Residue` read from a CRD file; review the removed `TypeError`; then merge. | S |
+| #50 `Modeller/LoopBuilder.py:659` (`ArcLoopBuilder.reconstruct_backbone`) | Undefined name `topo`; the method raises `NameError` whenever it runs. `best_backbone` and `min_clashes` in `build` are assigned and never used, so the builder looks unfinished. | Decide whether `ArcLoopBuilder` is finished or removed; if kept, pass in a topology set and add a test. | M |
+| #51 `Modeller/CoordManipulator.py:128` (`box_dim`) | `self.coords.ptp(0)`; `ndarray.ptp` was removed in NumPy 2. | `np.ptp(self.coords, axis=0)`. | S |
+| #52 `CoordManipulator.load_entity` | Builds the full N by N distance matrix to find the farthest pair. Memory is quadratic: about 20 GB at 50,000 atoms. Runs even when a PCA method is used and the result is never needed. | Farthest pair over convex-hull vertices (`scipy.spatial.ConvexHull`), computed lazily. | S |
+| #53 `StructEntities/TopoElements.py` (`Dihedral.angle`) | Returns `0.000` for any dihedral. | Implement (this is also TODO 5 below). | S |
+| #54 `CoordManipulator`, `Solvator`, `OrganizedModel`, `Atom` | `assert` used for runtime validation; stripped under `python -O`. | Raise real exceptions. | S |
+| #55 Version strings | `pyproject.toml` 2026.2, `docs/conf.py` 2026.1a, tag 2026.2.1, no `crimm.__version__`. | Single source (see Phase 4); in the meantime align them. | S |
+| #56 `crimm/Data/residues.xml` | Tracked, not packaged, not referenced. | Delete, or package and use it. | S |
+| #57 `pyflakes` findings | Unused imports and variables in `Solvator.py`, `StructureUtils.py`, `PropKaAdaptors.py`, `RDKitConverter.py`, `charmm_struct_prep.py`. | Remove. **Done 2026-10-12 except in `Solvator.py` (Stan's area, ignored per file in `pyproject.toml`).** | S |
+| #59 `Adaptors/RDKitConverter.py` (`RDKitHetConverter`, `heterogen_to_rdkit`) | Raises `TypeError` for a plain `Residue`, and `heterogen_to_rdkit` reads `pdbx_description`, which a residue read from a CRD file lacks. A hotfix exists as `8075b75` on the local branch `RDKConverter-Het`; a downstream project needs it (see the handoff). Issue #59. | Add a test with a plain `Residue` read from a CRD file; review the removed `TypeError`; then merge. | S |
 
-### 1.5 Make rdkit and nglview optional at import time
+### 1.5 Make rdkit and nglview optional at import time (#58)
 
 `import crimm` imports rdkit and nglview unconditionally, although rdkit is only an extra.
 A core `pip install crimm` therefore cannot import the package without them, and nglview
@@ -170,31 +187,31 @@ phase a TODO in the code must carry an issue number.
 
 | # | Location | TODO | Action |
 | --- | --- | --- | --- |
-| 1 | `IO/RTFParser.py:362` | `quad_parser` is not correct for IMPR | Give IMPR its own parser; test against `prot.rtf` impropers. |
-| 2 | `IO/RTFParser.py:160` | `DELETE` parser handles only atom type | Parse all `DELETE` forms used in the bundled toppar (ATOM, BOND, ANGL, DIHE, IMPR, IC). |
-| 3 | `IO/RTFParser.py:265` | Keywords DIHE, ANGLE and PATCH are not handled | Parse them, or raise on encountering them instead of skipping silently. |
-| 4 | `Utils/StructureUtils.py:211` | DNA and RNA are not distinguished; everything is RNA | Decide from residue names (DA/DC/DG/DT against A/C/G/U) with an O2' check as fallback. |
-| 5 | `StructEntities/TopoElements.py:190` | Dihedral angle calculation not implemented | Implement; same as bug 1.4. |
-| 6 | `StructEntities/TopoDefinitions.py:30` | Element guessed from the first letter of the atom name | Look the element up from the atom type's MASS entry in the RTF; fall back to the name only with a warning. |
-| 7 | `Modeller/Solvator.py:170` | Atom serial numbers above 99,999 (Stan) | PDB output: hybrid-36 or wrap with a warning. CRD/PSF: confirm the extended format is used. Add a large-system test. |
+| 1 (#60) | `IO/RTFParser.py:362` | `quad_parser` is not correct for IMPR | Give IMPR its own parser; test against `prot.rtf` impropers. |
+| 2 (#61) | `IO/RTFParser.py:160` | `DELETE` parser handles only atom type | Parse all `DELETE` forms used in the bundled toppar (ATOM, BOND, ANGL, DIHE, IMPR, IC). |
+| 3 (#62) | `IO/RTFParser.py:265` | Keywords DIHE, ANGLE and PATCH are not handled | Parse them, or raise on encountering them instead of skipping silently. |
+| 4 (#63) | `Utils/StructureUtils.py:211` | DNA and RNA are not distinguished; everything is RNA | Decide from residue names (DA/DC/DG/DT against A/C/G/U) with an O2' check as fallback. |
+| 5 (#53) | `StructEntities/TopoElements.py:190` | Dihedral angle calculation not implemented | Implement; same as bug 1.4. |
+| 6 (#64) | `StructEntities/TopoDefinitions.py:30` | Element guessed from the first letter of the atom name | Look the element up from the atom type's MASS entry in the RTF; fall back to the name only with a warning. |
+| 7 (#65) | `Modeller/Solvator.py:170` | Atom serial numbers above 99,999 (Stan) | PDB output: hybrid-36 or wrap with a warning. CRD/PSF: confirm the extended format is used. Add a large-system test. |
 
 ### Cleanup: fix
 
 | # | Location | TODO | Action |
 | --- | --- | --- | --- |
-| 8 | `Modeller/Solvator.py:22` | Gather constants in `Data/constants.py` (Stan) | Move physical constants; keep box-specific ones beside the solvator. |
-| 9 | `Modeller/Solvator.py:1174` | Move ion-chain charge into the `Utils` charge function (Stan) | Fold `_get_ion_chain_charge` into `StructureUtils.get_charges`. |
-| 10 | `IO/MMCIFParser.py:443` | Refactor nested loops | Extract per-chain and per-residue helpers; golden-file tests guard it. |
-| 11 | `StructEntities/Chain.py:128` | Move disordered-reset to the structure builder | Move; keep a thin method on the chain. |
-| 12 | `Modeller/TopoLoader.py:947` | Use logging for the skipped BLNK entry | Done as part of the logging work in Phase 3; remove the comment then. |
-| 13 | `IO/RTFParser.py:91` | Tidy `quad_parser` loop | One-line comprehension; delete the commented-out line. |
+| 8 (#66) | `Modeller/Solvator.py:22` | Gather constants in `Data/constants.py` (Stan) | Move physical constants; keep box-specific ones beside the solvator. |
+| 9 (#67) | `Modeller/Solvator.py:1174` | Move ion-chain charge into the `Utils` charge function (Stan) | Fold `_get_ion_chain_charge` into `StructureUtils.get_charges`. |
+| 10 (#68) | `IO/MMCIFParser.py:443` | Refactor nested loops | Extract per-chain and per-residue helpers; golden-file tests guard it. |
+| 11 (#69) | `StructEntities/Chain.py:128` | Move disordered-reset to the structure builder | Move; keep a thin method on the chain. |
+| 12 (#77) | `Modeller/TopoLoader.py:947` | Use logging for the skipped BLNK entry | Done as part of the logging work in Phase 3; remove the comment then. |
+| 13 (#60) | `IO/RTFParser.py:91` | Tidy `quad_parser` loop | One-line comprehension; delete the commented-out line. |
 
 ### Documentation: fix
 
 | # | Location | TODO | Action |
 | --- | --- | --- | --- |
-| 14 | `Modeller/TopoLoader.py:1585` | Add examples to the `coerce_resname` docstring | Add a doctest-style example. |
-| 15 | `Superimpose/ChainSuperimposer.py:9` | Refactor and add docstring examples | Examples now; the refactor is covered by issue 23. |
+| 14 (#70) | `Modeller/TopoLoader.py:1585` | Add examples to the `coerce_resname` docstring | Add a doctest-style example. |
+| 15 (#70) | `Superimpose/ChainSuperimposer.py:9` | Refactor and add docstring examples | Examples now; the refactor is covered by issue 23. |
 
 ### Topology design: issue, resolved in Phase 4
 
@@ -203,23 +220,23 @@ definitions instead of hand-written special cases.
 
 | # | Location | TODO |
 | --- | --- | --- |
-| 16 | `Modeller/TopoLoader.py:559` | Full DISU patching from the patch definition |
-| 17 | `Modeller/TopoLoader.py:740` | Read CMAP from the RTF |
-| 18 | `Modeller/TopoLoader.py:1139` | Parse parameters from the CGenFF toppar block |
-| 19 | `Modeller/TopoLoader.py:1211` | Build ligand topology elements from the RTF |
-| 20 | `Modeller/TopoLoader.py:2456` | Rewrite `ResiduePatcher` and the topology definitions around `Topology` |
-| 21 | `StructEntities/TopoDefinitions.py:348` | Add a type to identify heterogens |
+| 16 (#87) | `Modeller/TopoLoader.py:559` | Full DISU patching from the patch definition |
+| 17 (#87) | `Modeller/TopoLoader.py:740` | Read CMAP from the RTF |
+| 18 (#87) | `Modeller/TopoLoader.py:1139` | Parse parameters from the CGenFF toppar block |
+| 19 (#87) | `Modeller/TopoLoader.py:1211` | Build ligand topology elements from the RTF |
+| 20 (#87) | `Modeller/TopoLoader.py:2456` | Rewrite `ResiduePatcher` and the topology definitions around `Topology` |
+| 21 (#87) | `StructEntities/TopoDefinitions.py:348` | Add a type to identify heterogens |
 
 ### Features: issue
 
 | # | Location | TODO |
 | --- | --- | --- |
-| 22 | `IO/PDBString.py:251` | CONECT records |
-| 23 | `Superimpose/ChainSuperimposer.py:206` | `on_atoms` option for loop-edge superposition |
-| 24 | `IO/CRDParser.py:110` | CRD header parser |
-| 25 | `Visualization/NGLVisualization.py:105` | `add_representation` for a list of entities |
-| 26 | `Visualization/NGLVisualization.py:204` | Colour specific residues in a cartoon |
-| 27 | `StructEntities/Chain.py:192` | Het-flag check for chromophore residues in fluorescent proteins |
+| 22 (#71) | `IO/PDBString.py:251` | CONECT records |
+| 23 (#72) | `Superimpose/ChainSuperimposer.py:206` | `on_atoms` option for loop-edge superposition |
+| 24 (#73) | `IO/CRDParser.py:110` | CRD header parser |
+| 25 (#74) | `Visualization/NGLVisualization.py:105` | `add_representation` for a list of entities |
+| 26 (#75) | `Visualization/NGLVisualization.py:204` | Colour specific residues in a cartoon |
+| 27 (#76) | `StructEntities/Chain.py:192` | Het-flag check for chromophore residues in fluorescent proteins |
 
 ## Phase 3: Refactor
 
@@ -227,15 +244,15 @@ Internals only. Public names and behaviour stay the same; the golden-file tests 
 
 | Item | Detail | Size |
 | --- | --- | --- |
-| Logging | `logging.getLogger(__name__)` per module replaces about 60 `print` calls. One documented way to set verbosity replaces the `QUIET` keyword arguments (kept as deprecated aliases). | M |
-| Exceptions | A small hierarchy rooted at `CrimmError` (topology, parsing, fetch, solvation). | S |
-| HTTP | One helper for RCSB and AlphaFold requests with a sensible timeout (30 s, not 500), retries with backoff, and proxy handling. Replaces 10 call sites. | S |
-| Duplication | Orientation methods (done in 1.2); the title and timestamp block repeated in `CRDWriter.py` and `PSFWriter.py`; ion name tables repeated inside `Solvator.py`. | M |
-| Resources | `importlib.resources` to locate toppar files and `water_coords.npy`. | S |
-| Global state | `LOADED_TOPOLOGY_TYPES` and the visualization backend become explicit objects or context managers. | M |
-| Types and docstrings | Type hints on public functions; NumPy-style docstrings throughout; fix wrong annotations (for example `_find_transformation_operators -> None` returns a matrix). | L |
-| Dead code | Commented-out `StructEntities/__init__.py`, unused attributes such as `_convex_hull`, leftover commented lines. | S |
-| Reproducibility (Stan) | Monte Carlo ion placement takes a `seed` or `Generator`. | S |
+| #77 Logging | `logging.getLogger(__name__)` per module replaces about 60 `print` calls. One documented way to set verbosity replaces the `QUIET` keyword arguments (kept as deprecated aliases). | M |
+| #78 Exceptions | A small hierarchy rooted at `CrimmError` (topology, parsing, fetch, solvation). | S |
+| #79 HTTP | One helper for RCSB and AlphaFold requests with a sensible timeout (30 s, not 500), retries with backoff, and proxy handling. Replaces 10 call sites. | S |
+| #80 Duplication | Orientation methods (done in 1.2); the title and timestamp block repeated in `CRDWriter.py` and `PSFWriter.py`; ion name tables repeated inside `Solvator.py`. | M |
+| #81 Resources | `importlib.resources` to locate toppar files and `water_coords.npy`. | S |
+| #82 Global state | `LOADED_TOPOLOGY_TYPES` and the visualization backend become explicit objects or context managers. | M |
+| #83 Types and docstrings | Type hints on public functions; NumPy-style docstrings throughout; fix wrong annotations (for example `_find_transformation_operators -> None` returns a matrix). | L |
+| #84 Dead code | Commented-out `StructEntities/__init__.py`, unused attributes such as `_convex_hull`, leftover commented lines. | S |
+| #85 Reproducibility (Stan) | Monte Carlo ion placement takes a `seed` or `Generator`. | S |
 
 ## Phase 4: Restructure
 
@@ -243,26 +260,27 @@ Breaking changes, each with a compatibility shim.
 
 | Item | Detail | Size |
 | --- | --- | --- |
-| Split `TopoLoader.py` | Its 11 classes move into a `topology` subpackage: topology containers, `ParameterLoader`, residue topology sets, CGenFF loading, `TopologyGenerator`, `ResiduePatcher`. `crimm.Modeller.TopoLoader` keeps re-exporting them. | L |
-| Topology from definitions | TODOs 16 to 21: patches, CMAP and ligand topology derived from RTF data. | L |
-| Split `Solvator.py` (Stan) | Crystal types and geometry, water-box construction, ion calculation and placement as separate modules; `Solvator` stays the entry point. | M |
-| Public API | `__all__` in every package, lazy top-level imports, `crimm.__version__` from package metadata, entity classes exported from `crimm.StructEntities`. | M |
-| Module names | snake_case module and package names; the CamelCase paths re-export with `DeprecationWarning`. Do this last and in one release, since it touches every import. | L |
-| Extras | `viz`, `cheminformatics`, `protonation`, `openmm`, `dev`, `docs`, `all`; `ml` is added by the crimm-ml track below and stays out of `all`. | S |
-| Orphans | Decide the future of `Utils/cuda_info.py` (445 lines, exported at top level, unused inside crimm) and `Data/probes` (994 lines). Both look left over from the removed docking module; they may belong in a separate package. | S |
-| Docs build | Remove `docs/_build` from git; build and deploy in CI from `master`; retire the `docs` branch. Replace the placeholder `index.rst`. | M |
-| Notebooks | Strip outputs on commit (`nbstripout`) and render them in the docs build instead; run them in CI. | M |
-| Repository hygiene | Delete merged remote branches; remove the duplicate `main` branch. | S |
+| #86 Split `TopoLoader.py` | Its 11 classes move into a `topology` subpackage: topology containers, `ParameterLoader`, residue topology sets, CGenFF loading, `TopologyGenerator`, `ResiduePatcher`. `crimm.Modeller.TopoLoader` keeps re-exporting them. | L |
+| #87 Topology from definitions | TODOs 16 to 21: patches, CMAP and ligand topology derived from RTF data. | L |
+| #88 Split `Solvator.py` (Stan) | Crystal types and geometry, water-box construction, ion calculation and placement as separate modules; `Solvator` stays the entry point. | M |
+| #89 Public API | `__all__` in every package, lazy top-level imports, `crimm.__version__` from package metadata, entity classes exported from `crimm.StructEntities`. | M |
+| #90 Module names | snake_case module and package names; the CamelCase paths re-export with `DeprecationWarning`. Do this last and in one release, since it touches every import. | L |
+| #91 Extras | `viz`, `cheminformatics`, `protonation`, `openmm`, `dev`, `docs`, `all`; `ml` is added by the crimm-ml track below and stays out of `all`. | S |
+| #92 Orphans | Decide the future of `Utils/cuda_info.py` (445 lines, exported at top level, unused inside crimm) and `Data/probes` (994 lines). Both look left over from the removed docking module; they may belong in a separate package. | S |
+| #93 Docs build | Remove `docs/_build` from git; build and deploy in CI from `master`; retire the `docs` branch. Replace the placeholder `index.rst`. | M |
+| #94 Notebooks | Strip outputs on commit (`nbstripout`) and render them in the docs build instead; run them in CI. | M |
+| #95 Repository hygiene | Delete merged remote branches; remove the duplicate `main` branch. | S |
 
 ## Phase 5: Release
 
 | Item | Size |
 | --- | --- |
-| `CHANGELOG.md` covering everything above, with a migration section for renamed imports and the `viz` extra | S |
-| Deprecation schedule stating the release in which each shim is removed | S |
-| Publish to PyPI from CI on a tag, using trusted publishing | S |
-| Update the `Development Status` classifier | S |
-| conda-forge feedstock | M |
+| #96 `CHANGELOG.md` covering everything above, with a migration section for renamed imports and the `viz` extra | S |
+| #97 Deprecation schedule stating the release in which each shim is removed | S |
+| #98 Publish to PyPI from CI on a tag, using trusted publishing | S |
+| #99 Update the `Development Status` classifier | S |
+| #100 conda-forge feedstock | M |
+| #106 Document licence and provenance of the bundled CHARMM toppar files | S |
 
 ## Parallel track: crimm-ml integration (RFdiffusion loop building)
 
@@ -278,10 +296,10 @@ optional at import time" has landed**: `crimm[ml]` is pointless while `import cr
 
 | Item | Done when | Size |
 | --- | --- | --- |
-| New `crimm/Modeller/RFLoopBuilder.py`, a placeholder lifted from the RFdiffusion fork's `Tests.ipynb` (cell 7 and the gap loop in cells 9 to 13): `build_residues(chain, built_res_coords)` (real residue names from `chain.missing_res`, `ResidueTopologySet('protein')`, `TopologyGenerator.apply_topo_def_on_residue`, `ResidueFixer.build_missing_atoms`), `insert_built_residues(chain, residues, inplace=False)`, and `fill_gaps(chain, model, gaps=None, build_terminals=False, T=50, num_designs=1, seed=None, progress=None)`. `crimm_ml` is imported only inside functions. Mark it a placeholder in the docstring: this is the surface expected to change. The owner intends the RFdiffusion model to become part of `LoopBuilder` (2026-10-08), so settle the module layout before starting (issue #101). | Filling every internal gap of 5IEV chain A matches the notebook: real residue names, complete side chains, a continuous chain. `import crimm` does not import `crimm_ml`. | M |
-| `ml = ["crimm-ml>=0.1"]` in `[project.optional-dependencies]`, kept **out of** `all`: crimm-ml depends on crimm, so `all` would pull in a package that depends back on crimm. | `pip install crimm[ml]` resolves in a clean venv from TestPyPI. | S |
-| `ml` pytest marker (skipped by default, like `network`) for the `fill_gaps` test, which needs the 275 MB model; the model path comes from `CRIMM_ML_TEST_MODEL`. | Default `pytest` stays offline and fast; `pytest -m ml` runs it. | S |
-| Document that crimm-ml needs Python 3.10 or newer (its oldest usable onnxruntime, 1.18, has no 3.9 wheel past 1.19), so `crimm[ml]` does not resolve on 3.9 even though crimm itself supports it. | README install section says so. | S |
+| #101 New `crimm/Modeller/RFLoopBuilder.py`, a placeholder lifted from the RFdiffusion fork's `Tests.ipynb` (cell 7 and the gap loop in cells 9 to 13): `build_residues(chain, built_res_coords)` (real residue names from `chain.missing_res`, `ResidueTopologySet('protein')`, `TopologyGenerator.apply_topo_def_on_residue`, `ResidueFixer.build_missing_atoms`), `insert_built_residues(chain, residues, inplace=False)`, and `fill_gaps(chain, model, gaps=None, build_terminals=False, T=50, num_designs=1, seed=None, progress=None)`. `crimm_ml` is imported only inside functions. Mark it a placeholder in the docstring: this is the surface expected to change. The owner intends the RFdiffusion model to become part of `LoopBuilder` (2026-10-08), so settle the module layout before starting (issue #101). | Filling every internal gap of 5IEV chain A matches the notebook: real residue names, complete side chains, a continuous chain. `import crimm` does not import `crimm_ml`. | M |
+| #102 `ml = ["crimm-ml>=0.1"]` in `[project.optional-dependencies]`, kept **out of** `all`: crimm-ml depends on crimm, so `all` would pull in a package that depends back on crimm. | `pip install crimm[ml]` resolves in a clean venv from TestPyPI. | S |
+| #103 `ml` pytest marker (skipped by default, like `network`) for the `fill_gaps` test, which needs the 275 MB model; the model path comes from `CRIMM_ML_TEST_MODEL`. | Default `pytest` stays offline and fast; `pytest -m ml` runs it. | S |
+| #104 Document that crimm-ml needs Python 3.10 or newer (its oldest usable onnxruntime, 1.18, has no 3.9 wheel past 1.19), so `crimm[ml]` does not resolve on 3.9 even though crimm itself supports it. | README install section says so. | S |
 
 Once this lands, crimm-ml removes its deprecated copies of the old glue (`crimm_ml.crimm_utils`,
 `crimm_ml.minimal_pipeline_loop_builder`) in its next release.
