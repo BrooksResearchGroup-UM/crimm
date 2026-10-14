@@ -54,17 +54,20 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
           cache-dependency-path: pyproject.toml
-      # Install the NumPy line under test first; pip then keeps it while resolving crimm.
+      # The NumPy line under test is a requirement of the same install as crimm, so the
+      # resolver must keep it. Installed in a separate step first, pip upgraded it to
+      # NumPy 2 in the Python 3.12 cell while resolving [all] (run 38329748488).
       # [all] is needed because `import crimm` still imports rdkit and nglview
       # (ROADMAP 1.5 removes that).
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install "numpy${{ matrix.numpy }}"
-          pip install -e ".[all,test]"
+          pip install -e ".[all,test]" "numpy${{ matrix.numpy }}"
+      # Fails the cell if the installed NumPy is not the line the cell is named for.
       - name: Show versions
         run: |
           python -c "import sys, numpy, scipy, Bio; print(sys.version); print('numpy', numpy.__version__, 'scipy', scipy.__version__, 'biopython', Bio.__version__)"
+          python -c "import numpy; major = int(numpy.__version__.split('.')[0]); assert (major < 2) == ('${{ matrix.numpy }}' == '<2'), numpy.__version__"
       - name: Test (offline suite)
         run: pytest -p no:cacheprovider -q
 
