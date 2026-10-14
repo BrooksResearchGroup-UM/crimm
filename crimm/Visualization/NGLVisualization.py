@@ -106,7 +106,7 @@ def show_nglview_multiple(entity_list):
             view.add_representation('licorice', component = component._index)
     return view
 
-## TODO: Add feature for add_representation() directly for entity list
+## TODO(#74): Add feature for add_representation() directly for entity list
 class View(nv.NGLWidget):
     """Customized NGLView Widget class for visualizing crimm.Structure.Structure on jupyter notebook"""
     def __init__(self):
@@ -205,7 +205,7 @@ class View(nv.NGLWidget):
                 'cartoon', component=comp_idx, color='grey', opacity=0.5
             )
             atom_id_selection = atom_id_dict[comp_idx]
-            # TODO: Find API for changing color of specific residues
+            # TODO(#75): Find API for changing color of specific residues
             # since add cartoon representation will not render
             self.add_representation(
                 'cartoon', selection=atom_id_selection,

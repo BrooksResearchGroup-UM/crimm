@@ -30,7 +30,7 @@ class AtomDefinition:
         if element is None:
             # if element is not specified, take the first letter of the atom name
             # as the element
-            # TODO: this is not a good way to determine the element
+            # TODO(#64): this is not a good way to determine the element
             self.element = name[0]
 
     def __repr__(self):
@@ -348,7 +348,7 @@ class ResidueDefinition:
         Return:
             Residue object with atoms whose names and coordinates are filled
         """
-        ## TODO: add type to determine heterogens
+        ## TODO(#87): add type to determine heterogens
         if self.is_hetero:
             het_field = 'H_'+self.resname
         else:

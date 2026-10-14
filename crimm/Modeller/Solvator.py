@@ -167,7 +167,7 @@ OH2 = TIP3_def['OH2'].create_new_atom()
 H1 = TIP3_def['H1'].create_new_atom()
 H2 = TIP3_def['H2'].create_new_atom()
 
-## TODO: deal with atom serial number > 99999 for larger structures (e.g. 1A8I)
+## TODO(#65): deal with atom serial number > 99999 for larger structures (e.g. 1A8I)
 class Solvator:
     """Solvates a Structure, Model, or Chain level entity with water molecules.
     The solvated entity will be returned as a Model level entity. The solvated
@@ -1171,7 +1171,7 @@ class Solvator:
     # =========================================================================
     # New Ion Calculation Methods (SPLIT, SLTCAP, Add-Neutralize)
     # =========================================================================
-    # TODO: Move this inside of the `get_charge` function in Utils
+    # TODO(#67): Move this inside of the `get_charge` function in Utils
     def _get_ion_chain_charge(self, chain) -> float:
         """Calculate total charge of an ion chain from known ion valences.
 

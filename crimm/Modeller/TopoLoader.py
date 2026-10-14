@@ -555,7 +555,7 @@ class DisulfideTopology:
                 # Remove HG1 from both residues if present
                 self._remove_CYS_HG1(res1)
                 self._remove_CYS_HG1(res2)
-                ## TODO: implement full DISU patching using patch definition
+                ## TODO(#87): implement full DISU patching using patch definition
                 ## and update atom topo_definition automatically when patching
                 cys_def = patcher.patch_disulfide(
                     res1.topo_definition, res2.topo_definition
@@ -736,7 +736,7 @@ class ChainTopology(BaseTopology):
             if len(atom.neighbors) > 0:
                 return atom
 
-    ## TODO: get Cmap from the topology rtf file
+    ## TODO(#87): get Cmap from the topology rtf file
     def find_topo_elements(self, chain: Chain):
         """Find all topology elements in the chain"""
         if chain.undefined_res:
@@ -943,7 +943,7 @@ class ParameterLoader:
             elif atom in residue_definition.removed_atom_dict:
                 atom_type = residue_definition.removed_atom_dict[atom].atom_type
             elif atom == "BLNK":
-                ## TODO: use logging to log this
+                ## TODO(#77): use logging to log this
                 return None  # ic containing BLNK atom should be ignored
             else:
                 raise ValueError(
@@ -1135,7 +1135,7 @@ class CGENFFTopologyLoader:
         if self.save_path is None:
             self.save_path = os.getcwd()
 
-    ## TODO: parse parameters from the toppar block as well
+    ## TODO(#87): parse parameters from the toppar block as well
     def _get_cgenff_topology(self, input_mol2_block, resname, ligand_toppar_file=None):
         """Load mol2 block and generate topology definition."""
 
@@ -1207,7 +1207,7 @@ class CGENFFTopologyLoader:
 
         build_lonepair_coords(lig_res)
 
-    ## TODO: need to find topology element from rtf. Currently only add
+    ## TODO(#87): need to find topology element from rtf. Currently only add
     ## topology definition to the atom
     def generate(self, lig_res: Heterogen, ligand_toppar_file=None):
         """Generate topology definition for the ligand residue using cgenff.
@@ -1581,7 +1581,7 @@ class TopologyGenerator:
         Return:
             True if the residue is a known modified residue and is successfully coerced
             False otherwise"""
-        ## TODO: add examples to the docstring
+        ## TODO(#70): add examples to the docstring
         if residue.resname not in protein_letters_3to1_extended:
             return False
         # if the residue is a known modified residue,
@@ -2452,7 +2452,7 @@ class TopologyGenerator:
         return written_files
 
 
-##TODO: Rewrite TopoDef and this class to use the Topology instead
+##TODO(#87): Rewrite TopoDef and this class to use the Topology instead
 ## of removing entries one by one here
 class ResiduePatcher:
     """Class Object for patching a residue with a patch definition"""

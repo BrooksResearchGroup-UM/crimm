@@ -446,7 +446,7 @@ class MMCIFParser:
                 selected_chains.extend(chain_list)
 
         atom_site = self.create_atom_site_entry_dict()
-        ##TODO: refactor these nested for loops
+        ##TODO(#68): refactor these nested for loops
         for model_id, entity_dict in atom_site.items():
             model = Model(model_id)
             sb.structure.add(model)

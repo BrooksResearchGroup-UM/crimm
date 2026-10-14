@@ -211,7 +211,7 @@ def chain_to_polymerchain(chain, reset_resid=True):
     if resnames.issubset(protein_letters_3to1_extended):
         seq_dict = protein_letters_3to1_extended
         chain_type = 'Polypeptide(L)'
-    ## TODO: Need to distinguish between DNA and RNA. It's all RNA for now.
+    ## TODO(#63): Need to distinguish between DNA and RNA. It's all RNA for now.
     elif resnames.issubset(nucleic_letters_3to1_extended):
         seq_dict = nucleic_letters_3to1_extended
         chain_type = 'Polyribonucleotide'

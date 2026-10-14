@@ -112,7 +112,7 @@ class CRDParser:
         # Only one model per structure for crd files
         sb.init_model(1)
         # temporarily set to empty dict
-        # TODO: Implement a header parser
+        # TODO(#73): Implement a header parser
         sb.header = {} 
         cur_segid = None
         cur_resid = None

@@ -89,7 +89,7 @@ def quad_parser(line):
             f'Invalid length of topology specification: {line}\n'
             'Multiples  of 4 atoms required'
         )
-    ##TODO: use for loop to combine into list of tuples
+    ##TODO(#60): use for loop to combine into list of tuples
     quads = []
     for i in range(0, len(fields), 4):
         quads.append(tuple(fields[i:i+4]))
@@ -158,7 +158,7 @@ def ic_parser(line):
             entry[k] = None
     return key, entry
 
-##TODO: delete parser need to handle multiple values other than atom type
+##TODO(#61): delete parser need to handle multiple values other than atom type
 def delete_parser(line):
     """
     Parse the keyword DELETE. Keyword has to be followed by the type of the 
@@ -263,7 +263,7 @@ class RTFParser:
             )
 
     def _parse_lines(self):
-        ##TODO: Need to handle keywords DIHE, ANGLE, and PATCH
+        ##TODO(#62): Need to handle keywords DIHE, ANGLE, and PATCH
         self.rtf_version = '.'.join(self.lines[0].strip().split())
         self.topo_dict = {}
         for l in self.lines[1:]:
@@ -360,7 +360,7 @@ class RTFParser:
                 cur_res['bonds']['triple'].extend(aromatic_bonds)
             elif l.startswith('IMPR'):
                 # Improper (branching structures)
-                ##TODO: quad_parser is not correct for IMPR
+                ##TODO(#60): quad_parser is not correct for IMPR
                 impropers = quad_parser(l)
                 cur_res['impropers'].extend(impropers)
             elif l.startswith('CMAP'):

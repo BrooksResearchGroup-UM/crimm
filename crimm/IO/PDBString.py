@@ -249,7 +249,7 @@ def _get_atom_line(
         )
     return format_string % args
 
-##TODO: Add support for CONECT records
+##TODO(#71): Add support for CONECT records
 def get_pdb_str(
         entity, reset_serial=True,
         include_alt=False, trunc_resname=False, 

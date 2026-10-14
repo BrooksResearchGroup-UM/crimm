@@ -189,7 +189,7 @@ class Dihedral(TopoEntity, DiheTuple):
         s += ">"
         return s
 
-    ## TODO: implement dihedral angle calculation
+    ## TODO(#53): implement dihedral angle calculation
     @property
     def angle(self):
         """return the current dihedral in degrees"""

@@ -130,7 +130,7 @@ class BaseChain(_Chain):
             atom.set_serial_number(i)
             i+=1
 
-    ## TODO: move this to the structure builder
+    ## TODO(#69): move this to the structure builder
     def _disordered_reset_residue(self, disordered_residue):
         for resname, child_residue in disordered_residue.child_dict.items():
             if child_residue.id == disordered_residue.id:
@@ -195,7 +195,7 @@ class Chain(BaseChain):
     General/Unspecified Chain object based on Biopython Chain
     """
     chain_type = 'Chain'
-    ## TODO: Implement hetflag check for florescence proteins (chromophore residues)
+    ## TODO(#76): Implement hetflag check for florescence proteins (chromophore residues)
     def __init__(self, chain_id: str):
         super().__init__(chain_id)
         self._ppb = PPBuilder()
