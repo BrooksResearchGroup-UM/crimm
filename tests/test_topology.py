@@ -117,6 +117,31 @@ def test_dihedral_angle_is_computed(shared_prepared):
     assert any(abs(dihedral.angle) > 1.0 for dihedral in dihedrals[:200])
 
 
+DISULFIDE_DIHEDRALS = pytest.mark.xfail(
+    strict=True,
+    reason="#112: disulfide cysteines get N/C-CA-CB-SG twice and lack HB-CB-SG-SG",
+)
+
+
+@pytest.mark.parametrize(
+    "pdb_id",
+    [
+        pytest.param(pdb_id, marks=DISULFIDE_DIHEDRALS) if pdb_id in ("1crn", "3ptb") else pdb_id
+        for pdb_id in ALL_IDS
+    ],
+)
+def test_no_dihedral_is_listed_twice(shared_prepared, pdb_id):
+    seen = set()
+    duplicated = []
+    for dihedral in shared_prepared(pdb_id).topology.dihedrals:
+        key = tuple((a.parent.parent.id, a.parent.id[1], a.name) for a in dihedral)
+        key = min(key, key[::-1])
+        if key in seen:
+            duplicated.append(key)
+        seen.add(key)
+    assert duplicated == []
+
+
 @pytest.mark.cgenff
 @pytest.mark.network
 def test_ligand_topology_with_cgenff(organized_model, cgenff_path, tmp_path):
