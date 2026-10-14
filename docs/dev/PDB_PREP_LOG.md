@@ -45,4 +45,17 @@ commit the result was seen on.
   atoms and charge 0, also agreeing between crimm and CHARMM. `[ran]`
 - not checked: whether other fixtures with a deposited OXT (1UBQ, 2IGD, 3PTB) show the same
   kind of clash with CT3.
-- links: #107 (the planned pyCHARMM tests should load 1CRN with CTER).
+- links: #107; `tests/test_pycharmm.py` loads 1CRN with CTER.
+
+### 2026-10-14 Disulfide dihedrals differ from CHARMM's DISU patch
+
+- seen on: crimm `4c43b16`, protein only, `generate_model(model, prot_last_patch="CTER")`,
+  compared with CHARMM generating the same segment itself (`patch DISU` for 3-40, 4-32,
+  16-26). `[ran]`
+- symptom: DIHE 360.61 kcal/mol from crimm's PSF against 361.71 from CHARMM's on the same
+  coordinates; every other term equal. Both PSFs list 1754 dihedrals. `[ran]`
+- cause: for each disulfide cysteine crimm lists `N-CA-CB-SG` and `C-CA-CB-SG` twice and
+  omits `HB1/HB2-CB-SG-SG'` (12 each on 1CRN). Not specific to 1CRN: 3PTB (6 disulfides) has
+  24 duplicates; fixtures without cystine have none. `[ran]`
+- decision: general bug, #112; not fixed yet.
+- links: #112; `xfail(strict=True)` in `tests/test_topology.py` and `tests/test_pycharmm.py`.

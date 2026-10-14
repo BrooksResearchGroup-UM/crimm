@@ -240,17 +240,17 @@ owner_reminders:                   # tell the owner at the start of the next ses
   - "msld-prep needs the RDKConverter-Het hotfix (section 2); issue #59 tracks it"
   - "Merge #108 with a merge commit (not squash)"
   - "feat/coordmanipulator-find-max-dim will conflict with the format of Stan's files; rebase it"
-  - "Jupyter kernel crimm-dev lacks CHARMM_LIB_DIR (add to kernel.json env if pyCHARMM is wanted there)"
-test_suite: {passed: 133, xfailed: 13, deselected: 3, date: 2026-10-14}
+test_suite: {passed: 136, xfailed: 15, deselected: 13, date: 2026-10-14}   # offline default run
+test_suite_pycharmm: {passed: 8, xfailed: 2, date: 2026-10-14}   # pytest -m pycharmm in crimm-dev
 roadmap_done:
   - "Phase 0: offline pytest suite, markers, benchmark move, ruff (lint only), CI workflow"
   - "Phase 0: ROADMAP as index (2026-10-12); TODO(#N) in every TODO (2026-10-14)"
   - "Phase 0: Stan's files linted and formatted (2026-10-14)"
-  - "Phase 0: #107 first half, CHARMM build and pyCHARMM in crimm-dev (2026-10-14)"
+  - "Phase 0: #107 CHARMM build, pyCHARMM in crimm-dev, tests/test_pycharmm.py (2026-10-14);
+     open in #107: how a maintainer runs them before a release"
 roadmap_next:
-  - "#107: write the pycharmm tests (tests/test_pycharmm.py, marker pycharmm, importorskip);
-     load 1CRN with prot_last_patch='CTER' (PDB_PREP_LOG); compare counts, charges and energy
-     between load_model and CHARMM's own read of crimm's PSF/CRD"
+  - "#112 disulfide dihedrals (topology, owner's area); its xfails are in test_topology.py and
+     test_pycharmm.py"
   - "Issue numbers in the xfail reasons (11 reasons, none numbered)"
   - "Mark #108 ready for review once Stan has seen it"
   - "Phase 0: golden-file tests for PSF and CRD (#39; Q1 first)"
@@ -281,7 +281,7 @@ ROADMAP row.
 | Q3 | Should a ligand without topology be dropped from both PSF and CRD, or kept in both? They disagree now. Owner decision. | 2026-10-06 |
 | Q4 | Are `crimm/Utils/cuda_info.py` and `crimm/Data/probes/` still wanted in crimm? They look left over from a removed docking module. Owner decision. | 2026-10-06 |
 | Q5 | Licence and provenance of the bundled CHARMM toppar files are undocumented. | 2026-10-06 |
-| Q6 | No pyCHARMM is available to agents on this machine, so the `pycharmm` marker has no tests and the pyCHARMM adaptor is unverified by any agent. Where can it be run? | 2026-10-06 **PLAN 2026-10-08 `[told]`:** the owner builds CHARMM locally, likely Monday 2026-10-12; see ROADMAP "CHARMM and pyCHARMM". Stays open until `import pycharmm` works in `crimm-dev`. **ANSWERED 2026-10-14:** in `crimm-dev` on this machine (section 3). `load_model` was run on 1CRN `[ran]`; the `pycharmm` tests are still to be written (#107). |
+| Q6 | No pyCHARMM is available to agents on this machine, so the `pycharmm` marker has no tests and the pyCHARMM adaptor is unverified by any agent. Where can it be run? | 2026-10-06 **PLAN 2026-10-08 `[told]`:** the owner builds CHARMM locally, likely Monday 2026-10-12; see ROADMAP "CHARMM and pyCHARMM". Stays open until `import pycharmm` works in `crimm-dev`. **ANSWERED 2026-10-14:** in `crimm-dev` on this machine (section 3). `load_model` was run on 1CRN `[ran]`; `tests/test_pycharmm.py` added the same day (8 passed, 2 xfailed for #112) `[ran]`. |
 | Q7 | Which session owns the "Parallel track: crimm-ml integration" section of ROADMAP? It was added by another session on 2026-10-06; that session has not logged here. | 2026-10-06 **ANSWERED 2026-10-06 by claude-opus/claude-code/crimm-ml:** that session added it at the owner's request; see its LOG entry below. State for crimm-ml lives in crimm-ml's own AGENT_HANDOFF. |
 
 ## 8. Log
@@ -330,6 +330,23 @@ Newest first. Append only. Template:
   onto the 1CRN Arg10-Asn46 salt bridge (VDW 4.2e6); owner: CT3 is intended (section 2,
   PDB_PREP_LOG). `max_serial` in `_convert_existing_waters_to_tip3` suggests built water
   hydrogens were meant to get serial numbers (told Stan in #108). pyCHARMM `stop` dumps core.
+- followed (same day, owner's request): added `CHARMM_LIB_DIR` to the `env` of
+  `~/.local/share/jupyter/kernels/crimm-dev/kernel.json` (outside the repo); a notebook run on
+  that kernel with the variable unset in the shell imports pyCHARMM `[ran]`. Wrote
+  `tests/test_pycharmm.py` (10 tests, marker `pycharmm`, no module-level pyCHARMM import,
+  skips without `CHARMM_LIB_DIR`): CHARMM's reading of crimm's PSF equals crimm's file; crimm's
+  PSF and energy equal CHARMM's own generation (sequence, patches, DISU, crimm's CRD) for 1CRN
+  (CTER), 1UBQ, 2IGD; `fetch_coords_from_charmm` follows a shift applied in CHARMM (first run of
+  `get_charmm_coord_dict`). Found #112 (filed): disulfide cysteines get `N/C-CA-CB-SG` twice and
+  lack `HB*-CB-SG-SG'`; same dihedral count, DIHE off by 1.10 kcal/mol on 1CRN; 3PTB has 24
+  duplicates. Pinned by strict xfails (offline in `test_topology.py` for 1CRN and 3PTB; the two
+  1CRN comparisons in `test_pycharmm.py`); with `--runxfail` they fail on `dihedrals` and
+  `DIHE` only `[ran]`. Comparing PSFs as sets hid the duplicates at first; the tests use
+  multisets.
+- verified `[ran]`: `-m pycharmm` 8 passed, 2 xfailed (about 10 s); offline 136 passed,
+  15 xfailed, 13 deselected; `-m pycharmm` without `CHARMM_LIB_DIR` 10 skipped; ruff clean.
+- not verified: the pycharmm tests with solvent, ligands (CGenFF) or nucleic acids; the
+  legacy `use_psf_crd=False` load path.
 - claims: none held.
 - next: State `roadmap_next`.
 

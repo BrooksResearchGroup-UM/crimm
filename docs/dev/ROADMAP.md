@@ -39,7 +39,7 @@ Nothing here changes behaviour.
 | Item | Done when | Size |
 | --- | --- | --- |
 | **Done 2026-10-06.** Offline pytest suite with small fixture structures checked into `tests/data/` (1UBQ, 1CRN, 2IGD, 3PTB, 1BNA) | `pytest` passes with no network; covers parsing, organizing, topology generation, PSF/CRD round trip, solvation. Result: 133 passed, 13 expected failures, each pinning a bug listed in Phase 1 | L |
-| **Done 2026-10-06.** Markers for `network`, `pycharmm`, `cgenff`, `slow` | Default `pytest` run skips them; each can be selected with `-m`. There are no `pycharmm` tests yet | S |
+| **Done 2026-10-06.** Markers for `network`, `pycharmm`, `cgenff`, `slow` | Default `pytest` run skips them; each can be selected with `-m`. `pycharmm` tests exist since 2026-10-14 (`tests/test_pycharmm.py`) | S |
 | **Done 2026-10-07.** Agent and contributor files: `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, issue forms, PR template, `CODEOWNERS`, `environment-dev.yml` | A fresh agent session finds the handoff; contributors can set up an environment from one file | S |
 | **Issues created 2026-10-08 (#39 to #107), milestones set up.** This ROADMAP indexes the issues since 2026-10-12. TODO comments carry `TODO(#N)` since 2026-10-14 (`b2cb021`). Still open: issue numbers in the `xfail` reasons | Every item below has an issue (done); every `xfail` and TODO names its issue number | M |
 | #39 Golden-file tests for PSF and CRD output | A refactor that changes one byte of output fails a test | M |
@@ -47,7 +47,7 @@ Nothing here changes behaviour.
 | #41 **Done 2026-10-12 in `.github/workflows/ci.yml`; green on draft PR #108.** CI workflow: lint and tests on Python 3.9 to 3.13, on both NumPy 1.x and 2.x | Required check (`all-green`) on pull requests to `master`. `all-green` is required on `master` (set by the owner, 2026-10-12). 2026-10-14: the NumPy 1 cell on Python 3.12 had been running NumPy 2, fixed in `6a00566`. Open: core-install import guard (#58, step 7). Lesson: [lessons/ci-basics.md](lessons/ci-basics.md) | M |
 | #42 **Done 2026-10-12.** Move `tests/benchmark_pipeline.py` to `benchmarks/` | `tests/` holds only pytest tests | S |
 | #107 **Done 2026-10-14.** CHARMM and pyCHARMM in the developer environment: build the CHARMM library locally with pyCHARMM support and make it usable from `crimm-dev` (steps in `NOTES.md`, "Building CHARMM for the `pycharmm` tests") | `import pycharmm` works in `crimm-dev`, and the steps are written down | L |
-| #107 `pycharmm` tests: load the PSF/CRD that crimm writes into pyCHARMM, and check energies and counts against CHARMM's own reading. Depends on the row above | `pytest -m pycharmm` passes on a machine with a CHARMM build and is skipped elsewhere | M |
+| #107 **Done 2026-10-14 (`tests/test_pycharmm.py`).** `pycharmm` tests: load the PSF/CRD that crimm writes into pyCHARMM, and check energies and counts against CHARMM's own reading. Depends on the row above | `pytest -m pycharmm` passes on a machine with a CHARMM build and is skipped elsewhere: 8 passed, 2 xfailed (#112) with the build; 10 skipped without `CHARMM_LIB_DIR`. Still open: how a maintainer runs them before a release | M |
 
 ### CHARMM and pyCHARMM
 
@@ -66,7 +66,7 @@ hold a licence (owner, 2026-10-08), so:
 Decided and done 2026-10-14 (owner): CHARMM `master`, built as a minimal CPU library from a
 separate worktree of the owner's checkout; pyCHARMM installed into `crimm-dev`, which finds
 the library through `CHARMM_LIB_DIR`. Steps: `NOTES.md`, "Building CHARMM for the `pycharmm`
-tests". Still open: the `pycharmm` tests themselves, and how a maintainer runs them before a
+tests". The `pycharmm` tests exist (`tests/test_pycharmm.py`, 2026-10-14). Still open: how a maintainer runs them before a
 release. The cluster's shared builds were not tried.
 
 ## Phase 1: Bugs

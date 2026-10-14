@@ -138,6 +138,9 @@ conda env config vars set -n crimm-dev CHARMM_LIB_DIR=<charmm>/install_cpu/lib
 - `conda env config vars` apply only after `conda activate`; a Jupyter kernel needs
   `CHARMM_LIB_DIR` in its `kernel.json` `env`.
 - Calling CHARMM's `stop` from pyCHARMM dumps core; let the process end instead.
+- Then `pytest -m pycharmm` runs `tests/test_pycharmm.py`: crimm's PSF as CHARMM reads it,
+  compared with the PSF and energy CHARMM generates itself from the same sequence, patches and
+  coordinates. Without `CHARMM_LIB_DIR` the tests skip.
 
 ## Documentation
 
