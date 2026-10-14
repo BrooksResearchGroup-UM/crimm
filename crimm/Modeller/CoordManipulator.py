@@ -33,7 +33,9 @@ class CoordManipulator:
         self.end_i, self.end_j = self._find_farthest_atom_indices()
         self.m_translation, self.m_rotation = None, None
 
-    def _extract_atoms_and_coords(self, entity, include_alt) -> Tuple[List[Atom], np.array]:
+    def _extract_atoms_and_coords(
+        self, entity, include_alt
+    ) -> Tuple[List[Atom], np.array]:
         coords = []
         atoms = []
         for atom in entity.get_atoms(include_alt=include_alt):
@@ -43,8 +45,7 @@ class CoordManipulator:
 
     def _find_farthest_atom_indices(self) -> Tuple[int, int]:
         idx_pair = np.unravel_index(
-            np.argmax(self.dist_matrix, axis=None),
-            self.dist_matrix.shape
+            np.argmax(self.dist_matrix, axis=None), self.dist_matrix.shape
         )
         return idx_pair
 
@@ -59,9 +60,9 @@ class CoordManipulator:
         # coordinates of the farthest atom pair
         o1, o2 = self.coords[a1], self.coords[a2]
         # Translation operator move the center of structure to the origin
-        # the center is defined by the midpoint of the major axis 
+        # the center is defined by the midpoint of the major axis
         # (the line between farthest atoms)
-        translation = -(o1 + o2)/2
+        translation = -(o1 + o2) / 2
         major_axis = o1 - o2
         # Translate the structure to the origin
         temp_coords = self.coords + translation
@@ -69,7 +70,7 @@ class CoordManipulator:
         c1, c2 = temp_coords[a1], temp_coords[a2]
         # Find the third atom that is the farthest from the major axis
         dist_yz = np.abs(
-            norm(np.cross(major_axis, temp_coords), axis = 1)/norm(major_axis)
+            norm(np.cross(major_axis, temp_coords), axis=1) / norm(major_axis)
         )
         # coordinates of the third atom after translation but before rotation
         a3 = dist_yz.argmax()
@@ -78,15 +79,11 @@ class CoordManipulator:
         # coordinates of the third atom after rotation
         c3_y = dist_yz.max()
         # Find the sign of the x-coordinate of the third atom
-        sign = np.sign(norm(c3-c1)-norm(c3-c2))
-        c3_x = sign*np.sqrt(np.sum(c3**2) - c3_y**2)
+        sign = np.sign(norm(c3 - c1) - norm(c3 - c2))
+        c3_x = sign * np.sqrt(np.sum(c3**2) - c3_y**2)
 
         vec_translated = np.vstack([c1, c2, c3])
-        vec_rotated = np.array([
-            [-norm(c1), 0, 0],
-            [norm(c2), 0, 0],
-            [c3_x, c3_y, 0]
-        ])
+        vec_rotated = np.array([[-norm(c1), 0, 0], [norm(c2), 0, 0], [c3_x, c3_y, 0]])
         # Estimate the rotation by Kabsch algorithm implemented in scipy
         rot_obj, rssd = R.align_vectors(vec_rotated, vec_translated)
         # Get the rotation operator as a numpy array
@@ -101,7 +98,7 @@ class CoordManipulator:
 
         # find the final translation to recenter the structure
         temp_coords = temp_coords @ rotation.T
-        recenter = -(temp_coords.max(0) + temp_coords.min(0))/2
+        recenter = -(temp_coords.max(0) + temp_coords.min(0)) / 2
         combined[:3, 3] += recenter
 
         return combined
@@ -109,10 +106,10 @@ class CoordManipulator:
     @property
     def coord_center(self):
         """Return the center of the coordinates (N, 3). The center is defined as
-        the midpoint of the maximum and minimum coordinates of each dimension. 
+        the midpoint of the maximum and minimum coordinates of each dimension.
         Should be (0, 0, 0) after the transformation by `orient_coords`.
         """
-        return (self.coords.max(0) + self.coords.min(0))/2
+        return (self.coords.max(0) + self.coords.min(0)) / 2
 
     @property
     def box_dim(self):
@@ -122,7 +119,7 @@ class CoordManipulator:
         return self.coords.ptp(0)
 
     def apply_coords(self, coords) -> np.array:
-        """Apply the transformation to the coordinates (N, 3). Specifically, the 
+        """Apply the transformation to the coordinates (N, 3). Specifically, the
         transformation is applied as `(coords + translation) @ rotation`, where
         the results are rounded to 4 decimal places."""
         operator = self.get_transformation_matrix()
@@ -134,9 +131,7 @@ class CoordManipulator:
 
     def apply_entity(self, other_entity) -> None:
         """Apply the same transfermation to another structure entity."""
-        atoms, coords = self._extract_atoms_and_coords(
-            other_entity, self.include_alt
-        )
+        atoms, coords = self._extract_atoms_and_coords(other_entity, self.include_alt)
         new_coords = self.apply_coords(coords)
         for i, atom in enumerate(atoms):
             atom.coord = new_coords[i]
@@ -146,15 +141,15 @@ class CoordManipulator:
         for i, atom in enumerate(self._atoms):
             atom.coord = self.coords[i]
 
-    def orient_coords(self, apply_to_parent = False) -> None:
-        """Apply translation and rotation operations to orient the structure 
-        such that the major axis of the structure is placed  along the x-axis, 
-        and the farthest point from the major axis is along the y-axis. 
-        If apply_to_parent, the same transformation will also be applied to the 
+    def orient_coords(self, apply_to_parent=False) -> None:
+        """Apply translation and rotation operations to orient the structure
+        such that the major axis of the structure is placed  along the x-axis,
+        and the farthest point from the major axis is along the y-axis.
+        If apply_to_parent, the same transformation will also be applied to the
         parent structure entity.
         """
         if self.entity is None:
-            raise ValueError('No structure entity loaded!')
+            raise ValueError("No structure entity loaded!")
         self._find_transformation_operators()
         if not apply_to_parent:
             self._apply_to_loaded_entity()
@@ -166,8 +161,8 @@ class CoordManipulator:
             )
         else:
             self._apply_to_loaded_entity()
-            warnings.warn('No parent structure entity exists!')
-            
+            warnings.warn("No parent structure entity exists!")
+
     def orient_coords_octa(self, apply_to_parent=False) -> None:
         """
         Apply an alternative orientation aimed at minimizing the bounding
@@ -181,7 +176,7 @@ class CoordManipulator:
         is kept for API consistency but the transformation is only applied once.
         """
         if self.entity is None:
-            raise ValueError('No structure entity loaded!')
+            raise ValueError("No structure entity loaded!")
         # Center the coordinates
         center = self.coords.mean(axis=0)
         centered_coords = self.coords - center
@@ -222,37 +217,37 @@ class CoordManipulator:
         Note: Same parent/child sharing behavior as orient_coords_octa.
         """
         if self.entity is None:
-            raise ValueError('No structure entity loaded!')
-        
+            raise ValueError("No structure entity loaded!")
+
         # Center the coordinates
         center = self.coords.mean(axis=0)
         centered_coords = self.coords - center
-        
+
         # Compute PCA using SVD
         U, S, Vt = np.linalg.svd(centered_coords, full_matrices=False)
-        
+
         # S contains singular values proportional to extents along each principal axis
         # Sort principal components by decreasing extent (largest first → X axis)
         sort_idx = np.argsort(S)[::-1]  # Indices for descending order
         rotation = Vt[sort_idx].T
-        
+
         # Ensure right-handed coordinate system
         if np.linalg.det(rotation) < 0:
             rotation[:, -1] *= -1
-        
+
         # Apply rotation
         new_coords = centered_coords @ rotation
-        
+
         # Re-center the new coordinates around the origin
         new_center = new_coords.mean(axis=0)
         new_coords -= new_center
-        
+
         # Build the 4x4 transformation matrix
         translation = -center @ rotation - new_center
         self.op_mat = np.eye(4)
         self.op_mat[:3, :3] = rotation
         self.op_mat[3, :3] = translation
-        
+
         self.coords = new_coords
         for i, atom in enumerate(self._atoms):
             atom.coord = new_coords[i]
@@ -273,42 +268,42 @@ class CoordManipulator:
         Note: Same parent/child sharing behavior as orient_coords_octa.
         """
         if self.entity is None:
-            raise ValueError('No structure entity loaded!')
-        
+            raise ValueError("No structure entity loaded!")
+
         # Center the coordinates
         center = self.coords.mean(axis=0)
         centered_coords = self.coords - center
-        
+
         # Compute PCA using SVD
         U, S, Vt = np.linalg.svd(centered_coords, full_matrices=False)
-        
+
         # S contains singular values proportional to extents
         # We want: largest two extents in XY, smallest in Z
         # Sort indices by S value
         sort_idx = np.argsort(S)  # Ascending order (smallest first)
-        
+
         # Reorder: [largest, medium, smallest] → [X, Y, Z]
         # sort_idx[2] is largest, sort_idx[1] is medium, sort_idx[0] is smallest
         reorder = [sort_idx[2], sort_idx[1], sort_idx[0]]
         rotation = Vt[reorder].T
-        
+
         # Ensure right-handed coordinate system
         if np.linalg.det(rotation) < 0:
             rotation[:, -1] *= -1
-        
+
         # Apply rotation
         new_coords = centered_coords @ rotation
-        
+
         # Re-center the new coordinates around the origin
         new_center = new_coords.mean(axis=0)
         new_coords -= new_center
-        
+
         # Build the 4x4 transformation matrix
         translation = -center @ rotation - new_center
         self.op_mat = np.eye(4)
         self.op_mat[:3, :3] = rotation
         self.op_mat[3, :3] = translation
-        
+
         self.coords = new_coords
         for i, atom in enumerate(self._atoms):
             atom.coord = new_coords[i]
