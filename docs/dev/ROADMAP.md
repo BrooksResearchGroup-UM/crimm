@@ -17,19 +17,20 @@ Sizes are rough: S is under a day, M is a few days, L is a week or more.
 
 ## Index of issues
 
-Milestones 1 to 6 on GitHub are Phases 0 to 5. The issues hold status and discussion; this file
+Milestones 1 to 7 on GitHub are Phases 0 to 6. The issues hold status and discussion; this file
 holds the order and the reasoning. List what is open with `gh issue list --milestone "<name>"`.
 Issue #105 does not exist.
 
 | Where | Issues |
 | --- | --- |
 | Phase 0: Safety net | #39 golden files, #40 ruff, #41 CI, #42 benchmarks, #107 CHARMM and pyCHARMM, #109 to #111 ruff follow-ups (ignored rules, repo-wide format, pre-commit). #40 to #42 are done on draft PR #108 and close when it merges |
-| Phase 1: Bugs | #43, #44 (Stan), #45 to #49 (found by tests), #50 to #57, #59 (hotfix, needed by a downstream project), #58 (optional imports, 1.5) |
+| Phase 1: Bugs | #43, #44 (Stan), #45 to #49 (found by tests), #50 to #57, #59 (hotfix, needed by a downstream project), #58 (optional imports, 1.5), #112 (disulfide dihedrals, found by the pyCHARMM tests) |
 | Phase 2: TODOs | #60 to #70 (fix now), #87 (topology TODOs 16 to 21, resolved in Phase 4) |
 | Features, no milestone | #71 to #76 (TODOs 22 to 27) |
 | Phase 3: Refactor | #77 to #85 |
 | Phase 4: Restructure | #86 to #95 |
 | Phase 5: Release | #96 to #100, #106 (toppar licence) |
+| Phase 6: Minimizer utility (own release) | #113 to #115 |
 | crimm-ml track, no milestone | #101 to #104 |
 
 ## Phase 0: Safety net
@@ -120,6 +121,7 @@ and the marker is not removed.
 | #46 `IO/PSFWriter.py` and `IO/CRDWriter.py` | A ligand without topology (no CGenFF) is left out of the PSF but written to the CRD (3PTB: 3416 against 3425 atoms). Decide on one behaviour for both writers. | `test_psf_crd.py::test_psf_and_crd_agree_with_untyped_ligand` | S |
 | #47 `TopologyGenerator.load_psf_crd` | Terminal patch atoms (ACE and CT3 caps) come back without a `topo_definition`, so `total_charge` of a reloaded chain is `None`. | `test_psf_crd.py::test_load_psf_crd_restores_charges` | S |
 | #48 `PolymerChain.seq` | Returns `X` for every DNA residue; `can_seq` is correct. | `test_parsing.py::test_dna_present_sequence_matches_canonical` | S |
+| #112 `TopologyGenerator`, disulfides | Each disulfide cysteine gets `N-CA-CB-SG` and `C-CA-CB-SG` twice and lacks `HB1/HB2-CB-SG-SG'`; the dihedral count is unchanged, so count checks miss it. DIHE is 1.10 kcal/mol off CHARMM's on 1CRN; 3PTB has 24 duplicates. Probably the hand-written DISU path (#87, item 16). | `test_topology.py::test_no_dihedral_is_listed_twice[1crn,3ptb]`, `test_pycharmm.py` 1CRN comparisons | M |
 | #49 `IO/PDBString.get_pdb_str` | With default options, 4-character `TIP3` residue names shift the chain column and crimm's own `PDBParser` cannot read the output. `convert_water=True` works. | `test_pdb_io.py::test_round_trip_after_topology_default_options` | S |
 
 ### 1.4 Other bugs
@@ -281,6 +283,32 @@ Breaking changes, each with a compatibility shim.
 | #99 Update the `Development Status` classifier | S |
 | #100 conda-forge feedstock | M |
 | #106 Document licence and provenance of the bundled CHARMM toppar files | S |
+
+## Phase 6: Minimizer utility (own release)
+
+Planned 2026-10-14 by the owner. A simple energy minimizer that uses the CHARMM force-field
+parameters crimm already assigns, written with numpy and scipy only. It is an easily
+accessible utility for cleaning up a structure (built loops, added hydrogens, small clashes),
+not a high-performance engine: no PME, implicit solvent or periodic boundary. For production
+work users go to CHARMM, pyCHARMM or OpenMM.
+
+**Release.** Phase 6 gets a release of its own. It does not change the plan or timing of the
+Phase 5 release: Phase 5 does not wait for it, and it is not bundled into Phase 5's release.
+
+**Starting point.** The owner's local branch `minimizer` (`2477c3b`, 2026-05-14) has a prototype,
+`crimm/Potentials.py`, with every CHARMM term and an `EnergyMinimizer` on
+`scipy.optimize.minimize`. Its gradients are finite differences (`jac='3-point'`), about 6N
+energy evaluations per step. The branch also implements `Dihedral.angle`, which is the fix for
+#53 and lands separately.
+
+**Depends on** #53 (dihedral angles) and #112 (disulfide dihedrals), so that the topology it
+minimizes is right. The pyCHARMM tests (#107) are the reference for every energy term.
+
+| Item | Done when | Size |
+| --- | --- | --- |
+| #113 Energy terms: port `Potentials.py` onto current `master` | Every term agrees with CHARMM to 1e-3 kcal/mol on 1UBQ and 2IGD (`pycharmm` test), with offline tests against saved reference values | M |
+| #114 Analytic gradients for every term | Gradient check against central finite differences passes per term; 1UBQ minimizes in reasonable time | M |
+| #115 User-facing API, docs, and its own release | `minimize(entity, ...)` with restraints and staged minimization; tutorial notebook; CHANGELOG entry; release cut separately from Phase 5 | M |
 
 ## Parallel track: crimm-ml integration (RFdiffusion loop building)
 

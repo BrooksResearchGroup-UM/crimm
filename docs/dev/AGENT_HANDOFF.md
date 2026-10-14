@@ -201,15 +201,16 @@ Things that cost a previous agent time or would produce wrong results silently.
 Rewrite in place. True as of `2026-10-14`.
 
 ```yaml
-branches:                          # all start at fbb165d
+branches:                          # local master = origin/master = cf51387 (fast-forwarded 2026-10-14)
   cleanup/phase0-tests-and-dev-docs:     # agent cleanup work; continue here. On origin at the
-                                   # commit that carries this State (pushed 2026-10-14; the
-                                   # sandbox push worked this time).
+                                   # commit that carries this State (pushed 2026-10-14).
     - "2026-10-06 to 10-12: tests, dev docs, repo setup, merge of origin/master (d90f94b),
        benchmark move, ruff, CI, ROADMAP index (e976f0b)"
     - "2026-10-14: b2cb021 TODO(#N); 2b019d3 lint + 85640ad format of Stan's files;
        0bf85e4 .git-blame-ignore-revs; 6a00566 CI NumPy pin; 3132e52 PDB_PREP_LOG;
-       then the docs/handoff commit"
+       4c43b16 docs; 1727388 offline xfail for #112; 763cf43 tests/test_pycharmm.py;
+       15e58e6 docs; 871aa9f machine-specific content out of the handoff; then the wrap-up
+       docs commit (ROADMAP Phase 6, #112 row, this State)"
   feat/coordmanipulator-find-max-dim:    # the owner's solvation edits, kept separate
     - 44e9bf6                      # CoordManipulator.find_max_dim; Solvator TODO comment.
                                    # WILL CONFLICT with 85640ad (format of the same files);
@@ -218,8 +219,13 @@ branches:                          # all start at fbb165d
     - 8075b75                      # RDKitHetConverter accepts non-Heterogen; see LOG 2026-10-08.
                                    # Parked: needs a test and review before it joins anything.
                                    # Needed by a private downstream project: CLAUDE.local.md.
+  minimizer:                       # owner's, local only, 2477c3b (2026-05-14), based on 829cd10.
+                                   # Prototype of the Phase 6 minimizer (crimm/Potentials.py);
+                                   # starting point of #113. Keep until #113 has ported it.
   solvator-coor-orient-options:    # old working branch; still points at fa7338a.
                                    # Redundant now. Owner decides whether to delete it.
+  # deleted 2026-10-14 at the owner's request (local only, unmerged): cleanup-wip 5c07b28,
+  # remove 6ff13f8. Restore with `git branch <name> <sha>` while the objects exist.
 env: "crimm-dev from environment-dev.yml, plus pycharmm and CHARMM_LIB_DIR (section 3).
       Account-specific install details: CLAUDE.local.md"
 uncommitted_owner_work: none
@@ -228,15 +234,17 @@ worktrees: "one extra worktree, for the hotfix branch (CLAUDE.local.md)"
 untracked_not_ours:
   - import-fix.md                  # work order, see standing instructions
 github:
-  issues: "#39 to #111 (no #105), milestones 1 to 6 = Phases 0 to 5. #109 to #111 (ruff
-           follow-ups) filed 2026-10-14 in Phase 0"
+  issues: "#39 to #115 (no #105), milestones 1 to 7 = Phases 0 to 6. Filed 2026-10-14:
+           #109 to #111 (ruff follow-ups, Phase 0), #112 (disulfide dihedrals, Phase 1),
+           #113 to #115 (minimizer, Phase 6, new milestone)"
   branch_protection: "master: all-green required (strict false), 1 approving review, force pushes disallowed, deletions disallowed, admins not enforced [ran 2026-10-12, gh api; set by the owner]"
   pull_requests: "#108 draft, cleanup/phase0-tests-and-dev-docs into master. Body updated
                   2026-10-14 (Closes #40, #41, #42; per-commit list; MERGE WITH A MERGE COMMIT,
                   not squash, because of .git-blame-ignore-revs). CI on e976f0b: all 9 cells
                   green, every cell's pytest line read 2026-10-14. CI on 3132e52 (run 38592786917):
                   all 9 cells green; each cell's NumPy matches its name (py3.12 numpy<2 now
-                  1.26.4, 134 passed, 12 xfailed) [ran 2026-10-14]. GitHub links #40-#42."
+                  1.26.4, 134 passed, 12 xfailed) [ran 2026-10-14]. Latest green run: 871aa9f.
+                  GitHub links #40-#42."
 owner_reminders:                   # tell the owner at the start of the next session
   - "Reminders for private downstream projects (hotfix #59): CLAUDE.local.md"
   - "Merge #108 with a merge commit (not squash)"
@@ -255,6 +263,7 @@ roadmap_next:
   - "Issue numbers in the xfail reasons (11 reasons, none numbered)"
   - "Mark #108 ready for review once Stan has seen it"
   - "Phase 0: golden-file tests for PSF and CRD (#39; Q1 first)"
+  - "Later, own release: Phase 6 minimizer (#113 to #115), after #53 and #112"
 library_code_changed_by_agents: "2026-10-12 and 2026-10-14, behaviour-neutral only: lint fixes
   (2026-10-12; 2026-10-14 in Stan's files), ruff format of Stan's three files, TODO comment
   text. Suite unchanged."
@@ -344,6 +353,12 @@ Newest first. Append only. Template:
   1CRN comparisons in `test_pycharmm.py`); with `--runxfail` they fail on `dihedrals` and
   `DIHE` only `[ran]`. Comparing PSFs as sets hid the duplicates at first; the tests use
   multisets.
+- wrap-up (same day): fixed the `Host key verification failed` push errors (stale GitHub RSA
+  keys stored under IPs in the owner's `known_hosts`; details in `CLAUDE.local.md`). At the
+  owner's request: deleted local branches `cleanup-wip` and `remove` (SHAs in State),
+  recorded `minimizer`, fast-forwarded local `master` to `origin/master`; added ROADMAP
+  "Phase 6: Minimizer utility (own release)" with milestone 7 and issues #113 to #115, and the
+  #112 row in 1.3.
 - verified `[ran]`: `-m pycharmm` 8 passed, 2 xfailed (about 10 s); offline 136 passed,
   15 xfailed, 13 deselected; `-m pycharmm` without `CHARMM_LIB_DIR` 10 skipped; ruff clean.
 - not verified: the pycharmm tests with solvent, ligands (CGenFF) or nucleic acids; the
