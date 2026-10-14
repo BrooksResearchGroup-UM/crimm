@@ -79,10 +79,6 @@ ignore = [
 # ArcLoopBuilder is unfinished (undefined `topo`, unused results); see ROADMAP 1.4 and
 # handoff Q2. Remove this entry when it is finished or deleted.
 "crimm/Modeller/LoopBuilder.py" = ["F821", "F841"]
-# Stan's area: findings left in place for his review, not edited by the cleanup.
-"crimm/Modeller/Solvator.py" = ["F401", "F541", "F841", "I001"]
-"crimm/Modeller/CrystalSDF.py" = ["I001"]
-"crimm/Modeller/CoordManipulator.py" = ["I001"]
 
 [tool.mypy]
 # Only check files explicitly passed; don't follow imports into

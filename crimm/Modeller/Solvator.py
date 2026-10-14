@@ -1,24 +1,24 @@
 """This module contains the Solvator class, which solvates a Structure, Model,
 or Chain level entity with water molecules.
 """
-import os
-import warnings
-import numpy as np
 import math
-from typing import Optional, Tuple
-from dataclasses import dataclass
+import os
 import random
+import warnings
+from dataclasses import dataclass
 from random import choices
-from scipy.spatial import KDTree
-from crimm import Data
-from crimm.Modeller.CoordManipulator import CoordManipulator
-from crimm.StructEntities.Atom import Atom
-from crimm.StructEntities.Residue import Residue
-from crimm.StructEntities.Model import Model
-from crimm.StructEntities.Chain import Solvent, Ion
-from crimm.Data.components_dict import CHARMM_PDB_ION_NAMES
-from crimm.Modeller.TopoLoader import TopologyGenerator
+from typing import Optional, Tuple
 
+import numpy as np
+from scipy.spatial import KDTree
+
+from crimm import Data
+from crimm.Data.components_dict import CHARMM_PDB_ION_NAMES
+from crimm.Modeller.CoordManipulator import CoordManipulator
+from crimm.Modeller.TopoLoader import TopologyGenerator
+from crimm.StructEntities.Chain import Ion, Solvent
+from crimm.StructEntities.Model import Model
+from crimm.StructEntities.Residue import Residue
 
 WATER_COORD_PATH = os.path.join(os.path.dirname(Data.__file__), 'water_coords.npy')
 BOXWIDTH=18.662 # water unit cube width
@@ -740,9 +740,6 @@ class Solvator:
                         h1_coord, h2_coord = self._build_water_hydrogens(oxygen_atom.coord)
                         n_hydrogens_built += (2 - len(hydrogen_atoms))
 
-                        # Get next available serial number
-                        max_serial = max(a.serial_number for a in atoms) if atoms else 0
-
                         if len(hydrogen_atoms) == 0:
                             # Build both hydrogens
                             h1 = H1.copy()
@@ -859,8 +856,11 @@ class Solvator:
         Returns water molecules as array of shape (N_waters, 3, 3).
         """
         from crimm.Modeller.CrystalSDF import (
-            sdf_cube, sdf_truncated_octahedron, sdf_rhombic_dodecahedron,
-            sdf_orthorhombic, sdf_hexagonal, get_bounding_cube_size
+            sdf_cube,
+            sdf_hexagonal,
+            sdf_orthorhombic,
+            sdf_rhombic_dodecahedron,
+            sdf_truncated_octahedron,
         )
 
         # Determine grid dimensions based on crystal type
@@ -1690,7 +1690,7 @@ class Solvator:
         print(f"  N₀ (neutral pairs): {n0:.1f}")
         if charge != 0:
             print(f"  N₀/|Q| ratio: {ratio:.2f}")
-        print(f"\n  Adding ions:")
+        print("\n  Adding ions:")
         print(f"    {cation}: {n_cation}")
         print(f"    {anion}: {n_anion}")
 

@@ -1,10 +1,12 @@
 import warnings
 from typing import List, Tuple
-from Bio.PDB.Atom import Atom
+
 import numpy as np
+from Bio.PDB.Atom import Atom
 from numpy.linalg import norm
-from scipy.spatial.transform import Rotation as R
 from scipy.spatial.distance import pdist, squareform
+from scipy.spatial.transform import Rotation as R
+
 
 class CoordManipulator:
     def __init__(self) -> None:
