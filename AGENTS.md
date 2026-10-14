@@ -19,8 +19,9 @@ The rules that matter most, in case you read nothing else:
 - Sign commits, never files: a `Co-Authored-By:` trailer naming your exact model; no author
   names, banners or session notes in any file.
 - Offline default run: `pytest -p no:cacheprovider -q` (about 45 s warm). Other layers are
-  selected by marker: `network`, `pycharmm`, `cgenff`, `slow`, `gpu`. Python and environment
-  details are in the handoff, section 3.
+  selected by marker: `network`, `pycharmm`, `cgenff`, `slow`, `gpu`. How the `crimm-dev`
+  environment is built is in the handoff, section 3; paths and machine details of the owner's
+  setup are in `CLAUDE.local.md`.
 - `import crimm` must not import rdkit, nglview, ipywidgets or py3Dmol. Import optional
   packages inside the function that uses them. No module-level `import crimm_ml` either.
 - Public API may break, but old import paths keep working with a `DeprecationWarning`.
@@ -31,4 +32,6 @@ The rules that matter most, in case you read nothing else:
 - One concern per change. A fix does not ride along with a rename.
 - A `TODO` in code carries an issue number.
 - Never take timings on the shared login node.
-- Personal notes of the owner live in `CLAUDE.local.md`, which is not in the repository.
+- Personal notes of the owner live in `CLAUDE.local.md`, which is not in the repository. Facts
+  about the owner's machine and account, and about private downstream projects, go there, not
+  in `docs/dev/`.

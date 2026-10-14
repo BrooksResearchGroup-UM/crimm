@@ -53,8 +53,8 @@ Read this section fully. Skim the rest for what your task touches.
 | Kind of information | File |
 | --- | --- |
 | How the code is built, conventions, architecture | `docs/dev/NOTES.md` |
-| Anything about crimm-ml, the optional ML package (its code, model, service, state) | `/home/ziqiaoxu/crimm-ml/docs/dev/AGENT_HANDOFF.md` |
-| Anything about msld-prep, the MSLD ligand-preparation package that depends on crimm (its code, tests, state) | `/home/ziqiaoxu/msld-prep/docs/dev/AGENT_HANDOFF.md` |
+| Anything about crimm-ml, the optional ML package (its code, model, service, state) | `docs/dev/AGENT_HANDOFF.md` in the crimm-ml repository |
+| Machine- and account-specific setup (paths, cluster, accounts), and private downstream projects | the owner's `CLAUDE.local.md` (not in the repository) |
 | What work is planned, its order, its status | `docs/dev/ROADMAP.md` |
 | Standards the work should meet | `docs/dev/BEST_PRACTICES.md` |
 | Conflicts and issues met preparing particular PDB entries (clashes, patch choices) | `docs/dev/PDB_PREP_LOG.md` |
@@ -73,7 +73,7 @@ If something belongs in the first three, put it there and log a one-line pointer
 - Pipeline: fetch mmCIF, `OrganizedModel`, loop build, `TopologyGenerator`, `Solvator`,
   write PSF/CRD, optional pyCHARMM load. Package map is in `NOTES.md`.
 - **Optional ML library: crimm-ml.** RFdiffusion loop building lives in a separate repo,
-  `/home/ziqiaoxu/crimm-ml` (github.com/Truman-Xu/crimm-ml, import `crimm_ml`), installed as
+  github.com/Truman-Xu/crimm-ml (import `crimm_ml`), installed as
   `pip install crimm[ml]`. It runs the model on ONNX Runtime without PyTorch, takes PDB lines
   and a contig string, and returns coordinates. It **depends on crimm**; crimm must import it
   only inside functions. The crimm side (`crimm/Modeller/RFLoopBuilder.py`, the `ml` extra)
@@ -82,22 +82,14 @@ If something belongs in the first three, put it there and log a one-line pointer
   owner intends the RFdiffusion model to become part of `LoopBuilder`, so the separate
   `RFLoopBuilder.py` name here and in the contract below is the original placeholder plan;
   the layout is open (issue #101).
-- **To pick up crimm-ml context:** read `/home/ziqiaoxu/crimm-ml/AGENTS.md`, then sections 0
-  to 5 of its `docs/dev/AGENT_HANDOFF.md` (same protocol as this file) and its
-  `docs/dev/ROADMAP.md`. Do not copy its facts here; link to them.
-- **Downstream project: msld-prep.** Prepares ligand series for multisite lambda dynamics
-  (MSLD) in CHARMM. Separate repo at `/home/ziqiaoxu/msld-prep` (the old path
-  `/home/ziqiaoxu/msld-prep-tools` is a symlink to it, published to cluster users; GitHub
-  `Truman-Xu/msld-prep`, import `msldprep`, GPLv3, not pushed yet). It **depends on crimm**: it
-  imports `crimm.IO.RTFParser.RTFParser` and, from `crimm.IO.PRMParser`, `angle_par`,
-  `bond_par`, `categorize_lines`, `cmap_par`, `dihe_par`, `impr_par`, `nbfix_par`,
-  `nonbond14_par`, `nonbond_par`, `parse_line_dict`, `ub_par`. `[read msld-prep, 2026-10-08]`
-  Its working env is `crimm-dev`, so the crimm branch checked out here is what it sees. Its
-  dependency is the latest PyPI release of crimm until the overhaul is done, then a pinned
-  version. `[told 2026-10-08]` **It needs the parked hotfix `RDKConverter-Het`; see section 2.**
-- **To pick up msld-prep context:** read `/home/ziqiaoxu/msld-prep/AGENTS.md`, then sections 0
-  to 5 of its `docs/dev/AGENT_HANDOFF.md` (same protocol as this file). Do not copy its facts
-  here; link to them. Do not edit msld-prep from a crimm session unless the owner says so.
+- **To pick up crimm-ml context:** in the crimm-ml repository, read `AGENTS.md`, then
+  sections 0 to 5 of its `docs/dev/AGENT_HANDOFF.md` (same protocol as this file) and its
+  `docs/dev/ROADMAP.md`. The owner's local checkout path is in `CLAUDE.local.md`. Do not copy
+  its facts here; link to them.
+- **Private downstream projects.** Projects that depend on crimm and are not public are
+  described in the owner's `CLAUDE.local.md` (not in the repository): what they import from
+  crimm and the reminders the owner asked for. Agents on the owner's machine load it
+  automatically; treat its instructions like section 2.
 
 ## 2. Standing instructions from the owner
 
@@ -110,12 +102,11 @@ Follow these unless the owner says otherwise in your own session.
 | 2026-10-06 | Resolve TODO comments before the refactor and restructure phases. | `[told]` |
 | 2026-10-06 | `import-fix.md` (repo root) is folded into ROADMAP 1.5. Delete the file as the last step of that fix, not before. | `[told]` |
 | 2026-10-06 | Commit only when asked; never push unless asked. The owner asked for the 2026-10-06 commits explicitly; that does not carry over to later sessions. | `[told]` for those commits, `[inferred]` as a standing rule |
-
 | 2026-10-08 | CHARMM (and so pyCHARMM) is licensed and not accessible to developers without a licence. Keep CHARMM and pyCHARMM tooling and tests in the roadmap, gated by the `pycharmm` marker; document the licence limit. Never put CHARMM source, binaries or libraries in the repository or in issues. | `[told]` |
-| 2026-10-08 | The owner compiles CHARMM locally, as part of the developer environment setup, in the next session (likely Monday 2026-10-12). Do not start the build or install anything for it before then. | `[told]` |
+| 2026-10-08 | The owner compiles CHARMM locally, as part of the developer environment setup, in the next session (likely Monday 2026-10-12). Do not start the build or install anything for it before then. SUPERSEDED 2026-10-14: built (section 3). | `[told]` |
 | 2026-10-14 | Stan agreed that his modules (`Solvator.py`, `CrystalSDF.py`, `CoordManipulator.py`) may be linted and formatted, with git blame kept to him: lint and format commits go in `.git-blame-ignore-revs`, and such a PR is merged with a merge commit. Other changes to his code still go to him for review. | `[told]` |
 | 2026-10-14 | The default C-terminal patch `CT3` in `generate_model` is intended. Structure-specific problems it causes are logged per entry in `docs/dev/PDB_PREP_LOG.md`. | `[told]` |
-| 2026-10-08 | **msld-prep needs the hotfix on branch `RDKConverter-Het` (`8075b75`, `RDKitConverter.py`).** The owner said the fix will not be published anytime soon. **Remind the owner that msld-prep needs it** when: the fix is merged into any branch, pushed, or released; someone opens an issue or pull request about `heterogen_to_rdkit` or `RDKitHetConverter`; or you pick the hotfix up yourself (its test should cover a plain `Residue` read from a CRD file, msld-prep's case). Say it in your reply, not only in a file. After the owner has been reminded, they update msld-prep's handoff (its Q12). | `[told]` |
+| 2026-10-14 | Machine- and account-specific setup (paths, cluster, accounts) and private downstream projects go in the owner's `CLAUDE.local.md`, not in `docs/dev/`. Published docs describe the setup generically. | `[told]` |
 
 Working agreements between agents (not owner instructions; change them by logging why):
 
@@ -131,40 +122,58 @@ Working agreements between agents (not owner instructions; change them by loggin
   `build_missing_atoms`, `PolymerChain.gaps`, `.missing_res`, `.sort_residues`. If you rename
   or change one, keep the deprecated alias (as for any public API) and log a one-line
   pointer in crimm-ml's AGENT_HANDOFF.
-- **msld-prep contract.** Keep the names listed in Orientation (`crimm.IO.RTFParser.RTFParser`
-  and the `crimm.IO.PRMParser` functions). If you rename or change one, keep the deprecated
-  alias and log a one-line pointer in msld-prep's AGENT_HANDOFF. `[inferred: same rule as
-  for crimm-ml]`
+- **Private downstream contracts.** `CLAUDE.local.md` lists the crimm names that private
+  projects import. The same rule applies: keep a deprecated alias and log a one-line
+  pointer in that project's handoff. `[inferred: same rule as for crimm-ml]`
 - Do not delete the branch `RDKConverter-Het` or rewrite `8075b75` without telling the owner;
-  msld-prep depends on it. `[inferred]`
+  a downstream project depends on it (`CLAUDE.local.md`). `[inferred]`
 
-## 3. Environment facts
+## 3. Development environment
 
-Machine: the owner's cluster login node (Rocky Linux 8, SLURM). Paths are specific to it.
+How the maintainers' `crimm-dev` environment is built. Paths, cluster details and accounts of
+the owner's machine are in the owner's `CLAUDE.local.md`, not here.
+
+### `crimm-dev` from `environment-dev.yml`
+
+```bash
+conda env create -f environment-dev.yml      # Python 3.12; crimm's core and optional deps,
+                                             # crimm-ml's runtime deps, dev tools
+conda activate crimm-dev
+pip install -e ".[all,test]" --no-deps       # from the crimm checkout
+python -m ipykernel install --user --name crimm-dev --display-name crimm-dev
+```
+
+Check it with `python -c "import crimm"`, `ruff check crimm tests` and
+`pytest -p no:cacheprovider -q` (136 passed, 15 xfailed, 13 deselected on 2026-10-14).
 
 | Fact | Tag |
 | --- | --- |
-| There is no `python` on `PATH`. Use `/home/ziqiaoxu/.conda/envs/torch210/bin/python` (Python 3.13, NumPy 2.2.6, Biopython 1.86, pytest 9.0.3). | `[ran 2026-10-06]` |
-| In that env: rdkit, nglview, propka present. Missing: ruff, pytest-cov, pytest-xdist, openmm, pycharmm. pyflakes works as `python -m pyflakes crimm`. | `[ran 2026-10-06]` |
-| The env `crimm-dev` (`/home/ziqiaoxu/.conda/envs/crimm-dev/bin/`) has `ruff` 0.16.10, `pre-commit`, `nox`, `gh` (logged in as `Truman-Xu`, ssh protocol) and `pytest`; prefer it over `torch210`. Lint with `ruff check crimm tests`. | `[ran 2026-10-12]` |
-| No conda env under `~/.conda/envs` contains pycharmm. | `[ran 2026-10-06, searched site-packages names only]` SUPERSEDED 2026-10-14: `crimm-dev` has it, see next row |
-| **pyCHARMM works in `crimm-dev`.** CHARMM 52.1 (`origin/master` `c16e5816e`) is built as a CPU-only library in `~/charmm-master`, a detached `git worktree` of `~/charmm` (the owner's checkout stays on `branchislav`). Library: `~/charmm-master/install_cpu/lib/libchmm.so`; build job script and logs: `~/charmm-master/build_jobs/` (`sbatch build.sbatch`, partition `cpu`, gcc/13.4.0 module, about 2 min). pyCHARMM is an editable install from `~/charmm-master/tool/pycharmm` in `crimm-dev`; `CHARMM_LIB_DIR` is a conda env var of `crimm-dev` (active only after `conda activate`, so not in the Jupyter kernel). Deleting the worktree breaks the install. Build steps in general form: `NOTES.md`. | `[ran 2026-10-14]` |
-| Batch jobs: load modules **before** `set -e`; the module init script fails on `unalias` and aborts the job. `configure` in CHARMM needs Python >= 3.7; the system `python3` is 3.6. | `[ran 2026-10-14]` |
-| `import crimm` took 47 to 145 s on a cold filesystem cache and a few seconds when warm. Give the first command of a session a timeout of at least 300 s. It is slow, not hung. | `[ran 2026-10-06]` |
-| The login node reaches `files.rcsb.org`. SLURM compute nodes do not resolve DNS. | `[ran 2026-10-06]` login; `[read tests/slurm/benchmark.log]` compute |
-| CHARMM material already on the cluster, found by listing directories only (nothing read or run): shared builds and docs under `/export/apps/RockyOS8/charmm/` (for example `c51a1`, `c51a2`, `August_26_2026`; `c50a1/lib/libcharmm.so` exists); environment modules `charmm/charmm/c49a1` to `c52a1` (default `c52a1`), whose modulefile activates a conda build environment under `/export/apps/RockyOS8/charmm/envs/`; a CHARMM source checkout (git, `configure`, `CMakeLists.txt`) at `~/charmm`, last changed 2026-03-15; Jupyter kernels `charmm` and `pycharmm` pointing at other people's conda envs. Whether any of these is usable from `crimm-dev` is open (ROADMAP "CHARMM and pyCHARMM"). | `[ran 2026-10-08, ls only]` |
-| CGenFF executable: `/export/apps/RockyOS8/cgenff/src/2026/silcsbio.2026.1-alpha/cgenff/cgenff`. Tests read it from `CRIMM_CGENFF_PATH`. | `[ran 2026-10-06]` |
+| `environment-dev.yml` must name `python-build` (the conda package), not `build`; the first `conda env create` failed on that. | `[ran 2026-10-07]` |
+| The env provides `ruff`, `pre-commit`, `nox`, `pytest` and `gh`; lint is `ruff check crimm tests`. | `[ran 2026-10-12]` |
+| The first `import crimm` on a cold network filesystem can take minutes (47 to 145 s seen). It is slow, not hung; give the first command a timeout of at least 300 s. | `[ran 2026-10-06]` |
+| CGenFF is not installable from conda. The `cgenff` tests read the executable from `CRIMM_CGENFF_PATH`, and also need the network (G11). | `[ran 2026-10-06]` |
 | crimm 2026.2.2 from PyPI, in a clean Python 3.11 venv: `pip install crimm` pulls nglview and ipywidgets, and `import crimm` fails with `ModuleNotFoundError: rdkit` (ROADMAP "1.5 Make rdkit and nglview optional at import time"). | `[ran 2026-10-06 by claude-opus/claude-code/crimm-ml]` |
 
-Commands that work `[ran 2026-10-06]`:
+### CHARMM and pyCHARMM in `crimm-dev` (2026-10-14)
 
-```bash
-PY=/home/ziqiaoxu/.conda/envs/torch210/bin/python
-$PY -B -m pytest -p no:cacheprovider -q                 # offline suite, about 45 s warm
-$PY -B -m pytest -p no:cacheprovider -q -m network      # needs internet
-CRIMM_CGENFF_PATH=<path above> $PY -B -m pytest -q -m "cgenff"
-$PY -m pyflakes crimm
-```
+CHARMM is licensed; this is for licence holders. What was done (the build flags and caveats are
+in `NOTES.md`, "Building CHARMM for the `pycharmm` tests"):
+
+1. Built CHARMM `master` (52.1, `c16e5816e`) as a CPU-only shared library with GCC 13.4, from
+   a separate `git worktree` of the CHARMM checkout so its working branch stayed untouched.
+   The build ran as a batch job on a compute node (about 2 minutes on 16 cores).
+2. `pip install --no-deps -e <charmm>/tool/pycharmm` into `crimm-dev`.
+3. `conda env config vars set -n crimm-dev CHARMM_LIB_DIR=<install>/lib`.
+4. Added `"env": {"CHARMM_LIB_DIR": "<install>/lib"}` to the `crimm-dev` Jupyter kernel's
+   `kernel.json`, because conda env vars apply only after `conda activate`.
+5. Checked: `import pycharmm` in the activated env and in the kernel; `pytest -m pycharmm`
+   gives 8 passed, 2 xfailed (#112).
+
+| Fact | Tag |
+| --- | --- |
+| CHARMM's `configure` is a Python script that needs Python >= 3.7; run it with `crimm-dev`'s Python where the system's is older. | `[ran 2026-10-14]` |
+| On clusters with environment modules, load modules before `set -e` in a batch script: a failing command inside the module init script can abort the job. | `[ran 2026-10-14]` |
+| The editable pyCHARMM install and `CHARMM_LIB_DIR` point into the CHARMM worktree; removing it breaks both. | `[inferred: editable install]` |
 
 ## 4. Gotchas
 
@@ -208,24 +217,16 @@ branches:                          # all start at fbb165d
   RDKConverter-Het:                # owner's hotfix, local only, not pushed. Cut from 72eef9f.
     - 8075b75                      # RDKitHetConverter accepts non-Heterogen; see LOG 2026-10-08.
                                    # Parked: needs a test and review before it joins anything.
-                                   # NEEDED BY msld-prep: remind the owner when it is published
-                                   # (section 2).
+                                   # Needed by a private downstream project: CLAUDE.local.md.
   solvator-coor-orient-options:    # old working branch; still points at fa7338a.
                                    # Redundant now. Owner decides whether to delete it.
-env:                               # conda env `crimm-dev` (py3.12.15) from environment-dev.yml;
-                                   # editable crimm in the user site. Since 2026-10-14 also
-                                   # pycharmm (editable, from ~/charmm-master) and the env var
-                                   # CHARMM_LIB_DIR; see section 3.
-charmm_build: "~/charmm-master (worktree of ~/charmm at c16e5816e), install_cpu/, build_jobs/"
+env: "crimm-dev from environment-dev.yml, plus pycharmm and CHARMM_LIB_DIR (section 3).
+      Account-specific install details: CLAUDE.local.md"
 uncommitted_owner_work: none
 uncommitted_agent_work: none
-worktrees:
-  - "/home/ziqiaoxu/crimm-hotfix has RDKConverter-Het (8075b75), created by the owner for msld-prep.
-     Run msld-prep against it with PYTHONPATH; do not `pip install -e` there (user-site editable
-     install of crimm points at /home/ziqiaoxu/crimm)."
+worktrees: "one extra worktree, for the hotfix branch (CLAUDE.local.md)"
 untracked_not_ours:
   - import-fix.md                  # work order, see standing instructions
-  # tests/slurm/ and .claude/ are ignored through .git/info/exclude.
 github:
   issues: "#39 to #111 (no #105), milestones 1 to 6 = Phases 0 to 5. #109 to #111 (ruff
            follow-ups) filed 2026-10-14 in Phase 0"
@@ -237,7 +238,7 @@ github:
                   all 9 cells green; each cell's NumPy matches its name (py3.12 numpy<2 now
                   1.26.4, 134 passed, 12 xfailed) [ran 2026-10-14]. GitHub links #40-#42."
 owner_reminders:                   # tell the owner at the start of the next session
-  - "msld-prep needs the RDKConverter-Het hotfix (section 2); issue #59 tracks it"
+  - "Reminders for private downstream projects (hotfix #59): CLAUDE.local.md"
   - "Merge #108 with a merge commit (not squash)"
   - "feat/coordmanipulator-find-max-dim will conflict with the format of Stan's files; rebase it"
 test_suite: {passed: 136, xfailed: 15, deselected: 13, date: 2026-10-14}   # offline default run
@@ -281,7 +282,7 @@ ROADMAP row.
 | Q3 | Should a ligand without topology be dropped from both PSF and CRD, or kept in both? They disagree now. Owner decision. | 2026-10-06 |
 | Q4 | Are `crimm/Utils/cuda_info.py` and `crimm/Data/probes/` still wanted in crimm? They look left over from a removed docking module. Owner decision. | 2026-10-06 |
 | Q5 | Licence and provenance of the bundled CHARMM toppar files are undocumented. | 2026-10-06 |
-| Q6 | No pyCHARMM is available to agents on this machine, so the `pycharmm` marker has no tests and the pyCHARMM adaptor is unverified by any agent. Where can it be run? | 2026-10-06 **PLAN 2026-10-08 `[told]`:** the owner builds CHARMM locally, likely Monday 2026-10-12; see ROADMAP "CHARMM and pyCHARMM". Stays open until `import pycharmm` works in `crimm-dev`. **ANSWERED 2026-10-14:** in `crimm-dev` on this machine (section 3). `load_model` was run on 1CRN `[ran]`; `tests/test_pycharmm.py` added the same day (8 passed, 2 xfailed for #112) `[ran]`. |
+| Q6 | No pyCHARMM is available to agents on this machine, so the `pycharmm` marker has no tests and the pyCHARMM adaptor is unverified by any agent. Where can it be run? | 2026-10-06 **PLAN 2026-10-08 `[told]`:** the owner builds CHARMM locally, likely Monday 2026-10-12; see ROADMAP "CHARMM and pyCHARMM". Stays open until `import pycharmm` works in `crimm-dev`. **ANSWERED 2026-10-14:** in `crimm-dev` (section 3). `load_model` was run on 1CRN `[ran]`; `tests/test_pycharmm.py` added the same day (8 passed, 2 xfailed for #112) `[ran]`. |
 | Q7 | Which session owns the "Parallel track: crimm-ml integration" section of ROADMAP? It was added by another session on 2026-10-06; that session has not logged here. | 2026-10-06 **ANSWERED 2026-10-06 by claude-opus/claude-code/crimm-ml:** that session added it at the owner's request; see its LOG entry below. State for crimm-ml lives in crimm-ml's own AGENT_HANDOFF. |
 
 ## 8. Log
@@ -301,12 +302,12 @@ Newest first. Append only. Template:
 
 ### 2026-10-14 claude-opus/claude-code/charmm-build
 
-- asked: pick up from 2026-10-12; build CHARMM (#107) from `~/charmm`, compilers from
+- asked: pick up from 2026-10-12; build CHARMM (#107) from the owner's CHARMM checkout, compilers from
   `module av`. Mid-session: issue numbers for the TODOs; lint and format Stan's files (he
   agreed) keeping blame with him; update PR #108; explain the ruff issue filing; start a log of
   structure-specific prep issues (first: CT3 on 1CRN).
 - did: owner chose `origin/master` in a new worktree, minimal CPU build, agent configures and
-  submits. Created `~/charmm-master` (detached worktree, `c16e5816e`), wrote and submitted the
+  submits. Created a detached worktree of that checkout at `c16e5816e`, wrote and submitted the
   SLURM job (3 tries: modules vs `set -e`; Python 3.6 vs `configure`), installed pyCHARMM
   editable into `crimm-dev`, set `CHARMM_LIB_DIR` there (section 3). Commits, pushed: `b2cb021`
   (26 TODOs -> `TODO(#N)`, all to existing issues), `2b019d3` (lint of Stan's files, per-file
@@ -315,7 +316,7 @@ Newest first. Append only. Template:
   `6a00566` (CI NumPy pin), `3132e52` (`docs/dev/PDB_PREP_LOG.md`), then this docs commit.
   PR #108 body rewritten. Filed #109, #110, #111. Deleted the two 2026-10-13 reminder memories
   after delivering them.
-- verified `[ran]`: CHARMM build exit 0, 1 min 51 s on gollum006; `import pycharmm` in
+- verified `[ran]`: CHARMM build exit 0, 1 min 51 s on a compute node; `import pycharmm` in
   activated `crimm-dev`; `load_model` on 1CRN: atoms and charge agree with CHARMM (CT3: 651, 0;
   CTER: 646, -1); CTER energy 178.3 kcal/mol. Offline suite 133 passed, 13 xfailed after each
   library change; `ruff check crimm tests` clean; ASTs of Stan's files unchanged by the format
@@ -331,7 +332,7 @@ Newest first. Append only. Template:
   PDB_PREP_LOG). `max_serial` in `_convert_existing_waters_to_tip3` suggests built water
   hydrogens were meant to get serial numbers (told Stan in #108). pyCHARMM `stop` dumps core.
 - followed (same day, owner's request): added `CHARMM_LIB_DIR` to the `env` of
-  `~/.local/share/jupyter/kernels/crimm-dev/kernel.json` (outside the repo); a notebook run on
+  the `crimm-dev` kernel's `kernel.json` (outside the repo); a notebook run on
   that kernel with the variable unset in the shell imports pyCHARMM `[ran]`. Wrote
   `tests/test_pycharmm.py` (10 tests, marker `pycharmm`, no module-level pyCHARMM import,
   skips without `CHARMM_LIB_DIR`): CHARMM's reading of crimm's PSF equals crimm's file; crimm's
@@ -347,13 +348,20 @@ Newest first. Append only. Template:
   15 xfailed, 13 deselected; `-m pycharmm` without `CHARMM_LIB_DIR` 10 skipped; ruff clean.
 - not verified: the pycharmm tests with solvent, ligands (CGenFF) or nucleic acids; the
   legacy `use_psf_crd=False` load path.
+- followed (same day, owner's request): moved machine- and account-specific facts (paths,
+  cluster, the CHARMM build location) and private downstream projects from this file to the
+  owner's `CLAUDE.local.md` (new standing instruction, section 2). Section 3 now describes
+  how `crimm-dev` is built from `environment-dev.yml` and what was done for CHARMM and
+  pyCHARMM, generically. Older LOG entries were redacted in place at the owner's request (an
+  exception to "do not delete another agent's entry"); one entry moved to
+  `CLAUDE.local.md`, with a stub here. The old text stays in git history.
 - claims: none held.
 - next: State `roadmap_next`.
 
 ### 2026-10-12 claude-sonnet/claude-code/phase0-lint-ci
 
 - asked: remind the owner of the skipped `git worktree` lesson (done; the owner then created
-  `/home/ziqiaoxu/crimm-hotfix`); list the working items; then do ROADMAP Phase 0 items
+  a worktree for the hotfix branch); list the working items; then do ROADMAP Phase 0 items
   "move benchmark", "ruff", "CI workflow", and write a lesson on ruff and CI for the owner.
   The CHARMM and pyCHARMM build (#107) was postponed to 2026-10-13 by the owner.
 - did (committed as 734ffdb, b340111 and the CI/lesson/handoff commit; push and draft PR: see below): `git mv tests/benchmark_pipeline.py benchmarks/`;
@@ -399,9 +407,9 @@ Newest first. Append only. Template:
 
 - asked: end-of-day wrap-up; commit and push this handoff; set branch protection on `master`
   to require `all-green`; write a note for the owner's meeting with Stan (in the owner's private
-  vault, not in the repository).
+  notes, not in the repository).
 - did: committed and pushed the handoff (the commit that carries this entry); wrote the meeting
-  note in the vault. `git log @{u}..HEAD` was empty before this commit, so nothing else was
+  note there. `git log @{u}..HEAD` was empty before this commit, so nothing else was
   unpushed. No branch was deleted: no local branch other than `master` is merged into it.
 - found: **`master` is already protected** (the State said `not_set`, wrong): 1 approving review
   required, no required status checks, force pushes allowed, admins not enforced `[ran,
@@ -433,7 +441,7 @@ Newest first. Append only. Template:
 
 ### 2026-10-08 claude-sonnet/claude-code/wrapup
 
-- asked: end-of-day wrap-up; review the msld-prep session's edits to the dev docs; then
+- asked: end-of-day wrap-up; review a downstream project's session edits to the dev docs; then
   commit, push, delete merged branches, ignore `tests/slurm/`, and update all md docs and logs.
 - did: committed the day's docs in three commits (CHARMM licence and plan; roadmap issue
   index and the LoopBuilder decision; this handoff). `git push origin
@@ -447,53 +455,26 @@ Newest first. Append only. Template:
   date, GitHub block, owner reminders); updated ROADMAP (header, new row for #59) and NOTES
   (snapshot note); added a one-line pointer to crimm-ml's handoff, as the contract requires.
   `[ran]`
-- reviewed (msld-prep-intro entry): the imports it lists exist in `crimm/IO/RTFParser.py` and
-  `crimm/IO/PRMParser.py` (the `*_par` names are namedtuples) and import together under
-  `crimm-dev`; line 664 of `RDKitConverter.py` on this branch is the `pdbx_description`
-  access it describes. `[ran]` / `[read]` msld-prep itself was not edited, and its notebook was
-  not run.
-- found: switching crimm branches changes what msld-prep sees (its G2); with this branch
-  checked out its `align.ipynb` fails again. Remote branches were not touched: 22 of 36 are
-  merged into `origin/master` (issue #95). Issues #60 to #62 (RTF parser) and #90 (renames)
-  change names msld-prep imports; their bodies do not say so, because msld-prep is not public.
-  Old issues #24 and #29 may overlap with #46 and #80; not reconciled.
+- reviewed (the 2026-10-08 entry about a private downstream project, now in the owner's
+  `CLAUDE.local.md`): the crimm imports it lists exist and import together under
+  `crimm-dev` `[ran]`.
+- found: switching crimm branches changes what the downstream project sees. Remote branches
+  were not touched: 22 of 36 are merged into `origin/master` (issue #95). Issues #60 to #62
+  (RTF parser) and #90 (renames) change names that project imports. Old issues #24 and #29
+  may overlap with #46 and #80; not reconciled.
 - not done: the push (the owner runs `git push origin cleanup/phase0-tests-and-dev-docs` from
-  an ordinary terminal); the pointer entry in `/home/ziqiaoxu/crimm-ml/docs/dev/AGENT_HANDOFF.md`
+  an ordinary terminal); the pointer entry in crimm-ml's handoff
   is uncommitted in that repo; branch protection; `xfail` reasons and TODO comments still lack issue numbers;
   ROADMAP is not yet an index of `#N`; crimm-ml's own ROADMAP still names `RFLoopBuilder`;
   `solvator-coor-orient-options` kept (owner decides); `RDKConverter-Het` kept and unpushed.
 - next: Monday 2026-10-12, build CHARMM and pyCHARMM (issue #107); then link `xfail`/TODO to
   issues; then the chirality and PCA fixes (#43, #44) for Stan's review.
 
-### 2026-10-08 claude-sonnet/claude-code/msld-prep-intro
+### 2026-10-08 claude-sonnet/claude-code/downstream-intro
 
-- asked: by the owner, from a session in the msld-prep repo: record in crimm's dev docs that
-  msld-prep exists and needs the parked hotfix `RDKConverter-Het`, so that agents here remind
-  the owner when the fix is published. The owner allowed naming the project here now.
-- did: docs only, in this file: a "What goes where" row, an Orientation bullet and a pickup
-  bullet for msld-prep, an owner instruction (section 2) with the reminder rule, two
-  working agreements (names msld-prep imports; keep the branch), a note on the
-  `RDKConverter-Het` entry in State, and this entry. Also added the missing template and
-  closing fence at the top of this section: the template had been replaced by the
-  `hotfix-park` entry inside an unclosed code fence, so the whole log rendered as code. No
-  entry was changed or removed. Nothing else in crimm was touched: no source, tests,
-  configuration, branches or git state; nothing committed. `[ran]`
-- why msld-prep needs the fix: an exploratory notebook in msld-prep calls
-  `heterogen_to_rdkit(res, smiles=...)` on a `Residue` read from a CRD file. On
-  `cleanup/phase0-tests-and-dev-docs` this raises `AttributeError: 'Residue' object has no
-  attribute 'pdbx_description'` at `RDKitConverter.py:664`. `[ran 2026-10-08]` The second hunk
-  of `8075b75` (the `hasattr` guard) is on that line `[read]`. I did not check out the branch
-  or run the notebook with the fix. Whether the first hunk (warning instead of `TypeError`)
-  is also needed is not known: the notebook was run only as far as that call.
-- the owner's statement: the fix will not be published anytime soon. `[told 2026-10-08]`
-- verified: `git show 8075b75` and the `msldprep` imports of crimm by grep `[read]`.
-- not verified: the fix against msld-prep; whether the PyPI release of crimm has the same
-  failure (not checked).
-- found: the unclosed template fence (repaired above). Another session was editing this file
-  at the same time (`CHARMM` rows, env notes); I re-read it just before the write and changed
-  only the places listed above.
-- next: when the fix is published, remind the owner (section 2). msld-prep's own handoff
-  records the dependency in its Q12.
+- Moved to the owner's `CLAUDE.local.md` on 2026-10-14 (it concerns a private downstream
+  project). It added the hotfix reminder rule and the downstream contract now kept there, and
+  repaired an unclosed template fence in this log.
 
 ### 2026-10-08 claude-sonnet/claude-code/hotfix-park
 
@@ -518,7 +499,7 @@ Newest first. Append only. Template:
 - env (follow-up, same day, at the owner's request): deleted the old py3.8 `crimm-dev`;
   cloned `crimm-dev-new` to `crimm-dev` so the name matches `environment-dev.yml` and
   CONTRIBUTING.md, then removed `crimm-dev-new`; re-registered kernel `crimm-dev`. `[ran]`
-  The editable installs of `crimm` and `crimm-dock` in the old env pointed at source
+  The editable installs in the old env pointed at source
   directories, which were not touched.
 - merge: `git merge --no-ff origin/master` into `cleanup/phase0-tests-and-dev-docs`, no
   conflicts, `d90f94b`. Offline suite after the merge: 133 passed, 13 xfailed `[ran]`.
