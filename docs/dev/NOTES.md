@@ -98,11 +98,46 @@ NumPy 2.
   imported. Known bugs are pinned with `xfail(strict=True)` tests.
 - `benchmarks/benchmark_pipeline.py` (moved from `tests/` on 2026-10-12) is not part of the suite. It needs network access and is
   meant for a SLURM job (`tests/slurm/`, untracked).
-- The only GitHub workflow, `.github/workflows/static.yml`, publishes
-  `docs/_build/html` from the `docs` branch to GitHub Pages. Nothing lints or tests code.
+- `.github/workflows/ci.yml` (added 2026-10-12) runs `ruff check` and the offline suite on
+  Python 3.9 to 3.13 with NumPy 1.x and 2.x; `all-green` is the required check on `master`.
+  `.github/workflows/static.yml` publishes `docs/_build/html` from the `docs` branch to
+  GitHub Pages.
 - Markers `network`, `pycharmm`, `cgenff`, `slow` and `gpu` are deselected by default.
   Select them with `-m`, for example `pytest -m network`, or `pytest -m ""` for everything.
   The `cgenff` tests read the executable path from `CRIMM_CGENFF_PATH`.
+
+### Building CHARMM for the `pycharmm` tests (licence holders only)
+
+Worked on 2026-10-14 with CHARMM `master` (52.1) and GCC 13.4. A minimal CPU build is enough
+for crimm: pyCHARMM is pure Python and loads the CHARMM shared library with `ctypes`.
+
+```bash
+# in a CHARMM checkout; configure is a Python script and needs Python >= 3.7
+mkdir build_cpu && cd build_cpu
+python ../configure --with-gnu \
+    --without-mpi --without-cuda --without-opencl --without-openmm \
+    --without-qchem --without-mkl --without-fftw --without-exafmm \
+    --without-python --without-html \
+    -D arch_flag_all='-march=haswell' -p ../install_cpu
+make -j 16 && make install          # about 2 minutes on 16 cores
+
+# in crimm-dev
+pip install --no-deps -e <charmm>/tool/pycharmm
+conda env config vars set -n crimm-dev CHARMM_LIB_DIR=<charmm>/install_cpu/lib
+```
+
+- The library is built by default (`--without-library` turns it off); pyCHARMM looks for
+  `libchmm.so` in `CHARMM_LIB_DIR`.
+- `--without-python` stops CMake from `pip install`ing pyCHARMM into whichever Python it finds;
+  install it into `crimm-dev` yourself as above.
+- `-march=haswell` replaces the default `-march=native`, so a library built on one node also
+  runs on the others.
+- The library needs a `libstdc++` and `libgfortran` at least as new as the compiler's. Under
+  `crimm-dev` the conda ones are used and are new enough; outside it, load the compiler that
+  built it.
+- `conda env config vars` apply only after `conda activate`; a Jupyter kernel needs
+  `CHARMM_LIB_DIR` in its `kernel.json` `env`.
+- Calling CHARMM's `stop` from pyCHARMM dumps core; let the process end instead.
 
 ## Documentation
 

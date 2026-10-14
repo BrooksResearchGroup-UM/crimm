@@ -7,7 +7,7 @@ humans read it second.
 schema: agent-handoff/1
 repo: github.com/BrooksResearchGroup-UM/crimm
 default_branch: master
-last_updated: 2026-10-12
+last_updated: 2026-10-14
 ```
 
 ## 0. Protocol
@@ -57,6 +57,7 @@ Read this section fully. Skim the rest for what your task touches.
 | Anything about msld-prep, the MSLD ligand-preparation package that depends on crimm (its code, tests, state) | `/home/ziqiaoxu/msld-prep/docs/dev/AGENT_HANDOFF.md` |
 | What work is planned, its order, its status | `docs/dev/ROADMAP.md` |
 | Standards the work should meet | `docs/dev/BEST_PRACTICES.md` |
+| Conflicts and issues met preparing particular PDB entries (clashes, patch choices) | `docs/dev/PDB_PREP_LOG.md` |
 | Who is doing what now, what was tried, what failed, traps, decisions | this file |
 
 If something belongs in the first three, put it there and log a one-line pointer here.
@@ -112,6 +113,8 @@ Follow these unless the owner says otherwise in your own session.
 
 | 2026-10-08 | CHARMM (and so pyCHARMM) is licensed and not accessible to developers without a licence. Keep CHARMM and pyCHARMM tooling and tests in the roadmap, gated by the `pycharmm` marker; document the licence limit. Never put CHARMM source, binaries or libraries in the repository or in issues. | `[told]` |
 | 2026-10-08 | The owner compiles CHARMM locally, as part of the developer environment setup, in the next session (likely Monday 2026-10-12). Do not start the build or install anything for it before then. | `[told]` |
+| 2026-10-14 | Stan agreed that his modules (`Solvator.py`, `CrystalSDF.py`, `CoordManipulator.py`) may be linted and formatted, with git blame kept to him: lint and format commits go in `.git-blame-ignore-revs`, and such a PR is merged with a merge commit. Other changes to his code still go to him for review. | `[told]` |
+| 2026-10-14 | The default C-terminal patch `CT3` in `generate_model` is intended. Structure-specific problems it causes are logged per entry in `docs/dev/PDB_PREP_LOG.md`. | `[told]` |
 | 2026-10-08 | **msld-prep needs the hotfix on branch `RDKConverter-Het` (`8075b75`, `RDKitConverter.py`).** The owner said the fix will not be published anytime soon. **Remind the owner that msld-prep needs it** when: the fix is merged into any branch, pushed, or released; someone opens an issue or pull request about `heterogen_to_rdkit` or `RDKitHetConverter`; or you pick the hotfix up yourself (its test should cover a plain `Residue` read from a CRD file, msld-prep's case). Say it in your reply, not only in a file. After the owner has been reminded, they update msld-prep's handoff (its Q12). | `[told]` |
 
 Working agreements between agents (not owner instructions; change them by logging why):
@@ -144,7 +147,9 @@ Machine: the owner's cluster login node (Rocky Linux 8, SLURM). Paths are specif
 | There is no `python` on `PATH`. Use `/home/ziqiaoxu/.conda/envs/torch210/bin/python` (Python 3.13, NumPy 2.2.6, Biopython 1.86, pytest 9.0.3). | `[ran 2026-10-06]` |
 | In that env: rdkit, nglview, propka present. Missing: ruff, pytest-cov, pytest-xdist, openmm, pycharmm. pyflakes works as `python -m pyflakes crimm`. | `[ran 2026-10-06]` |
 | The env `crimm-dev` (`/home/ziqiaoxu/.conda/envs/crimm-dev/bin/`) has `ruff` 0.16.10, `pre-commit`, `nox`, `gh` (logged in as `Truman-Xu`, ssh protocol) and `pytest`; prefer it over `torch210`. Lint with `ruff check crimm tests`. | `[ran 2026-10-12]` |
-| No conda env under `~/.conda/envs` contains pycharmm. | `[ran 2026-10-06, searched site-packages names only]` |
+| No conda env under `~/.conda/envs` contains pycharmm. | `[ran 2026-10-06, searched site-packages names only]` SUPERSEDED 2026-10-14: `crimm-dev` has it, see next row |
+| **pyCHARMM works in `crimm-dev`.** CHARMM 52.1 (`origin/master` `c16e5816e`) is built as a CPU-only library in `~/charmm-master`, a detached `git worktree` of `~/charmm` (the owner's checkout stays on `branchislav`). Library: `~/charmm-master/install_cpu/lib/libchmm.so`; build job script and logs: `~/charmm-master/build_jobs/` (`sbatch build.sbatch`, partition `cpu`, gcc/13.4.0 module, about 2 min). pyCHARMM is an editable install from `~/charmm-master/tool/pycharmm` in `crimm-dev`; `CHARMM_LIB_DIR` is a conda env var of `crimm-dev` (active only after `conda activate`, so not in the Jupyter kernel). Deleting the worktree breaks the install. Build steps in general form: `NOTES.md`. | `[ran 2026-10-14]` |
+| Batch jobs: load modules **before** `set -e`; the module init script fails on `unalias` and aborts the job. `configure` in CHARMM needs Python >= 3.7; the system `python3` is 3.6. | `[ran 2026-10-14]` |
 | `import crimm` took 47 to 145 s on a cold filesystem cache and a few seconds when warm. Give the first command of a session a timeout of at least 300 s. It is slow, not hung. | `[ran 2026-10-06]` |
 | The login node reaches `files.rcsb.org`. SLURM compute nodes do not resolve DNS. | `[ran 2026-10-06]` login; `[read tests/slurm/benchmark.log]` compute |
 | CHARMM material already on the cluster, found by listing directories only (nothing read or run): shared builds and docs under `/export/apps/RockyOS8/charmm/` (for example `c51a1`, `c51a2`, `August_26_2026`; `c50a1/lib/libcharmm.so` exists); environment modules `charmm/charmm/c49a1` to `c52a1` (default `c52a1`), whose modulefile activates a conda build environment under `/export/apps/RockyOS8/charmm/envs/`; a CHARMM source checkout (git, `configure`, `CMakeLists.txt`) at `~/charmm`, last changed 2026-03-15; Jupyter kernels `charmm` and `pycharmm` pointing at other people's conda envs. Whether any of these is usable from `crimm-dev` is open (ROADMAP "CHARMM and pyCHARMM"). | `[ran 2026-10-08, ls only]` |
@@ -184,22 +189,22 @@ Things that cost a previous agent time or would produce wrong results silently.
 
 ## 5. State
 
-Rewrite in place. True as of `2026-10-12`.
+Rewrite in place. True as of `2026-10-14`.
 
 ```yaml
-branches:                          # all start at fbb165d; `cleanup/phase0-tests-and-dev-docs` is on
-                                   # origin at e5b855a `[ran 2026-10-12, git branch -vv]` (the
-                                   # 2026-10-08 push failed in the agent sandbox; the owner pushed
-                                   # later). The 2026-10-12 work is committed locally (734ffdb, b340111 and the CI/lesson/handoff commit after it); see `github` and LOG for push and PR state.
-  cleanup/phase0-tests-and-dev-docs:     # agent cleanup work; continue here
-    - d10c62d                      # tests/, tests/data/, pyproject.toml pytest config
-    - fa7338a                      # docs/dev/*.md
-    - "later commits: handoff updates; repo-setup files (2026-10-07)"
-    - d90f94b                      # merge of origin/master (cf51387), 2026-10-08
-    - "then three docs commits of 2026-10-08: CHARMM licence and plan; roadmap and issue
-       index; handoff"
+branches:                          # all start at fbb165d
+  cleanup/phase0-tests-and-dev-docs:     # agent cleanup work; continue here. On origin at the
+                                   # commit that carries this State (pushed 2026-10-14; the
+                                   # sandbox push worked this time).
+    - "2026-10-06 to 10-12: tests, dev docs, repo setup, merge of origin/master (d90f94b),
+       benchmark move, ruff, CI, ROADMAP index (e976f0b)"
+    - "2026-10-14: b2cb021 TODO(#N); 2b019d3 lint + 85640ad format of Stan's files;
+       0bf85e4 .git-blame-ignore-revs; 6a00566 CI NumPy pin; 3132e52 PDB_PREP_LOG;
+       then the docs/handoff commit"
   feat/coordmanipulator-find-max-dim:    # the owner's solvation edits, kept separate
-    - 44e9bf6                      # CoordManipulator.find_max_dim; Solvator TODO comment
+    - 44e9bf6                      # CoordManipulator.find_max_dim; Solvator TODO comment.
+                                   # WILL CONFLICT with 85640ad (format of the same files);
+                                   # its new TODO needs `TODO(#66)` when merged.
   RDKConverter-Het:                # owner's hotfix, local only, not pushed. Cut from 72eef9f.
     - 8075b75                      # RDKitHetConverter accepts non-Heterogen; see LOG 2026-10-08.
                                    # Parked: needs a test and review before it joins anything.
@@ -207,54 +212,51 @@ branches:                          # all start at fbb165d; `cleanup/phase0-tests
                                    # (section 2).
   solvator-coor-orient-options:    # old working branch; still points at fa7338a.
                                    # Redundant now. Owner decides whether to delete it.
-env_rebuild: done                  # conda env `crimm-dev` (py3.12.15) built from
-                                   # environment-dev.yml (built as `crimm-dev-new`, cloned to
-                                   # `crimm-dev`, the clone verified, `crimm-dev-new` removed).
-                                   # Old py3.8 env deleted by agent at owner's request 2026-10-08.
-                                   # Jupyter kernel `crimm-dev` re-registered to the new env.
-                                   # Offline suite 133 passed, 13 xfailed, 3 deselected, ran
-                                   # 2026-10-08. The editable `crimm` install is in the user site
-                                   # (`~/.local/lib/python3.12/site-packages`), not in the env.
-base_is_behind_remote: false       # `origin/master` (cf51387) merged into the cleanup branch as
-                                   # d90f94b on 2026-10-08, not pushed. Offline suite unchanged
-                                   # after the merge (133 passed, 13 xfailed), so the PSF/CRD
-                                   # xfails still hold on cf51387.
+env:                               # conda env `crimm-dev` (py3.12.15) from environment-dev.yml;
+                                   # editable crimm in the user site. Since 2026-10-14 also
+                                   # pycharmm (editable, from ~/charmm-master) and the env var
+                                   # CHARMM_LIB_DIR; see section 3.
+charmm_build: "~/charmm-master (worktree of ~/charmm at c16e5816e), install_cpu/, build_jobs/"
 uncommitted_owner_work: none
-uncommitted_agent_work: none       # 2026-10-12 work is committed (three commits), see LOG
-  # Also an uncommitted log entry in /home/ziqiaoxu/crimm-ml (its handoff), from 2026-10-08.
-worktrees:                         # `[ran 2026-10-12, git worktree list]`
+uncommitted_agent_work: none
+worktrees:
   - "/home/ziqiaoxu/crimm-hotfix has RDKConverter-Het (8075b75), created by the owner for msld-prep.
      Run msld-prep against it with PYTHONPATH; do not `pip install -e` there (user-site editable
      install of crimm points at /home/ziqiaoxu/crimm)."
 untracked_not_ours:
   - import-fix.md                  # work order, see standing instructions
-  # tests/slurm/ (owner's benchmark job files) and .claude/ are ignored through
-  # .git/info/exclude (local, not in the repository) as of 2026-10-08.
-local_branches_deleted: [cuda_util, list, mmcif-bug-fix, newGridGen, py3dmol]   # 2026-10-08, all merged into master
-github:                            # 2026-10-08
-  issues: "#39 to #107 (no #105), milestones 1 to 6 = Phases 0 to 5"
-  labels_added: [correctness, refactor, agent-task, topology, solvation, io, visualization, loops, ml, infra]
+  # tests/slurm/ and .claude/ are ignored through .git/info/exclude.
+github:
+  issues: "#39 to #111 (no #105), milestones 1 to 6 = Phases 0 to 5. #109 to #111 (ruff
+           follow-ups) filed 2026-10-14 in Phase 0"
   branch_protection: "master: all-green required (strict false), 1 approving review, force pushes disallowed, deletions disallowed, admins not enforced [ran 2026-10-12, gh api; set by the owner]"
-  pull_requests: "#108 draft, cleanup/phase0-tests-and-dev-docs into master; CI green (lint, 9 test cells, all-green)"
+  pull_requests: "#108 draft, cleanup/phase0-tests-and-dev-docs into master. Body updated
+                  2026-10-14 (Closes #40, #41, #42; per-commit list; MERGE WITH A MERGE COMMIT,
+                  not squash, because of .git-blame-ignore-revs). CI on e976f0b: all 9 cells
+                  green, every cell's pytest line read 2026-10-14. CI on 3132e52 (run 38592786917):
+                  all 9 cells green; each cell's NumPy matches its name (py3.12 numpy<2 now
+                  1.26.4, 134 passed, 12 xfailed) [ran 2026-10-14]. GitHub links #40-#42."
 owner_reminders:                   # tell the owner at the start of the next session
   - "msld-prep needs the RDKConverter-Het hotfix (section 2); issue #59 tracks it"
-  - "CHARMM and pyCHARMM build (#107) was postponed from 2026-10-12 to Tuesday 2026-10-13 (also in agent memory)"
-  - "Stan meeting 2026-10-13: owner will ask to edit his files (Solvator.py, CrystalSDF.py, CoordManipulator.py) for lint and format; per-file ignores in pyproject.toml mark what is left"
-test_suite: {passed: 133, xfailed: 13, deselected: 3, date: 2026-10-12}
+  - "Merge #108 with a merge commit (not squash)"
+  - "feat/coordmanipulator-find-max-dim will conflict with the format of Stan's files; rebase it"
+  - "Jupyter kernel crimm-dev lacks CHARMM_LIB_DIR (add to kernel.json env if pyCHARMM is wanted there)"
+test_suite: {passed: 133, xfailed: 13, deselected: 3, date: 2026-10-14}
 roadmap_done:
-  - "Phase 0: offline pytest suite"
-  - "Phase 0: markers"
-  - "Phase 0: move benchmark_pipeline.py to benchmarks/ (2026-10-12; tests/slurm/submit_pipeline.sh path updated by the owner's request)"
-  - "Phase 0: ruff config, lint only (2026-10-12)"
-  - "Phase 0: CI workflow written and checked locally (2026-10-12); first GitHub run green on draft PR #108, see LOG"
+  - "Phase 0: offline pytest suite, markers, benchmark move, ruff (lint only), CI workflow"
+  - "Phase 0: ROADMAP as index (2026-10-12); TODO(#N) in every TODO (2026-10-14)"
+  - "Phase 0: Stan's files linted and formatted (2026-10-14)"
+  - "Phase 0: #107 first half, CHARMM build and pyCHARMM in crimm-dev (2026-10-14)"
 roadmap_next:
-  - "Tuesday 2026-10-13: build CHARMM and pyCHARMM locally (owner, #107), then the pycharmm tests"
-  - "Read the log of every CI matrix cell of #108 (only py3.9+NumPy1 and py3.13+NumPy2 were read)"
-  - "Mark #108 ready for review once Stan has seen the plan; add `Closes #40, #41, #42` to its body"
-  - "Phase 0: golden-file tests for PSF and CRD (Q1 first)"
-  - "Phase 0: issue numbers into xfail reasons and TODOs; ROADMAP as index"
-  - "Later: ruff format (own commit + .git-blame-ignore-revs), pre-commit, widen rules, core-install import guard in CI (with ROADMAP 1.5)"
-library_code_changed_by_agents: "2026-10-12, behaviour-neutral lint fixes only (import order, unused imports/variables, super(), open modes, yield from, one loop variable rename in pyCHARMMAdaptors.get_charmm_coord_dict); suite unchanged. Not verified under pyCHARMM."
+  - "#107: write the pycharmm tests (tests/test_pycharmm.py, marker pycharmm, importorskip);
+     load 1CRN with prot_last_patch='CTER' (PDB_PREP_LOG); compare counts, charges and energy
+     between load_model and CHARMM's own read of crimm's PSF/CRD"
+  - "Issue numbers in the xfail reasons (11 reasons, none numbered)"
+  - "Mark #108 ready for review once Stan has seen it"
+  - "Phase 0: golden-file tests for PSF and CRD (#39; Q1 first)"
+library_code_changed_by_agents: "2026-10-12 and 2026-10-14, behaviour-neutral only: lint fixes
+  (2026-10-12; 2026-10-14 in Stan's files), ruff format of Stan's three files, TODO comment
+  text. Suite unchanged."
 ```
 
 ## 6. Claims
@@ -279,7 +281,7 @@ ROADMAP row.
 | Q3 | Should a ligand without topology be dropped from both PSF and CRD, or kept in both? They disagree now. Owner decision. | 2026-10-06 |
 | Q4 | Are `crimm/Utils/cuda_info.py` and `crimm/Data/probes/` still wanted in crimm? They look left over from a removed docking module. Owner decision. | 2026-10-06 |
 | Q5 | Licence and provenance of the bundled CHARMM toppar files are undocumented. | 2026-10-06 |
-| Q6 | No pyCHARMM is available to agents on this machine, so the `pycharmm` marker has no tests and the pyCHARMM adaptor is unverified by any agent. Where can it be run? | 2026-10-06 **PLAN 2026-10-08 `[told]`:** the owner builds CHARMM locally, likely Monday 2026-10-12; see ROADMAP "CHARMM and pyCHARMM". Stays open until `import pycharmm` works in `crimm-dev`. |
+| Q6 | No pyCHARMM is available to agents on this machine, so the `pycharmm` marker has no tests and the pyCHARMM adaptor is unverified by any agent. Where can it be run? | 2026-10-06 **PLAN 2026-10-08 `[told]`:** the owner builds CHARMM locally, likely Monday 2026-10-12; see ROADMAP "CHARMM and pyCHARMM". Stays open until `import pycharmm` works in `crimm-dev`. **ANSWERED 2026-10-14:** in `crimm-dev` on this machine (section 3). `load_model` was run on 1CRN `[ran]`; the `pycharmm` tests are still to be written (#107). |
 | Q7 | Which session owns the "Parallel track: crimm-ml integration" section of ROADMAP? It was added by another session on 2026-10-06; that session has not logged here. | 2026-10-06 **ANSWERED 2026-10-06 by claude-opus/claude-code/crimm-ml:** that session added it at the owner's request; see its LOG entry below. State for crimm-ml lives in crimm-ml's own AGENT_HANDOFF. |
 
 ## 8. Log
@@ -296,6 +298,40 @@ Newest first. Append only. Template:
 - found:
 - next:
 ```
+
+### 2026-10-14 claude-opus/claude-code/charmm-build
+
+- asked: pick up from 2026-10-12; build CHARMM (#107) from `~/charmm`, compilers from
+  `module av`. Mid-session: issue numbers for the TODOs; lint and format Stan's files (he
+  agreed) keeping blame with him; update PR #108; explain the ruff issue filing; start a log of
+  structure-specific prep issues (first: CT3 on 1CRN).
+- did: owner chose `origin/master` in a new worktree, minimal CPU build, agent configures and
+  submits. Created `~/charmm-master` (detached worktree, `c16e5816e`), wrote and submitted the
+  SLURM job (3 tries: modules vs `set -e`; Python 3.6 vs `configure`), installed pyCHARMM
+  editable into `crimm-dev`, set `CHARMM_LIB_DIR` there (section 3). Commits, pushed: `b2cb021`
+  (26 TODOs -> `TODO(#N)`, all to existing issues), `2b019d3` (lint of Stan's files, per-file
+  ignores removed, unused `max_serial` removed), `85640ad` (`ruff format` of them),
+  `0bf85e4` (`.git-blame-ignore-revs`, CONTRIBUTING: merge-commit exception to squash),
+  `6a00566` (CI NumPy pin), `3132e52` (`docs/dev/PDB_PREP_LOG.md`), then this docs commit.
+  PR #108 body rewritten. Filed #109, #110, #111. Deleted the two 2026-10-13 reminder memories
+  after delivering them.
+- verified `[ran]`: CHARMM build exit 0, 1 min 51 s on gollum006; `import pycharmm` in
+  activated `crimm-dev`; `load_model` on 1CRN: atoms and charge agree with CHARMM (CT3: 651, 0;
+  CTER: 646, -1); CTER energy 178.3 kcal/mol. Offline suite 133 passed, 13 xfailed after each
+  library change; `ruff check crimm tests` clean; ASTs of Stan's files unchanged by the format
+  except whitespace in six docstrings; blame with the ignore file gives Stan 1,367 of
+  Solvator's lines (1,348 before today; 38 lines new from the formatter stay on the format
+  commit). CI on `3132e52` green in all cells with the right NumPy.
+- not verified: any `pycharmm` test (none written yet); `get_charmm_coord_dict` and the
+  non-PSF/CRD load paths; GitHub's blame view with the ignore file; the cluster's shared
+  CHARMM builds; whether 1UBQ, 2IGD, 3PTB also clash with CT3.
+- found: CI cell py3.12 numpy<2 had run NumPy 2.5.4 since 2026-10-12 (fixed). Squash-merging
+  #108 would break `.git-blame-ignore-revs`. `generate_model` default CT3 builds its methyl
+  onto the 1CRN Arg10-Asn46 salt bridge (VDW 4.2e6); owner: CT3 is intended (section 2,
+  PDB_PREP_LOG). `max_serial` in `_convert_existing_waters_to_tip3` suggests built water
+  hydrogens were meant to get serial numbers (told Stan in #108). pyCHARMM `stop` dumps core.
+- claims: none held.
+- next: State `roadmap_next`.
 
 ### 2026-10-12 claude-sonnet/claude-code/phase0-lint-ci
 

@@ -23,7 +23,7 @@ Issue #105 does not exist.
 
 | Where | Issues |
 | --- | --- |
-| Phase 0: Safety net | #39 golden files, #40 ruff, #41 CI, #42 benchmarks, #107 CHARMM and pyCHARMM. #40 to #42 are done on draft PR #108 and close when it merges |
+| Phase 0: Safety net | #39 golden files, #40 ruff, #41 CI, #42 benchmarks, #107 CHARMM and pyCHARMM, #109 to #111 ruff follow-ups (ignored rules, repo-wide format, pre-commit). #40 to #42 are done on draft PR #108 and close when it merges |
 | Phase 1: Bugs | #43, #44 (Stan), #45 to #49 (found by tests), #50 to #57, #59 (hotfix, needed by a downstream project), #58 (optional imports, 1.5) |
 | Phase 2: TODOs | #60 to #70 (fix now), #87 (topology TODOs 16 to 21, resolved in Phase 4) |
 | Features, no milestone | #71 to #76 (TODOs 22 to 27) |
@@ -41,12 +41,12 @@ Nothing here changes behaviour.
 | **Done 2026-10-06.** Offline pytest suite with small fixture structures checked into `tests/data/` (1UBQ, 1CRN, 2IGD, 3PTB, 1BNA) | `pytest` passes with no network; covers parsing, organizing, topology generation, PSF/CRD round trip, solvation. Result: 133 passed, 13 expected failures, each pinning a bug listed in Phase 1 | L |
 | **Done 2026-10-06.** Markers for `network`, `pycharmm`, `cgenff`, `slow` | Default `pytest` run skips them; each can be selected with `-m`. There are no `pycharmm` tests yet | S |
 | **Done 2026-10-07.** Agent and contributor files: `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, issue forms, PR template, `CODEOWNERS`, `environment-dev.yml` | A fresh agent session finds the handoff; contributors can set up an environment from one file | S |
-| **Issues created 2026-10-08 (#39 to #107), milestones set up.** This ROADMAP indexes the issues since 2026-10-12. Still open: put the issue numbers into the `xfail` reasons and the TODO comments | Every item below has an issue (done); every `xfail` and TODO names its issue number | M |
+| **Issues created 2026-10-08 (#39 to #107), milestones set up.** This ROADMAP indexes the issues since 2026-10-12. TODO comments carry `TODO(#N)` since 2026-10-14 (`b2cb021`). Still open: issue numbers in the `xfail` reasons | Every item below has an issue (done); every `xfail` and TODO names its issue number | M |
 | #39 Golden-file tests for PSF and CRD output | A refactor that changes one byte of output fails a test | M |
-| #40 **Done 2026-10-12 (lint only).** `ruff` configured in `pyproject.toml`; current findings fixed or explicitly ignored | `ruff check crimm tests` is clean. Ignored rules are listed with reasons in `pyproject.toml`; findings in Stan's files are left in place. Still open: `ruff format` (65 files would change; needs its own commit and `.git-blame-ignore-revs`), a `pre-commit` hook, and widening the rule set | S |
-| #41 **Done 2026-10-12 in `.github/workflows/ci.yml`; green on draft PR #108.** CI workflow: lint and tests on Python 3.9 to 3.13, on both NumPy 1.x and 2.x | Required check (`all-green`) on pull requests to `master`. Open: requiring `all-green` on `master` (protection exists but has no required checks), core-install import guard (with 1.5). Lesson: [lessons/ci-basics.md](lessons/ci-basics.md) | M |
+| #40 **Done 2026-10-12 (lint only).** `ruff` configured in `pyproject.toml`; current findings fixed or explicitly ignored | `ruff check crimm tests` is clean. Ignored rules are listed with reasons in `pyproject.toml`. Stan's three files were linted and formatted on 2026-10-14 with his agreement (`2b019d3`, `85640ad`, both in `.git-blame-ignore-revs`). Follow-ups: #109 ignored rules, #110 repo-wide `ruff format` and wider rules, #111 `pre-commit` | S |
+| #41 **Done 2026-10-12 in `.github/workflows/ci.yml`; green on draft PR #108.** CI workflow: lint and tests on Python 3.9 to 3.13, on both NumPy 1.x and 2.x | Required check (`all-green`) on pull requests to `master`. `all-green` is required on `master` (set by the owner, 2026-10-12). 2026-10-14: the NumPy 1 cell on Python 3.12 had been running NumPy 2, fixed in `6a00566`. Open: core-install import guard (#58, step 7). Lesson: [lessons/ci-basics.md](lessons/ci-basics.md) | M |
 | #42 **Done 2026-10-12.** Move `tests/benchmark_pipeline.py` to `benchmarks/` | `tests/` holds only pytest tests | S |
-| #107 CHARMM and pyCHARMM in the developer environment: build the CHARMM library locally with pyCHARMM support and make it usable from `crimm-dev` (see "CHARMM and pyCHARMM" below). Planned for the session of Monday 2026-10-12 | `import pycharmm` works in `crimm-dev`, and the steps are written down | L |
+| #107 **Done 2026-10-14.** CHARMM and pyCHARMM in the developer environment: build the CHARMM library locally with pyCHARMM support and make it usable from `crimm-dev` (steps in `NOTES.md`, "Building CHARMM for the `pycharmm` tests") | `import pycharmm` works in `crimm-dev`, and the steps are written down | L |
 | #107 `pycharmm` tests: load the PSF/CRD that crimm writes into pyCHARMM, and check energies and counts against CHARMM's own reading. Depends on the row above | `pytest -m pycharmm` passes on a machine with a CHARMM build and is skipped elsewhere | M |
 
 ### CHARMM and pyCHARMM
@@ -63,11 +63,11 @@ hold a licence (owner, 2026-10-08), so:
 - Contributors without a licence can still work on everything else; say in the pull request
   when a change could affect the pyCHARMM path.
 
-The owner compiles CHARMM locally as part of the developer environment setup. Open points for
-that session, not decided yet: which CHARMM version and branch to build; whether to build
-against `crimm-dev` (Python 3.12) or keep a separate environment; where the library lives and
-how `pycharmm` finds it (environment variables); whether the shared builds on the cluster are
-usable instead; how the `pycharmm` tests are selected on that machine.
+Decided and done 2026-10-14 (owner): CHARMM `master`, built as a minimal CPU library from a
+separate worktree of the owner's checkout; pyCHARMM installed into `crimm-dev`, which finds
+the library through `CHARMM_LIB_DIR`. Steps: `NOTES.md`, "Building CHARMM for the `pycharmm`
+tests". Still open: the `pycharmm` tests themselves, and how a maintainer runs them before a
+release. The cluster's shared builds were not tried.
 
 ## Phase 1: Bugs
 
