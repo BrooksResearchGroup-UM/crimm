@@ -44,6 +44,10 @@ ruff check --fix crimm tests   # applies the safe automatic fixes
 `ruff` is in `environment-dev.yml`. If a rule is wrong for a line, prefer fixing the line; if
 you must silence it, add `# noqa: <code>` with a reason.
 
+A commit that only lints or reformats goes in its own commit and is listed in
+[.git-blame-ignore-revs](.git-blame-ignore-revs), so `git blame` keeps each line's author. Run
+`git config blame.ignoreRevsFile .git-blame-ignore-revs` once to make local blame use it.
+
 ## Changing code
 
 - One concern per commit and per pull request. A fix does not ride along with a rename.
@@ -61,7 +65,9 @@ you must silence it, add `# noqa: <code>` with a reason.
 - Work is tracked as GitHub issues, grouped in milestones that mirror the phases of
   [docs/dev/ROADMAP.md](docs/dev/ROADMAP.md). Use the issue forms.
 - Open a pull request from a short-lived branch. It needs passing tests and a description of
-  why the change is made. Squash-merge; delete the branch after.
+  why the change is made. Squash-merge; delete the branch after. Exception: a pull request
+  that adds a commit to `.git-blame-ignore-revs` is merged with a merge commit, because
+  squashing rewrites the commit that file names.
 - A correctness bug (wrong scientific output) blocks the next release.
 
 ## Credit and authorship
