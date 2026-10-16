@@ -51,7 +51,7 @@ def test_round_trip_after_topology_with_water_conversion(shared_prepared, tmp_pa
 
 @pytest.mark.xfail(
     strict=True,
-    reason="Default get_pdb_str writes 4-character TIP3 residue names, which shifts "
+    reason="#49: default get_pdb_str writes 4-character TIP3 residue names, which shifts "
     "the chain column; crimm's own PDBParser then fails on the output",
 )
 def test_round_trip_after_topology_default_options(shared_prepared, tmp_path):

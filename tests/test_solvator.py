@@ -102,8 +102,8 @@ def test_solute_is_centred_and_rigid(prepared_model):
 
 @pytest.mark.xfail(
     strict=True,
-    reason="Default solvation of 1UBQ returns a mirror image: orient_coords_octa "
-    "applies a reflection (docs/dev/ROADMAP.md, 1.1)",
+    reason="#43: default solvation of 1UBQ returns a mirror image: "
+    "orient_coords_octa applies a reflection",
 )
 def test_solvation_preserves_chirality(prepared_model):
     model = prepared_model("1ubq")

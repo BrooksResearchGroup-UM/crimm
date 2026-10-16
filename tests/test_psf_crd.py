@@ -125,7 +125,7 @@ def test_load_psf_crd_round_trip(written, pdb_id):
 
 @pytest.mark.xfail(
     strict=True,
-    reason="load_psf_crd leaves the terminal patch atoms (ACE and CT3 caps) without a "
+    reason="#47: load_psf_crd leaves the terminal patch atoms (ACE and CT3 caps) without a "
     "topo_definition, so total_charge of the reloaded chain is None",
 )
 def test_load_psf_crd_restores_charges(written):
@@ -145,7 +145,7 @@ def test_write_psf_reports_untyped_ligand(shared_prepared, tmp_path):
 
 @pytest.mark.xfail(
     strict=True,
-    reason="With an untyped ligand the PSF skips its atoms but the CRD writes them "
+    reason="#46: with an untyped ligand the PSF skips its atoms but the CRD writes them "
     "(3PTB: 3416 vs 3425), so the pair cannot be loaded together",
 )
 def test_psf_and_crd_agree_with_untyped_ligand(written):
@@ -155,7 +155,7 @@ def test_psf_and_crd_agree_with_untyped_ligand(written):
 
 @pytest.mark.xfail(
     strict=True,
-    reason="PSFWriter writes 394 atoms per DNA strand where the model has 383 "
+    reason="#45: PSFWriter writes 394 atoms per DNA strand where the model has 383 "
     "(one duplicated atom in 11 of 12 residues)",
 )
 def test_dna_psf_atom_count_matches_model(written):
@@ -165,7 +165,7 @@ def test_dna_psf_atom_count_matches_model(written):
 
 @pytest.mark.xfail(
     strict=True,
-    reason="DNA PSF total charge is +9 where the model's is -24",
+    reason="#45: DNA PSF total charge is +9 where the model's is -24",
 )
 def test_dna_psf_charge_matches_model(written):
     model, psf_path, _ = written("1bna")

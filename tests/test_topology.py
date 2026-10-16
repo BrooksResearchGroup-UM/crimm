@@ -110,7 +110,7 @@ def test_generate_model_rejects_plain_model(load_structure):
 
 @pytest.mark.xfail(
     strict=True,
-    reason="Dihedral.angle is a stub that returns 0.0 for every dihedral",
+    reason="#53: Dihedral.angle is a stub that returns 0.0 for every dihedral",
 )
 def test_dihedral_angle_is_computed(shared_prepared):
     dihedrals = shared_prepared("1crn").topology.dihedrals

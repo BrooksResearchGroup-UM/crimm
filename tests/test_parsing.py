@@ -93,7 +93,7 @@ def test_dna_canonical_sequence(load_structure):
 
 @pytest.mark.xfail(
     strict=True,
-    reason="PolymerChain.seq returns 'X' for every DNA residue (DC/DG/DA/DT are not "
+    reason="#48: PolymerChain.seq returns 'X' for every DNA residue (DC/DG/DA/DT are not "
     "in its lookup), while can_seq is correct",
 )
 def test_dna_present_sequence_matches_canonical(load_structure):

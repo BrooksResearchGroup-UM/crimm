@@ -91,7 +91,7 @@ def test_sorted_pca_orientation_orders_extents(method):
             "orient_coords_octa",
             marks=pytest.mark.xfail(
                 strict=True,
-                reason="No determinant check on the PCA axes: about half of all inputs "
+                reason="#43: no determinant check on the PCA axes: about half of all inputs "
                 "are reflected, which inverts chirality. This is the default "
                 "orientation for cube, octa and rhdo solvation boxes",
             ),
@@ -119,7 +119,7 @@ def test_orientation_preserves_handedness(method):
                 name,
                 marks=pytest.mark.xfail(
                     strict=True,
-                    reason="PCA methods store op_mat in a row-vector layout that "
+                    reason="#44: PCA methods store op_mat in a row-vector layout that "
                     "apply_coords reads as column-vector",
                 ),
             )
@@ -141,7 +141,7 @@ def test_orient_without_entity_raises():
 @pytest.mark.xfail(
     np.lib.NumpyVersion(np.__version__) >= "2.0.0",
     strict=True,
-    reason="box_dim calls ndarray.ptp, which NumPy 2 removed",
+    reason="#51: box_dim calls ndarray.ptp, which NumPy 2 removed",
 )
 def test_box_dim():
     coords = random_cloud(6)
