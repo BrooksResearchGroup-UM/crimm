@@ -277,7 +277,7 @@ Breaking changes, each with a compatibility shim.
 
 | Item | Size |
 | --- | --- |
-| #96 `CHANGELOG.md` covering everything above, with a migration section for renamed imports and the `viz` extra | S |
+| #96 `CHANGELOG.md` covering everything above, with a migration section for renamed imports and the `viz` extra. The file exists since PR #108 (2026-10-16) with an `Unreleased` section; each pull request with a user-visible change adds its entry, and this item completes it for the release | S |
 | #97 Deprecation schedule stating the release in which each shim is removed | S |
 | #98 Publish to PyPI from CI on a tag, using trusted publishing | S |
 | #99 Update the `Development Status` classifier | S |
