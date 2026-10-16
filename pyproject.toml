@@ -35,6 +35,7 @@ classifiers = [
 protonation = ["propka>=3.5.1"]
 cheminformatics = ["rdkit"]
 all = ["propka>=3.5.1", "rdkit"]
+test = ["pytest>=7"]
 
 [project.urls]
 "Homepage" = "https://github.com/BrooksResearchGroup-UM/crimm"
@@ -42,10 +43,42 @@ all = ["propka>=3.5.1", "rdkit"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# The default run is offline and fast. Select the others explicitly, e.g.
+# `pytest -m network` or `pytest -m "cgenff or slow"`; `pytest -m ""` runs all.
+addopts = "--strict-markers -m 'not network and not pycharmm and not cgenff and not slow and not gpu'"
 markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "network: needs internet access (RCSB, AlphaFold DB)",
+    "pycharmm: needs pyCHARMM and a CHARMM library",
+    "cgenff: needs the cgenff executable (set CRIMM_CGENFF_PATH or put it on PATH)",
+    "slow: takes more than a few seconds",
     "gpu: marks tests that require GPU",
 ]
+
+[tool.ruff]
+# Lint only. `ruff format` is not used yet: it would rewrite most files and needs
+# its own commit (see docs/dev/ROADMAP.md, Phase 0).
+target-version = "py39"
+extend-exclude = ["docs/_build"]
+
+[tool.ruff.lint]
+# F pyflakes, E4/E7/E9 the pycodestyle rules that find real errors (E501 line length is
+# left to a formatter), I import order, B bugbear, UP pyupgrade.
+select = ["F", "E4", "E7", "E9", "I", "B", "UP"]
+ignore = [
+    "B028",  # warnings.warn without stacklevel: 138 calls, fix together
+    "B007",  # unused loop control variable: 13 loops, fix with the refactor phase
+    "E741",  # ambiguous name `l`: 20 uses in the RTF/PRM parsers and TopoDefinitions
+    "UP006", # `typing.List` and friends: modernise with the type-hint work
+    "UP031", # printf-style formatting: 5 calls
+    "UP035", # deprecated typing imports: modernise with the type-hint work
+]
+
+[tool.ruff.lint.per-file-ignores]
+# `__init__.py` imports names to re-export them.
+"__init__.py" = ["F401"]
+# ArcLoopBuilder is unfinished (undefined `topo`, unused results); see ROADMAP 1.4 and
+# handoff Q2. Remove this entry when it is finished or deleted.
+"crimm/Modeller/LoopBuilder.py" = ["F821", "F841"]
 
 [tool.mypy]
 # Only check files explicitly passed; don't follow imports into

@@ -1,6 +1,8 @@
 from collections import namedtuple
+
 import numpy
 from Bio.PDB.MMCIF2Dict import MMCIF2Dict as _MMCIF2Dict
+
 
 class MMCIF2Dict(dict):
     """A dictionary-like object that reads a mmCIF file and stores the data in a dictionary."""
@@ -57,7 +59,7 @@ class MMCIF2Dict(dict):
         for k, v in subdict.items():
             if len(v) != 1:
                 raise ValueError(
-                    'Sub-dict "{}" is not a single value dict'.format(key)
+                    f'Sub-dict "{key}" is not a single value dict'
                 )
             if v[0] is not None: 
                 citation[k] = v[0]

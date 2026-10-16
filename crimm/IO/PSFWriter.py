@@ -13,11 +13,12 @@ Format specification (from CHARMM source io/psfres.F90):
 """
 
 import warnings
-from typing import Union, List, Dict, Tuple, Optional, Any
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 from crimm.StructEntities.Atom import Atom
-from crimm.StructEntities.Residue import Residue
 from crimm.StructEntities.Chain import BaseChain
 from crimm.StructEntities.Model import Model
+from crimm.StructEntities.Residue import Residue
 from crimm.StructEntities.TopoElements import CMap
 from crimm.Utils.StructureUtils import polymer_chain_to_charmm_segid
 

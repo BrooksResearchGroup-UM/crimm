@@ -1,7 +1,9 @@
 import warnings
+
 from openbabel import openbabel as ob
-from crimm.Fetchers import fetch_rcsb_as_dict
+
 from crimm.Data.ptable import PERIODIC_TABLE
+from crimm.Fetchers import fetch_rcsb_as_dict
 
 bond_order_dict = {
     # PDB mmCIF bond type names

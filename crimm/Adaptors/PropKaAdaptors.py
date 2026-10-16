@@ -1,19 +1,19 @@
 """Derived Propka Atom class to facilitate atom class conversion for pKa calculation"""
 import os
-import warnings
 from typing import Optional, Tuple
-from propka.input import read_parameter_file
-from propka.parameters import Parameters
-from propka.version import VersionA
-from propka.lib import protein_precheck
-from propka.molecular_container import MolecularContainer as _MolContnr
+
+from propka.atom import Atom as _ppAtom
 from propka.conformation_container import ConformationContainer
 from propka.hydrogens import setup_bonding_and_protonation
-from propka.atom import Atom as _ppAtom
-from crimm.Modeller import TopologyGenerator
-from crimm.Modeller.TopoFixer import ResidueFixer, fix_chain
+from propka.input import read_parameter_file
+from propka.lib import protein_precheck
+from propka.molecular_container import MolecularContainer as _MolContnr
+from propka.parameters import Parameters
+from propka.version import VersionA
 
 from crimm import Data
+from crimm.Modeller import TopologyGenerator
+from crimm.Modeller.TopoFixer import ResidueFixer
 
 dir_path = os.path.dirname(os.path.realpath(Data.__file__))
 

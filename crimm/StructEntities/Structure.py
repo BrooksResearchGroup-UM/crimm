@@ -1,6 +1,8 @@
 """The structure class, representing a macromolecular structure."""
 import warnings
+
 from Bio.PDB.Structure import Structure as _Structure
+
 
 class Structure(_Structure):
     """The extended Structure class contains a collection of Model instances.
@@ -59,8 +61,9 @@ class Structure(_Structure):
     def _ipython_display_(self):
         if len(self) == 0:
             return
-        from crimm.Visualization import show
         from IPython.display import display
+
+        from crimm.Visualization import show
         display(show(self))
         print(self.expanded_view())
 

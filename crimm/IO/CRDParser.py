@@ -15,14 +15,19 @@ segid. The chain ids are assigned based on the alphabet.
 
 """
 import warnings
-from string import ascii_uppercase
 from collections import namedtuple
+from string import ascii_uppercase
+
 import numpy as np
 from Bio.PDB.PDBExceptions import PDBConstructionWarning
-from crimm.IO.StructureBuilder import StructureBuilder
-from crimm.IO.PDBParser import protein_letters_3to1, nucleic_letters_3to1
+
 from crimm.Data.element_dict import all_element_dict
-from crimm.IO.PDBParser import convert_chains
+from crimm.IO.PDBParser import (
+    convert_chains,
+    nucleic_letters_3to1,
+    protein_letters_3to1,
+)
+from crimm.IO.StructureBuilder import StructureBuilder
 
 crd_entry = namedtuple(
     'crd_entry',
@@ -82,7 +87,7 @@ class CRDParser:
 
     def create_namedtuples(self, filepath):
         """Create a list of namedtuples from the CRD file."""
-        with open(filepath, 'r') as f:
+        with open(filepath) as f:
             lines = [l.rstrip() for l in f.readlines() if not l.startswith('*')]
         entries = []
         for l in lines[1:]:
@@ -107,7 +112,7 @@ class CRDParser:
         # Only one model per structure for crd files
         sb.init_model(1)
         # temporarily set to empty dict
-        # TODO: Implement a header parser
+        # TODO(#73): Implement a header parser
         sb.header = {} 
         cur_segid = None
         cur_resid = None

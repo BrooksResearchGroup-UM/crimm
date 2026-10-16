@@ -1,7 +1,9 @@
 """This module defines the TopoEntity class and its subclasses Bond, Angle, Dihedral, and Improper."""
 from collections import namedtuple
+
 import numpy as np
 from Bio.PDB.Selection import unfold_entities
+
 
 class TopoEntity:
     """A TopoEntity is a base class for Topology entities such as Bonds, Angles, 
@@ -66,7 +68,7 @@ class Bond(TopoEntity, BondTuple):
     bond_order_dict = {'single':1, 'double':2, 'triple':3, 'aromatic':2}
     def __new__(cls, atom1, atom2, bond_type=None, param=None):
         """Create a new Bond. """
-        bond = super(Bond, cls).__new__(cls, atom1, atom2)
+        bond = super().__new__(cls, atom1, atom2)
         bond.type = bond_type
         bond.order = cls.bond_order_dict.get(type)
         bond.param = param
@@ -123,7 +125,7 @@ class Angle(TopoEntity, AngleTuple):
     
     def __new__(cls, atom1, atom2, atom3, param=None):
         """Create a new Entity. """
-        angle = super(Angle, cls).__new__(cls, atom1, atom2, atom3)
+        angle = super().__new__(cls, atom1, atom2, atom3)
         angle.param = param
         angle.full_id = angle._create_full_id()
         angle.atom_types = angle.get_atom_types()
@@ -173,7 +175,7 @@ class Dihedral(TopoEntity, DiheTuple):
 
     def __new__(cls, atom_i, atom_j, atom_k, atom_l, param=None):
         """Create a new Entity. """
-        dihedral = super(Dihedral, cls).__new__(cls, atom_i, atom_j, atom_k, atom_l)
+        dihedral = super().__new__(cls, atom_i, atom_j, atom_k, atom_l)
         dihedral.param = param
         dihedral.full_id = dihedral._create_full_id()
         dihedral.atom_types = dihedral.get_atom_types()
@@ -187,7 +189,7 @@ class Dihedral(TopoEntity, DiheTuple):
         s += ">"
         return s
 
-    ## TODO: implement dihedral angle calculation
+    ## TODO(#53): implement dihedral angle calculation
     @property
     def angle(self):
         """return the current dihedral in degrees"""
@@ -211,7 +213,7 @@ class Improper(TopoEntity, ImprTuple):
 
     def __new__(cls, atom_i, atom_j, atom_k, atom_l, param=None):
         """Create a new Entity. """
-        improper = super(Improper, cls).__new__(cls, atom_i, atom_j, atom_k, atom_l)
+        improper = super().__new__(cls, atom_i, atom_j, atom_k, atom_l)
         improper.param = param
         improper.full_id = improper._create_full_id()
         improper.atom_types = improper.get_atom_types()
@@ -239,7 +241,7 @@ class CMap(TopoEntity, CmapTuple):
 
     def __new__(cls, dihe1, dihe2, param=None):
         """Create a new Entity. """
-        cmap = super(CMap, cls).__new__(cls, dihe1, dihe2)
+        cmap = super().__new__(cls, dihe1, dihe2)
         cmap.param = param
         cmap.full_id = sorted((dihe1.full_id, dihe2.full_id))
         return cmap

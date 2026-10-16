@@ -1,6 +1,7 @@
 import numpy as np
 from Bio.Data.IUPACData import atom_weights
-from crimm.StructEntities.TopoElements import Bond, Angle, Dihedral, Improper
+
+from crimm.StructEntities.TopoElements import Angle, Bond, Dihedral, Improper
 
 bond_type_dict = {
     1: 'single',
@@ -132,8 +133,9 @@ class CustomFFTProbe:
         """Return the nglview interactive visualization window"""
         if len(self) == 0:
             return
-        from crimm.Visualization import show_nglview
         from IPython.display import display
+
+        from crimm.Visualization import show_nglview
         display(show_nglview(self))
         print(repr(self))
 
@@ -238,8 +240,9 @@ class _Probe:
         """Return the nglview interactive visualization window"""
         if len(self) == 0:
             return
-        from crimm.Visualization import show_nglview
         from IPython.display import display
+
+        from crimm.Visualization import show_nglview
         display(show_nglview(self))
         print(repr(self))
 

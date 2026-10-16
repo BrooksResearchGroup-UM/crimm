@@ -1,26 +1,25 @@
 import os
-import warnings
 import subprocess
+import warnings
+from copy import copy, deepcopy
 from typing import List, Tuple
-from copy import deepcopy, copy
-import numpy as np
-from Bio.Data.PDBData import protein_letters_3to1_extended
-from Bio.Data.PDBData import protein_letters_1to3
 
-from crimm.StructEntities.Model import Model
-from crimm.StructEntities.Chain import PolymerChain, Chain
-from crimm.StructEntities.Residue import Residue, Heterogen, DisorderedResidue
-from crimm.StructEntities.Atom import Atom
-from crimm.StructEntities.TopoElements import Bond, Angle, Dihedral, Improper
-from crimm.StructEntities.TopoDefinitions import PatchDefinition, ResidueDefinition
-from crimm.StructEntities.OrganizedModel import OrganizedModel
+import numpy as np
+from Bio.Data.PDBData import protein_letters_1to3, protein_letters_3to1_extended
+
+from crimm.Adaptors.RDKitConverter import MolToMol2Block, RDKitHetConverter
+from crimm.Data.cgenff_mass_dict import CGENFF_MASS_TABLE
 from crimm.IO.PRMParser import categorize_lines, parse_line_dict
 from crimm.IO.RTFParser import RTFParser
 from crimm.Modeller import ResidueFixer
 from crimm.Modeller.TopoFixer import fix_chain
-from crimm.Data.cgenff_mass_dict import CGENFF_MASS_TABLE
-
-from crimm.Adaptors.RDKitConverter import RDKitHetConverter, MolToMol2Block
+from crimm.StructEntities.Atom import Atom
+from crimm.StructEntities.Chain import Chain, PolymerChain
+from crimm.StructEntities.Model import Model
+from crimm.StructEntities.OrganizedModel import OrganizedModel
+from crimm.StructEntities.Residue import DisorderedResidue, Heterogen, Residue
+from crimm.StructEntities.TopoDefinitions import PatchDefinition, ResidueDefinition
+from crimm.StructEntities.TopoElements import Angle, Bond, Dihedral, Improper
 
 toppar_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../Data/toppar"))
 
@@ -556,7 +555,7 @@ class DisulfideTopology:
                 # Remove HG1 from both residues if present
                 self._remove_CYS_HG1(res1)
                 self._remove_CYS_HG1(res2)
-                ## TODO: implement full DISU patching using patch definition
+                ## TODO(#87): implement full DISU patching using patch definition
                 ## and update atom topo_definition automatically when patching
                 cys_def = patcher.patch_disulfide(
                     res1.topo_definition, res2.topo_definition
@@ -737,7 +736,7 @@ class ChainTopology(BaseTopology):
             if len(atom.neighbors) > 0:
                 return atom
 
-    ## TODO: get Cmap from the topology rtf file
+    ## TODO(#87): get Cmap from the topology rtf file
     def find_topo_elements(self, chain: Chain):
         """Find all topology elements in the chain"""
         if chain.undefined_res:
@@ -798,7 +797,7 @@ class ParameterLoader:
         if entity_type not in prm_path_dict:
             raise ValueError(f"No parameter file for {entity_type}")
         filename = prm_path_dict[entity_type]
-        with open(filename, "r", encoding="utf-8") as f:
+        with open(filename, encoding="utf-8") as f:
             self._raw_data_strings = [
                 line.rstrip()
                 for line in f.readlines()  # if not skip_line(line)
@@ -944,7 +943,7 @@ class ParameterLoader:
             elif atom in residue_definition.removed_atom_dict:
                 atom_type = residue_definition.removed_atom_dict[atom].atom_type
             elif atom == "BLNK":
-                ## TODO: use logging to log this
+                ## TODO(#77): use logging to log this
                 return None  # ic containing BLNK atom should be ignored
             else:
                 raise ValueError(
@@ -1136,12 +1135,12 @@ class CGENFFTopologyLoader:
         if self.save_path is None:
             self.save_path = os.getcwd()
 
-    ## TODO: parse parameters from the toppar block as well
+    ## TODO(#87): parse parameters from the toppar block as well
     def _get_cgenff_topology(self, input_mol2_block, resname, ligand_toppar_file=None):
         """Load mol2 block and generate topology definition."""
 
         if ligand_toppar_file is not None:
-            with open(ligand_toppar_file, "r", encoding="utf-8") as f:
+            with open(ligand_toppar_file, encoding="utf-8") as f:
                 toppar_block = f.read()
         else:
             toppar_block = execute_cgenff(self.cgenff_path, input_mol2_block)
@@ -1208,7 +1207,7 @@ class CGENFFTopologyLoader:
 
         build_lonepair_coords(lig_res)
 
-    ## TODO: need to find topology element from rtf. Currently only add
+    ## TODO(#87): need to find topology element from rtf. Currently only add
     ## topology definition to the atom
     def generate(self, lig_res: Heterogen, ligand_toppar_file=None):
         """Generate topology definition for the ligand residue using cgenff.
@@ -1582,7 +1581,7 @@ class TopologyGenerator:
         Return:
             True if the residue is a known modified residue and is successfully coerced
             False otherwise"""
-        ## TODO: add examples to the docstring
+        ## TODO(#70): add examples to the docstring
         if residue.resname not in protein_letters_3to1_extended:
             return False
         # if the residue is a known modified residue,
@@ -2453,7 +2452,7 @@ class TopologyGenerator:
         return written_files
 
 
-##TODO: Rewrite TopoDef and this class to use the Topology instead
+##TODO(#87): Rewrite TopoDef and this class to use the Topology instead
 ## of removing entries one by one here
 class ResiduePatcher:
     """Class Object for patching a residue with a patch definition"""

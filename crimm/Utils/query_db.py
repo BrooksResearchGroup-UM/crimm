@@ -1,6 +1,8 @@
 import warnings
-import requests
+
 import pandas as pd
+import requests
+
 
 def uniprot_id_query(pdbid, entity_id, proxies=None):
     """Query wth the RCSB PDB API for uniprot id for a given pdb id and 

@@ -1,8 +1,9 @@
 import warnings
-from string import ascii_uppercase, ascii_lowercase, digits
+from string import ascii_lowercase, ascii_uppercase, digits
 
 # Allowed Elements
 from Bio.Data.IUPACData import atom_weights
+
 from crimm.StructEntities.Atom import Atom
 
 _ATOM_FORMAT_STRING = (
@@ -248,7 +249,7 @@ def _get_atom_line(
         )
     return format_string % args
 
-##TODO: Add support for CONECT records
+##TODO(#71): Add support for CONECT records
 def get_pdb_str(
         entity, reset_serial=True,
         include_alt=False, trunc_resname=False, 

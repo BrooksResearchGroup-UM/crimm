@@ -30,18 +30,21 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import json
 import warnings
-import requests, json
-from crimm.Fetchers import fetch_rcsb_as_dict
-from crimm.IO.PDBString import get_pdb_str
-from crimm.StructEntities.Atom import Atom
-from crimm.StructEntities.Residue import Heterogen
+
 import numpy as np
+import requests
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit.Chem import BondType as rdBond
 from rdkit.Geometry import Point3D
-from crimm.Data.components_dict import TRANSITION_METALS, ALL_METALS
+
+from crimm.Data.components_dict import ALL_METALS, TRANSITION_METALS
+from crimm.Fetchers import fetch_rcsb_as_dict
+from crimm.IO.PDBString import get_pdb_str
+from crimm.StructEntities.Atom import Atom
+from crimm.StructEntities.Residue import Heterogen
 
 bond_order_dict = {
     # PDB mmCIF bond type names
@@ -472,7 +475,6 @@ class RDKitHetConverter:
             pdb_info = self._create_rdkit_PDBinfo(atom.name, atom.altloc)
             rd_atom.SetPDBResidueInfo(pdb_info)
             charge = self.element_dict[atom.name][2]
-            element = self.element_dict[atom.name][1].capitalize()
             rd_atom.SetFormalCharge(charge)
             atom_idx = self._edmol.AddAtom(rd_atom)
             self._rd_atoms[atom.name] = atom_idx

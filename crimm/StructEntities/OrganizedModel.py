@@ -1,20 +1,36 @@
 import warnings
 from copy import copy
-import requests
+
 import pandas as pd
+import requests
 from Bio.PDB.Selection import unfold_entities
+
 # Nucleoside phosphates and phosphonates
 from crimm.Data.components_dict import (
-    NUCLEOSIDE_PHOS, PDB_CHARMM_ION_NAMES, CHARMM_PDB_ION_NAMES, COMMON_COSOLVENTS
+    CHARMM_PDB_ION_NAMES,
+    COMMON_COSOLVENTS,
+    NUCLEOSIDE_PHOS,
+    PDB_CHARMM_ION_NAMES,
 )
 from crimm.Utils.query_db import query_drugbank_info
 from crimm.Utils.StructureUtils import index_to_letters, letters_to_index
-from .Model import Model
+
 from .Chain import (
-    PolymerChain, Heterogens, Solvent, CoSolvent, Ion,
-    Glycosylation, NucleosidePhosphate, Chain, Ligand, Oligosaccharide, Macrolide
+    Chain,
+    CoSolvent,
+    Glycosylation,
+    Heterogens,
+    Ion,
+    Ligand,
+    Macrolide,
+    NucleosidePhosphate,
+    Oligosaccharide,
+    PolymerChain,
+    Solvent,
 )
+from .Model import Model
 from .Residue import Residue
+
 
 class OrganizedModel(Model):
     """The OrganizedModel class represents a model in a structure with a specific 
@@ -488,8 +504,9 @@ class OrganizedModel(Model):
 
     def _ipython_display_(self):
         if len(self) != 0:
-            from crimm.Visualization import show
             from IPython.display import display
+
+            from crimm.Visualization import show
             display(show(self))
         print(self.expanded_view())
         

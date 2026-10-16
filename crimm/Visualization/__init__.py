@@ -1,6 +1,11 @@
 from .NGLVisualization import (
-    show_nglview, show_nglview_multiple, show_nglview_residue,
-    View as NGLView, NGLStructure,
+    NGLStructure,
+    show_nglview,
+    show_nglview_multiple,
+    show_nglview_residue,
+)
+from .NGLVisualization import (
+    View as NGLView,
 )
 
 _BACKENDS = ('ngl', 'py3dmol')

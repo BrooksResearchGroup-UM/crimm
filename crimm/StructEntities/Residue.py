@@ -1,9 +1,12 @@
 import warnings
+
 import numpy as np
-from Bio.PDB.Residue import Residue as _Residue
 from Bio.PDB.Entity import Entity
 from Bio.PDB.Residue import DisorderedResidue as _DisorderedResidue
+from Bio.PDB.Residue import Residue as _Residue
+
 from crimm.StructEntities.TopoElements import Bond
+
 
 class Residue(_Residue):
     """Residue class derived from Biopython Residue and made compatible with
@@ -116,8 +119,9 @@ class Residue(_Residue):
     def _ipython_display_(self):
         if len(self) == 0:
             return
-        from crimm.Visualization import show_residue
         from IPython.display import display
+
+        from crimm.Visualization import show_residue
         display(show_residue(self))
         print(repr(self))
 

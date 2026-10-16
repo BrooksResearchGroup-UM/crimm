@@ -1,13 +1,17 @@
-import warnings
 import pathlib
-from Bio.PDB.PDBParser import PDBParser as _PDBParser
+import warnings
+
 from Bio.Data.PDBData import (
-    protein_letters_3to1, protein_letters_3to1_extended,
-    nucleic_letters_3to1, nucleic_letters_3to1_extended
+    nucleic_letters_3to1,
+    nucleic_letters_3to1_extended,
+    protein_letters_3to1,
+    protein_letters_3to1_extended,
 )
-from crimm.IO.StructureBuilder import StructureBuilder
-from crimm.StructEntities.Chain import Solvent, Heterogens, PolymerChain, Chain, Ion
+from Bio.PDB.PDBParser import PDBParser as _PDBParser
+
 from crimm.Data.components_dict import CHARMM_PDB_ION_NAMES
+from crimm.IO.StructureBuilder import StructureBuilder
+from crimm.StructEntities.Chain import Chain, Heterogens, Ion, PolymerChain, Solvent
 from crimm.Utils.StructureUtils import index_to_letters
 
 protein_letters_3to1.update({'HSD': 'H', 'HSE': 'H', 'HSP': 'H'})
