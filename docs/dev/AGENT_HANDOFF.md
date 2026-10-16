@@ -240,13 +240,13 @@ github:
   branch_protection: "master: all-green required (strict false), 1 approving review, force pushes disallowed, deletions disallowed, admins not enforced [ran 2026-10-12, gh api; set by the owner]"
   pull_requests: "#108 cleanup/phase0-tests-and-dev-docs into master, marked ready for review
                   2026-10-16 after CI was green on the commit carrying this State; reviewer
-                  stanislc requested by the owner. Body updated 2026-10-16: closes #57 too,
+                  stanislc requested and messaged by the owner [told 2026-10-16]. Body updated 2026-10-16: closes #57 too,
                   checklist complete (import item: no new import, #58 fixes the old ones;
                   docstrings n/a; CHANGELOG.md created). Earlier: (Closes #40, #41, #42; per-commit list; MERGE WITH A MERGE COMMIT,
                   not squash, because of .git-blame-ignore-revs). CI on e976f0b: all 9 cells
                   green, every cell's pytest line read 2026-10-14. CI on 3132e52 (run 38592786917):
                   all 9 cells green; each cell's NumPy matches its name (py3.12 numpy<2 now
-                  1.26.4, 134 passed, 12 xfailed) [ran 2026-10-14]. Latest green run: 871aa9f.
+                  1.26.4, 134 passed, 12 xfailed) [ran 2026-10-14]. Latest green run: ecaa39b (run 38963881849, all 11 checks) [ran 2026-10-16].
                   GitHub links #40-#42."
 owner_reminders:                   # tell the owner at the start of the next session
   - "Reminders for private downstream projects (hotfix #59): CLAUDE.local.md"
@@ -337,8 +337,13 @@ Newest first. Append only. Template:
   issue; `-m pycharmm` 8 passed, 2 xfailed; `ruff check crimm tests` clean.
 - not verified: #39 design (no code yet); whether crimm's built hydrogen coordinates are
   identical to 10 decimals across the CI matrix (the design measures it first).
+- wrap-up (same day): CI green on `ecaa39b` (run 38963881849) before `gh pr ready` `[ran]`; the
+  owner messaged Stan for the review `[told]`. Commented on #46 and #112 (their fixes add the
+  3PTB and 1CRN PSF golden files); #96 description now says the file exists. Nothing
+  unpushed.
 - claims: none held.
-- next: State `roadmap_next`.
+- next: State `roadmap_next`; first, after #108 merges, rebase
+  `feat/coordmanipulator-find-max-dim` (owner_reminders).
 
 ### 2026-10-14 claude-opus/claude-code/charmm-build
 
