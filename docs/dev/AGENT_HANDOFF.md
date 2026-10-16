@@ -7,7 +7,7 @@ humans read it second.
 schema: agent-handoff/1
 repo: github.com/BrooksResearchGroup-UM/crimm
 default_branch: master
-last_updated: 2026-10-14
+last_updated: 2026-10-16
 ```
 
 ## 0. Protocol
@@ -198,7 +198,7 @@ Things that cost a previous agent time or would produce wrong results silently.
 
 ## 5. State
 
-Rewrite in place. True as of `2026-10-14`.
+Rewrite in place. True as of `2026-10-16`.
 
 ```yaml
 branches:                          # local master = origin/master = cf51387 (fast-forwarded 2026-10-14)
@@ -222,10 +222,10 @@ branches:                          # local master = origin/master = cf51387 (fas
   minimizer:                       # owner's, local only, 2477c3b (2026-05-14), based on 829cd10.
                                    # Prototype of the Phase 6 minimizer (crimm/Potentials.py);
                                    # starting point of #113. Keep until #113 has ported it.
-  solvator-coor-orient-options:    # old working branch; still points at fa7338a.
-                                   # Redundant now. Owner decides whether to delete it.
   # deleted 2026-10-14 at the owner's request (local only, unmerged): cleanup-wip 5c07b28,
   # remove 6ff13f8. Restore with `git branch <name> <sha>` while the objects exist.
+  # deleted 2026-10-16 at the owner's request: solvator-coor-orient-options fa7338a
+  # (contained in the cleanup branch, so `git branch -d` accepted it).
 env: "crimm-dev from environment-dev.yml, plus pycharmm and CHARMM_LIB_DIR (section 3).
       Account-specific install details: CLAUDE.local.md"
 uncommitted_owner_work: none
@@ -238,8 +238,11 @@ github:
            #109 to #111 (ruff follow-ups, Phase 0), #112 (disulfide dihedrals, Phase 1),
            #113 to #115 (minimizer, Phase 6, new milestone)"
   branch_protection: "master: all-green required (strict false), 1 approving review, force pushes disallowed, deletions disallowed, admins not enforced [ran 2026-10-12, gh api; set by the owner]"
-  pull_requests: "#108 draft, cleanup/phase0-tests-and-dev-docs into master. Body updated
-                  2026-10-14 (Closes #40, #41, #42; per-commit list; MERGE WITH A MERGE COMMIT,
+  pull_requests: "#108 cleanup/phase0-tests-and-dev-docs into master, marked ready for review
+                  2026-10-16 after CI was green on the commit carrying this State; reviewer
+                  stanislc requested by the owner. Body updated 2026-10-16: closes #57 too,
+                  checklist complete (import item: no new import, #58 fixes the old ones;
+                  docstrings n/a; CHANGELOG.md created). Earlier: (Closes #40, #41, #42; per-commit list; MERGE WITH A MERGE COMMIT,
                   not squash, because of .git-blame-ignore-revs). CI on e976f0b: all 9 cells
                   green, every cell's pytest line read 2026-10-14. CI on 3132e52 (run 38592786917):
                   all 9 cells green; each cell's NumPy matches its name (py3.12 numpy<2 now
@@ -247,9 +250,9 @@ github:
                   GitHub links #40-#42."
 owner_reminders:                   # tell the owner at the start of the next session
   - "Reminders for private downstream projects (hotfix #59): CLAUDE.local.md"
-  - "Merge #108 with a merge commit (not squash)"
+  - "Merge #108 with a merge commit (not squash), after Stan approves"
   - "feat/coordmanipulator-find-max-dim will conflict with the format of Stan's files; rebase it"
-test_suite: {passed: 136, xfailed: 15, deselected: 13, date: 2026-10-14}   # offline default run
+test_suite: {passed: 136, xfailed: 15, deselected: 13, date: 2026-10-16}   # offline default run
 test_suite_pycharmm: {passed: 8, xfailed: 2, date: 2026-10-14}   # pytest -m pycharmm in crimm-dev
 roadmap_done:
   - "Phase 0: offline pytest suite, markers, benchmark move, ruff (lint only), CI workflow"
@@ -257,13 +260,18 @@ roadmap_done:
   - "Phase 0: Stan's files linted and formatted (2026-10-14)"
   - "Phase 0: #107 CHARMM build, pyCHARMM in crimm-dev, tests/test_pycharmm.py (2026-10-14);
      open in #107: how a maintainer runs them before a release"
+  - "Phase 0: every xfail reason starts with its issue number; CHANGELOG.md with an
+     Unreleased section (2026-10-16)"
 roadmap_next:
-  - "#112 disulfide dihedrals (topology, owner's area); its xfails are in test_topology.py and
-     test_pycharmm.py"
-  - "Issue numbers in the xfail reasons (11 reasons, none numbered)"
-  - "Mark #108 ready for review once Stan has seen it"
-  - "Phase 0: golden-file tests for PSF and CRD (#39; Q1 first)"
-  - "Later, own release: Phase 6 minimizer (#113 to #115), after #53 and #112"
+  - "Merge #108 once Stan approves (merge commit)"
+  - "Phase 0: #39 golden-file tests; design in the issue (comment 2026-10-16). DNA is
+     excluded until #45, so Q1 does not block it"
+  - "Phase 0: #109 to #111 ruff follow-ups"
+  - "Next code change: #58 (ROADMAP 1.5, optional imports), the first Phase 1 PR; it ends
+     by deleting import-fix.md"
+  - "Later, owner's choice 2026-10-16 [told]: #112 disulfide dihedrals (owner's area; xfails in
+     test_topology.py and test_pycharmm.py); Phase 6 minimizer (#113 to #115), planned in
+     detail only when it starts"
 library_code_changed_by_agents: "2026-10-12 and 2026-10-14, behaviour-neutral only: lint fixes
   (2026-10-12; 2026-10-14 in Stan's files), ruff format of Stan's three files, TODO comment
   text. Suite unchanged."
@@ -308,6 +316,29 @@ Newest first. Append only. Template:
 - found:
 - next:
 ```
+
+### 2026-10-16 claude-opus/claude-code/pr108-wrapup
+
+- asked: wrap up PR #108 and give a clear picture of the next stage; delete
+  `solvator-coor-orient-options`; number the xfail reasons; decide the three unchecked PR
+  checklist items; describe how #39 golden files would work. #112 and the minimizer later.
+- did: deleted the branch (`git branch -d`, fa7338a is in the cleanup branch). `f0a3220`: 11
+  xfail reasons start with `#N:` (#43 to #53). `73becef`: `CHANGELOG.md` (Keep a Changelog,
+  `Unreleased`, one entry: the `test` extra); ROADMAP #96 now completes it instead of
+  creating it. Docs commit: ROADMAP rows for xfail numbering and #57, this State. PR #108:
+  body updated (closes #57; checklist ticked with reasons), marked ready after green CI.
+  Posted the #39 design as a comment on the issue.
+- decided `[told]`: checklist items are conditions on what a PR changes, not repo-wide tasks.
+  Docstrings stay with #83 (Phase 3), the full changelog with #96 (Phase 5), optional imports
+  with #58 (next PR).
+- found `[ran]`: #57 is done. `ruff check --select F401,F841 --isolated crimm` finds only
+  `__init__.py` re-exports and `LoopBuilder.py:712-713` (#50).
+- verified `[ran]`: offline 136 passed, 15 xfailed, 13 deselected, each XFAIL line shows its
+  issue; `-m pycharmm` 8 passed, 2 xfailed; `ruff check crimm tests` clean.
+- not verified: #39 design (no code yet); whether crimm's built hydrogen coordinates are
+  identical to 10 decimals across the CI matrix (the design measures it first).
+- claims: none held.
+- next: State `roadmap_next`.
 
 ### 2026-10-14 claude-opus/claude-code/charmm-build
 
