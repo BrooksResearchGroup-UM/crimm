@@ -1,0 +1,11 @@
+# Commits that only lint or reformat code. `git blame` skips them, so each line keeps the
+# author who wrote it. GitHub reads this file automatically; locally run once:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# A pull request that adds a commit here must be merged with a merge commit, not squashed
+# or rebased: both rewrite the commit, and the SHA listed here would not exist on master.
+
+# Lint Solvator, CrystalSDF and CoordManipulator
+2b019d3e59c3471745426cd066af8e0d1108f576
+# Format Solvator, CrystalSDF and CoordManipulator with ruff format
+85640ad4245995ca9b0eaac5f5ca642384ee6cd0

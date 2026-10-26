@@ -1,5 +1,4 @@
 # Description: Check if CUDA is available on the system
-# -*- coding: utf-8 -*-
 
 """
 Outputs some information on CUDA-enabled devices on your computer,
@@ -13,8 +12,8 @@ Author: Jan Schlüter, Ziqiao "Truman" Xu (徐梓乔)
 License: MIT (https://gist.github.com/f0k/63a664160d016a491b2cbea15913d549#gistcomment-3870498)
 """
 
-import sys
 import ctypes
+import sys
 import warnings
 
 # Some constants taken from cuda.h

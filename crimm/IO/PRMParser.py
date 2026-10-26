@@ -1,4 +1,5 @@
 from collections import namedtuple
+
 from crimm.IO.RTFParser import comment_parser, skip_line
 
 bond_par = namedtuple('bond_param',['kb', 'b0'])

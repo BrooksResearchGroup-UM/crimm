@@ -1,8 +1,10 @@
 import warnings
 from collections import OrderedDict
+
 import numpy as np
 import numpy.linalg as LA
 from scipy.spatial.transform import Rotation as R
+
 
 def sep_by_priorities(atom_list):
     # Create a 2-tier priotity list to separate

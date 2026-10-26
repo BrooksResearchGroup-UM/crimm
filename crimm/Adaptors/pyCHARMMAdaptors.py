@@ -1,24 +1,22 @@
 import tempfile
 import warnings
-import numpy as np
 from pathlib import Path
 
+import numpy as np
 import pycharmm as pcm
-from pycharmm import read, psf, coor
-from pycharmm import generate
 import pycharmm.settings as pcm_settings
-from pycharmm import ic, cons_harm, cons_fix
-from pycharmm import energy
+from Bio.PDB.Selection import unfold_entities
+from pycharmm import cons_fix, cons_harm, coor, energy, generate, ic, psf, read
 from pycharmm import minimize as _minimize
 from pycharmm.generate import patch as charmm_patch
-from pycharmm.psf import get_natom, delete_atoms
-from Bio.PDB.Selection import unfold_entities
+from pycharmm.psf import delete_atoms, get_natom
+
+from crimm.Data.components_dict import nucleic_letters_1to3
+from crimm.IO import write_crd, write_psf
 from crimm.IO.PDBString import get_pdb_str
-from crimm.IO import write_psf, write_crd
 from crimm.IO.PSFWriter import validate_psf
 from crimm.Modeller.LonePairBuilder import build_lonepair_coords
 from crimm.Modeller.TopoFixer import fix_chain
-from crimm.Data.components_dict import nucleic_letters_1to3
 from crimm.Utils.StructureUtils import polymer_chain_to_charmm_segid
 
 # We need to set this global variable to keep track of which topology types have been loaded into CHARMM
@@ -216,7 +214,7 @@ def load_solvent_toppar():
     """Load default solvent model (TIP3 water + ions) into pyCHARMM."""
     abs_path = Path(__file__).resolve().parent.parent
     abs_path = abs_path / "Data/toppar/water_ions.str"
-    with open(abs_path, 'r', encoding='utf-8') as f:
+    with open(abs_path, encoding='utf-8') as f:
         with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
             tf.write('* WATER ION TOPPAR Loaded from crimm\n')
             for line in f.readlines():
@@ -230,7 +228,7 @@ def load_cgenff_toppar():
     abs_path = Path(__file__).resolve().parent.parent
     rtf_abs_path = abs_path / "Data/toppar/cgenff.rtf"
     prm_abs_path = abs_path / "Data/toppar/cgenff.prm"
-    with open(rtf_abs_path, 'r', encoding='utf-8') as f:
+    with open(rtf_abs_path, encoding='utf-8') as f:
         with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
             tf.write('* CGENFF RTF Loaded from crimm\n')
             tf.write(f.read())
@@ -238,7 +236,7 @@ def load_cgenff_toppar():
             read.rtf(tf.name, append = True)
 
     pcm_settings.set_bomb_level(-1)
-    with open(prm_abs_path, 'r', encoding='utf-8') as f:
+    with open(prm_abs_path, encoding='utf-8') as f:
         with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
             tf.write('* CGENFF PRM Loaded from crimm\n')
             tf.write(f.read())
@@ -748,15 +746,15 @@ def get_charmm_coord_dict(selected_atoms, include_resname = True):
     segids = selected_atoms.get_seg_ids()
 
     coords_dict = {}
-    for segid, resseq, resname, a_name, coords in zip(
+    for segid, res_id, resname, a_name, coords in zip(
         segids, resseq, resnames, a_types, atom_pos
     ):
         if segid not in coords_dict:
             coords_dict[segid] = {}
         if not include_resname:
-            coords_dict[segid][(resseq, a_name)] = coords
+            coords_dict[segid][(res_id, a_name)] = coords
         else:
-            coords_dict[segid][(resname, resseq, a_name)] = coords
+            coords_dict[segid][(resname, res_id, a_name)] = coords
     return coords_dict
 
 def get_missing_water_h_dict(model):

@@ -1,4 +1,5 @@
 from importlib.util import find_spec
+
 if find_spec("py3Dmol") is None:
     raise ImportError(
         "py3Dmol not found! Install py3Dmol to show structures."
@@ -6,8 +7,10 @@ if find_spec("py3Dmol") is None:
     )
 
 import warnings
+
 import py3Dmol
 from Bio.PDB.Selection import unfold_entities
+
 from crimm.IO.PDBString import get_pdb_str
 from crimm.StructEntities.Chain import PolymerChain
 

@@ -1,12 +1,17 @@
 import warnings
-from typing import List, Tuple, Dict
-from Bio.Seq import Seq
+from typing import Dict, List, Tuple
+
+from Bio.Data.PDBData import (
+    nucleic_letters_3to1_extended,
+    protein_letters_3to1_extended,
+)
 from Bio.PDB import PPBuilder
-from Bio.Data.PDBData import protein_letters_3to1_extended
-from Bio.Data.PDBData import nucleic_letters_3to1_extended
 from Bio.PDB.Chain import Chain as _Chain
 from Bio.PDB.PDBExceptions import PDBConstructionException
+from Bio.Seq import Seq
+
 from crimm.StructEntities.Residue import DisorderedResidue
+
 
 class BaseChain(_Chain):
     """Base class derived from and Biopython chain object and compatible with
@@ -125,7 +130,7 @@ class BaseChain(_Chain):
             atom.set_serial_number(i)
             i+=1
 
-    ## TODO: move this to the structure builder
+    ## TODO(#69): move this to the structure builder
     def _disordered_reset_residue(self, disordered_residue):
         for resname, child_residue in disordered_residue.child_dict.items():
             if child_residue.id == disordered_residue.id:
@@ -164,8 +169,9 @@ class BaseChain(_Chain):
     
     def _ipython_display_(self):
         if len(self) != 0:
-            from crimm.Visualization import show
             from IPython.display import display
+
+            from crimm.Visualization import show
             display(show(self))
         print(self.expanded_view())
 
@@ -189,7 +195,7 @@ class Chain(BaseChain):
     General/Unspecified Chain object based on Biopython Chain
     """
     chain_type = 'Chain'
-    ## TODO: Implement hetflag check for florescence proteins (chromophore residues)
+    ## TODO(#76): Implement hetflag check for florescence proteins (chromophore residues)
     def __init__(self, chain_id: str):
         super().__init__(chain_id)
         self._ppb = PPBuilder()

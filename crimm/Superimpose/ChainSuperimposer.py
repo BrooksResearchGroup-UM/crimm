@@ -1,12 +1,15 @@
 
 import warnings
+
 import numpy as np
 from Bio.Align import PairwiseAligner
 from Bio.PDB import Superimposer
+
 from crimm.StructEntities.Chain import PolymerChain
 from crimm.Visualization.NGLVisualization import show_nglview_multiple
 
-##TODO: Refactor this!! Add examples to docstrings
+
+##TODO(#70): Refactor this!! Add examples to docstrings
 class ChainSuperimposer(Superimposer):
     """Superimpose two chains using their canonical sequences if available
     or align them first to find the common segments. The superposition can be
@@ -203,7 +206,7 @@ class ChainSuperimposer(Superimposer):
         assumed on both chains, and the reference chain gap locations will be applied
         on the move chain 
         """
-        ## TODO: add options for on_atoms
+        ## TODO(#72): add options for on_atoms
 
         self._check_chain_type(ref_chain)
         self._check_chain_type(mov_chain)

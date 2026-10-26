@@ -15,8 +15,9 @@ M. P. Allen and D. J. Tildesley, Computer Simulation of Liquids, Ch. 1.
 """
 
 import math
-import numpy as np
 from typing import Tuple
+
+import numpy as np
 
 # Constants
 SQRT2 = math.sqrt(2.0)
@@ -78,7 +79,7 @@ def sdf_truncated_octahedron(point: np.ndarray, box_dim: float) -> float:
         (abs(x + y + z) - box_dim) / SQRT3,
         (abs(x + y - z) - box_dim) / SQRT3,
         (abs(x - y + z) - box_dim) / SQRT3,
-        (abs(x - y - z) - box_dim) / SQRT3
+        (abs(x - y - z) - box_dim) / SQRT3,
     )
 
     return max(dist_square, dist_hex)
@@ -214,6 +215,7 @@ def sdf_hexagonal(point: np.ndarray, a: float, c: float) -> float:
 
 # Vectorized versions for batch processing
 
+
 def sdf_cube_batch(points: np.ndarray, box_dim: float) -> np.ndarray:
     """Vectorized SDF for cubic box.
 
@@ -231,11 +233,9 @@ def sdf_cube_batch(points: np.ndarray, box_dim: float) -> np.ndarray:
     """
     half = box_dim / 2.0
     abs_points = np.abs(points)
-    return np.maximum.reduce([
-        abs_points[:, 0] - half,
-        abs_points[:, 1] - half,
-        abs_points[:, 2] - half
-    ])
+    return np.maximum.reduce(
+        [abs_points[:, 0] - half, abs_points[:, 1] - half, abs_points[:, 2] - half]
+    )
 
 
 def sdf_truncated_octahedron_batch(points: np.ndarray, box_dim: float) -> np.ndarray:
@@ -258,12 +258,14 @@ def sdf_truncated_octahedron_batch(points: np.ndarray, box_dim: float) -> np.nda
     d = box_dim / SQRT3
     dist_square = np.maximum.reduce([np.abs(x) - d, np.abs(y) - d, np.abs(z) - d])
 
-    dist_hex = np.maximum.reduce([
-        (np.abs(x + y + z) - box_dim) / SQRT3,
-        (np.abs(x + y - z) - box_dim) / SQRT3,
-        (np.abs(x - y + z) - box_dim) / SQRT3,
-        (np.abs(x - y - z) - box_dim) / SQRT3
-    ])
+    dist_hex = np.maximum.reduce(
+        [
+            (np.abs(x + y + z) - box_dim) / SQRT3,
+            (np.abs(x + y - z) - box_dim) / SQRT3,
+            (np.abs(x - y + z) - box_dim) / SQRT3,
+            (np.abs(x - y - z) - box_dim) / SQRT3,
+        ]
+    )
 
     return np.maximum(dist_square, dist_hex)
 
@@ -286,17 +288,21 @@ def sdf_rhombic_dodecahedron_batch(points: np.ndarray, box_dim: float) -> np.nda
     x, y, z = points[:, 0], points[:, 1], points[:, 2]
     half = box_dim / 2.0
 
-    return np.maximum.reduce([
-        np.abs(x + y) / SQRT2 - half,
-        np.abs(x - y) / SQRT2 - half,
-        np.abs(y + z) / SQRT2 - half,
-        np.abs(y - z) / SQRT2 - half,
-        np.abs(z + x) / SQRT2 - half,
-        np.abs(z - x) / SQRT2 - half,
-    ])
+    return np.maximum.reduce(
+        [
+            np.abs(x + y) / SQRT2 - half,
+            np.abs(x - y) / SQRT2 - half,
+            np.abs(y + z) / SQRT2 - half,
+            np.abs(y - z) / SQRT2 - half,
+            np.abs(z + x) / SQRT2 - half,
+            np.abs(z - x) / SQRT2 - half,
+        ]
+    )
 
 
-def sdf_orthorhombic_batch(points: np.ndarray, dims: Tuple[float, float, float]) -> np.ndarray:
+def sdf_orthorhombic_batch(
+    points: np.ndarray, dims: Tuple[float, float, float]
+) -> np.ndarray:
     """Vectorized SDF for orthorhombic box.
 
     Parameters
@@ -313,11 +319,9 @@ def sdf_orthorhombic_batch(points: np.ndarray, dims: Tuple[float, float, float])
     """
     a, b, c = dims
     x, y, z = points[:, 0], points[:, 1], points[:, 2]
-    return np.maximum.reduce([
-        np.abs(x) - a / 2.0,
-        np.abs(y) - b / 2.0,
-        np.abs(z) - c / 2.0
-    ])
+    return np.maximum.reduce(
+        [np.abs(x) - a / 2.0, np.abs(y) - b / 2.0, np.abs(z) - c / 2.0]
+    )
 
 
 def sdf_hexagonal_batch(points: np.ndarray, a: float, c: float) -> np.ndarray:
@@ -342,31 +346,33 @@ def sdf_hexagonal_batch(points: np.ndarray, a: float, c: float) -> np.ndarray:
     dist_z = np.abs(z) - c / 2.0
 
     inradius = a * SQRT3 / 2.0
-    dist_hex = np.maximum.reduce([
-        np.abs(x) - inradius,
-        np.abs(x * 0.5 + y * SQRT3 / 2.0) - inradius,
-        np.abs(x * 0.5 - y * SQRT3 / 2.0) - inradius,
-    ])
+    dist_hex = np.maximum.reduce(
+        [
+            np.abs(x) - inradius,
+            np.abs(x * 0.5 + y * SQRT3 / 2.0) - inradius,
+            np.abs(x * 0.5 - y * SQRT3 / 2.0) - inradius,
+        ]
+    )
 
     return np.maximum(dist_z, dist_hex)
 
 
 # Registry mapping box types to their SDF functions
 SDF_FUNCTIONS = {
-    'cube': sdf_cube,
-    'octa': sdf_truncated_octahedron,
-    'rhdo': sdf_rhombic_dodecahedron,
-    'ortho': sdf_orthorhombic,
-    'tetra': sdf_tetragonal,
-    'hexa': sdf_hexagonal,
+    "cube": sdf_cube,
+    "octa": sdf_truncated_octahedron,
+    "rhdo": sdf_rhombic_dodecahedron,
+    "ortho": sdf_orthorhombic,
+    "tetra": sdf_tetragonal,
+    "hexa": sdf_hexagonal,
 }
 
 SDF_FUNCTIONS_BATCH = {
-    'cube': sdf_cube_batch,
-    'octa': sdf_truncated_octahedron_batch,
-    'rhdo': sdf_rhombic_dodecahedron_batch,
-    'ortho': sdf_orthorhombic_batch,
-    'hexa': sdf_hexagonal_batch,
+    "cube": sdf_cube_batch,
+    "octa": sdf_truncated_octahedron_batch,
+    "rhdo": sdf_rhombic_dodecahedron_batch,
+    "ortho": sdf_orthorhombic_batch,
+    "hexa": sdf_hexagonal_batch,
 }
 
 
@@ -388,12 +394,12 @@ def get_bounding_cube_size(box_type: str, box_dim: float) -> float:
     float
         Side length of the bounding cube
     """
-    if box_type == 'cube':
+    if box_type == "cube":
         return box_dim
-    elif box_type == 'octa':
+    elif box_type == "octa":
         # Truncated octahedron bounding cube: a * sqrt(4/3)
         return box_dim * SQRT_4_3
-    elif box_type == 'rhdo':
+    elif box_type == "rhdo":
         # Rhombic dodecahedron bounding cube: a * sqrt(2)
         return box_dim * SQRT2
     else:

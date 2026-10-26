@@ -11,8 +11,8 @@ Format specification (from CHARMM source io/psfres.F90):
 - XPLOR format: Uses atom type names instead of parameter file indices
 """
 
-from typing import List, Tuple, Dict, Any, NamedTuple
 from dataclasses import dataclass, field
+from typing import Any, Dict, List, NamedTuple, Tuple
 
 
 class PSFAtom(NamedTuple):
@@ -115,7 +115,7 @@ class PSFReader:
         PSFData
             Parsed topology data
         """
-        with open(filepath, 'r', encoding='utf-8') as f:
+        with open(filepath, encoding='utf-8') as f:
             self._lines = [line.rstrip() for line in f.readlines()]
 
         self._line_idx = 0

@@ -1,16 +1,17 @@
+from pycharmm.generate import patch as pcm_patch
+from pycharmm.psf import delete_atoms as pcm_del_atoms
+from pycharmm.psf import get_natom as pcm_get_natom
+from pycharmm.settings import set_verbosity as pcm_set_verbosity
+
+import crimm.Adaptors.pyCHARMMAdaptors as pcm_interface
+from crimm.Adaptors.PropKaAdaptors import PropKaProtonator
 from crimm.Fetchers import fetch_rcsb
 from crimm.Modeller import ParameterLoader, TopologyLoader
 from crimm.Modeller.LoopBuilder import ChainLoopBuilder
 from crimm.Modeller.TopoFixer import fix_chain
 from crimm.StructEntities.Model import Model
-import crimm.Adaptors.pyCHARMMAdaptors as pcm_interface
-from crimm.Adaptors.PropKaAdaptors import PropKaProtonator
 from crimm.Utils.StructureUtils import polymer_chain_to_charmm_segid
 
-from pycharmm.psf import delete_atoms as pcm_del_atoms
-from pycharmm.psf import get_natom as pcm_get_natom
-from pycharmm.generate import patch as pcm_patch
-from pycharmm.settings import set_verbosity as pcm_set_verbosity
 
 def minimize_chain(chain, sd_nstep, abnr_nstep):
     """Minimize crimm protein chain in CHARMM"""
@@ -70,7 +71,7 @@ def protonate_and_patch(model, pH, rtf_loader, param_loader):
         pcm_del_atoms()
     for chain in model:
         if chain.id in protonator.patches and len(protonator.patches[chain.id]) > 0:
-            built_atoms = fix_chain(chain)
+            fix_chain(chain)
         pcm_interface.load_chain(chain)
 
     for chain_id, patch_dict in protonator.patches.items():
@@ -181,8 +182,9 @@ def load_pdbid_in_charmm(
     return structure
 
 if __name__ == '__main__':
-    import warnings
     import argparse
+    import warnings
+
     from pycharmm import write
     parser = argparse.ArgumentParser(
         prog="CHARMM Loader",

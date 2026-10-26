@@ -5,20 +5,26 @@
 
 """Module containing the parser class for constructing structures from mmCIF 
 files from PDB"""
-from copy import deepcopy
 import warnings
+from copy import deepcopy
+
 import numpy as np
 from Bio.PDB.PDBExceptions import PDBConstructionWarning
-from crimm.StructEntities.Atom import Atom
+
 from crimm.IO.MMCIF2Dict import MMCIF2Dict
 from crimm.IO.StructureBuilder import StructureBuilder
+from crimm.StructEntities.Atom import Atom
 from crimm.StructEntities.Chain import (
-    Chain, PolymerChain, Heterogens, Oligosaccharide, Solvent, Macrolide
+    Chain,
+    Heterogens,
+    Macrolide,
+    Oligosaccharide,
+    PolymerChain,
+    Solvent,
 )
 from crimm.StructEntities.Model import Model
-from crimm.Utils.StructureUtils import (
-    get_coords, index_to_letters, letters_to_index
-)
+from crimm.Utils.StructureUtils import get_coords, index_to_letters, letters_to_index
+
 
 class MMCIFParser:
     """Parser class for standard mmCIF files from PDB"""
@@ -440,7 +446,7 @@ class MMCIFParser:
                 selected_chains.extend(chain_list)
 
         atom_site = self.create_atom_site_entry_dict()
-        ##TODO: refactor these nested for loops
+        ##TODO(#68): refactor these nested for loops
         for model_id, entity_dict in atom_site.items():
             model = Model(model_id)
             sb.structure.add(model)
