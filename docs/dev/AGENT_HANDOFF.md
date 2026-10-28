@@ -99,7 +99,8 @@ Follow these unless the owner says otherwise in your own session.
 | --- | --- | --- |
 | 2026-10-06 | Dev documents are tracked Markdown under `docs/dev/`. | `[told]` |
 | 2026-10-06 | Public API may break, but old import paths must keep working with `DeprecationWarning`. | `[told]` |
-| 2026-10-06 | Resolve TODO comments before the refactor and restructure phases. | `[told]` |
+| 2026-10-06 | Resolve TODO comments before the refactor and restructure phases. SUPERSEDED 2026-10-28 by the row below. | `[told]` |
+| 2026-10-28 | Not every TODO comment has to be resolved before the refactor and restructure phases. Some are refactoring work themselves. Which phase a TODO belongs to is decided when its resolution starts, not in advance. Every TODO still carries its issue number. | `[told]` |
 | 2026-10-06 | `import-fix.md` (repo root) is folded into ROADMAP 1.5. Delete the file as the last step of that fix, not before. | `[told]` |
 | 2026-10-06 | Commit only when asked; never push unless asked. The owner asked for the 2026-10-06 commits explicitly; that does not carry over to later sessions. | `[told]` for those commits, `[inferred]` as a standing rule |
 | 2026-10-08 | CHARMM (and so pyCHARMM) is licensed and not accessible to developers without a licence. Keep CHARMM and pyCHARMM tooling and tests in the roadmap, gated by the `pycharmm` marker; document the licence limit. Never put CHARMM source, binaries or libraries in the repository or in issues. | `[told]` |

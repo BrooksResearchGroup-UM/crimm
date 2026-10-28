@@ -6,7 +6,9 @@ standards the work should meet are in [BEST_PRACTICES.md](BEST_PRACTICES.md).
 ## Ground rules
 
 - **Order matters.** Tests and CI come first (Phase 0), because nothing after that can be
-  proven safe without them. Bugs next, then TODOs, then refactor, then restructure.
+  proven safe without them. Bugs next, then TODOs, then refactor, then restructure. Not every
+  TODO has to be resolved before Phases 3 and 4: some are refactoring work, and a TODO's phase
+  is decided when its resolution starts (owner, 2026-10-28).
 - **Public API may change, with deprecation.** Old import paths and names keep working and
   emit `DeprecationWarning` for at least one release before removal.
 - **Solvation changes go through Stan.** Items touching `Solvator.py`, `CrystalSDF.py` or the
@@ -25,7 +27,7 @@ Issue #105 does not exist.
 | --- | --- |
 | Phase 0: Safety net | #39 golden files, #40 ruff, #41 CI, #42 benchmarks, #107 CHARMM and pyCHARMM, #109 to #111 ruff follow-ups (ignored rules, repo-wide format, pre-commit). #40 to #42 are done on draft PR #108 and close when it merges |
 | Phase 1: Bugs | #43, #44 (Stan), #45 to #49 (found by tests), #50 to #56, #57 (done on PR #108, closes when it merges), #59 (hotfix, needed by a downstream project), #58 (optional imports, 1.5), #112 (disulfide dihedrals, found by the pyCHARMM tests) |
-| Phase 2: TODOs | #60 to #70 (fix now), #87 (topology TODOs 16 to 21, resolved in Phase 4) |
+| Phase 2: TODOs | #60 to #70 (planned here; each one's phase is decided when it starts), #87 (topology TODOs 16 to 21, resolved in Phase 4) |
 | Features, no milestone | #71 to #76 (TODOs 22 to 27) |
 | Phase 3: Refactor | #77 to #85 |
 | Phase 4: Restructure | #86 to #95 |
@@ -178,12 +180,18 @@ Done when:
 
 Size: M.
 
-## Phase 2: Resolve every TODO comment
+## Phase 2: TODO comments
 
 There are 27 TODO comments in `crimm/` (26 committed, plus one added in the uncommitted
 `Solvator.py` edit). Each gets one outcome: **fix** in this phase, or **issue** (remove the
-comment and open a GitHub issue, because it is a feature or a design question). After this
-phase a TODO in the code must carry an issue number.
+comment and open a GitHub issue, because it is a feature or a design question). Every TODO in
+the code carries its issue number (done 2026-10-14, `b2cb021`).
+
+Not all of them have to be resolved before Phases 3 and 4 (owner, 2026-10-28). Some are
+refactoring work themselves (for example #68 nested loops, #69 moving the disordered reset,
+#77 logging). The grouping below is a starting point, not a commitment: when work on a TODO
+starts, decide whether it belongs here or in a later phase, and move its issue to that
+milestone.
 
 ### Correctness: fix
 
