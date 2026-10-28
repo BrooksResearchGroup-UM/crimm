@@ -9,9 +9,7 @@ from crimm.StructEntities.Atom import Atom
 _ATOM_FORMAT_STRING = (
     "%s%5i %-4s%c%3s %c%4i%c   %8.3f%8.3f%8.3f%s%6.2f      %4s%2s%2s\n"
 )
-_CHARMM_ATOM_FORMAT_STRING = (
-    "%s%5i %-4s%c%4s %4i%c   %8.3f%8.3f%8.3f%s%6.2f      %4s\n"
-)
+_CHARMM_ATOM_FORMAT_STRING = "%s%5i %-4s%c%4s %4i%c   %8.3f%8.3f%8.3f%s%6.2f      %4s\n"
 _TER_FORMAT_STRING = (
     "TER   %5i      %3s %c%4i%c                                                      \n"
 )
@@ -22,11 +20,11 @@ _CHAIN_ID_POLICIES = {"preserve", "renumber"}
 def _make_standard_pdb_export_copy(entity):
     """Return a copy of entity with single-character chain IDs for PDB export."""
     export_entity = entity.copy()
-    if export_entity.level == 'C':
+    if export_entity.level == "C":
         chains = [export_entity]
-    elif export_entity.level == 'M':
+    elif export_entity.level == "M":
         chains = list(export_entity.child_list)
-    elif export_entity.level == 'S':
+    elif export_entity.level == "S":
         if len(export_entity.child_list) == 0:
             return export_entity
         chains = list(export_entity.child_list[0].child_list)
@@ -49,52 +47,60 @@ def _normalize_chain_id_policy(chain_id_policy):
     if chain_id_policy not in _CHAIN_ID_POLICIES:
         valid = ", ".join(sorted(_CHAIN_ID_POLICIES))
         raise ValueError(
-            f"Unknown chain_id_policy '{chain_id_policy}'. "
-            f"Expected one of: {valid}."
+            f"Unknown chain_id_policy '{chain_id_policy}'. Expected one of: {valid}."
         )
     return chain_id_policy
 
+
 def _get_atom_line_with_parent_info(
-        atom: Atom, trunc_resname=False, use_charmm_format=False, convert_water=False
-    ):
+    atom: Atom, trunc_resname=False, use_charmm_format=False, convert_water=False
+):
     """Return the parent info of the atom (PRIVATE). Atom must have a parent residue."""
     residue = atom.parent
     resname = residue.resname
     # Convert common water residue names to HOH for better visualization for nglview
-    if convert_water and resname in ('TIP3', 'TIP2', 'WAT', 'TIP3P'):
-        resname = 'HOH'
+    if convert_water and resname in ("TIP3", "TIP2", "WAT", "TIP3P"):
+        resname = "HOH"
     segid = residue.segid
     hetfield, resseq, icode = residue.id
-    if (chain:=residue.parent) is not None:
+    if (chain := residue.parent) is not None:
         chain_id = chain.get_id()
     else:
-        chain_id = '_'
+        chain_id = "_"
     return _get_atom_line(
-        atom, hetfield, segid, atom.get_serial_number(),
-        resname, resseq, icode, chain_id, trunc_resname=trunc_resname,
-        use_charmm_format=use_charmm_format
+        atom,
+        hetfield,
+        segid,
+        atom.get_serial_number(),
+        resname,
+        resseq,
+        icode,
+        chain_id,
+        trunc_resname=trunc_resname,
+        use_charmm_format=use_charmm_format,
     )
+
 
 def _get_ter_line(atom: Atom, trunc_resname=False, use_charmm_format=False):
     """Return the parent info of the atom (PRIVATE). Atom must have a parent residue."""
     residue = atom.parent
     resname = residue.resname
     hetfield, resseq, icode = residue.id
-    if (chain:=residue.parent) is not None:
+    if (chain := residue.parent) is not None:
         chain_id = chain.get_id()
     else:
         # no chain info, no standard TER line
-        return 'TER\n'
+        return "TER\n"
 
     if use_charmm_format:
-        return 'TER\n'
+        return "TER\n"
 
     if len(chain_id) > 1:
         raise ValueError(
             f"Chain ID '{chain_id}' exceeds the standard PDB limit of 1 character. "
             "Use CHARMM-format PDB output or an mmCIF writer instead."
         )
-    
+
     if len(resname) > 3 and trunc_resname:
         # Truncate residue name to 3 characters so it does not mess up
         # the nglview visualization
@@ -103,17 +109,26 @@ def _get_ter_line(atom: Atom, trunc_resname=False, use_charmm_format=False):
     args = (atom.get_serial_number(), resname, chain_id, resseq, icode)
     return _TER_FORMAT_STRING % args
 
+
 def _get_orphan_atom_line(atom: Atom, trunc_resname=False, use_charmm_format=False):
     """Return the orphan atom line (PRIVATE). Dummy residue and chain info will be filled."""
-    resname = 'DUM'
-    segid = ' '
-    hetfield, resseq, icode = ' ', 1, ' '
-    chain_id = '_'
+    resname = "DUM"
+    segid = " "
+    hetfield, resseq, icode = " ", 1, " "
+    chain_id = "_"
     return _get_atom_line(
-        atom, hetfield, segid, atom.get_serial_number(),
-        resname, resseq, icode, chain_id, trunc_resname=trunc_resname,
-        use_charmm_format=use_charmm_format
+        atom,
+        hetfield,
+        segid,
+        atom.get_serial_number(),
+        resname,
+        resseq,
+        icode,
+        chain_id,
+        trunc_resname=trunc_resname,
+        use_charmm_format=use_charmm_format,
     )
+
 
 def _get_atom_line(
     atom,
@@ -208,9 +223,7 @@ def _get_atom_line(
                 f"Missing occupancy in atom {atom.full_id!r} written as blank"
             )
         else:
-            raise ValueError(
-                f"Invalid occupancy value: {atom.occupancy!r}"
-            ) from None
+            raise ValueError(f"Invalid occupancy value: {atom.occupancy!r}") from None
 
     if use_charmm_format:
         args = (
@@ -249,13 +262,17 @@ def _get_atom_line(
         )
     return format_string % args
 
+
 ##TODO(#71): Add support for CONECT records
 def get_pdb_str(
-        entity, reset_serial=True,
-        include_alt=False, trunc_resname=False, 
-        use_charmm_format=False, convert_water=False,
-        chain_id_policy="preserve"
-    ):
+    entity,
+    reset_serial=True,
+    include_alt=False,
+    trunc_resname=False,
+    use_charmm_format=False,
+    convert_water=False,
+    chain_id_policy="preserve",
+):
     """Return the PDB string of the entity.
     Parameters
     ----------
@@ -285,10 +302,10 @@ def get_pdb_str(
     if chain_id_policy == "renumber" and not use_charmm_format:
         entity = _make_standard_pdb_export_copy(entity)
 
-    if reset_serial and hasattr(entity, 'reset_atom_serial_numbers'):
+    if reset_serial and hasattr(entity, "reset_atom_serial_numbers"):
         entity.reset_atom_serial_numbers(include_alt=include_alt)
 
-    if entity.level == 'A':
+    if entity.level == "A":
         if entity.parent is None:
             return _get_orphan_atom_line(entity, trunc_resname, use_charmm_format)
         return _get_atom_line_with_parent_info(
@@ -296,14 +313,14 @@ def get_pdb_str(
         )
 
     chains = []
-    if entity.level in ('C', 'R', 'A'):
+    if entity.level in ("C", "R", "A"):
         chains.append(entity)
-    elif entity.level == 'M':
+    elif entity.level == "M":
         chains += entity.child_list
-    elif entity.level == 'S':
+    elif entity.level == "S":
         chains += entity.child_list[0].child_list
-    
-    pdb_str = ''
+
+    pdb_str = ""
     for chain in chains:
         atoms = list(chain.get_atoms(include_alt=include_alt))
         if len(atoms) == 0:
@@ -315,5 +332,5 @@ def get_pdb_str(
         pdb_str += _get_ter_line(
             atoms[-1], trunc_resname, use_charmm_format=use_charmm_format
         )
-    pdb_str += 'END\n'
+    pdb_str += "END\n"
     return pdb_str

@@ -3,6 +3,7 @@
 Implements CHARMM's LONEPRC subroutine (lonepair.F90:617-820).
 Supports all 4 LP geometry types: COLINEAR, RELATIVE, BISECTOR, CENTER.
 """
+
 import warnings
 
 import numpy as np
@@ -46,6 +47,7 @@ def build_relative_coord(j_coord, k_coord, l_coord, distance, angle, dihedral):
     bond=distance, angle=angle, dihedral=dihedral.
     """
     from crimm.Modeller.TopoFixer import get_coord_from_dihedral_ic
+
     return get_coord_from_dihedral_ic(
         l_coord, k_coord, j_coord, dihedral, angle, distance
     )
@@ -59,10 +61,9 @@ def build_bisector_coord(j_coord, k_coord, l_coord, distance, angle, dihedral):
         CALL CARTCV(X,Y,Z, L, mid, J, I, |V1|, V2, V3, OK)
     """
     from crimm.Modeller.TopoFixer import get_coord_from_dihedral_ic
+
     mid = (k_coord + l_coord) / 2.0
-    return get_coord_from_dihedral_ic(
-        l_coord, mid, j_coord, dihedral, angle, distance
-    )
+    return get_coord_from_dihedral_ic(l_coord, mid, j_coord, dihedral, angle, distance)
 
 
 def build_center_coord(host_coords):
@@ -108,8 +109,8 @@ def build_lonepair_coords(entity):
             if lp_def is None or lp_def.lonepair_info is None:
                 continue
             info = lp_def.lonepair_info
-            lp_type = info['type']
-            hosts = info['host_atoms']
+            lp_type = info["type"]
+            hosts = info["host_atoms"]
 
             # Validate all host atoms exist with coordinates
             host_coords = []
@@ -124,9 +125,7 @@ def build_lonepair_coords(entity):
                     break
                 h_coord = residue[h].coord
                 if h_coord is None:
-                    warnings.warn(
-                        f"LP {lp_name}: host atom {h} has no coordinates"
-                    )
+                    warnings.warn(f"LP {lp_name}: host atom {h} has no coordinates")
                     valid = False
                     break
                 host_coords.append(h_coord)
@@ -134,22 +133,32 @@ def build_lonepair_coords(entity):
                 continue
 
             try:
-                if lp_type == 'COLI':
+                if lp_type == "COLI":
                     lp_atom.coord = build_colinear_coord(
-                        host_coords[0], host_coords[1],
-                        info['distance'], info.get('scale', 0.0)
+                        host_coords[0],
+                        host_coords[1],
+                        info["distance"],
+                        info.get("scale", 0.0),
                     )
-                elif lp_type == 'RELA':
+                elif lp_type == "RELA":
                     lp_atom.coord = build_relative_coord(
-                        host_coords[0], host_coords[1], host_coords[2],
-                        info['distance'], info['angle'], info['dihedral']
+                        host_coords[0],
+                        host_coords[1],
+                        host_coords[2],
+                        info["distance"],
+                        info["angle"],
+                        info["dihedral"],
                     )
-                elif lp_type == 'BISE':
+                elif lp_type == "BISE":
                     lp_atom.coord = build_bisector_coord(
-                        host_coords[0], host_coords[1], host_coords[2],
-                        info['distance'], info['angle'], info['dihedral']
+                        host_coords[0],
+                        host_coords[1],
+                        host_coords[2],
+                        info["distance"],
+                        info["angle"],
+                        info["dihedral"],
                     )
-                elif lp_type == 'CENT':
+                elif lp_type == "CENT":
                     lp_atom.coord = build_center_coord(host_coords)
                 else:
                     warnings.warn(f"Unknown LP type '{lp_type}' for {lp_name}")

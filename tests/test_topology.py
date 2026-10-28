@@ -1,4 +1,5 @@
 """CHARMM topology generation on the fixture structures (no CGenFF)."""
+
 import os
 import warnings
 
@@ -126,7 +127,9 @@ DISULFIDE_DIHEDRALS = pytest.mark.xfail(
 @pytest.mark.parametrize(
     "pdb_id",
     [
-        pytest.param(pdb_id, marks=DISULFIDE_DIHEDRALS) if pdb_id in ("1crn", "3ptb") else pdb_id
+        pytest.param(pdb_id, marks=DISULFIDE_DIHEDRALS)
+        if pdb_id in ("1crn", "3ptb")
+        else pdb_id
         for pdb_id in ALL_IDS
     ],
 )

@@ -1,4 +1,5 @@
 """Fetchers. Only the local-file path runs offline; the rest need the network."""
+
 import shutil
 
 import pytest

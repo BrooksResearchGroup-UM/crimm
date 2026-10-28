@@ -1,4 +1,5 @@
 """OrganizedModel: offline chain classification."""
+
 import pytest
 
 from crimm.StructEntities.OrganizedModel import OrganizedModel

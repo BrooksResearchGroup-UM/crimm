@@ -17,23 +17,29 @@ from crimm.IO.PDBString import get_pdb_str
 
 class NGLStructure(nv.Structure):
     """NGLView Structure class for visualizing crimm.Structure.Structure on jupyter notebook"""
+
     def __init__(self, entity):
         super().__init__()
         self.entity = entity
 
     def get_structure_string(self):
         return get_pdb_str(
-            self.entity, include_alt=False, trunc_resname=True,
-            use_charmm_format=False, convert_water=True,
-            chain_id_policy='renumber'
+            self.entity,
+            include_alt=False,
+            trunc_resname=True,
+            use_charmm_format=False,
+            convert_water=True,
+            chain_id_policy="renumber",
         )
+
 
 class NGLRDKitStructure(nv.Structure):
     """NGLView Structure class for visualizing crimm.Structure.Structure on jupyter notebook"""
+
     def __init__(self, entity, conf_id=None):
         super().__init__()
         self.entity = entity
-        self.ext = 'sdf'
+        self.ext = "sdf"
         self.conf_id = conf_id
 
     def get_structure_string(self):
@@ -42,32 +48,35 @@ class NGLRDKitStructure(nv.Structure):
             return Chem.MolToMolBlock(self.entity)
         elif self.conf_id is not None:
             return Chem.MolToMolBlock(self.entity, confId=self.conf_id)
-        struct_str = ''
+        struct_str = ""
         for i in range(n_conf):
             struct_str += Chem.MolToMolBlock(self.entity, confId=i)
         return struct_str
+
 
 def _load_ngl_view(entity, view):
     """Load entity into nglview instance"""
     ngl_structure = NGLStructure(entity)
     component = view.add_component(ngl_structure)
-    if entity.level == 'C' and entity.chain_type == 'Solvent':
-        view.add_representation('licorice', component = component._index)
+    if entity.level == "C" and entity.chain_type == "Solvent":
+        view.add_representation("licorice", component=component._index)
+
 
 def show_nglview(entity):
     """
     Load pdb string into nglview instance
     """
     view = nv.NGLWidget()
-    if entity.level == 'S':
+    if entity.level == "S":
         for chain in entity.models[0].chains:
             _load_ngl_view(chain, view)
-    elif entity.level == 'M':
+    elif entity.level == "M":
         for chain in entity.chains:
             _load_ngl_view(chain, view)
     else:
         _load_ngl_view(entity, view)
     return view
+
 
 def show_nglview_residue(residue):
     """Show a residue in context of its polymer chain.
@@ -77,6 +86,7 @@ def show_nglview_residue(residue):
     residue has no parent polymer chain.
     """
     from crimm.StructEntities.Chain import PolymerChain
+
     view = nv.NGLWidget()
     chain = residue.parent
     if chain is not None and isinstance(chain, PolymerChain):
@@ -85,14 +95,17 @@ def show_nglview_residue(residue):
         component = view.add_component(ngl_structure)
         comp_idx = component._index
         view.clear_representations(component=comp_idx)
-        view.add_representation('cartoon', component=comp_idx, color='grey', opacity=0.5)
-        view.add_representation('ball+stick', selection=str(res_id), component=comp_idx)
-        view.center(selection=str(res_id)) # resid
+        view.add_representation(
+            "cartoon", component=comp_idx, color="grey", opacity=0.5
+        )
+        view.add_representation("ball+stick", selection=str(res_id), component=comp_idx)
+        view.center(selection=str(res_id))  # resid
     else:
         ngl_structure = NGLStructure(residue)
         view.add_component(ngl_structure)
 
     return view
+
 
 def show_nglview_multiple(entity_list):
     """
@@ -102,13 +115,15 @@ def show_nglview_multiple(entity_list):
     for entity in entity_list:
         ngl_structure = NGLStructure(entity)
         component = view.add_component(ngl_structure)
-        if entity.level == 'C' and entity.chain_type == 'Solvent':
-            view.add_representation('licorice', component = component._index)
+        if entity.level == "C" and entity.chain_type == "Solvent":
+            view.add_representation("licorice", component=component._index)
     return view
+
 
 ## TODO(#74): Add feature for add_representation() directly for entity list
 class View(nv.NGLWidget):
     """Customized NGLView Widget class for visualizing crimm.Structure.Structure on jupyter notebook"""
+
     def __init__(self):
         super().__init__()
         self.entity_dict = {}
@@ -128,11 +143,11 @@ class View(nv.NGLWidget):
 
     def load_entity(self, entity):
         """Load entity into NGLView widget. Entity can be a Structure, Model, Chain, Residue, or Atom object."""
-        if entity.level == 'S':
+        if entity.level == "S":
             entities = entity.models[0].chains
-        elif entity.level == 'M':
+        elif entity.level == "M":
             entities = entity.chains
-        elif entity.level in ('C', 'R', 'A'):
+        elif entity.level in ("C", "R", "A"):
             entities = [entity]
         components = []
         for entity in entities:
@@ -145,7 +160,7 @@ class View(nv.NGLWidget):
         self.entity_dict[mol] = component
         return component
 
-    def subdue_all_entities(self, color = 'grey'):
+    def subdue_all_entities(self, color="grey"):
         """subdue the colors for all entities. Deafult color is grey."""
         for i in range(len(self.entity_dict)):
             self.update_representation(component=i, color=color, opacity=0.5)
@@ -161,91 +176,78 @@ class View(nv.NGLWidget):
             atom_id_dict[entity_id].append(atom_id)
         return atom_id_dict
 
-    def highlight_residues(
-            self,
-            residues,
-            add_licorice = False,
-            color = 'red',
-            **kwargs
-        ):
+    def highlight_residues(self, residues, add_licorice=False, color="red", **kwargs):
         """
         Highlight the repaired gaps with red color and show licorice
         representations
         """
         if len(self.entity_dict) == 0:
-            raise ValueError('No entity loaded!')
+            raise ValueError("No entity loaded!")
 
         if len(residues) == 0:
-            warnings.warn('No residues provided for highlighting!')
+            warnings.warn("No residues provided for highlighting!")
             return
         loaded_entities = list(self.entity_dict.keys())
-        entity_chains = set(unfold_entities(loaded_entities, 'C'))
-        residue_chains = set(unfold_entities(residues, 'C'))
+        entity_chains = set(unfold_entities(loaded_entities, "C"))
+        residue_chains = set(unfold_entities(residues, "C"))
         if not residue_chains.issubset(entity_chains):
-            raise ValueError('Residues are not from the loaded entity!')
+            raise ValueError("Residues are not from the loaded entity!")
 
         # Get all atoms from the residues
-        atoms = unfold_entities(residues, 'A')
+        atoms = unfold_entities(residues, "A")
         if len(atoms) == 0:
             # list of empty residues
-            warnings.warn('No atoms provided for highlighting!')
+            warnings.warn("No atoms provided for highlighting!")
             return
 
         atom_id_dict = self._create_selected_atom_id_lookup(atoms)
         self.subdue_all_entities()
 
-        if 'colorScheme' not in kwargs:
-            kwargs['color'] = color
+        if "colorScheme" not in kwargs:
+            kwargs["color"] = color
         # highlight the residues
         for chain in residue_chains:
             component = self.entity_dict[chain]
             comp_idx = component._index
             self.clear_representations(component=comp_idx)
             self.add_representation(
-                'cartoon', component=comp_idx, color='grey', opacity=0.5
+                "cartoon", component=comp_idx, color="grey", opacity=0.5
             )
             atom_id_selection = atom_id_dict[comp_idx]
             # TODO(#75): Find API for changing color of specific residues
             # since add cartoon representation will not render
             self.add_representation(
-                'cartoon', selection=atom_id_selection,
-                component=comp_idx,
-                **kwargs
+                "cartoon", selection=atom_id_selection, component=comp_idx, **kwargs
             )
 
             if add_licorice:
                 # Add licorice representations
                 self.add_representation(
-                    'licorice', selection=atom_id_selection,
+                    "licorice",
+                    selection=atom_id_selection,
                     component=comp_idx,
-                    **kwargs
+                    **kwargs,
                 )
 
-    def highlight_atoms(
-            self,
-            atoms,
-            add_licorice = True,
-            color = 'red',
-            **kwargs
-        ):
+    def highlight_atoms(self, atoms, add_licorice=True, color="red", **kwargs):
         """highlight atoms in the loaded structure in Viewer"""
         if len(atoms) == 0:
-            warnings.warn('No atoms provided for highlighting!')
+            warnings.warn("No atoms provided for highlighting!")
             return
 
         loaded_entities = list(self.entity_dict.keys())
-        entity_chains = set(unfold_entities(loaded_entities, 'C'))
-        atom_chains = set(unfold_entities(atoms, 'C'))
+        entity_chains = set(unfold_entities(loaded_entities, "C"))
+        atom_chains = set(unfold_entities(atoms, "C"))
         if not atom_chains.issubset(entity_chains):
-            raise ValueError('Residues are not from the loaded entity!')
+            raise ValueError("Residues are not from the loaded entity!")
 
         # Organize the selected atoms ids by component id
         atom_id_dict = self._create_selected_atom_id_lookup(atoms)
-        representation = 'licorice' if add_licorice else 'cartoon'
+        representation = "licorice" if add_licorice else "cartoon"
 
         self.subdue_all_entities()
-        if 'colorScheme' not in kwargs:
-            kwargs['color'] = color
+        if "colorScheme" not in kwargs:
+            kwargs["color"] = color
         for chain in atom_chains:
             component = self.entity_dict[chain]
             comp_idx = component._index
@@ -253,33 +255,28 @@ class View(nv.NGLWidget):
             atom_ids = atom_id_dict[comp_idx]
             self.clear_representations(component=comp_idx)
             self.add_representation(
-                'cartoon', component=comp_idx, color='grey', opacity=0.5
+                "cartoon", component=comp_idx, color="grey", opacity=0.5
             )
             self.add_representation(
-                representation, selection=atom_ids,
-                component=comp_idx, **kwargs
+                representation, selection=atom_ids, component=comp_idx, **kwargs
             )
 
-    def highlight_chains(
-            self, chains, color = 'red', **kwargs
-        ):
+    def highlight_chains(self, chains, color="red", **kwargs):
         """highlight chains in the loaded structure in Viewer"""
         if len(chains) == 0:
-            warnings.warn('No chains provided for highlighting!')
+            warnings.warn("No chains provided for highlighting!")
             return
 
         loaded_entities = list(self.entity_dict.keys())
-        entity_chains = set(unfold_entities(loaded_entities, 'C'))
+        entity_chains = set(unfold_entities(loaded_entities, "C"))
         if not set(chains).issubset(entity_chains):
-            raise ValueError('Residues are not from the loaded entity!')
+            raise ValueError("Residues are not from the loaded entity!")
 
         self.subdue_all_entities()
-        if 'colorScheme' not in kwargs:
-            kwargs['color'] = color
+        if "colorScheme" not in kwargs:
+            kwargs["color"] = color
         for chain in chains:
             component = self.entity_dict[chain]
             comp_idx = component._index
             self.clear_representations(component=comp_idx)
-            self.add_representation(
-                'cartoon', component=comp_idx, **kwargs
-            )
+            self.add_representation("cartoon", component=comp_idx, **kwargs)

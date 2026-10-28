@@ -8,4 +8,3 @@
 # from crimm.StructEntities import OrganizedModel
 
 
-

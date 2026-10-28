@@ -1,4 +1,5 @@
 """CoordManipulator: orientation must be a rigid, proper transformation."""
+
 import numpy as np
 import pytest
 from scipy.spatial.distance import pdist

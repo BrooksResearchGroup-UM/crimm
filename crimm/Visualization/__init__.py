@@ -8,8 +8,8 @@ from .NGLVisualization import (
     View as NGLView,
 )
 
-_BACKENDS = ('ngl', 'py3dmol')
-_backend = 'ngl'
+_BACKENDS = ("ngl", "py3dmol")
+_backend = "ngl"
 
 
 def set_backend(backend):
@@ -32,25 +32,28 @@ def get_backend():
 
 def show(entity, **kwargs):
     """Show entity using the active backend (see :func:`set_backend`)."""
-    if _backend == 'ngl':
+    if _backend == "ngl":
         return show_nglview(entity)
     from .py3DmolVis import show_py3dmol
+
     return show_py3dmol(entity, **kwargs)
 
 
 def show_multiple(entity_list, **kwargs):
     """Show a list of entities using the active backend."""
-    if _backend == 'ngl':
+    if _backend == "ngl":
         return show_nglview_multiple(entity_list)
     from .py3DmolVis import show_py3dmol_multiple
+
     return show_py3dmol_multiple(entity_list, **kwargs)
 
 
 def get_viewer(**kwargs):
     """Return a new View instance for the active backend."""
-    if _backend == 'ngl':
+    if _backend == "ngl":
         return NGLView()
     from .py3DmolVis import View as Py3DmolView
+
     return Py3DmolView(**kwargs)
 
 
@@ -60,7 +63,8 @@ def show_residue(residue, **kwargs):
     When the residue belongs to a polymer chain the whole chain is rendered as
     a subdued grey cartoon and the residue is highlighted as ball+stick.
     """
-    if _backend == 'ngl':
+    if _backend == "ngl":
         return show_nglview_residue(residue)
     from .py3DmolVis import show_py3dmol_residue
+
     return show_py3dmol_residue(residue, **kwargs)

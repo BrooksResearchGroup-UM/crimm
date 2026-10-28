@@ -23,28 +23,27 @@ def minimize_chain(chain, sd_nstep, abnr_nstep):
     # Uodate the coordinate in crimm structure
     pcm_interface.sync_coords(chain)
 
+
 def correct_prot_first_patch(chain, default):
     """Correct the first patch name for PRO and GLY"""
-    # PRO and GLY need special treatment when patched at the N-terminus 
+    # PRO and GLY need special treatment when patched at the N-terminus
     first_resname = chain.residues[0].resname
-    if first_resname == 'PRO':
-        first_patch = 'PROP'
-    elif first_resname == 'GLY':
-        first_patch = 'GLYP'
+    if first_resname == "PRO":
+        first_patch = "PROP"
+    elif first_resname == "GLY":
+        first_patch = "GLYP"
     else:
         first_patch = default
     return first_patch
 
+
 def get_param_loaders():
     """get crimm rtf and prm loader for protein and nucleic acid chains
     also load them into CHARMM"""
-    rtf_loader = {
-        'prot': TopologyLoader('protein'),
-        'na': TopologyLoader('nucleic')
-    }
+    rtf_loader = {"prot": TopologyLoader("protein"), "na": TopologyLoader("nucleic")}
     param_loader = {
-        'prot': ParameterLoader('protein'),
-        'na': ParameterLoader('nucleic')
+        "prot": ParameterLoader("protein"),
+        "na": ParameterLoader("nucleic"),
     }
 
     # fill the missing ic table values in the respective rtf
@@ -58,12 +57,11 @@ def get_param_loaders():
         pcm_set_verbosity(prev_level)
     return rtf_loader, param_loader
 
+
 def protonate_and_patch(model, pH, rtf_loader, param_loader):
     """protonate all protein chains in a model and also load in charmm and
     patch the residues"""
-    protonator = PropKaProtonator(
-        rtf_loader, param_loader, pH = pH
-    )
+    protonator = PropKaProtonator(rtf_loader, param_loader, pH=pH)
     protonator.load_model(model)
     protonator.apply_patches()
 
@@ -76,18 +74,21 @@ def protonate_and_patch(model, pH, rtf_loader, param_loader):
 
     for chain_id, patch_dict in protonator.patches.items():
         for resid, patch_name in patch_dict.items():
-            pcm_patch(patch_name, f'{polymer_chain_to_charmm_segid(model[chain_id])} {resid}')
+            pcm_patch(
+                patch_name, f"{polymer_chain_to_charmm_segid(model[chain_id])} {resid}"
+            )
+
 
 def load_pdbid_in_charmm(
     pdb_id,
-    pH = 7.4,
-    prot_first_patch = 'ACE',
-    prot_last_patch = 'CT3',
-    na_first_patch = '5TER',
-    na_last_patch = '3PHO',
-    sd_nstep = 300,
-    abnr_nstep = 0,
-    charmm_verbosity_level = 0,
+    pH=7.4,
+    prot_first_patch="ACE",
+    prot_last_patch="CT3",
+    na_first_patch="5TER",
+    na_last_patch="3PHO",
+    sd_nstep=300,
+    abnr_nstep=0,
+    charmm_verbosity_level=0,
 ):
 
     model = fetch_rcsb(
@@ -95,21 +96,21 @@ def load_pdbid_in_charmm(
         include_solvent=False,
         # any existing hydrogen will be removed and rebuilt later
         include_hydrogens=False,
-        first_model_only=True
+        first_model_only=True,
     )
 
     prot_chains = {}
-    na_chains = {} 
+    na_chains = {}
     # get the first model's id
     model_id = model.id
     # create a new empty model to store chains of interests
     new_model = Model(model_id)
     rtf_loader, param_loader = get_param_loaders()
-    
+
     for chain in structure.models[0].chains:
-        if chain.chain_type == 'Polypeptide(L)':
+        if chain.chain_type == "Polypeptide(L)":
             prot_chains[chain.id] = chain
-        elif chain.chain_type  == 'Polyribonucleotide':
+        elif chain.chain_type == "Polyribonucleotide":
             na_chains[chain.id] = chain
 
     for chain_id, chain in prot_chains.items():
@@ -120,20 +121,20 @@ def load_pdbid_in_charmm(
             # Coordinates of the missing residues will be copied from
             # Alphafold structures
             # only build the loop not the termini
-            loop_builder.build_from_alphafold(include_terminal = False)
+            loop_builder.build_from_alphafold(include_terminal=False)
             chain = loop_builder.get_chain()
             prot_chains[chain_id] = chain
             need_minimization = True
-        prot_first_patch = correct_prot_first_patch(chain, default = prot_first_patch)
-        rtf_loader['prot'].generate_chain_topology(
+        prot_first_patch = correct_prot_first_patch(chain, default=prot_first_patch)
+        rtf_loader["prot"].generate_chain_topology(
             chain,
-            first_patch=prot_first_patch, 
+            first_patch=prot_first_patch,
             last_patch=prot_last_patch,
             # Coerce any modified residue to canonical residue that it is based on
-            coerce=True
+            coerce=True,
         )
-        param_loader['prot'].fill_ic(rtf_loader['prot'])
-        param_loader['prot'].apply(chain.topo_elements)
+        param_loader["prot"].fill_ic(rtf_loader["prot"])
+        param_loader["prot"].apply(chain.topo_elements)
         fix_chain(chain)
         if need_minimization:
             # load into CHARMM to minimize the structure
@@ -147,17 +148,14 @@ def load_pdbid_in_charmm(
         # but if it exsits, an error will be raise
         if not chain.is_continuous():
             raise ValueError(
-                f'Nucleotide chain {chain.id} is not continuous, '
-                'topology cannot be generated.'
+                f"Nucleotide chain {chain.id} is not continuous, "
+                "topology cannot be generated."
             )
-        rtf_loader['na'].generate_chain_topology(
-            chain, 
-            first_patch=na_first_patch,
-            last_patch=na_last_patch,
-            coerce=True
+        rtf_loader["na"].generate_chain_topology(
+            chain, first_patch=na_first_patch, last_patch=na_last_patch, coerce=True
         )
-        param_loader['na'].fill_ic(rtf_loader['na'])
-        param_loader['na'].apply(chain.topo_elements)
+        param_loader["na"].fill_ic(rtf_loader["na"])
+        param_loader["na"].apply(chain.topo_elements)
         fix_chain(chain)
         new_model.add(chain)
     # copy the connection record to the new model
@@ -165,79 +163,85 @@ def load_pdbid_in_charmm(
     # replace the model with the new model in structure
     structure.detach_child(model_id)
     structure.add(new_model)
-    protonate_and_patch(
-        new_model, pH, rtf_loader['prot'], param_loader['prot']
-    )
+    protonate_and_patch(new_model, pH, rtf_loader["prot"], param_loader["prot"])
     # patch disulfide bonds if exists
-    if 'disulf' in structure.models[0].connect_dict:
-        for res1, res2 in structure.models[0].connect_dict['disulf']:
-            seg1, seg2 = res1['chain'], res2['chain']
-            seq1, seq2 = res1['resseq'], res2['resseq']
+    if "disulf" in structure.models[0].connect_dict:
+        for res1, res2 in structure.models[0].connect_dict["disulf"]:
+            seg1, seg2 = res1["chain"], res2["chain"]
+            seq1, seq2 = res1["resseq"], res2["resseq"]
             patch_arg = (
-                f'{polymer_chain_to_charmm_segid(new_model[seg1])} {seq1} '
-                f'{polymer_chain_to_charmm_segid(new_model[seg2])} {seq2}'
+                f"{polymer_chain_to_charmm_segid(new_model[seg1])} {seq1} "
+                f"{polymer_chain_to_charmm_segid(new_model[seg2])} {seq2}"
             )
-            pcm_patch('DISU', patch_arg)
+            pcm_patch("DISU", patch_arg)
 
     return structure
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     import argparse
     import warnings
 
     from pycharmm import write
+
     parser = argparse.ArgumentParser(
         prog="CHARMM Loader",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        description=
-'''
+        description="""
   CHARMM Structure Loader from PDB ID
     Load a structure fetched from rcsb with PDB ID. Any missing loop will be constructed
     from the coordinates of the Alphafold structure. Protonation is done with PropKa model.
     Only protein and RNA chain will be processed, and only protein chain will be protonated
     with the specified pH value.
-'''
+""",
+    )
+    parser.add_argument("pdbid", metavar="P", type=str, help="PDB ID for the structure")
+    parser.add_argument(
+        "-o",
+        "--outpath",
+        type=str,
+        default="./",
+        help="Directory path for pdb and psf file outputs. "
+        "Default to current directory",
     )
     parser.add_argument(
-        'pdbid', metavar='P', type=str, help='PDB ID for the structure'
+        "-p",
+        "--ph",
+        type=float,
+        default=7.4,
+        help="pH value for the protonation state for proteinDefault to pH=7.4.",
     )
     parser.add_argument(
-        '-o','--outpath', type=str, default="./",
-        help='Directory path for pdb and psf file outputs. '
-        'Default to current directory'
+        "-m",
+        "--mini",
+        type=int,
+        default=300,
+        help="Minimization steps to take after building any missing loop. "
+        "Default to 300 steps of steepest descent.",
     )
     parser.add_argument(
-        '-p', '--ph', type=float, default=7.4,
-        help='pH value for the protonation state for protein'
-        'Default to pH=7.4.'
-    )
-    parser.add_argument(
-        '-m', '--mini', type=int, default=300,
-        help='Minimization steps to take after building any missing loop. '
-        'Default to 300 steps of steepest descent.'
-    )
-    parser.add_argument(
-        '--report', action='store_true',
-        help='If the report flag is present, the crimm structure information '
-        'will also be displayed.'
+        "--report",
+        action="store_true",
+        help="If the report flag is present, the crimm structure information "
+        "will also be displayed.",
     )
     args = parser.parse_args()
     warnings.filterwarnings("ignore")
     # test_ids = ['5IEV', '1A8I', '7ZAP']
     structure = load_pdbid_in_charmm(
         args.pdbid,
-        pH = args.ph,
-        prot_first_patch = 'ACE',
-        prot_last_patch = 'CT3',
-        na_first_patch = '5TER',
-        na_last_patch = '3PHO',
-        sd_nstep = args.mini,
-        abnr_nstep = 0,
-        charmm_verbosity_level = 0,
+        pH=args.ph,
+        prot_first_patch="ACE",
+        prot_last_patch="CT3",
+        na_first_patch="5TER",
+        na_last_patch="3PHO",
+        sd_nstep=args.mini,
+        abnr_nstep=0,
+        charmm_verbosity_level=0,
     )
-    write.coor_pdb(f'{args.pdbid}.pdb')
-    write.psf_card(f'{args.pdbid}.psf')
-    
+    write.coor_pdb(f"{args.pdbid}.pdb")
+    write.psf_card(f"{args.pdbid}.psf")
+
     if args.report:
         print(structure)
         total_atoms = len(list(structure.get_atoms()))
@@ -255,9 +259,8 @@ if __name__ == '__main__':
             total_dihe += len(chain.topo_elements.dihedrals)
             total_impr += len(chain.topo_elements.impropers)
         print(
-            'Report from crimm (Total)',
-            f'segments={total_segments}, residues={total_residues}, atoms={total_atoms}, '
-            f'bonds={total_bonds}, angles={total_angles}, dihedrals={total_dihe}, '
-            f'impropers={total_impr}'
+            "Report from crimm (Total)",
+            f"segments={total_segments}, residues={total_residues}, atoms={total_atoms}, "
+            f"bonds={total_bonds}, angles={total_angles}, dihedrals={total_dihe}, "
+            f"impropers={total_impr}",
         )
-    

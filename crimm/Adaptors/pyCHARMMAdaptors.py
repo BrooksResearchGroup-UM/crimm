@@ -25,6 +25,7 @@ from crimm.Utils.StructureUtils import polymer_chain_to_charmm_segid
 global LOADED_TOPOLOGY_TYPES
 LOADED_TOPOLOGY_TYPES = set()
 
+
 def empty_charmm():
     """If any atom exists in current CHARMM runtime, remove them."""
     if get_natom() > 0:
@@ -33,7 +34,7 @@ def empty_charmm():
 
 def _entity_has_lonepairs(entity) -> bool:
     """Check if entity contains any residues with lone pairs (e.g., CGENFF ligands)."""
-    res_list = unfold_entities(entity, 'R')
+    res_list = unfold_entities(entity, "R")
     for res in res_list:
         if getattr(res, "lone_pair_dict", None):
             return True
@@ -115,14 +116,15 @@ def _load_psf_crd(entity, append=False, separate_crystal_segids=False):
         If PSF or CRD files are not written correctly
     """
     import os
+
     psf_path = None
     crd_path = None
     has_lonepairs = _entity_has_lonepairs(entity)
     try:
         # Create temp files with delete=False for cross-platform compatibility
-        with tempfile.NamedTemporaryFile('w', suffix='.psf', delete=False) as psf_f:
+        with tempfile.NamedTemporaryFile("w", suffix=".psf", delete=False) as psf_f:
             psf_path = psf_f.name
-        with tempfile.NamedTemporaryFile('w', suffix='.crd', delete=False) as crd_f:
+        with tempfile.NamedTemporaryFile("w", suffix=".crd", delete=False) as crd_f:
             crd_path = crd_f.name
 
         if has_lonepairs:
@@ -159,91 +161,96 @@ def load_topology(topo_generator):
     """Load topology and parameter files from a TopoGenerator object."""
     load_water_ions = False
     load_cgenff_ligand = False
-    if 'cgenff' in topo_generator.res_def_dict:
+    if "cgenff" in topo_generator.res_def_dict:
         load_cgenff_ligand = True
         # rearrange the order of cgenff
-        topo_generator.res_def_dict['cgenff'] = topo_generator.res_def_dict.pop('cgenff')
-    if 'cgenff' in topo_generator.param_dict:
-        topo_generator.param_dict['cgenff'] = topo_generator.param_dict.pop('cgenff')
+        topo_generator.res_def_dict["cgenff"] = topo_generator.res_def_dict.pop(
+            "cgenff"
+        )
+    if "cgenff" in topo_generator.param_dict:
+        topo_generator.param_dict["cgenff"] = topo_generator.param_dict.pop("cgenff")
 
     for i, (topo_type, topo_loader) in enumerate(topo_generator.res_def_dict.items()):
-        if topo_type == 'water_ions':
+        if topo_type == "water_ions":
             load_water_ions = True
             continue
-        if topo_type == 'cgenff':
+        if topo_type == "cgenff":
             continue
-        with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
-            tf.write(f'* {topo_type.upper()} RTF Loaded from crimm\n')
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8") as tf:
+            tf.write(f"* {topo_type.upper()} RTF Loaded from crimm\n")
             for line in topo_loader._raw_data_strings:
-                if line.upper().startswith('RESI') or line.upper().startswith('PRES'):
-                    line = '\n'+line
-                tf.write(line+'\n')
-            tf.flush() # has to flush first for long files!
-            read.rtf(tf.name, append = bool(i))
+                if line.upper().startswith("RESI") or line.upper().startswith("PRES"):
+                    line = "\n" + line
+                tf.write(line + "\n")
+            tf.flush()  # has to flush first for long files!
+            read.rtf(tf.name, append=bool(i))
         LOADED_TOPOLOGY_TYPES.add(topo_type)
 
     for i, (param_type, param_loader) in enumerate(topo_generator.param_dict.items()):
-        if param_type == 'water_ions':
+        if param_type == "water_ions":
             load_water_ions = True
             continue
-        if param_type == 'cgenff':
+        if param_type == "cgenff":
             continue
-        with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
-            tf.write(f'* {param_type.upper()} PRM Loaded from crimm\n')
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8") as tf:
+            tf.write(f"* {param_type.upper()} PRM Loaded from crimm\n")
             for line in param_loader._raw_data_strings:
-                tf.write(line+'\n')
+                tf.write(line + "\n")
             tf.flush()
-            read.prm(tf.name, append = bool(i), flex=True)
+            read.prm(tf.name, append=bool(i), flex=True)
 
     # load cgenff.rtf and cgenff.prm after all bio polymers
     if load_cgenff_ligand:
         load_cgenff_toppar()
         ligandrtf_blocks = topo_generator.cgenff_loader.toppar_blocks
         for resname, data_block in ligandrtf_blocks.items():
-            with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
-                tf.write(f'* CGENFF TOPPAR for {resname} Loaded from crimm\n')
+            with tempfile.NamedTemporaryFile("w", encoding="utf-8") as tf:
+                tf.write(f"* CGENFF TOPPAR for {resname} Loaded from crimm\n")
                 tf.write(data_block)
-                tf.flush() # has to flush first for long files!
+                tf.flush()  # has to flush first for long files!
                 read.stream(tf.name)
 
     # load water_ions.str at the end
     if load_water_ions:
         load_solvent_toppar()
 
+
 def load_solvent_toppar():
     """Load default solvent model (TIP3 water + ions) into pyCHARMM."""
     abs_path = Path(__file__).resolve().parent.parent
     abs_path = abs_path / "Data/toppar/water_ions.str"
-    with open(abs_path, encoding='utf-8') as f:
-        with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
-            tf.write('* WATER ION TOPPAR Loaded from crimm\n')
+    with open(abs_path, encoding="utf-8") as f:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8") as tf:
+            tf.write("* WATER ION TOPPAR Loaded from crimm\n")
             for line in f.readlines():
                 tf.write(line)
             tf.flush()
             read.stream(tf.name)
-    LOADED_TOPOLOGY_TYPES.add('water_ions')
+    LOADED_TOPOLOGY_TYPES.add("water_ions")
+
 
 def load_cgenff_toppar():
     """Load default CGENFF parameters into pyCHARMM."""
     abs_path = Path(__file__).resolve().parent.parent
     rtf_abs_path = abs_path / "Data/toppar/cgenff.rtf"
     prm_abs_path = abs_path / "Data/toppar/cgenff.prm"
-    with open(rtf_abs_path, encoding='utf-8') as f:
-        with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
-            tf.write('* CGENFF RTF Loaded from crimm\n')
+    with open(rtf_abs_path, encoding="utf-8") as f:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8") as tf:
+            tf.write("* CGENFF RTF Loaded from crimm\n")
             tf.write(f.read())
-            tf.flush() # has to flush first for long files!
-            read.rtf(tf.name, append = True)
+            tf.flush()  # has to flush first for long files!
+            read.rtf(tf.name, append=True)
 
     pcm_settings.set_bomb_level(-1)
-    with open(prm_abs_path, encoding='utf-8') as f:
-        with tempfile.NamedTemporaryFile('w', encoding = "utf-8") as tf:
-            tf.write('* CGENFF PRM Loaded from crimm\n')
+    with open(prm_abs_path, encoding="utf-8") as f:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8") as tf:
+            tf.write("* CGENFF PRM Loaded from crimm\n")
             tf.write(f.read())
-            tf.flush() # has to flush first for long files!
+            tf.flush()  # has to flush first for long files!
             read.prm(tf.name, append=True, flex=True)
     pcm_settings.set_bomb_level(0)
-    LOADED_TOPOLOGY_TYPES.add('cgenff')
+    LOADED_TOPOLOGY_TYPES.add("cgenff")
+
 
 def load_chain(chain, hbuild=False, report=False, use_psf_crd=True, append=False):
     """Load a protein/nucleic chain into pyCHARMM.
@@ -294,43 +301,47 @@ def load_chain(chain, hbuild=False, report=False, use_psf_crd=True, append=False
         m_chain = _get_charmm_named_chain(chain, segid)
         first_res = m_chain.child_list[0]
         last_res = m_chain.child_list[-1]
-        first_patch, last_patch = '', ''
+        first_patch, last_patch = "", ""
         other_patches = {}
         for res in m_chain.residues[1:-1]:
             # iterate over all residues except the first and last to find
             # if any residue has been patched
-            if (patch_name:=res.topo_definition.patch_with) is not None:
-                if patch_name == 'DISU':
+            if (patch_name := res.topo_definition.patch_with) is not None:
+                if patch_name == "DISU":
                     # skip disulfide bond patch in this step
                     continue
                 resseq = res.id[1]
                 # CHARMM requires the patch location to be in the format of
                 # SEGID RESSEQ
-                patch_loc = f'{segid} {resseq}'
+                patch_loc = f"{segid} {resseq}"
                 other_patches[patch_loc] = patch_name
-        if (patch_name:=first_res.topo_definition.patch_with) is not None:
+        if (patch_name := first_res.topo_definition.patch_with) is not None:
             first_patch = patch_name
 
-        if (patch_name:=last_res.topo_definition.patch_with) is not None:
+        if (patch_name := last_res.topo_definition.patch_with) is not None:
             last_patch = patch_name
 
-        with tempfile.NamedTemporaryFile('w') as tf:
+        with tempfile.NamedTemporaryFile("w") as tf:
             tf.write(get_pdb_str(m_chain, use_charmm_format=True))
-            tf.write('END\n')
+            tf.write("END\n")
             tf.flush()
             _load_chain(
-                tf.name, segnames=[segid], first_patch=first_patch, last_patch=last_patch,
-                hbuild=hbuild, report=report
+                tf.name,
+                segnames=[segid],
+                first_patch=first_patch,
+                last_patch=last_patch,
+                hbuild=hbuild,
+                report=report,
             )
         if len(other_patches) > 0:
             for patch_loc, patch_name in other_patches.items():
                 resseq = int(patch_loc.split()[1])
                 charmm_patch(patch_name, patch_sites=patch_loc)
                 pcm.lingo.charmm_script(
-                    f'hbuild sele segid {segid} .and. resi {resseq} '
-                    '.and. hydrogen end'
+                    f"hbuild sele segid {segid} .and. resi {resseq} .and. hydrogen end"
                 )
         return segid
+
 
 def load_ligands(ligand_chains, segids=None, use_psf_crd=True, append=False):
     """Load a list of ligand chains into pyCHARMM.
@@ -355,7 +366,7 @@ def load_ligands(ligand_chains, segids=None, use_psf_crd=True, append=False):
     if len(ligand_chains) == 0:
         return []
 
-    if 'cgenff' not in LOADED_TOPOLOGY_TYPES:
+    if "cgenff" not in LOADED_TOPOLOGY_TYPES:
         raise RuntimeError(
             f"Cannot load ligands {[r.resname for r in [res for chain in ligand_chains for res in chain]]} due to missing CGENFF topology/parameters. "
             "CGENFF program is needed to automatically generated the ligand topology for most drug-like ligands. "
@@ -363,7 +374,7 @@ def load_ligands(ligand_chains, segids=None, use_psf_crd=True, append=False):
         )
     all_ligands = [res for chain in ligand_chains for res in chain]
     if segids is None:
-        segids = [f'LG{i:02d}' for i in range(len(all_ligands))]
+        segids = [f"LG{i:02d}" for i in range(len(all_ligands))]
     elif len(segids) != len(all_ligands):
         raise ValueError("Number of segids must match number of ligands")
 
@@ -387,21 +398,23 @@ def load_ligands(ligand_chains, segids=None, use_psf_crd=True, append=False):
         for segid, lig_res in zip(segids, all_ligands):
             lig_res.segid = segid
             print(f"[crimm] Loading ligand {lig_res.resname} SEG: {segid}")
-            with tempfile.NamedTemporaryFile('w') as tf:
+            with tempfile.NamedTemporaryFile("w") as tf:
                 tf.write(get_pdb_str(lig_res, use_charmm_format=True))
-                tf.write('END\n')
+                tf.write("END\n")
                 tf.flush()
                 read.sequence_pdb(tf.name)
                 generate.new_segment(
                     seg_name=segid,
-                    first_patch='',
-                    last_patch='',
+                    first_patch="",
+                    last_patch="",
                     angle=True,
-                    dihedral=True
+                    dihedral=True,
                 )
                 read.pdb(tf.name, resid=True)
 
-        lone_pair_ligands = [lig.resname for lig in all_ligands if len(lig.lone_pairs) > 0]
+        lone_pair_ligands = [
+            lig.resname for lig in all_ligands if len(lig.lone_pairs) > 0
+        ]
 
         if len(lone_pair_ligands) > 0:
             print(
@@ -411,6 +424,7 @@ def load_ligands(ligand_chains, segids=None, use_psf_crd=True, append=False):
             pcm.lingo.charmm_script("coor shake")
 
     return segids
+
 
 def load_water(water_chains, segids=None, use_psf_crd=True, append=False):
     """Load water chains into pyCHARMM.
@@ -435,18 +449,18 @@ def load_water(water_chains, segids=None, use_psf_crd=True, append=False):
     """
     if len(water_chains) == 0:
         return []
-    if 'water_ions' not in LOADED_TOPOLOGY_TYPES:
+    if "water_ions" not in LOADED_TOPOLOGY_TYPES:
         load_solvent_toppar()
         warnings.warn(
             "Default solvent topology/parameters were not loaded before loading water. "
             "crimm has now loaded the default TIP3 water and ion topology/parameters.",
             UserWarning,
-            stacklevel=2
+            stacklevel=2,
         )
     # Currently only supports TIP3 water model
     use_explicit_segids = segids is not None
     if segids is None:
-        segids = [f'WT{i:02d}' for i in range(len(water_chains))]
+        segids = [f"WT{i:02d}" for i in range(len(water_chains))]
     elif len(segids) != len(water_chains):
         raise ValueError("Number of segids must match number of water chains")
 
@@ -476,22 +490,23 @@ def load_water(water_chains, segids=None, use_psf_crd=True, append=False):
             chain.reset_atom_serial_numbers(reset_current_only=True)
             for res in chain:
                 res.resname = res.topo_definition.resname
-            with tempfile.NamedTemporaryFile('w') as tf:
+            with tempfile.NamedTemporaryFile("w") as tf:
                 tf.write(get_pdb_str(chain, use_charmm_format=True, reset_serial=False))
-                tf.write('END\n')
+                tf.write("END\n")
                 tf.flush()
 
                 read.sequence_pdb(tf.name)
                 generate.new_segment(
                     seg_name=segid,
-                    first_patch='',
-                    last_patch='',
+                    first_patch="",
+                    last_patch="",
                     angle=False,
-                    dihedral=False
+                    dihedral=False,
                 )
                 read.pdb(tf.name, resid=True)
 
     return segids
+
 
 def load_ions(ion_chains, use_psf_crd=True, append=False):
     """Load ion chains into pyCHARMM.
@@ -513,13 +528,13 @@ def load_ions(ion_chains, use_psf_crd=True, append=False):
     """
     if len(ion_chains) == 0:
         return []
-    if 'water_ions' not in LOADED_TOPOLOGY_TYPES:
+    if "water_ions" not in LOADED_TOPOLOGY_TYPES:
         load_solvent_toppar()
         warnings.warn(
             "Default solvent topology/parameters were not loaded before loading water. "
             "crimm has now loaded the default TIP3 water and ion topology/parameters.",
             UserWarning,
-            stacklevel=2
+            stacklevel=2,
         )
     segids = []
 
@@ -541,7 +556,7 @@ def load_ions(ion_chains, use_psf_crd=True, append=False):
         #     stacklevel=2
         # )
         for i, chain in enumerate(ion_chains):
-            segid = f'IO{i:02d}'
+            segid = f"IO{i:02d}"
             print(f"[crimm] Loading ion chain {segid}")
             for res in chain:
                 res.segid = segid
@@ -549,18 +564,18 @@ def load_ions(ion_chains, use_psf_crd=True, append=False):
             chain = chain.copy()
             chain.reset_atom_serial_numbers(reset_current_only=True)
 
-            with tempfile.NamedTemporaryFile('w') as tf:
+            with tempfile.NamedTemporaryFile("w") as tf:
                 tf.write(get_pdb_str(chain, use_charmm_format=True, reset_serial=False))
-                tf.write('END\n')
+                tf.write("END\n")
                 tf.flush()
 
                 read.sequence_pdb(tf.name)
                 generate.new_segment(
                     seg_name=segid,
-                    first_patch='',
-                    last_patch='',
+                    first_patch="",
+                    last_patch="",
                     angle=False,
-                    dihedral=False
+                    dihedral=False,
                 )
                 read.pdb(tf.name, resid=True)
             segids.append(segid)
@@ -568,7 +583,9 @@ def load_ions(ion_chains, use_psf_crd=True, append=False):
     return segids
 
 
-def load_model(model, use_psf_crd=True, load_params=True, separate_crystal_segids=False):
+def load_model(
+    model, use_psf_crd=True, load_params=True, separate_crystal_segids=False
+):
     """Load an entire OrganizedModel into pyCHARMM.
 
     This is a convenience function that loads all components of a model
@@ -618,7 +635,9 @@ def load_model(model, use_psf_crd=True, load_params=True, separate_crystal_segid
     if use_psf_crd:
         # PSF/CRD approach (default) - single call for entire model
         # Topology is already in the PSF, including disulfides - no patching needed
-        _load_psf_crd(model, append=False, separate_crystal_segids=separate_crystal_segids)
+        _load_psf_crd(
+            model, append=False, separate_crystal_segids=separate_crystal_segids
+        )
     else:
         # Deprecated: load components separately using PDB-based approach
         warnings.warn(
@@ -626,7 +645,7 @@ def load_model(model, use_psf_crd=True, load_params=True, separate_crystal_segid
             "in a future version. Use PSF/CRD format (default) for simpler and more "
             "reliable loading.",
             DeprecationWarning,
-            stacklevel=2
+            stacklevel=2,
         )
         # Load protein chains
         for chain in model.protein:
@@ -648,25 +667,25 @@ def load_model(model, use_psf_crd=True, load_params=True, separate_crystal_segid
         # Apply disulfide patches (only needed for PDB-based loading)
         patch_disu_from_model(model)
 
+
 def _get_charmm_named_chain(chain, segid):
     for res in chain:
         res.segid = segid
     m_chain = chain.copy()
-    if chain.chain_type == 'Polypeptide(L)':
+    if chain.chain_type == "Polypeptide(L)":
         for res in m_chain:
-            if res.resname == 'HIS':
+            if res.resname == "HIS":
                 # we uses HSD for default HIS protonation state here
                 res.resname = res.topo_definition.resname
-    elif chain.chain_type == 'Polyribonucleotide':
+    elif chain.chain_type == "Polyribonucleotide":
         for res in m_chain:
             res.resname = nucleic_letters_1to3[res.resname]
     return m_chain
 
 
 def _load_chain(
-        pdb_filepath, segnames, hbuild = True, report = False,
-        first_patch='', last_patch=''
-    ):
+    pdb_filepath, segnames, hbuild=True, report=False, first_patch="", last_patch=""
+):
 
     read.sequence_pdb(pdb_filepath)
 
@@ -688,16 +707,18 @@ def _load_chain(
     if hbuild:
         pcm.lingo.charmm_script("hbuild sele type H* end")
 
+
 def patch_disu_from_model(model):
     """Patch disulfide bonds found in a model object."""
-    if 'disulf' in model.connect_dict:
-        for res1, res2 in model.connect_dict['disulf']:
-            seg1 = polymer_chain_to_charmm_segid(model[res1['chain']])
-            seg2 = polymer_chain_to_charmm_segid(model[res2['chain']])
-            seq1, seq2 = res1['resseq'], res2['resseq']
-            patch_arg = f'{seg1} {seq1} {seg2} {seq2}'
-            print('[Excuting CHARMM Command] patch DISU', patch_arg)
-            generate.patch('DISU', patch_arg)
+    if "disulf" in model.connect_dict:
+        for res1, res2 in model.connect_dict["disulf"]:
+            seg1 = polymer_chain_to_charmm_segid(model[res1["chain"]])
+            seg2 = polymer_chain_to_charmm_segid(model[res2["chain"]])
+            seq1, seq2 = res1["resseq"], res2["resseq"]
+            patch_arg = f"{seg1} {seq1} {seg2} {seq2}"
+            print("[Excuting CHARMM Command] patch DISU", patch_arg)
+            generate.patch("DISU", patch_arg)
+
 
 def ok_to_sync(chain):
     """DEPRECATED: Use fetch_coords_from_charmm instead."""
@@ -712,6 +733,7 @@ def ok_to_sync(chain):
             return False
     return resname_list == psf.get_res()
 
+
 def sync_coords(chain):
     """DEPRECATED: Use fetch_coords_from_charmm instead."""
     if not ok_to_sync(chain):
@@ -725,9 +747,10 @@ def sync_coords(chain):
         for atom_name, coordinate in atom_coords[st:end]:
             if atom_name in cur_res:
                 cur_res[atom_name].coord = coordinate
-    print(f'[crimm] Synchronized: {chain}')
+    print(f"[crimm] Synchronized: {chain}")
 
-def get_charmm_coord_dict(selected_atoms, include_resname = True):
+
+def get_charmm_coord_dict(selected_atoms, include_resname=True):
     """Get a dictionary of coordinates of selected atoms from CHARMM.
     The dictionary is organized by SEGID, and then by residue sequence and atom name.
     """
@@ -739,7 +762,7 @@ def get_charmm_coord_dict(selected_atoms, include_resname = True):
     for id_str in selected_atoms.get_res_ids():
         if not id_str.isdigit():
             ## CHARMM's residue ID can be in the format of "1A", "1B", etc.
-            id_str = ''.join([c for c in id_str if c.isdigit()])
+            id_str = "".join([c for c in id_str if c.isdigit()])
         resseq.append(int(id_str))
     resnames = selected_atoms.get_res_names()
     a_types = selected_atoms.get_atom_types()
@@ -757,6 +780,7 @@ def get_charmm_coord_dict(selected_atoms, include_resname = True):
             coords_dict[segid][(resname, res_id, a_name)] = coords
     return coords_dict
 
+
 def get_missing_water_h_dict(model):
     missing_hydrogen_dict = {}
     for water_chain in model.solvent:
@@ -770,38 +794,36 @@ def get_missing_water_h_dict(model):
                 missing_hydrogen_dict[water.segid][missing_h_key] = missing_h
     return missing_hydrogen_dict
 
+
 def _build_water_with_dicts(missing_water_h_dict, h_coords_dict):
     for h_key, missing_h in missing_water_h_dict.items():
         water_res = missing_h.parent
         if h_key not in h_coords_dict:
             raise KeyError(
-                f'Corresponding hydrogen coordinates for {missing_h} in {water_res} not found in CHARMM'
+                f"Corresponding hydrogen coordinates for {missing_h} in {water_res} not found in CHARMM"
             )
         missing_h.coord = h_coords_dict[h_key]
         h_name = h_key[-1]
         water_res.missing_hydrogens.pop(h_name)
         water_res.add(missing_h)
 
+
 def create_water_hs_from_charmm(model):
     """Create missing hydrogen atoms in water residues from CHARMM."""
     missing_water_h_dicts = get_missing_water_h_dict(model)
     for segid, missing_h_dict in missing_water_h_dicts.items():
         # build water hydrogen atoms in CHARMM
-        pcm.lingo.charmm_script(
-            f'hbuild sele SEGI {segid} .and. .not. TYPE O* end'
-        )
+        pcm.lingo.charmm_script(f"hbuild sele SEGI {segid} .and. .not. TYPE O* end")
         charmm_water_hs = (
-            pcm.SelectAtoms().by_seg_id(segid) &
-            pcm.SelectAtoms().all_hydrogen_atoms()
+            pcm.SelectAtoms().by_seg_id(segid) & pcm.SelectAtoms().all_hydrogen_atoms()
         )
-        h_coords_dict = get_charmm_coord_dict(
-            charmm_water_hs, include_resname=False
-        )
+        h_coords_dict = get_charmm_coord_dict(charmm_water_hs, include_resname=False)
         _build_water_with_dicts(missing_h_dict, h_coords_dict[segid])
+
 
 def fetch_coords_from_charmm(entity):
     """Fetch coordinates from CHARMM to the entity."""
-    res_list = unfold_entities(entity, 'R')
+    res_list = unfold_entities(entity, "R")
     all_charmm_atoms = pcm.SelectAtoms().all_atoms()
     charmm_coord_dict = get_charmm_coord_dict(all_charmm_atoms)
     for residue in res_list:
@@ -810,30 +832,31 @@ def fetch_coords_from_charmm(entity):
         if lp_dict:
             atoms.extend(lp_dict.values())
         resname = residue.resname
-        if resname == 'HIS':
+        if resname == "HIS":
             # use histidine's CHARMM name
             resname = residue.topo_definition.resname
-        if resname == 'HOH':
-            resname = 'TIP3'
+        if resname == "HOH":
+            resname = "TIP3"
         segid = residue.segid
-        if segid == ' ':
-            raise ValueError(f'No SEGID assigned to {residue}')
+        if segid == " ":
+            raise ValueError(f"No SEGID assigned to {residue}")
         resseq = residue.id[1]
         for atom in atoms:
             atom_name = atom.name
             atom_key = (resname, resseq, atom_name)
             if segid not in charmm_coord_dict:
                 raise KeyError(
-                    f'{atom} in {residue} with SEGID {segid} not found in CHARMM'
+                    f"{atom} in {residue} with SEGID {segid} not found in CHARMM"
                 )
             if atom_key not in charmm_coord_dict[segid]:
                 raise KeyError(
-                    f'{atom} in {residue} not found in CHARMM SEGMENT {segid}'
-                    f' with RESNAME {resname} RESID {resseq} ATOM NAME {atom_name}'
+                    f"{atom} in {residue} not found in CHARMM SEGMENT {segid}"
+                    f" with RESNAME {resname} RESID {resseq} ATOM NAME {atom_name}"
                 )
             atom.coord = charmm_coord_dict[segid][atom_key]
 
-def minimize(constrained_atoms='CA', sd_nstep=1000, abnr_nstep=500):
+
+def minimize(constrained_atoms="CA", sd_nstep=1000, abnr_nstep=500):
     """Simple minimization with harmonic constraints on specified atoms.
 
     This is a convenience function that runs steepest-descent followed by
@@ -849,22 +872,27 @@ def minimize(constrained_atoms='CA', sd_nstep=1000, abnr_nstep=500):
         Number of adopted basis Newton-Raphson minimization steps (0 to skip)
     """
     cons_harm.setup_absolute(
-        selection=pcm.SelectAtoms(atom_type=constrained_atoms),
-        force_constant=50
+        selection=pcm.SelectAtoms(atom_type=constrained_atoms), force_constant=50
     )
     if int(sd_nstep) > 0:
         _minimize.run_sd(nstep=int(sd_nstep))
     else:
-        print('Steepest-descend minimization not performed')
+        print("Steepest-descend minimization not performed")
     if int(abnr_nstep) > 0:
         _minimize.run_abnr(nstep=int(abnr_nstep), tolenr=1e-3, tolgrd=1e-3)
     else:
-        print('Adopted Basis Newton-Raphson minimization not performed')
+        print("Adopted Basis Newton-Raphson minimization not performed")
     cons_harm.turn_off()
 
+
 def sd_minimize(
-    nstep, non_bonded_script, tolenr=1e-3, tolgrd=1e-3,
-    cons_harm_selection=None, harm_force_const=20, cons_fix_selection=None
+    nstep,
+    non_bonded_script,
+    tolenr=1e-3,
+    tolgrd=1e-3,
+    cons_harm_selection=None,
+    harm_force_const=20,
+    cons_fix_selection=None,
 ):
     """Perform steepest-descent minimization in CHARMM."""
     # Implement the non-bonded parameters by "running" them.
@@ -880,12 +908,13 @@ def sd_minimize(
             )
         else:
             status = cons_harm.setup_absolute(
-                selection=cons_harm_selection,
-                force_const=harm_force_const
+                selection=cons_harm_selection, force_const=harm_force_const
             )
             has_cons_harm = not status
             # The status would return False if success
-            warnings.warn(f"Absolute harmonic restraints setup success: {has_cons_harm}")
+            warnings.warn(
+                f"Absolute harmonic restraints setup success: {has_cons_harm}"
+            )
     elif cons_fix_selection is not None:
         if cons_fix_selection.get_n_selected() == 0:
             warnings.warn(

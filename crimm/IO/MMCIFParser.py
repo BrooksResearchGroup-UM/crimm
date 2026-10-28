@@ -3,8 +3,9 @@
 # license.  Please see the LICENSE file that should have been included
 # as part of this package.
 
-"""Module containing the parser class for constructing structures from mmCIF 
+"""Module containing the parser class for constructing structures from mmCIF
 files from PDB"""
+
 import warnings
 from copy import deepcopy
 
@@ -28,15 +29,16 @@ from crimm.Utils.StructureUtils import get_coords, index_to_letters, letters_to_
 
 class MMCIFParser:
     """Parser class for standard mmCIF files from PDB"""
+
     def __init__(
-            self,
-            first_model_only = True,
-            use_bio_assembly = True,
-            include_solvent = True,
-            include_hydrogens = False,
-            strict_parser = True,
-            QUIET = False
-        ):
+        self,
+        first_model_only=True,
+        use_bio_assembly=True,
+        include_solvent=True,
+        include_hydrogens=False,
+        strict_parser=True,
+        QUIET=False,
+    ):
         self._structure_builder = StructureBuilder()
         self.QUIET = QUIET
         self.first_model_only = first_model_only
@@ -61,13 +63,13 @@ class MMCIFParser:
         ]
         for key, subkey in resolution_keys:
             resolution = cifdict.level_two_get(key, subkey)
-            if resolution is not None and (value:=resolution[0]) is not None:
+            if resolution is not None and (value := resolution[0]) is not None:
                 return value
 
     @staticmethod
     def _cif_get_header(cifdict):
         """Get header information from the parsed mmCIF dictionary"""
-        date =  cifdict.level_two_get(
+        date = cifdict.level_two_get(
             "pdbx_database_status", "recvd_initial_deposition_date"
         )
         if date is not None:
@@ -78,13 +80,13 @@ class MMCIFParser:
             "name": cifdict.get("data"),
             "keywords": cifdict.retrieve_single_value_dict("struct_keywords"),
             "citation": cifdict.get("citation"),
-            "idcode": cifdict.retrieve_single_value_dict('struct'),
+            "idcode": cifdict.retrieve_single_value_dict("struct"),
             "deposition_date": date,
         }
 
         return header
 
-    def get_structure(self, filepath, structure_id = None):
+    def get_structure(self, filepath, structure_id=None):
         """Return the structure.
 
         Arguments:
@@ -110,7 +112,7 @@ class MMCIFParser:
             struct_method_list = self.cifdict.level_two_get("exptl", "method")
             if struct_method_list is not None:
                 structure_method = struct_method_list[0]
-                
+
             self._structure_builder.set_structure_method(structure_method)
             resolution = self._cif_find_resolution(self.cifdict)
             self._structure_builder.set_resolution(resolution)
@@ -120,13 +122,13 @@ class MMCIFParser:
         return self._structure_builder.get_structure()
 
     def create_polymer_chain_dict(self):
-        """Create a dictionary for the PolymerChain object from mmCIF. Empty 
-        PolymerChain classes will be created, and information on entity id, 
-        author chain id, reported sequence, and reported missing residues will 
+        """Create a dictionary for the PolymerChain object from mmCIF. Empty
+        PolymerChain classes will be created, and information on entity id,
+        author chain id, reported sequence, and reported missing residues will
         be assigned. Return a dictionary with empty PolymerChain objects keyed
         by entity id (int)"""
         zero_occupancy_residues = self.cifdict.create_namedtuples(
-            'pdbx_unobs_or_zero_occ_residues'
+            "pdbx_unobs_or_zero_occ_residues"
         )
         missing_res_dict = dict()
         for res in zero_occupancy_residues:
@@ -136,14 +138,14 @@ class MMCIFParser:
                 (res.label_seq_id, res.label_comp_id)
             )
 
-        entity_poly = self.cifdict.create_namedtuples('entity_poly')
+        entity_poly = self.cifdict.create_namedtuples("entity_poly")
         entity_poly_dict = dict()
         for entity in entity_poly:
-            auth_chain_ids = str(entity.pdbx_strand_id).split(',')
+            auth_chain_ids = str(entity.pdbx_strand_id).split(",")
             for chain_id in auth_chain_ids:
                 entity_poly_dict[chain_id] = entity
 
-        entity_poly_seq = self.cifdict.create_namedtuples('entity_poly_seq')
+        entity_poly_seq = self.cifdict.create_namedtuples("entity_poly_seq")
         reported_res_dict = dict()
         for res in entity_poly_seq:
             if res.entity_id not in reported_res_dict:
@@ -161,7 +163,7 @@ class MMCIFParser:
                 entity_info.pdbx_seq_one_letter_code,
                 entity_info.pdbx_seq_one_letter_code_can,
                 reported_res_dict[entity_info.entity_id],
-                missing_res_dict.get(auth_chain_id)
+                missing_res_dict.get(auth_chain_id),
             )
             polymer_dict[entity_id] = chain
         return polymer_dict
@@ -169,33 +171,33 @@ class MMCIFParser:
     def _set_chain_attr(self, entity, chain):
         """Set the info from mmcif as attribute for the chain"""
         for k, v in entity._asdict().items():
-            if k != 'id' and k != 'type' and v is not None:
+            if k != "id" and k != "type" and v is not None:
                 setattr(chain, k, v)
 
     def create_model_template(self):
-        """Set up empty templates for the chains in a template model. The chain 
+        """Set up empty templates for the chains in a template model. The chain
         types are determined based on the entity type in mmCIF, and a model object
         containing the empty chains will be returned."""
-        model_temp = Model('template')
+        model_temp = Model("template")
 
         poly_dict = self.create_polymer_chain_dict()
-        entity_info = self.cifdict.create_namedtuples('entity')
+        entity_info = self.cifdict.create_namedtuples("entity")
 
         for entity in entity_info:
-            if entity.type == 'polymer':
+            if entity.type == "polymer":
                 cur_chain = poly_dict[entity.id]
-            elif entity.type == 'non-polymer':
+            elif entity.type == "non-polymer":
                 cur_chain = Heterogens(entity.id)
-            elif entity.type == 'water':
+            elif entity.type == "water":
                 cur_chain = Solvent(entity.id)
-            elif entity.type == 'branched':
+            elif entity.type == "branched":
                 cur_chain = Oligosaccharide(entity.id)
-            elif entity.type == 'macrolide':
+            elif entity.type == "macrolide":
                 cur_chain = Macrolide(entity.id)
             elif not self.strict_parser:
                 cur_chain = Chain(entity.id)
             else:
-                raise TypeError(f'Unknown Chain Type: {entity.type}')
+                raise TypeError(f"Unknown Chain Type: {entity.type}")
             self._set_chain_attr(entity, cur_chain)
             model_temp.add(cur_chain)
         return model_temp
@@ -209,31 +211,29 @@ class MMCIFParser:
                            with field names as attributes in the tuple
          :type atom_entry: namedtuple
         """
-        coord = np.array(
-                [atom_entry.Cartn_x, atom_entry.Cartn_y, atom_entry.Cartn_z]
-        )
+        coord = np.array([atom_entry.Cartn_x, atom_entry.Cartn_y, atom_entry.Cartn_z])
         altloc = atom_entry.label_alt_id
         if altloc is None:
-            altloc = ' '
+            altloc = " "
         else:
             altloc = str(atom_entry.label_alt_id)
 
         atom = Atom(
-            name = atom_entry.label_atom_id,
-            fullname = atom_entry.label_atom_id,
-            coord = coord,
-            bfactor = atom_entry.B_iso_or_equiv,
-            occupancy = atom_entry.occupancy,
-            altloc = altloc,
-            serial_number = atom_entry.id,
-            element = atom_entry.type_symbol,
+            name=atom_entry.label_atom_id,
+            fullname=atom_entry.label_atom_id,
+            coord=coord,
+            bfactor=atom_entry.B_iso_or_equiv,
+            occupancy=atom_entry.occupancy,
+            altloc=altloc,
+            serial_number=atom_entry.id,
+            element=atom_entry.type_symbol,
         )
         return atom
 
     @staticmethod
     def _assign_hetflag(fieldname, resname):
         if fieldname != "HETATM":
-            return ' '
+            return " "
         if resname in ("HOH", "WAT"):
             return "W"
         return "H"
@@ -241,24 +241,22 @@ class MMCIFParser:
     def _create_residue_dict_entry(self, atom_entry, resseq):
         """Create a residue dictionary entry with empty atom list"""
         resname = str(atom_entry.label_comp_id)
-        hetatm_flag = self._assign_hetflag(
-            atom_entry.group_PDB, resname
-        )
+        hetatm_flag = self._assign_hetflag(atom_entry.group_PDB, resname)
         icode = atom_entry.pdbx_PDB_ins_code
         if icode is None:
-            icode = ' '
+            icode = " "
         res_id = (hetatm_flag, resseq, icode)
         res_dict_entry = {
             "resname": resname,
             "res_id": res_id,
             "author_seq_id": atom_entry.auth_seq_id,
-            "atom_list": []
+            "atom_list": [],
         }
         return res_dict_entry
-        
+
     def create_atom_site_entry_dict(self):
-        """Create a dictionary containing structured data from all "atom_site" 
-        fields in mmCIF. Return a dictionary that contains four levels, which 
+        """Create a dictionary containing structured data from all "atom_site"
+        fields in mmCIF. Return a dictionary that contains four levels, which
         are keyed by [model_id,[chain_id,[resseq]]].
 
         The dictionary adopt the strucuture as following.
@@ -274,11 +272,11 @@ class MMCIFParser:
             }
         }
         """
-        atom_site = self.cifdict.create_namedtuples('atom_site')
+        atom_site = self.cifdict.create_namedtuples("atom_site")
         model_dict = dict()
 
         for atom_entry in atom_site:
-            if not self.include_hydrogens and atom_entry.type_symbol == 'H':
+            if not self.include_hydrogens and atom_entry.type_symbol == "H":
                 continue
             model_num = atom_entry.pdbx_PDB_model_num
             if model_num not in model_dict:
@@ -300,7 +298,7 @@ class MMCIFParser:
             resseq = atom_entry.label_seq_id
             auth_seq_id = atom_entry.auth_seq_id
             if resseq is None:
-                # The residue sequence for HETATOM is not defined in mmCIF, 
+                # The residue sequence for HETATOM is not defined in mmCIF,
                 # we need to manually increment it from the last sequence number
                 if auth_seq_id != last_auth_seq:
                     het_chain_resseq += 1
@@ -310,7 +308,7 @@ class MMCIFParser:
             if resseq not in res_dict:
                 res_dict[resseq] = self._create_residue_dict_entry(atom_entry, resseq)
             atom = self.create_atom_from_namedtuple(atom_entry)
-            res_dict[resseq]['atom_list'].append(atom)
+            res_dict[resseq]["atom_list"].append(atom)
 
         return model_dict
 
@@ -319,41 +317,39 @@ class MMCIFParser:
         "pdbx_struct_assembly_gen". If no assembly info available, None is
         returned.
         """
-        self.structure_id = self.cifdict.get('data')
-        if self.structure_id.startswith('AF-'):
+        self.structure_id = self.cifdict.get("data")
+        if self.structure_id.startswith("AF-"):
             # AF-xxxxx is AlphaFold Structure, which does not have assembly
             return
 
-        if 'pdbx_struct_assembly_gen' not in self.cifdict:
-            warnings.warn(
-                f"No structure assembly info in {self.structure_id}"
-            )
+        if "pdbx_struct_assembly_gen" not in self.cifdict:
+            warnings.warn(f"No structure assembly info in {self.structure_id}")
             return
 
         assemblies = dict()
-        entries = self.cifdict.create_namedtuples('pdbx_struct_assembly_gen')
+        entries = self.cifdict.create_namedtuples("pdbx_struct_assembly_gen")
         if self.use_bio_assembly:
             entries = entries[:1]
         for entry in entries:
-            chain_id_list = entry.asym_id_list.split(',')
+            chain_id_list = entry.asym_id_list.split(",")
             assemblies[entry.assembly_id] = chain_id_list
 
         return assemblies
 
     def _cif_find_symmetry_info(self):
-        symmetry_info = self.cifdict.get('pdbx_struct_oper_list')
+        symmetry_info = self.cifdict.get("pdbx_struct_oper_list")
         if symmetry_info is None or self.assembly_dict is None:
             return
-        operation_names = symmetry_info['type']
+        operation_names = symmetry_info["type"]
         matrices = np.empty((len(operation_names), 3, 3))
         vectors = np.empty((len(operation_names), 3))
         for key, val in symmetry_info.items():
-            if key.startswith('matrix'):
-                idx_j, idx_k = int(key[-2])-1, int(key[-1])-1
+            if key.startswith("matrix"):
+                idx_j, idx_k = int(key[-2]) - 1, int(key[-1]) - 1
                 for idx_i, x in enumerate(val):
                     matrices[idx_i, idx_j, idx_k] = x
-            if key.startswith('vector'):
-                idx_j = int(key[-1])-1
+            if key.startswith("vector"):
+                idx_j = int(key[-1]) - 1
                 for idx_i, x in enumerate(val):
                     vectors[idx_i, idx_j] = x
 
@@ -361,25 +357,21 @@ class MMCIFParser:
         for i, (operation, matrix, vector) in enumerate(
             zip(operation_names, matrices, vectors)
         ):
-            operation_dict[i] = {
-                'type': operation,
-                'matrix': matrix,
-                'vector': vector
-            }
+            operation_dict[i] = {"type": operation, "matrix": matrix, "vector": vector}
 
         return operation_dict
 
     def _oper_str_to_list(self, ops):
-        ops = ops.lstrip('(').rstrip(')')
-        if ',' in ops:
-            return [int(op)-1 for op in ops.split(',')]
-        elif '-' in ops:
-            st, end = ops.split('-')
-            return list(range(int(st)-1, int(end)))
-        raise ValueError(f'Unknown Type of operation number format {ops}')
+        ops = ops.lstrip("(").rstrip(")")
+        if "," in ops:
+            return [int(op) - 1 for op in ops.split(",")]
+        elif "-" in ops:
+            st, end = ops.split("-")
+            return list(range(int(st) - 1, int(end)))
+        raise ValueError(f"Unknown Type of operation number format {ops}")
 
     def _find_first_assembly_ops(self):
-        oper_details = self.cifdict.create_namedtuples('pdbx_struct_assembly_gen')
+        oper_details = self.cifdict.create_namedtuples("pdbx_struct_assembly_gen")
         for oper_detail in oper_details:
             if oper_detail.assembly_id != 1:
                 continue
@@ -387,7 +379,7 @@ class MMCIFParser:
             if isinstance(op_val, str):
                 first_assem_ops = self._oper_str_to_list(op_val)
             else:
-                first_assem_ops = [int(op_val)-1]
+                first_assem_ops = [int(op_val) - 1]
         return first_assem_ops
 
     def _execute_symmetry_operations(self, model):
@@ -400,15 +392,15 @@ class MMCIFParser:
         for op_id in self._find_first_assembly_ops():
             if op_id not in self.symmetry_ops:
                 raise ValueError(
-                    f'Operation id {op_id} not found in listed symmetry ops'
+                    f"Operation id {op_id} not found in listed symmetry ops"
                 )
             operation = self.symmetry_ops[op_id]
-            if operation['type'] == 'identity operation':
+            if operation["type"] == "identity operation":
                 continue
             warnings.warn(
                 f"{operation['type'].upper()} performed as specified in mmCIF file."
             )
-            matrix, vector = operation['matrix'], operation['vector']
+            matrix, vector = operation["matrix"], operation["vector"]
             copy_model = deepcopy(reference_model)
             copy_coords = get_coords(copy_model)
             new_coords = copy_coords @ matrix + vector
@@ -420,23 +412,23 @@ class MMCIFParser:
                 chain.id = index_to_letters(last_idx)
             for chain in copy_model:
                 model.add(chain)
-        
+
         model.reset_atom_serial_numbers()
 
     def _build_structure(self, structure_id):
         """build the structure with structure builder object and mmcif dict"""
         sb = self._structure_builder
         self.model_template = self.create_model_template()
-        
-        all_anisou = self.cifdict.create_namedtuples('atom_site_anisotrop')
+
+        all_anisou = self.cifdict.create_namedtuples("atom_site_anisotrop")
         if structure_id is None:
-            structure_id = self.cifdict['data']
+            structure_id = self.cifdict["data"]
         sb.init_structure(structure_id)
         sb.init_seg(" ")
-        if 'cell' in self.cifdict:
-            cell_info = self.cifdict.create_namedtuples('cell')[0]
+        if "cell" in self.cifdict:
+            cell_info = self.cifdict.create_namedtuples("cell")[0]
             sb.structure.cell_info = cell_info._asdict()
-        
+
         if self.assembly_dict is None:
             selected_chains = None
         else:
@@ -453,9 +445,7 @@ class MMCIFParser:
             sb.model = model
             for entity_id, chain_dict in entity_dict.items():
                 for chain_id, res_dict in chain_dict.items():
-                    if (
-                        selected_chains is not None
-                    ) and (
+                    if (selected_chains is not None) and (
                         chain_id not in selected_chains
                     ):
                         self.skipped_chain_id.append(chain_id)
@@ -465,7 +455,7 @@ class MMCIFParser:
                         if not self.include_solvent:
                             self.skipped_chain_id.append(chain_id)
                             continue
-                        chain.source = 'PDB'
+                        chain.source = "PDB"
                     sb.model.add(chain)
                     sb.chain = chain
                     # This is the mmCIF label chain id
@@ -479,10 +469,14 @@ class MMCIFParser:
                         for atom in atoms:
                             sb.add_atom(atom, sb.residue)
                             if atom.orig_serial_number <= len(all_anisou):
-                                anisou = all_anisou[atom.orig_serial_number-1]
+                                anisou = all_anisou[atom.orig_serial_number - 1]
                                 u = (
-                                    anisou.U11, anisou.U12, anisou.U13,
-                                    anisou.U22, anisou.U23, anisou.U33,
+                                    anisou.U11,
+                                    anisou.U12,
+                                    anisou.U13,
+                                    anisou.U22,
+                                    anisou.U23,
+                                    anisou.U33,
                                 )
                                 atom.set_anisou(np.array(u, "f"))
             if self.use_bio_assembly:
@@ -498,16 +492,14 @@ class MMCIFParser:
         sb.structure.set_pdb_id(structure_id)
         self.add_cell_and_symmetry_info()
         self.add_connect_record()
-        
-    def add_cell_and_symmetry_info(self):
-        cell = self.cifdict.create_namedtuples('cell', single_value=True)
-        symmetry = self.cifdict.create_namedtuples('symmetry', single_value=True)
 
-        if not (
-            cell and symmetry and hasattr(symmetry, "space_group_name_H_M")
-        ):
+    def add_cell_and_symmetry_info(self):
+        cell = self.cifdict.create_namedtuples("cell", single_value=True)
+        symmetry = self.cifdict.create_namedtuples("symmetry", single_value=True)
+
+        if not (cell and symmetry and hasattr(symmetry, "space_group_name_H_M")):
             return
-        
+
         a = float(cell.length_a)
         b = float(cell.length_b)
         c = float(cell.length_c)
@@ -515,19 +507,19 @@ class MMCIFParser:
         beta = float(cell.angle_beta)
         gamma = float(cell.angle_gamma)
         cell_data = np.array((a, b, c, alpha, beta, gamma), "f")
-        spacegroup = symmetry.space_group_name_H_M #Hermann-Mauguin space-group symbol
+        spacegroup = symmetry.space_group_name_H_M  # Hermann-Mauguin space-group symbol
         self._structure_builder.set_symmetry(spacegroup, cell_data)
 
     def add_connect_record(self):
-        if 'struct_conn' not in self.cifdict:
+        if "struct_conn" not in self.cifdict:
             return
-        struct_conn = self.cifdict.create_namedtuples('struct_conn')
+        struct_conn = self.cifdict.create_namedtuples("struct_conn")
         label_dict = {
-            'chain': 'ptnr{}_label_asym_id',
-            'resname': 'ptnr{}_label_comp_id',
-            'resseq': 'ptnr{}_label_seq_id',
-            'atom_id': 'ptnr{}_label_atom_id',
-            'altloc': 'pdbx_ptnr{}_label_alt_id'
+            "chain": "ptnr{}_label_asym_id",
+            "resname": "ptnr{}_label_comp_id",
+            "resseq": "ptnr{}_label_seq_id",
+            "atom_id": "ptnr{}_label_atom_id",
+            "altloc": "pdbx_ptnr{}_label_alt_id",
         }
 
         conn_dict = {}
@@ -536,12 +528,12 @@ class MMCIFParser:
             if conn_type not in conn_dict:
                 conn_dict[conn_type] = []
             cur_connect = []
-            for i in (1,2):
+            for i in (1, 2):
                 cur_label_dict = {k: v.format(i) for k, v in label_dict.items()}
                 record_dict = {
                     k: getattr(connect, v) for k, v in cur_label_dict.items()
                 }
-                if record_dict['chain'] in self.skipped_chain_id:
+                if record_dict["chain"] in self.skipped_chain_id:
                     break
                 cur_connect.append(record_dict)
             else:

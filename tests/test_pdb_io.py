@@ -1,4 +1,5 @@
 """PDB string output and the PDB parser."""
+
 import numpy as np
 import pytest
 

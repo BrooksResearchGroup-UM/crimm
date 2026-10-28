@@ -10,4 +10,3 @@ from crimm.IO.PDBParser import PDBParser
 from crimm.IO.PSFReader import PSFAtom, PSFData, PSFReader, compare_psf, read_psf
 from crimm.IO.PSFWriter import PSFWriter, get_psf_str, write_psf
 from crimm.IO.RTFParser import RTFParser
-
