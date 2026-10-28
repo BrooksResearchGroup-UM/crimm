@@ -55,8 +55,7 @@ markers = [
 ]
 
 [tool.ruff]
-# Lint only. `ruff format` is not used yet: it would rewrite most files and needs
-# its own commit (see docs/dev/ROADMAP.md, Phase 0).
+# `ruff check` and `ruff format` both apply to crimm/ and tests/; CI checks both (#110).
 target-version = "py39"
 extend-exclude = ["docs/_build"]
 

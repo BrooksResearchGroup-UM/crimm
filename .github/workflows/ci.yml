@@ -32,6 +32,8 @@ jobs:
         run: pip install ruff==0.16.10
       - name: Lint
         run: ruff check crimm tests
+      - name: Format
+        run: ruff format --check crimm tests
 
   test:
     runs-on: ubuntu-latest
