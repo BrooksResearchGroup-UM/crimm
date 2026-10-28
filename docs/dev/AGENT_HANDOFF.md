@@ -206,7 +206,16 @@ branches:                          # master = origin/master = 829a4fd, the merge
                                    # (2026-10-26); local fast-forwarded 2026-10-28.
                                    # From 2026-10-28 [told]: one short branch per concern, cut
                                    # from master, one small PR each.
-  docs/post-108:                   # agent, 2026-10-28: TODO policy, post-merge bookkeeping
+  docs/post-108:                   # agent, 2026-10-28: TODO policy, post-merge bookkeeping, this
+                                   # State. Not pushed. No overlap with the two below.
+  style/110-ruff-format:           # agent, 2026-10-28, first half of #110. Not pushed.
+    - 7ead967                      # ruff format crimm tests (61 files); SHA is in
+                                   # .git-blame-ignore-revs, so MERGE WITH A MERGE COMMIT
+    - bd407da, 974ad15, 63a7324    # blame-ignore entry; `ruff format --check` in CI lint job;
+                                   # CONTRIBUTING names `ruff format`
+  chore/111-pre-commit:            # agent, 2026-10-28, closes #111. Stacked on
+    - 712c586                      # style/110-ruff-format: open its PR against that branch, or
+                                   # after #110 merges. .pre-commit-config.yaml + CONTRIBUTING.
   feat/coordmanipulator-find-max-dim:    # the owner's solvation edits, kept separate
     - 9971782                      # CoordManipulator.find_max_dim; Solvator TODO(#66). Rebased
                                    # onto 829a4fd 2026-10-28 (one conflict: the TODO line);
@@ -246,8 +255,12 @@ github:
 owner_reminders:                   # tell the owner at the start of the next session
   - "Reminders for private downstream projects (hotfix #59): CLAUDE.local.md"
   - "Delete backup/find-max-dim-44e9bf6 once the rebased feat/coordmanipulator-find-max-dim is checked"
+  - "After #111 merges: run `pre-commit install` in each clone (not done: before the config is on
+     master, the hook would fail commits on branches that lack it)"
+  - "After #110 merges, RDKConverter-Het conflicts on RDKitConverter.py (merge-tree, 2026-10-28);
+     resolve by keeping the hotfix lines and running ruff format. Ask before touching it"
 test_suite: {passed: 136, xfailed: 15, deselected: 13, date: 2026-10-28}   # offline default run, NumPy 2
-test_suite_pycharmm: {passed: 8, xfailed: 2, date: 2026-10-14}   # pytest -m pycharmm in crimm-dev
+test_suite_pycharmm: {passed: 8, xfailed: 2, date: 2026-10-28}   # pytest -m pycharmm in crimm-dev
 roadmap_done:
   - "Phase 0: offline pytest suite, markers, benchmark move, ruff (lint only), CI workflow;
      all merged with PR #108 2026-10-26"
@@ -258,9 +271,12 @@ roadmap_done:
   - "Phase 0: every xfail reason starts with its issue number; CHANGELOG.md with an
      Unreleased section (2026-10-16)"
 roadmap_next:
-  - "Phase 0 left: #39 golden-file tests (design in the issue, comment 2026-10-16; DNA
-     excluded until #45, so Q1 does not block it); #109 to #111 ruff follow-ups; close #107
-     once its last open point (pycharmm runs before a release) has a home in Phase 5"
+  - "Push docs/post-108, style/110-ruff-format, chore/111-pre-commit and open one PR each
+     (owner's go needed); master needs one approving review per PR"
+  - "Phase 0 left: #39 golden-file tests, next after the PRs above [told 2026-10-28] (design
+     in the issue, comment 2026-10-16; DNA excluded until #45, so Q1 does not block it);
+     #109 ignored ruff rules; second half of #110 (wider rule set); close #107 once its last
+     open point (pycharmm runs before a release) has a home in Phase 5"
   - "Next code change: #58 (ROADMAP 1.5, optional imports), the first Phase 1 PR; it ends
      by deleting import-fix.md. Does not depend on #39"
   - "Later, owner's choice 2026-10-16 [told]: #112 disulfide dihedrals (owner's area; xfails in
@@ -327,10 +343,28 @@ Newest first. Append only. Template:
   `pkg_resources`; cause is a stale propka in the owner's user site (CLAUDE.local.md).
 - did: section 2, TODO rule superseded `[told 2026-10-28]`; ROADMAP ground rules and Phase 2
   intro say the same, heading now "Phase 2: TODO comments"; ROADMAP index and #41 row say
-  #108 merged; State rewritten. Not committed.
+  #108 merged; State rewritten. Commits 3010669, 068460a and this one on `docs/post-108`.
+- did, second request `[told 2026-10-28]` (housekeeping, #110, #111; smaller PRs from now on):
+  fast-forwarded local master with `git fetch origin master:master` (a dirty tree blocked
+  `git switch`); deleted the cleanup branch locally and on origin (`fetch --prune` also
+  dropped stale `origin/topology-def` and `origin/workshop`). Rebased
+  `feat/coordmanipulator-find-max-dim` in a temporary worktree, so the owner's uncommitted
+  notebook stayed untouched; one conflict (the Solvator TODO line, now `TODO(#66)`); backup
+  branch kept. #110 first half on `style/110-ruff-format`; #111 on `chore/111-pre-commit`
+  (State `branches`).
+- decided: the pre-commit ruff hooks are limited to `crimm/` and `tests/` (as CI) because
+  ruff-pre-commit 0.16.10's `ruff-format` also matches notebooks and Markdown `[read: its
+  .pre-commit-hooks.yaml]`; no whitespace or end-of-file hooks, which would rewrite the
+  toppar and structure data files `[inferred]`.
 - verified `[ran]`: CI on master at 829a4fd green (run 40369326456 and siblings); offline
-  suite on 2dbfde0 (State `test_suite`).
-- not verified: `-m pycharmm` not re-run since 2026-10-14.
+  suite 136 passed, 15 xfailed on 2dbfde0 and again after the format; the syntax tree of
+  all 68 files is identical before and after the format (docstring whitespace normalised;
+  script not committed); `ruff check` and `ruff format --check` clean; `pre-commit run
+  --all-files` passes and a bad line fails both ruff hooks; `-m pycharmm` 8 passed, 2
+  xfailed on the formatted code (the format touched `pyCHARMMAdaptors.py`).
+- not verified: the new CI format step has not run on GitHub (not pushed); `ruff` in
+  `environment-dev.yml` is unpinned, so a local `ruff format` can differ from CI's 0.16.10
+  (pre-commit pins its own).
 - claims: none held.
 - next: State `roadmap_next` and `owner_reminders`.
 
