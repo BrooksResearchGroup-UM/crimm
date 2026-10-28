@@ -7,7 +7,7 @@ humans read it second.
 schema: agent-handoff/1
 repo: github.com/BrooksResearchGroup-UM/crimm
 default_branch: master
-last_updated: 2026-10-16
+last_updated: 2026-10-28
 ```
 
 ## 0. Protocol
@@ -99,7 +99,9 @@ Follow these unless the owner says otherwise in your own session.
 | --- | --- | --- |
 | 2026-10-06 | Dev documents are tracked Markdown under `docs/dev/`. | `[told]` |
 | 2026-10-06 | Public API may break, but old import paths must keep working with `DeprecationWarning`. | `[told]` |
-| 2026-10-06 | Resolve TODO comments before the refactor and restructure phases. | `[told]` |
+| 2026-10-06 | Resolve TODO comments before the refactor and restructure phases. SUPERSEDED 2026-10-28 by the row below. | `[told]` |
+| 2026-10-28 | Pull requests are merged by the owner once CI is green and reviewed afterwards in batches (label `review-after-merge`), except changes to Stan's files, which wait for his approval. Small pull requests, one concern each. Rule: CONTRIBUTING, "Review and merge". | `[told]` |
+| 2026-10-28 | Not every TODO comment has to be resolved before the refactor and restructure phases. Some are refactoring work themselves. Which phase a TODO belongs to is decided when its resolution starts, not in advance. Every TODO still carries its issue number. | `[told]` |
 | 2026-10-06 | `import-fix.md` (repo root) is folded into ROADMAP 1.5. Delete the file as the last step of that fix, not before. | `[told]` |
 | 2026-10-06 | Commit only when asked; never push unless asked. The owner asked for the 2026-10-06 commits explicitly; that does not carry over to later sessions. | `[told]` for those commits, `[inferred]` as a standing rule |
 | 2026-10-08 | CHARMM (and so pyCHARMM) is licensed and not accessible to developers without a licence. Keep CHARMM and pyCHARMM tooling and tests in the roadmap, gated by the `pycharmm` marker; document the licence limit. Never put CHARMM source, binaries or libraries in the repository or in issues. | `[told]` |
@@ -198,23 +200,29 @@ Things that cost a previous agent time or would produce wrong results silently.
 
 ## 5. State
 
-Rewrite in place. True as of `2026-10-16`.
+Rewrite in place. True as of `2026-10-28`.
 
 ```yaml
-branches:                          # local master = origin/master = cf51387 (fast-forwarded 2026-10-14)
-  cleanup/phase0-tests-and-dev-docs:     # agent cleanup work; continue here. On origin at the
-                                   # commit that carries this State (pushed 2026-10-14).
-    - "2026-10-06 to 10-12: tests, dev docs, repo setup, merge of origin/master (d90f94b),
-       benchmark move, ruff, CI, ROADMAP index (e976f0b)"
-    - "2026-10-14: b2cb021 TODO(#N); 2b019d3 lint + 85640ad format of Stan's files;
-       0bf85e4 .git-blame-ignore-revs; 6a00566 CI NumPy pin; 3132e52 PDB_PREP_LOG;
-       4c43b16 docs; 1727388 offline xfail for #112; 763cf43 tests/test_pycharmm.py;
-       15e58e6 docs; 871aa9f machine-specific content out of the handoff; then the wrap-up
-       docs commit (ROADMAP Phase 6, #112 row, this State)"
+branches:                          # master = origin/master = 829a4fd, the merge of PR #108
+                                   # (2026-10-26); local fast-forwarded 2026-10-28.
+                                   # From 2026-10-28 [told]: one short branch per concern, cut
+                                   # from master, one small PR each.
+  chore/dev-docs-post-108:         # agent, 2026-10-28: TODO rule, post-merge bookkeeping, review rule,
+                                   # this State. PR #116. (`docs/post-108` was refused by GitHub:
+                                   # the remote branch `docs` blocks any `docs/...` name.)
+  style/110-ruff-format:           # agent, 2026-10-28, first half of #110. PR #117.
+    - 7ead967                      # ruff format crimm tests (61 files); SHA is in
+                                   # .git-blame-ignore-revs, so MERGE WITH A MERGE COMMIT
+    - bd407da, 974ad15, 63a7324    # blame-ignore entry; `ruff format --check` in CI lint job;
+                                   # CONTRIBUTING names `ruff format`
+  chore/111-pre-commit:            # agent, 2026-10-28, closes #111. PR #118, base
+    - 712c586                      # style/110-ruff-format (stacked on #117); GitHub retargets it
+                                   # to master when #117 merges and its branch is deleted.
   feat/coordmanipulator-find-max-dim:    # the owner's solvation edits, kept separate
-    - 44e9bf6                      # CoordManipulator.find_max_dim; Solvator TODO comment.
-                                   # WILL CONFLICT with 85640ad (format of the same files);
-                                   # its new TODO needs `TODO(#66)` when merged.
+    - 9971782                      # CoordManipulator.find_max_dim; Solvator TODO(#66). Rebased
+                                   # onto 829a4fd 2026-10-28 (one conflict: the TODO line);
+                                   # coord/solvator tests 28 passed, 6 xfailed [ran]. Local only.
+  backup/find-max-dim-44e9bf6:     # the branch before that rebase; delete once the owner is happy
   RDKConverter-Het:                # owner's hotfix, local only, not pushed. Cut from 72eef9f.
     - 8075b75                      # RDKitHetConverter accepts non-Heterogen; see LOG 2026-10-08.
                                    # Parked: needs a test and review before it joins anything.
@@ -226,36 +234,41 @@ branches:                          # local master = origin/master = cf51387 (fas
   # remove 6ff13f8. Restore with `git branch <name> <sha>` while the objects exist.
   # deleted 2026-10-16 at the owner's request: solvator-coor-orient-options fa7338a
   # (contained in the cleanup branch, so `git branch -d` accepted it).
+  # deleted 2026-10-28 at the owner's request, local and origin: cleanup/phase0-tests-and-dev-docs
+  # 2dbfde0 (merged by PR #108).
 env: "crimm-dev from environment-dev.yml, plus pycharmm and CHARMM_LIB_DIR (section 3).
       Account-specific install details: CLAUDE.local.md"
-uncommitted_owner_work: none
+uncommitted_owner_work:
+  - tutorials/CHARMMLoader.ipynb   # re-run 2026-10-27; the PropKa import cell failed. Cause is
+                                   # in the owner's account, not crimm: CLAUDE.local.md [ran]
 uncommitted_agent_work: none
 worktrees: "one extra worktree, for the hotfix branch (CLAUDE.local.md)"
 untracked_not_ours:
   - import-fix.md                  # work order, see standing instructions
 github:
-  issues: "#39 to #115 (no #105), milestones 1 to 7 = Phases 0 to 6. Filed 2026-10-14:
-           #109 to #111 (ruff follow-ups, Phase 0), #112 (disulfide dihedrals, Phase 1),
-           #113 to #115 (minimizer, Phase 6, new milestone)"
+  issues: "#39 to #115 (no #105), milestones 1 to 7 = Phases 0 to 6. Closed by PR #108
+           2026-10-26: #40, #41, #42, #57. Milestone 3 is still titled 'Phase 2: Resolve every
+           TODO comment' (wording predates the 2026-10-28 policy) [ran 2026-10-28]"
   branch_protection: "master: all-green required (strict false), 1 approving review, force pushes disallowed, deletions disallowed, admins not enforced [ran 2026-10-12, gh api; set by the owner]"
-  pull_requests: "#108 cleanup/phase0-tests-and-dev-docs into master, marked ready for review
-                  2026-10-16 after CI was green on the commit carrying this State; reviewer
-                  stanislc requested and messaged by the owner [told 2026-10-16]. Body updated 2026-10-16: closes #57 too,
-                  checklist complete (import item: no new import, #58 fixes the old ones;
-                  docstrings n/a; CHANGELOG.md created). Earlier: (Closes #40, #41, #42; per-commit list; MERGE WITH A MERGE COMMIT,
-                  not squash, because of .git-blame-ignore-revs). CI on e976f0b: all 9 cells
-                  green, every cell's pytest line read 2026-10-14. CI on 3132e52 (run 38592786917):
-                  all 9 cells green; each cell's NumPy matches its name (py3.12 numpy<2 now
-                  1.26.4, 134 passed, 12 xfailed) [ran 2026-10-14]. Latest green run: ecaa39b (run 38963881849, all 11 checks) [ran 2026-10-16].
-                  GitHub links #40-#42."
+  labels: "review-after-merge, created 2026-10-28 (CONTRIBUTING, 'Review and merge')"
+  pull_requests: "#116 dev docs, #117 ruff format (MERGE COMMIT), #118 pre-commit (base #117's
+                  branch), opened 2026-10-28; under the review rule: merged by the owner after
+                  green CI, then labelled review-after-merge. #108 MERGED 2026-10-26 by Truman-Xu with a merge commit (829a4fd), after
+                  stanislc approved. His review found that the CRD round-trip test sorted x, y
+                  and z independently (np.sort axis=0), so wrong coordinates passed; he fixed
+                  it in 2dbfde0 [ran 2026-10-28, gh api]. "
 owner_reminders:                   # tell the owner at the start of the next session
   - "Reminders for private downstream projects (hotfix #59): CLAUDE.local.md"
-  - "Merge #108 with a merge commit (not squash), after Stan approves"
-  - "feat/coordmanipulator-find-max-dim will conflict with the format of Stan's files; rebase it"
-test_suite: {passed: 136, xfailed: 15, deselected: 13, date: 2026-10-16}   # offline default run
-test_suite_pycharmm: {passed: 8, xfailed: 2, date: 2026-10-14}   # pytest -m pycharmm in crimm-dev
+  - "Delete backup/find-max-dim-44e9bf6 once the rebased feat/coordmanipulator-find-max-dim is checked"
+  - "After #111 merges: run `pre-commit install` in each clone (not done: before the config is on
+     master, the hook would fail commits on branches that lack it)"
+  - "After #110 merges, RDKConverter-Het conflicts on RDKitConverter.py (merge-tree, 2026-10-28);
+     resolve by keeping the hotfix lines and running ruff format. Ask before touching it"
+test_suite: {passed: 136, xfailed: 15, deselected: 13, date: 2026-10-28}   # offline default run, NumPy 2
+test_suite_pycharmm: {passed: 8, xfailed: 2, date: 2026-10-28}   # pytest -m pycharmm in crimm-dev
 roadmap_done:
-  - "Phase 0: offline pytest suite, markers, benchmark move, ruff (lint only), CI workflow"
+  - "Phase 0: offline pytest suite, markers, benchmark move, ruff (lint only), CI workflow;
+     all merged with PR #108 2026-10-26"
   - "Phase 0: ROADMAP as index (2026-10-12); TODO(#N) in every TODO (2026-10-14)"
   - "Phase 0: Stan's files linted and formatted (2026-10-14)"
   - "Phase 0: #107 CHARMM build, pyCHARMM in crimm-dev, tests/test_pycharmm.py (2026-10-14);
@@ -263,15 +276,17 @@ roadmap_done:
   - "Phase 0: every xfail reason starts with its issue number; CHANGELOG.md with an
      Unreleased section (2026-10-16)"
 roadmap_next:
-  - "Merge #108 once Stan approves (merge commit)"
-  - "Phase 0: #39 golden-file tests; design in the issue (comment 2026-10-16). DNA is
-     excluded until #45, so Q1 does not block it"
-  - "Phase 0: #109 to #111 ruff follow-ups"
+  - "Merge #116, #117 (merge commit), then #118 once CI is green; label each review-after-merge"
+  - "Phase 0 left: #39 golden-file tests, next after the PRs above [told 2026-10-28] (design
+     in the issue, comment 2026-10-16; DNA excluded until #45, so Q1 does not block it);
+     #109 ignored ruff rules; second half of #110 (wider rule set). #107 closed 2026-10-28,
+     its last point moved to #119 (Phase 5)"
   - "Next code change: #58 (ROADMAP 1.5, optional imports), the first Phase 1 PR; it ends
-     by deleting import-fix.md"
+     by deleting import-fix.md. Does not depend on #39"
   - "Later, owner's choice 2026-10-16 [told]: #112 disulfide dihedrals (owner's area; xfails in
      test_topology.py and test_pycharmm.py); Phase 6 minimizer (#113 to #115), planned in
      detail only when it starts"
+  - "TODO issues (#60 to #70, #87): phase decided when each starts (section 2, 2026-10-28)"
 library_code_changed_by_agents: "2026-10-12 and 2026-10-14, behaviour-neutral only: lint fixes
   (2026-10-12; 2026-10-14 in Stan's files), ruff format of Stan's three files, TODO comment
   text. Suite unchanged."
@@ -316,6 +331,52 @@ Newest first. Append only. Template:
 - found:
 - next:
 ```
+
+### 2026-10-28 claude-opus/claude-code/phase0-review
+
+- asked: after #108 merged, review what is left of Phase 0 and the next steps; record the
+  owner's correction to the TODO rule.
+- found `[ran]`: #108 merged 2026-10-26 (merge commit 829a4fd) after Stan approved. His review
+  comment: `test_crd_round_trip_preserves_coordinates` compared `np.sort(..., axis=0)`, which
+  sorts x, y and z separately, so wrong coordinates passed (permuted y moved atoms up to 35 Å
+  and all three PSF/CRD round-trip tests still passed). He fixed it in 2dbfde0 by matching
+  atoms on (segid, resid, name). `test_load_psf_crd_round_trip` still checks only counts, not
+  coordinates `[read]`. His NumPy 1.26 run shows 137 passed, 14 xfailed: the #51 xfail is
+  conditional on NumPy 2, as intended `[read]`.
+- found `[ran]`: the owner's 2026-10-27 run of `tutorials/CHARMMLoader.ipynb` failed on
+  `pkg_resources`; cause is a stale propka in the owner's user site (CLAUDE.local.md).
+- did: section 2, TODO rule superseded `[told 2026-10-28]`; ROADMAP ground rules and Phase 2
+  intro say the same, heading now "Phase 2: TODO comments"; ROADMAP index and #41 row say
+  #108 merged; State rewritten. Commits 3010669, 068460a and this one on `docs/post-108`.
+- did, second request `[told 2026-10-28]` (housekeeping, #110, #111; smaller PRs from now on):
+  fast-forwarded local master with `git fetch origin master:master` (a dirty tree blocked
+  `git switch`); deleted the cleanup branch locally and on origin (`fetch --prune` also
+  dropped stale `origin/topology-def` and `origin/workshop`). Rebased
+  `feat/coordmanipulator-find-max-dim` in a temporary worktree, so the owner's uncommitted
+  notebook stayed untouched; one conflict (the Solvator TODO line, now `TODO(#66)`); backup
+  branch kept. #110 first half on `style/110-ruff-format`; #111 on `chore/111-pre-commit`
+  (State `branches`).
+- decided: the pre-commit ruff hooks are limited to `crimm/` and `tests/` (as CI) because
+  ruff-pre-commit 0.16.10's `ruff-format` also matches notebooks and Markdown `[read: its
+  .pre-commit-hooks.yaml]`; no whitespace or end-of-file hooks, which would rewrite the
+  toppar and structure data files `[inferred]`.
+- verified `[ran]`: CI on master at 829a4fd green (run 40369326456 and siblings); offline
+  suite 136 passed, 15 xfailed on 2dbfde0 and again after the format; the syntax tree of
+  all 68 files is identical before and after the format (docstring whitespace normalised;
+  script not committed); `ruff check` and `ruff format --check` clean; `pre-commit run
+  --all-files` passes and a bad line fails both ruff hooks; `-m pycharmm` 8 passed, 2
+  xfailed on the formatted code (the format touched `pyCHARMMAdaptors.py`).
+- not verified: the new CI format step has not run on GitHub (not pushed); `ruff` in
+  `environment-dev.yml` is unpinned, so a local `ruff format` can differ from CI's 0.16.10
+  (pre-commit pins its own).
+- did, third and fourth requests `[told 2026-10-28]`: review rule in CONTRIBUTING ("Review
+  and merge") and the PR template: merge after green CI, batch review afterwards, Stan's files
+  reviewed first. Label `review-after-merge` created. Pushed the three branches, opened #116
+  to #118. Opened #119 (Phase 5, release checklist), commented on and closed #107.
+- verified `[ran]`: rebuilding the format commit from master with ruff 0.16.10 gives an
+  identical tree (`git diff --stat 7ead967` empty), the check given to the reviewer in #117.
+- claims: none held.
+- next: State `roadmap_next` and `owner_reminders`.
 
 ### 2026-10-16 claude-opus/claude-code/pr108-wrapup
 

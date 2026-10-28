@@ -6,7 +6,9 @@ standards the work should meet are in [BEST_PRACTICES.md](BEST_PRACTICES.md).
 ## Ground rules
 
 - **Order matters.** Tests and CI come first (Phase 0), because nothing after that can be
-  proven safe without them. Bugs next, then TODOs, then refactor, then restructure.
+  proven safe without them. Bugs next, then TODOs, then refactor, then restructure. Not every
+  TODO has to be resolved before Phases 3 and 4: some are refactoring work, and a TODO's phase
+  is decided when its resolution starts (owner, 2026-10-28).
 - **Public API may change, with deprecation.** Old import paths and names keep working and
   emit `DeprecationWarning` for at least one release before removal.
 - **Solvation changes go through Stan.** Items touching `Solvator.py`, `CrystalSDF.py` or the
@@ -23,13 +25,13 @@ Issue #105 does not exist.
 
 | Where | Issues |
 | --- | --- |
-| Phase 0: Safety net | #39 golden files, #40 ruff, #41 CI, #42 benchmarks, #107 CHARMM and pyCHARMM, #109 to #111 ruff follow-ups (ignored rules, repo-wide format, pre-commit). #40 to #42 are done on draft PR #108 and close when it merges |
-| Phase 1: Bugs | #43, #44 (Stan), #45 to #49 (found by tests), #50 to #56, #57 (done on PR #108, closes when it merges), #59 (hotfix, needed by a downstream project), #58 (optional imports, 1.5), #112 (disulfide dihedrals, found by the pyCHARMM tests) |
-| Phase 2: TODOs | #60 to #70 (fix now), #87 (topology TODOs 16 to 21, resolved in Phase 4) |
+| Phase 0: Safety net | #39 golden files, #40 ruff, #41 CI, #42 benchmarks, #107 CHARMM and pyCHARMM (closed 2026-10-28), #109 to #111 ruff follow-ups (ignored rules, repo-wide format, pre-commit). #40 to #42 closed when PR #108 merged (2026-10-26) |
+| Phase 1: Bugs | #43, #44 (Stan), #45 to #49 (found by tests), #50 to #56, #57 (closed by PR #108, 2026-10-26), #59 (hotfix, needed by a downstream project), #58 (optional imports, 1.5), #112 (disulfide dihedrals, found by the pyCHARMM tests) |
+| Phase 2: TODOs | #60 to #70 (planned here; each one's phase is decided when it starts), #87 (topology TODOs 16 to 21, resolved in Phase 4) |
 | Features, no milestone | #71 to #76 (TODOs 22 to 27) |
 | Phase 3: Refactor | #77 to #85 |
 | Phase 4: Restructure | #86 to #95 |
-| Phase 5: Release | #96 to #100, #106 (toppar licence) |
+| Phase 5: Release | #96 to #100, #106 (toppar licence), #119 (release checklist for the test layers CI cannot run) |
 | Phase 6: Minimizer utility (own release) | #113 to #115 |
 | crimm-ml track, no milestone | #101 to #104 |
 
@@ -45,10 +47,10 @@ Nothing here changes behaviour.
 | **Issues created 2026-10-08 (#39 to #107), milestones set up.** This ROADMAP indexes the issues since 2026-10-12. TODO comments carry `TODO(#N)` since 2026-10-14 (`b2cb021`); `xfail` reasons start with `#N:` since 2026-10-16 (`f0a3220`) | Every item below has an issue (done); every `xfail` and TODO names its issue number | M |
 | #39 Golden-file tests for PSF and CRD output | A refactor that changes one byte of output fails a test | M |
 | #40 **Done 2026-10-12 (lint only).** `ruff` configured in `pyproject.toml`; current findings fixed or explicitly ignored | `ruff check crimm tests` is clean. Ignored rules are listed with reasons in `pyproject.toml`. Stan's three files were linted and formatted on 2026-10-14 with his agreement (`2b019d3`, `85640ad`, both in `.git-blame-ignore-revs`). Follow-ups: #109 ignored rules, #110 repo-wide `ruff format` and wider rules, #111 `pre-commit` | S |
-| #41 **Done 2026-10-12 in `.github/workflows/ci.yml`; green on draft PR #108.** CI workflow: lint and tests on Python 3.9 to 3.13, on both NumPy 1.x and 2.x | Required check (`all-green`) on pull requests to `master`. `all-green` is required on `master` (set by the owner, 2026-10-12). 2026-10-14: the NumPy 1 cell on Python 3.12 had been running NumPy 2, fixed in `6a00566`. Open: core-install import guard (#58, step 7). Lesson: [lessons/ci-basics.md](lessons/ci-basics.md) | M |
+| #41 **Done 2026-10-12 in `.github/workflows/ci.yml`; merged with PR #108 2026-10-26.** CI workflow: lint and tests on Python 3.9 to 3.13, on both NumPy 1.x and 2.x | Required check (`all-green`) on pull requests to `master`. `all-green` is required on `master` (set by the owner, 2026-10-12). 2026-10-14: the NumPy 1 cell on Python 3.12 had been running NumPy 2, fixed in `6a00566`. Open: core-install import guard (#58, step 7). Lesson: [lessons/ci-basics.md](lessons/ci-basics.md) | M |
 | #42 **Done 2026-10-12.** Move `tests/benchmark_pipeline.py` to `benchmarks/` | `tests/` holds only pytest tests | S |
 | #107 **Done 2026-10-14.** CHARMM and pyCHARMM in the developer environment: build the CHARMM library locally with pyCHARMM support and make it usable from `crimm-dev` (steps in `NOTES.md`, "Building CHARMM for the `pycharmm` tests") | `import pycharmm` works in `crimm-dev`, and the steps are written down | L |
-| #107 **Done 2026-10-14 (`tests/test_pycharmm.py`).** `pycharmm` tests: load the PSF/CRD that crimm writes into pyCHARMM, and check energies and counts against CHARMM's own reading. Depends on the row above | `pytest -m pycharmm` passes on a machine with a CHARMM build and is skipped elsewhere: 8 passed, 2 xfailed (#112) with the build; 10 skipped without `CHARMM_LIB_DIR`. Still open: how a maintainer runs them before a release | M |
+| #107 **Done 2026-10-14 (`tests/test_pycharmm.py`).** `pycharmm` tests: load the PSF/CRD that crimm writes into pyCHARMM, and check energies and counts against CHARMM's own reading. Depends on the row above | `pytest -m pycharmm` passes on a machine with a CHARMM build and is skipped elsewhere: 8 passed, 2 xfailed (#112) with the build; 10 skipped without `CHARMM_LIB_DIR`. #107 closed 2026-10-28; running them before a release moved to #119 | M |
 
 ### CHARMM and pyCHARMM
 
@@ -67,8 +69,8 @@ hold a licence (owner, 2026-10-08), so:
 Decided and done 2026-10-14 (owner): CHARMM `master`, built as a minimal CPU library from a
 separate worktree of the owner's checkout; pyCHARMM installed into `crimm-dev`, which finds
 the library through `CHARMM_LIB_DIR`. Steps: `NOTES.md`, "Building CHARMM for the `pycharmm`
-tests". The `pycharmm` tests exist (`tests/test_pycharmm.py`, 2026-10-14). Still open: how a maintainer runs them before a
-release. The cluster's shared builds were not tried.
+tests". The `pycharmm` tests exist (`tests/test_pycharmm.py`, 2026-10-14). How a maintainer runs them before a release:
+#119 (Phase 5). The cluster's shared builds were not tried.
 
 ## Phase 1: Bugs
 
@@ -178,12 +180,18 @@ Done when:
 
 Size: M.
 
-## Phase 2: Resolve every TODO comment
+## Phase 2: TODO comments
 
-There are 27 TODO comments in `crimm/` (26 committed, plus one added in the uncommitted
-`Solvator.py` edit). Each gets one outcome: **fix** in this phase, or **issue** (remove the
-comment and open a GitHub issue, because it is a feature or a design question). After this
-phase a TODO in the code must carry an issue number.
+There are 27 TODO comments in `crimm/` (26 on master, plus one in `Solvator.py` on the owner's
+branch `feat/coordmanipulator-find-max-dim`). Each gets one outcome: **fix** in this phase, or **issue** (remove the
+comment and open a GitHub issue, because it is a feature or a design question). Every TODO in
+the code carries its issue number (done 2026-10-14, `b2cb021`).
+
+Not all of them have to be resolved before Phases 3 and 4 (owner, 2026-10-28). Some are
+refactoring work themselves (for example #68 nested loops, #69 moving the disordered reset,
+#77 logging). The grouping below is a starting point, not a commitment: when work on a TODO
+starts, decide whether it belongs here or in a later phase, and move its issue to that
+milestone.
 
 ### Correctness: fix
 
@@ -282,6 +290,7 @@ Breaking changes, each with a compatibility shim.
 | #98 Publish to PyPI from CI on a tag, using trusted publishing | S |
 | #99 Update the `Development Status` classifier | S |
 | #100 conda-forge feedstock | M |
+| #119 Release checklist: run the offline suite and the layers CI cannot run (`pycharmm` on a licensed CHARMM build, `cgenff`, `network`) and record the results in the release pull request. Moved from #107 | S |
 | #106 Document licence and provenance of the bundled CHARMM toppar files | S |
 
 ## Phase 6: Minimizer utility (own release)
