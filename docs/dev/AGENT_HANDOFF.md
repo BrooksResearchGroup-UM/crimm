@@ -207,16 +207,17 @@ branches:                          # master = origin/master = 829a4fd, the merge
                                    # (2026-10-26); local fast-forwarded 2026-10-28.
                                    # From 2026-10-28 [told]: one short branch per concern, cut
                                    # from master, one small PR each.
-  docs/post-108:                   # agent, 2026-10-28: TODO policy, post-merge bookkeeping, this
-                                   # State. Not pushed. No overlap with the two below.
-  style/110-ruff-format:           # agent, 2026-10-28, first half of #110. Not pushed.
+  chore/dev-docs-post-108:         # agent, 2026-10-28: TODO rule, post-merge bookkeeping, review rule,
+                                   # this State. PR #116. (`docs/post-108` was refused by GitHub:
+                                   # the remote branch `docs` blocks any `docs/...` name.)
+  style/110-ruff-format:           # agent, 2026-10-28, first half of #110. PR #117.
     - 7ead967                      # ruff format crimm tests (61 files); SHA is in
                                    # .git-blame-ignore-revs, so MERGE WITH A MERGE COMMIT
     - bd407da, 974ad15, 63a7324    # blame-ignore entry; `ruff format --check` in CI lint job;
                                    # CONTRIBUTING names `ruff format`
-  chore/111-pre-commit:            # agent, 2026-10-28, closes #111. Stacked on
-    - 712c586                      # style/110-ruff-format: open its PR against that branch, or
-                                   # after #110 merges. .pre-commit-config.yaml + CONTRIBUTING.
+  chore/111-pre-commit:            # agent, 2026-10-28, closes #111. PR #118, base
+    - 712c586                      # style/110-ruff-format (stacked on #117); GitHub retargets it
+                                   # to master when #117 merges and its branch is deleted.
   feat/coordmanipulator-find-max-dim:    # the owner's solvation edits, kept separate
     - 9971782                      # CoordManipulator.find_max_dim; Solvator TODO(#66). Rebased
                                    # onto 829a4fd 2026-10-28 (one conflict: the TODO line);
@@ -249,10 +250,13 @@ github:
            2026-10-26: #40, #41, #42, #57. Milestone 3 is still titled 'Phase 2: Resolve every
            TODO comment' (wording predates the 2026-10-28 policy) [ran 2026-10-28]"
   branch_protection: "master: all-green required (strict false), 1 approving review, force pushes disallowed, deletions disallowed, admins not enforced [ran 2026-10-12, gh api; set by the owner]"
-  pull_requests: "#108 MERGED 2026-10-26 by Truman-Xu with a merge commit (829a4fd), after
+  labels: "review-after-merge, created 2026-10-28 (CONTRIBUTING, 'Review and merge')"
+  pull_requests: "#116 dev docs, #117 ruff format (MERGE COMMIT), #118 pre-commit (base #117's
+                  branch), opened 2026-10-28; under the review rule: merged by the owner after
+                  green CI, then labelled review-after-merge. #108 MERGED 2026-10-26 by Truman-Xu with a merge commit (829a4fd), after
                   stanislc approved. His review found that the CRD round-trip test sorted x, y
                   and z independently (np.sort axis=0), so wrong coordinates passed; he fixed
-                  it in 2dbfde0 [ran 2026-10-28, gh api]. No open PRs."
+                  it in 2dbfde0 [ran 2026-10-28, gh api]. "
 owner_reminders:                   # tell the owner at the start of the next session
   - "Reminders for private downstream projects (hotfix #59): CLAUDE.local.md"
   - "Delete backup/find-max-dim-44e9bf6 once the rebased feat/coordmanipulator-find-max-dim is checked"
@@ -272,12 +276,11 @@ roadmap_done:
   - "Phase 0: every xfail reason starts with its issue number; CHANGELOG.md with an
      Unreleased section (2026-10-16)"
 roadmap_next:
-  - "Push docs/post-108, style/110-ruff-format, chore/111-pre-commit and open one PR each
-     (owner's go needed); master needs one approving review per PR"
+  - "Merge #116, #117 (merge commit), then #118 once CI is green; label each review-after-merge"
   - "Phase 0 left: #39 golden-file tests, next after the PRs above [told 2026-10-28] (design
      in the issue, comment 2026-10-16; DNA excluded until #45, so Q1 does not block it);
-     #109 ignored ruff rules; second half of #110 (wider rule set); close #107 once its last
-     open point (pycharmm runs before a release) has a home in Phase 5"
+     #109 ignored ruff rules; second half of #110 (wider rule set). #107 closed 2026-10-28,
+     its last point moved to #119 (Phase 5)"
   - "Next code change: #58 (ROADMAP 1.5, optional imports), the first Phase 1 PR; it ends
      by deleting import-fix.md. Does not depend on #39"
   - "Later, owner's choice 2026-10-16 [told]: #112 disulfide dihedrals (owner's area; xfails in
@@ -366,6 +369,12 @@ Newest first. Append only. Template:
 - not verified: the new CI format step has not run on GitHub (not pushed); `ruff` in
   `environment-dev.yml` is unpinned, so a local `ruff format` can differ from CI's 0.16.10
   (pre-commit pins its own).
+- did, third and fourth requests `[told 2026-10-28]`: review rule in CONTRIBUTING ("Review
+  and merge") and the PR template: merge after green CI, batch review afterwards, Stan's files
+  reviewed first. Label `review-after-merge` created. Pushed the three branches, opened #116
+  to #118. Opened #119 (Phase 5, release checklist), commented on and closed #107.
+- verified `[ran]`: rebuilding the format commit from master with ruff 0.16.10 gives an
+  identical tree (`git diff --stat 7ead967` empty), the check given to the reviewer in #117.
 - claims: none held.
 - next: State `roadmap_next` and `owner_reminders`.
 
