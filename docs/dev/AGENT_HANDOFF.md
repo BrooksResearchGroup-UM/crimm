@@ -100,6 +100,7 @@ Follow these unless the owner says otherwise in your own session.
 | 2026-10-06 | Dev documents are tracked Markdown under `docs/dev/`. | `[told]` |
 | 2026-10-06 | Public API may break, but old import paths must keep working with `DeprecationWarning`. | `[told]` |
 | 2026-10-06 | Resolve TODO comments before the refactor and restructure phases. SUPERSEDED 2026-10-28 by the row below. | `[told]` |
+| 2026-10-28 | Pull requests are merged by the owner once CI is green and reviewed afterwards in batches (label `review-after-merge`), except changes to Stan's files, which wait for his approval. Small pull requests, one concern each. Rule: CONTRIBUTING, "Review and merge". | `[told]` |
 | 2026-10-28 | Not every TODO comment has to be resolved before the refactor and restructure phases. Some are refactoring work themselves. Which phase a TODO belongs to is decided when its resolution starts, not in advance. Every TODO still carries its issue number. | `[told]` |
 | 2026-10-06 | `import-fix.md` (repo root) is folded into ROADMAP 1.5. Delete the file as the last step of that fix, not before. | `[told]` |
 | 2026-10-06 | Commit only when asked; never push unless asked. The owner asked for the 2026-10-06 commits explicitly; that does not carry over to later sessions. | `[told]` for those commits, `[inferred]` as a standing rule |

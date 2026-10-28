@@ -70,6 +70,27 @@ A commit that only lints or reformats goes in its own commit and is listed in
   squashing rewrites the commit that file names.
 - A correctness bug (wrong scientific output) blocks the next release.
 
+### Review and merge
+
+Adopted 2026-10-28. Reviewer time is limited, so most pull requests are merged first and
+reviewed afterwards, in batches.
+
+- **Merge after green CI, review later.** Once the `all-green` check passes, the owner
+  (`@Truman-Xu`) merges the pull request and labels it `review-after-merge`. Branch protection
+  still asks for one approval, so the owner merges with admin rights
+  (`gh pr merge --admin`). Agents never merge.
+- **Exception: Stan's files are reviewed first.** A pull request that changes a file
+  `CODEOWNERS` assigns to `@stanislc` (`Solvator.py`, `CrystalSDF.py`, `CoordManipulator.py`)
+  waits for his approval before it is merged. Keep such changes in their own pull request, so
+  they do not hold up the rest.
+- **Batches.** Before a review session, post the list of `review-after-merge` pull requests
+  in merge order, with what to check in each and what can be skimmed. The reviewer removes
+  the label when done.
+- **Findings after merge** become an issue or a follow-up pull request. A merged change that
+  produces wrong scientific output is reverted first.
+- **Stack branches at most two deep.** A branch that does not need unmerged work starts from
+  `master`.
+
 ## Credit and authorship
 
 - Every commit carries its authors. An AI model that wrote a substantial part signs with a
