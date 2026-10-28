@@ -9,6 +9,7 @@ instructions from [AGENTS.md](AGENTS.md); the rules here bind them too.
 conda env create -f environment-dev.yml      # creates `crimm-dev`
 conda activate crimm-dev
 pip install -e ".[all,test]" --no-deps
+pre-commit install                           # ruff check and ruff format on every commit
 ```
 
 CHARMM, pyCHARMM and the CGenFF program are not installable from conda. Tests that need them
