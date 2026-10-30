@@ -25,8 +25,8 @@ Issue #105 does not exist.
 
 | Where | Issues |
 | --- | --- |
-| Phase 0: Safety net | #39 golden files, #40 ruff, #41 CI, #42 benchmarks, #107 CHARMM and pyCHARMM (closed 2026-10-28), #109 to #111 ruff follow-ups (ignored rules, repo-wide format, pre-commit). #40 to #42 closed when PR #108 merged (2026-10-26) |
-| Phase 1: Bugs | #43, #44 (Stan), #45 to #49 (found by tests), #50 to #56, #57 (closed by PR #108, 2026-10-26), #59 (hotfix, needed by a downstream project), #58 (optional imports, 1.5), #112 (disulfide dihedrals, found by the pyCHARMM tests) |
+| Phase 0: Safety net | #39 golden files, #40 ruff, #41 CI, #42 benchmarks, #107 CHARMM and pyCHARMM (closed 2026-10-28), #109 to #111 ruff follow-ups (ignored rules, repo-wide format, pre-commit). #40 to #42 closed when PR #108 merged (2026-10-26); #111 and the format half of #110 merged with PR #117 (2026-10-30) |
+| Phase 1: Bugs | #43, #44 (Stan), #45 to #49 (found by tests), #50 to #56, #57 (closed by PR #108, 2026-10-26), #59 (hotfix, needed by a downstream project), #58 (optional imports, 1.5), #112 (disulfide dihedrals, found by the pyCHARMM tests), #120 (PSF term order, found by the golden-file tests) |
 | Phase 2: TODOs | #60 to #70 (planned here; each one's phase is decided when it starts), #87 (topology TODOs 16 to 21, resolved in Phase 4) |
 | Features, no milestone | #71 to #76 (TODOs 22 to 27) |
 | Phase 3: Refactor | #77 to #85 |
@@ -45,7 +45,7 @@ Nothing here changes behaviour.
 | **Done 2026-10-06.** Markers for `network`, `pycharmm`, `cgenff`, `slow` | Default `pytest` run skips them; each can be selected with `-m`. `pycharmm` tests exist since 2026-10-14 (`tests/test_pycharmm.py`) | S |
 | **Done 2026-10-07.** Agent and contributor files: `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, issue forms, PR template, `CODEOWNERS`, `environment-dev.yml` | A fresh agent session finds the handoff; contributors can set up an environment from one file | S |
 | **Issues created 2026-10-08 (#39 to #107), milestones set up.** This ROADMAP indexes the issues since 2026-10-12. TODO comments carry `TODO(#N)` since 2026-10-14 (`b2cb021`); `xfail` reasons start with `#N:` since 2026-10-16 (`f0a3220`) | Every item below has an issue (done); every `xfail` and TODO names its issue number | M |
-| #39 Golden-file tests for PSF and CRD output | A refactor that changes one byte of output fails a test | M |
+| #39 **Pushed 2026-10-30 on `test/39-golden-files`, not merged.** Golden-file tests for PSF and CRD output | A refactor that changes one byte of output fails a test | M |
 | #40 **Done 2026-10-12 (lint only).** `ruff` configured in `pyproject.toml`; current findings fixed or explicitly ignored | `ruff check crimm tests` is clean. Ignored rules are listed with reasons in `pyproject.toml`. Stan's three files were linted and formatted on 2026-10-14 with his agreement (`2b019d3`, `85640ad`, both in `.git-blame-ignore-revs`). Follow-ups: #109 ignored rules, #110 repo-wide `ruff format` and wider rules, #111 `pre-commit` | S |
 | #41 **Done 2026-10-12 in `.github/workflows/ci.yml`; merged with PR #108 2026-10-26.** CI workflow: lint and tests on Python 3.9 to 3.13, on both NumPy 1.x and 2.x | Required check (`all-green`) on pull requests to `master`. `all-green` is required on `master` (set by the owner, 2026-10-12). 2026-10-14: the NumPy 1 cell on Python 3.12 had been running NumPy 2, fixed in `6a00566`. Open: core-install import guard (#58, step 7). Lesson: [lessons/ci-basics.md](lessons/ci-basics.md) | M |
 | #42 **Done 2026-10-12.** Move `tests/benchmark_pipeline.py` to `benchmarks/` | `tests/` holds only pytest tests | S |
@@ -124,6 +124,7 @@ and the marker is not removed.
 | #47 `TopologyGenerator.load_psf_crd` | Terminal patch atoms (ACE and CT3 caps) come back without a `topo_definition`, so `total_charge` of a reloaded chain is `None`. | `test_psf_crd.py::test_load_psf_crd_restores_charges` | S |
 | #48 `PolymerChain.seq` | Returns `X` for every DNA residue; `can_seq` is correct. | `test_parsing.py::test_dna_present_sequence_matches_canonical` | S |
 | #112 `TopologyGenerator`, disulfides | Each disulfide cysteine gets `N-CA-CB-SG` and `C-CA-CB-SG` twice and lacks `HB1/HB2-CB-SG-SG'`; the dihedral count is unchanged, so count checks miss it. DIHE is 1.10 kcal/mol off CHARMM's on 1CRN; 3PTB has 24 duplicates. Probably the hand-written DISU path (#87, item 16). | `test_topology.py::test_no_dihedral_is_listed_twice[1crn,3ptb]`, `test_pycharmm.py` 1CRN comparisons | M |
+| #120 `IO/PSFWriter.py`, `TopologyGenerator` | Angles and dihedrals change order and direction from run to run, because they are collected in sets and `DisorderedAtom` hashes by address. The terms are the same, so CHARMM sees the same system. | `test_golden.py::test_psf_term_order_is_reproducible` | S |
 | #49 `IO/PDBString.get_pdb_str` | With default options, 4-character `TIP3` residue names shift the chain column and crimm's own `PDBParser` cannot read the output. `convert_water=True` works. | `test_pdb_io.py::test_round_trip_after_topology_default_options` | S |
 
 ### 1.4 Other bugs
@@ -138,7 +139,7 @@ and the marker is not removed.
 | #55 Version strings | `pyproject.toml` 2026.2, `docs/conf.py` 2026.1a, tag 2026.2.1, no `crimm.__version__`. | Single source (see Phase 4); in the meantime align them. | S |
 | #56 `crimm/Data/residues.xml` | Tracked, not packaged, not referenced. | Delete, or package and use it. | S |
 | #57 `pyflakes` findings | Unused imports and variables in `Solvator.py`, `StructureUtils.py`, `PropKaAdaptors.py`, `RDKitConverter.py`, `charmm_struct_prep.py`. | Remove. **Done: 2026-10-12, and in `Solvator.py` 2026-10-14 (`2b019d3`, Stan agreed). PR #108 closes it.** The unused variables left in `LoopBuilder.py` belong to #50. | S |
-| #59 `Adaptors/RDKitConverter.py` (`RDKitHetConverter`, `heterogen_to_rdkit`) | Raises `TypeError` for a plain `Residue`, and `heterogen_to_rdkit` reads `pdbx_description`, which a residue read from a CRD file lacks. A hotfix exists as `8075b75` on the local branch `RDKConverter-Het`; a downstream project needs it (see the handoff). Issue #59. | Add a test with a plain `Residue` read from a CRD file; review the removed `TypeError`; then merge. | S |
+| #59 `Adaptors/RDKitConverter.py` (`RDKitHetConverter`, `heterogen_to_rdkit`) | Raises `TypeError` for a plain `Residue`, and `heterogen_to_rdkit` reads `pdbx_description`, which a residue read from a CRD file lacks. Fixed with tests on `fix/59-rdkit-plain-residue` (`1816fbb`, 2026-10-30), no PR yet; a downstream project needs it (see the handoff). Issue #59. | Add a test with a plain `Residue` read from a CRD file; review the removed `TypeError`; then merge. | S |
 
 ### 1.5 Make rdkit and nglview optional at import time (#58)
 
