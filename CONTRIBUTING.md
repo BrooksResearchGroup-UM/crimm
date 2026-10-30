@@ -71,6 +71,9 @@ A commit that only lints or reformats goes in its own commit and is listed in
 
 - Work is tracked as GitHub issues, grouped in milestones that mirror the phases of
   [docs/dev/ROADMAP.md](docs/dev/ROADMAP.md). Use the issue forms.
+- **This project prefers small pull requests.** Each one has a single concern and can be read
+  in one sitting; split a large change into a series. They are quicker to review, whether
+  before or after the merge, and easier to revert.
 - Open a pull request from a short-lived branch. It needs passing tests and a description of
   why the change is made. Squash-merge; delete the branch after. Exception: a pull request
   that adds a commit to `.git-blame-ignore-revs` is merged with a merge commit, because
