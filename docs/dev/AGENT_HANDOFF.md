@@ -210,9 +210,9 @@ branches:                          # master = origin/master = 826c103, the merge
                                    # (2026-10-30, by the owner) [ran].
                                    # From 2026-10-28 [told]: one short branch per concern, cut
                                    # from master, one small PR each.
-  test/39-golden-files:            # agent, 2026-10-30, #39. Cut from 826c103. Pushed, no PR yet.
+  test/39-golden-files:            # agent, 2026-10-30, #39. Cut from 826c103. Pushed, PR open.
                                    # Also holds this session's docs, in their own commits.
-  fix/59-rdkit-plain-residue:      # agent, 2026-10-30, #59. Pushed, no PR yet. Commit 1816fbb on
+  fix/59-rdkit-plain-residue:      # agent, 2026-10-30, #59. PR #121. Commit 1816fbb on
                                    # 2ebbc05, which is now in master, so a PR shows only the fix.
                                    # Checked out in the extra worktree (CLAUDE.local.md).
   feat/coordmanipulator-find-max-dim:    # the owner's solvation edits. Pushed 2026-10-30, no PR
@@ -234,9 +234,8 @@ branches:                          # master = origin/master = 826c103, the merge
   # from one whitespace fix and the TODO number.
 env: "crimm-dev from environment-dev.yml, plus pycharmm and CHARMM_LIB_DIR (section 3).
       Account-specific install details: CLAUDE.local.md"
-uncommitted_owner_work:
-  - tutorials/CHARMMLoader.ipynb   # re-run 2026-10-27; the PropKa import cell failed. Cause is
-                                   # in the owner's account, not crimm: CLAUDE.local.md [ran]
+uncommitted_owner_work: none       # tutorials/CHARMMLoader.ipynb restored by the owner 2026-10-30;
+                                   # all the tutorials are to be dealt with later [told]
 uncommitted_agent_work: none
 worktrees: "one extra worktree, on fix/59-rdkit-plain-residue (CLAUDE.local.md)"
 untracked_not_ours:
@@ -250,7 +249,9 @@ github:
   repo_settings: "automatically delete head branches: on, since 2026-10-28 [told]"
   labels: "review-after-merge, created 2026-10-28 (CONTRIBUTING, 'Review and merge'); on #116,
            #117, #118"
-  pull_requests: "No open PRs. #117 merged 2026-10-30 by the owner with a merge commit (826c103),
+  pull_requests: "Open 2026-10-30: #121 (fix/59-rdkit-plain-residue) and the one from
+                  test/39-golden-files; both merge after green CI, then review-after-merge.
+                  #117 merged 2026-10-30 by the owner with a merge commit (826c103),
                   so 7ead967 in .git-blame-ignore-revs exists on master. #116 merged 2026-10-28
                   with a merge commit (cac252e). #118 merged 2026-10-28 into #117's branch.
                   #108 MERGED 2026-10-26 by Truman-Xu with a merge commit (829a4fd), after
@@ -273,8 +274,9 @@ roadmap_done:
      Unreleased section (2026-10-16)"
   - "Phase 0: #110 first half (ruff format) and #111 (pre-commit), merged with PR #117 2026-10-30"
 roadmap_next:
-  - "Open PRs from test/39-golden-files and fix/59-rdkit-plain-residue (the owner has asked only
-     for the pushes so far)"
+  - "Owner merges #121 and the PR from test/39-golden-files after green CI, and labels them
+     review-after-merge. Squash-merge is fine: neither adds to .git-blame-ignore-revs"
+  - "Tutorials: all of them later, as a block [told 2026-10-30]; see #94"
   - "Phase 0 left after that: #109 ignored ruff rules; second half of #110 (wider rule set)"
   - "Next code change: #58 (ROADMAP 1.5, optional imports), the first Phase 1 PR; it ends
      by deleting import-fix.md. Does not depend on #39"
@@ -349,6 +351,7 @@ Newest first. Append only. Template:
   in `test_load_psf_crd_round_trip`, the gap left after 2dbfde0. Rebased onto 826c103 once #117
   merged, committed and pushed at the owner's request. `CONTRIBUTING`: the project prefers small
   pull requests `[told 2026-10-30]`. The owner recorded the pushed fix in the downstream project.
+  Opened #121 and this branch's PR at the owner's request; merging stays with the owner.
 - found `[ran]`: output differs between runs, so the design in #39 could not be followed as
   written. (1) `!NTHETA` and `!NPHI` change order and direction, filed as #120 with an xfail
   test; the test sorts both sections until then. (2) Water hydrogens use the unseeded global
