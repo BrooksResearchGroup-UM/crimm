@@ -9,6 +9,7 @@ instructions from [AGENTS.md](AGENTS.md); the rules here bind them too.
 conda env create -f environment-dev.yml      # creates `crimm-dev`
 conda activate crimm-dev
 pip install -e ".[all,test]" --no-deps
+pre-commit install                           # ruff check and ruff format on every commit
 ```
 
 CHARMM, pyCHARMM and the CGenFF program are not installable from conda. Tests that need them
@@ -39,6 +40,7 @@ without it. The standards behind this are in
 ```bash
 ruff check crimm tests         # must pass; configured in pyproject.toml
 ruff check --fix crimm tests   # applies the safe automatic fixes
+ruff format crimm tests        # CI fails if a file is left unformatted
 ```
 
 `ruff` is in `environment-dev.yml`. If a rule is wrong for a line, prefer fixing the line; if

@@ -17,6 +17,7 @@ from typing import Any, Dict, List, NamedTuple, Tuple
 
 class PSFAtom(NamedTuple):
     """Atom record from PSF file."""
+
     serial: int
     segid: str
     resid: str
@@ -65,6 +66,7 @@ class PSFData:
     has_cmap : bool
         Whether file contains CMAP terms
     """
+
     title: List[str] = field(default_factory=list)
     atoms: List[PSFAtom] = field(default_factory=list)
     bonds: List[Tuple[int, int]] = field(default_factory=list)
@@ -115,7 +117,7 @@ class PSFReader:
         PSFData
             Parsed topology data
         """
-        with open(filepath, encoding='utf-8') as f:
+        with open(filepath, encoding="utf-8") as f:
             self._lines = [line.rstrip() for line in f.readlines()]
 
         self._line_idx = 0
@@ -131,33 +133,33 @@ class PSFReader:
         while self._line_idx < len(self._lines):
             line = self._current_line()
 
-            if not line or line.startswith('!'):
+            if not line or line.startswith("!"):
                 self._line_idx += 1
                 continue
 
-            if '!NTITLE' in line:
+            if "!NTITLE" in line:
                 data.title = self._parse_title(line)
-            elif '!NATOM' in line:
+            elif "!NATOM" in line:
                 data.atoms = self._parse_atoms(line)
-            elif '!NBOND' in line:
+            elif "!NBOND" in line:
                 data.bonds = self._parse_bonds(line)
-            elif '!NTHETA' in line:
+            elif "!NTHETA" in line:
                 data.angles = self._parse_angles(line)
-            elif '!NPHI' in line:
+            elif "!NPHI" in line:
                 data.dihedrals = self._parse_dihedrals(line)
-            elif '!NIMPHI' in line:
+            elif "!NIMPHI" in line:
                 data.impropers = self._parse_impropers(line)
-            elif '!NDON' in line:
+            elif "!NDON" in line:
                 data.donors = self._parse_pairs(line)
-            elif '!NACC' in line:
+            elif "!NACC" in line:
                 data.acceptors = self._parse_pairs(line)
-            elif '!NNB' in line:
+            elif "!NNB" in line:
                 data.nonbonded = self._parse_nonbonded(line)
-            elif '!NGRP' in line:
+            elif "!NGRP" in line:
                 data.groups = self._parse_groups(line)
-            elif '!NCRTERM' in line:
+            elif "!NCRTERM" in line:
                 data.cmap = self._parse_cmap(line)
-            elif '!NUMLP' in line:
+            elif "!NUMLP" in line:
                 data.lonepairs = self._parse_lonepairs(line)
             else:
                 self._line_idx += 1
@@ -179,19 +181,21 @@ class PSFReader:
         """Parse PSF header line to detect format flags."""
         line = self._current_line().upper()
 
-        if not line.startswith('PSF'):
-            raise ValueError("File does not appear to be a PSF file (missing PSF header)")
+        if not line.startswith("PSF"):
+            raise ValueError(
+                "File does not appear to be a PSF file (missing PSF header)"
+            )
 
-        self.extended = 'EXT' in line
-        self.xplor = 'XPLOR' in line
-        self.has_cmap = 'CMAP' in line
+        self.extended = "EXT" in line
+        self.xplor = "XPLOR" in line
+        self.has_cmap = "CMAP" in line
 
         self._line_idx += 1
 
     def _parse_count(self, line: str) -> int:
         """Parse count from section header line."""
         # Extract number before !LABEL
-        parts = line.split('!')
+        parts = line.split("!")
         count_str = parts[0].strip()
         # Handle multiple numbers (e.g., NGRP NST2)
         nums = count_str.split()
@@ -248,7 +252,7 @@ class PSFReader:
             atomtype=atomtype,
             charge=charge,
             mass=mass,
-            imove=imove
+            imove=imove,
         )
 
     def _read_integers(self, count: int, ints_per_element: int) -> List[int]:
@@ -259,7 +263,7 @@ class PSFReader:
         while len(integers) < total_ints:
             self._next_line()
             line = self._current_line()
-            if not line or line.startswith('!') or '!' in line:
+            if not line or line.startswith("!") or "!" in line:
                 break
             # Parse all integers from line
             nums = line.split()
@@ -298,10 +302,9 @@ class PSFReader:
 
         dihedrals = []
         for i in range(0, len(integers), 4):
-            dihedrals.append((
-                integers[i], integers[i + 1],
-                integers[i + 2], integers[i + 3]
-            ))
+            dihedrals.append(
+                (integers[i], integers[i + 1], integers[i + 2], integers[i + 3])
+            )
 
         self._line_idx += 1
         return dihedrals
@@ -313,10 +316,9 @@ class PSFReader:
 
         impropers = []
         for i in range(0, len(integers), 4):
-            impropers.append((
-                integers[i], integers[i + 1],
-                integers[i + 2], integers[i + 3]
-            ))
+            impropers.append(
+                (integers[i], integers[i + 1], integers[i + 2], integers[i + 3])
+            )
 
         self._line_idx += 1
         return impropers
@@ -342,7 +344,7 @@ class PSFReader:
         while len(integers) < count:
             self._next_line()
             curr_line = self._current_line()
-            if not curr_line or '!' in curr_line:
+            if not curr_line or "!" in curr_line:
                 break
             nums = curr_line.split()
             integers.extend(int(n) for n in nums)
@@ -353,7 +355,7 @@ class PSFReader:
     def _parse_groups(self, line: str) -> List[Tuple[int, int, int]]:
         """Parse NGRP NST2 section."""
         # Line format: NGRP NST2 !NGRP NST2
-        parts = line.split('!')
+        parts = line.split("!")
         nums = parts[0].split()
         ngrp = int(nums[0]) if nums else 0
 
@@ -373,7 +375,7 @@ class PSFReader:
 
         cmaps = []
         for i in range(0, len(integers), 8):
-            cmaps.append(tuple(integers[i:i + 8]))
+            cmaps.append(tuple(integers[i : i + 8]))
 
         self._line_idx += 1
         return cmaps
@@ -386,7 +388,7 @@ class PSFReader:
             LPNHOST  LPHPTR  LPWGHT  VALUE1  VALUE2  VALUE3  (per LP)
             LPHOST(1) LPHOST(2) ... LPHOST(NUMLPH)           (packed)
         """
-        parts = line.split('!')
+        parts = line.split("!")
         nums = parts[0].split()
         nlp = int(nums[0]) if nums else 0
         numlph = int(nums[1]) if len(nums) > 1 else 0
@@ -396,16 +398,18 @@ class PSFReader:
             self._next_line()
             lp_line = self._current_line()
             parts = lp_line.split()
-            lonepairs.append({
-                'nhost': int(parts[0]),
-                'ptr': int(parts[1]),
-                'weight': parts[2] == 'T' if len(parts) > 2 else False,
-                'values': (
-                    float(parts[3]) if len(parts) > 3 else 0.0,
-                    float(parts[4]) if len(parts) > 4 else 0.0,
-                    float(parts[5]) if len(parts) > 5 else 0.0,
-                ),
-            })
+            lonepairs.append(
+                {
+                    "nhost": int(parts[0]),
+                    "ptr": int(parts[1]),
+                    "weight": parts[2] == "T" if len(parts) > 2 else False,
+                    "values": (
+                        float(parts[3]) if len(parts) > 3 else 0.0,
+                        float(parts[4]) if len(parts) > 4 else 0.0,
+                        float(parts[5]) if len(parts) > 5 else 0.0,
+                    ),
+                }
+            )
 
         # Read packed LPHOST array
         lphost = []
@@ -418,15 +422,16 @@ class PSFReader:
 
         # Attach host indices to each LP entry
         for lp in lonepairs:
-            start = lp['ptr'] - 1  # convert to 0-based
-            n_entries = lp['nhost'] + 1  # nhost + LP atom itself
-            lp['host_indices'] = lphost[start:start + n_entries]
+            start = lp["ptr"] - 1  # convert to 0-based
+            n_entries = lp["nhost"] + 1  # nhost + LP atom itself
+            lp["host_indices"] = lphost[start : start + n_entries]
 
         self._line_idx += 1
         return lonepairs
 
 
 # Convenience function
+
 
 def read_psf(filepath: str) -> PSFData:
     """Read CHARMM PSF file and return parsed data.
@@ -447,11 +452,11 @@ def read_psf(filepath: str) -> PSFData:
 
 def _normalize_lonepair_entry(lp: Dict[str, Any]) -> Tuple[Any, ...]:
     """Normalize a lone-pair entry for structural comparison."""
-    values = tuple(round(float(value), 6) for value in lp.get('values', ()))
-    host_indices = tuple(int(idx) for idx in lp.get('host_indices', ()))
+    values = tuple(round(float(value), 6) for value in lp.get("values", ()))
+    host_indices = tuple(int(idx) for idx in lp.get("host_indices", ()))
     return (
-        int(lp.get('nhost', 0)),
-        bool(lp.get('weight', False)),
+        int(lp.get("nhost", 0)),
+        bool(lp.get("weight", False)),
         values,
         host_indices,
     )
@@ -484,22 +489,22 @@ def compare_psf(psf1: PSFData, psf2: PSFData, verbose: bool = False) -> Dict[str
     if len(psf1.atoms) == len(psf2.atoms):
         for i, (a1, a2) in enumerate(zip(psf1.atoms, psf2.atoms)):
             if a1.atomname != a2.atomname:
-                differences.append(f"Atom {i+1} name: {a1.atomname} vs {a2.atomname}")
+                differences.append(f"Atom {i + 1} name: {a1.atomname} vs {a2.atomname}")
             if a1.atomtype != a2.atomtype:
-                differences.append(f"Atom {i+1} type: {a1.atomtype} vs {a2.atomtype}")
+                differences.append(f"Atom {i + 1} type: {a1.atomtype} vs {a2.atomtype}")
             if abs(a1.charge - a2.charge) > 1e-4:
-                differences.append(f"Atom {i+1} charge: {a1.charge} vs {a2.charge}")
+                differences.append(f"Atom {i + 1} charge: {a1.charge} vs {a2.charge}")
             if abs(a1.mass - a2.mass) > 1e-4:
-                differences.append(f"Atom {i+1} mass: {a1.mass} vs {a2.mass}")
+                differences.append(f"Atom {i + 1} mass: {a1.mass} vs {a2.mass}")
 
     # Compare topology counts
     counts = [
-        ('bonds', len(psf1.bonds), len(psf2.bonds)),
-        ('angles', len(psf1.angles), len(psf2.angles)),
-        ('dihedrals', len(psf1.dihedrals), len(psf2.dihedrals)),
-        ('impropers', len(psf1.impropers), len(psf2.impropers)),
-        ('cmap', len(psf1.cmap), len(psf2.cmap)),
-        ('lonepairs', len(psf1.lonepairs), len(psf2.lonepairs)),
+        ("bonds", len(psf1.bonds), len(psf2.bonds)),
+        ("angles", len(psf1.angles), len(psf2.angles)),
+        ("dihedrals", len(psf1.dihedrals), len(psf2.dihedrals)),
+        ("impropers", len(psf1.impropers), len(psf2.impropers)),
+        ("cmap", len(psf1.cmap), len(psf2.cmap)),
+        ("lonepairs", len(psf1.lonepairs), len(psf2.lonepairs)),
     ]
 
     for name, c1, c2 in counts:
@@ -522,13 +527,10 @@ def compare_psf(psf1: PSFData, psf2: PSFData, verbose: bool = False) -> Dict[str
     if lonepairs1 != lonepairs2:
         differences.append("Lonepair definitions differ")
 
-    result = {
-        'equal': len(differences) == 0,
-        'differences': differences
-    }
+    result = {"equal": len(differences) == 0, "differences": differences}
 
     if verbose:
-        if result['equal']:
+        if result["equal"]:
             print("PSF files are equivalent")
         else:
             print("PSF files differ:")

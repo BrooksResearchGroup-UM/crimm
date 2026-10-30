@@ -1,0 +1,21 @@
+# Run once per clone: `pre-commit install`. Then every `git commit` runs these hooks on the
+# staged files; `pre-commit run --all-files` runs them on everything.
+#
+# The ruff hooks cover the same files as CI (crimm/ and tests/). Unrestricted, they would
+# also rewrite notebooks and Markdown, which CI does not check.
+# Keep `rev` equal to the ruff version pinned in .github/workflows/ci.yml.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.10
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+        files: ^(crimm|tests)/
+      - id: ruff-format
+        files: ^(crimm|tests)/
+  # No whitespace or end-of-file hooks: they would rewrite the CHARMM toppar and structure
+  # files under crimm/Data and tests/data.
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml

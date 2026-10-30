@@ -7,6 +7,7 @@
 """Consumer class that builds a Structure object.
 This is used by the MMCIFparser classes.
 """
+
 # SMCRA hierarchy
 import warnings
 
@@ -20,8 +21,10 @@ from crimm.StructEntities.Structure import Structure
 class ChainConstructionWarning(Warning):
     """Define class ChainConstructionWarning."""
 
+
 class ChainConstructionException(Exception):
     """Define class ChainConstructionException."""
+
 
 class AtomAltLocException(Exception):
     """Define class AtomAltLocException."""
@@ -51,7 +54,7 @@ class StructureBuilder:
         atom_list = residue.get_unpacked_list()
         for atom in atom_list:
             altloc = atom.get_altloc()
-            if altloc == ' ':
+            if altloc == " ":
                 return 0
         return 1
 
@@ -86,7 +89,7 @@ class StructureBuilder:
         """
         self.structure = Structure(structure_id)
 
-    def init_model(self, model_id, serial_num = None):
+    def init_model(self, model_id, serial_num=None):
         """Create a new Model object with given id.
 
         Arguments:
@@ -115,7 +118,7 @@ class StructureBuilder:
         else:
             self.chain = Chain(chain_id)
             self.model.add(self.chain)
-            
+
     def init_seg(self, segid):
         """Flag a change in segid.
 
@@ -141,7 +144,7 @@ class StructureBuilder:
                 # add the new residue to it
                 duplicate_residue.disordered_add(new_residue)
             return duplicate_residue
-        
+
         if resname == duplicate_residue.resname:
             # Not disordered but resname and id already exist
             warnings.warn(
@@ -152,7 +155,7 @@ class StructureBuilder:
                 ChainConstructionWarning,
             )
             return duplicate_residue
-        
+
         # Make a new DisorderedResidue object and put all
         # the Residue objects with the id (field, resseq, icode) in it.
         # These residues each should be completely disordered,
@@ -175,7 +178,7 @@ class StructureBuilder:
 
     def add_residue(self, residue, chain):
         """Add a residue to the current chain, and set it as the current residue
-         to be built"""
+        to be built"""
         if not isinstance(chain, PolymerChain):
             # if current chain is not a polymer, we simply add the residue
             # to the chain
@@ -215,9 +218,7 @@ class StructureBuilder:
         if isinstance(self.chain, Heterogens):
             new_residue = Heterogen(res_id, resname, self.segid)
         else:
-            new_residue = Residue(
-                res_id, resname, self.segid, author_seq_id
-            )
+            new_residue = Residue(res_id, resname, self.segid, author_seq_id)
         self.residue = self.add_residue(new_residue, self.chain)
 
     def _assign_atom_names(self, atom, residue):
@@ -280,7 +281,7 @@ class StructureBuilder:
 
     def add_atom(self, atom, residue):
         """Add an Atom object to a Residue that has been initiated.
-        Checks will be performed to determine if the atom is duplicated, 
+        Checks will be performed to determine if the atom is duplicated,
         and DisorderedAtom object will be instantiated and filled if necessary.
         """
         name = self._assign_atom_names(atom, residue)

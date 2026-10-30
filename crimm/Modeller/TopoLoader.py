@@ -333,7 +333,7 @@ def execute_cgenff(cgenff_path, input_mol2_block):
     completed = subprocess.run(
         # -a is needed for CGenFF to generate the full topology and parameter files
         # instead of just the missing parameters
-        [cgenff_path, '-a'],
+        [cgenff_path, "-a"],
         input=input_mol2_block,
         encoding="ascii",
         capture_output=True,
@@ -543,9 +543,8 @@ class DisulfideTopology:
             # Check if disulfide patch has already been applied
             # (e.g., if ModelTopology was already created earlier)
             if not (self._disu_patch_applied(res1) and self._disu_patch_applied(res2)):
-                if (
-                    getattr(res1.topo_definition, "is_modified", False)
-                    or getattr(res2.topo_definition, "is_modified", False)
+                if getattr(res1.topo_definition, "is_modified", False) or getattr(
+                    res2.topo_definition, "is_modified", False
                 ):
                     raise ValueError(
                         "Modified disulfides are not supported: "
@@ -1414,7 +1413,9 @@ class TopologyGenerator:
         if new_resname is None or residue.resname == new_resname:
             return False
         if not QUIET:
-            warnings.warn(f"Canonicalized DNA residue {residue.resname} to {new_resname}")
+            warnings.warn(
+                f"Canonicalized DNA residue {residue.resname} to {new_resname}"
+            )
         old_resname = residue.resname
         residue.original_resname = old_resname
         residue.resname = new_resname
@@ -1532,9 +1533,9 @@ class TopologyGenerator:
         """Create and separate missing heavy atoms and missing hydrogen atom by atom name"""
         missing_atom: Atom = residue.topo_definition[atom_name].create_new_atom()
         missing_atom.set_parent(residue)
-        if atom_name.startswith('LP'):
+        if atom_name.startswith("LP"):
             residue.lone_pair_dict[atom_name] = missing_atom
-        elif atom_name.startswith('H'):
+        elif atom_name.startswith("H"):
             residue.missing_hydrogens[atom_name] = missing_atom
         else:
             residue.missing_atoms[atom_name] = missing_atom
@@ -1747,9 +1748,7 @@ class TopologyGenerator:
         if chain.residues[0].resname == "ACE":
             # if the first residue is ACE, remove it
             chain.truncate(start=1)
-        last_patch = self._normalize_terminal_nh2_cap(
-            chain, last_patch, QUIET=QUIET
-        )
+        last_patch = self._normalize_terminal_nh2_cap(chain, last_patch, QUIET=QUIET)
         chain.undefined_res = []
         self._load_residue_definitions(chain.chain_type, preserve_ic)
         for residue in chain:
@@ -1853,9 +1852,7 @@ class TopologyGenerator:
                 "because it is undefined (no topology definition exists)!"
             )
         res_def = residue.topo_definition
-        patched_def_name = self._patched_definition_cache_key(
-            res_def, patch, patch_loc
-        )
+        patched_def_name = self._patched_definition_cache_key(res_def, patch, patch_loc)
         # if patched_def_name in self.cur_defs.patched_defs:
         #     patched_res_def = self.cur_defs.patched_defs[patched_def_name]
         # else:

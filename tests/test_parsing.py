@@ -1,4 +1,5 @@
 """mmCIF parsing and the basic entity hierarchy."""
+
 import numpy as np
 import pytest
 from conftest import ALL_IDS, EXPECTED

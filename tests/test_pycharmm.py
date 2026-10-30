@@ -11,6 +11,7 @@ protein only (no solvent), so no water or ion segments need building on the CHAR
 pyCHARMM holds one PSF per process, so every test starts by deleting all atoms. Never call
 CHARMM's ``stop`` from here: pyCHARMM dumps core on it.
 """
+
 import glob
 import os
 import warnings
@@ -206,4 +207,6 @@ def test_fetch_coords_from_charmm_moves_the_model(fresh_charmm):
         fresh_charmm.fetch_coords_from_charmm(model)
 
     after = np.array([atom.coord for atom in atoms])
-    np.testing.assert_allclose(after - before, np.broadcast_to(shift, before.shape), atol=1e-4)
+    np.testing.assert_allclose(
+        after - before, np.broadcast_to(shift, before.shape), atol=1e-4
+    )

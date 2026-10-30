@@ -9,3 +9,5 @@
 2b019d3e59c3471745426cd066af8e0d1108f576
 # Format Solvator, CrystalSDF and CoordManipulator with ruff format
 85640ad4245995ca9b0eaac5f5ca642384ee6cd0
+# Format crimm and tests with ruff format (#110)
+7ead967f151839f079eb30b1ea97d7ce0e71fb39

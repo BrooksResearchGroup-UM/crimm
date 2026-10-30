@@ -4,6 +4,7 @@ The default run is offline: every structure comes from ``tests/data``. Tests tha
 the network, pyCHARMM or the cgenff executable carry a marker and are deselected unless
 asked for (see ``[tool.pytest.ini_options]`` in ``pyproject.toml``).
 """
+
 import os
 import shutil
 import warnings

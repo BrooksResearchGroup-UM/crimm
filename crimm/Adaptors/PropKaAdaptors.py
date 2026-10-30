@@ -1,4 +1,5 @@
 """Derived Propka Atom class to facilitate atom class conversion for pKa calculation"""
+
 import os
 from typing import Optional, Tuple
 
@@ -17,6 +18,7 @@ from crimm.Modeller.TopoFixer import ResidueFixer
 
 dir_path = os.path.dirname(os.path.realpath(Data.__file__))
 
+
 class PropKaAtom(_ppAtom):
     """PropKa Atom class - contains all atom information found in the PDB file
 
@@ -27,7 +29,7 @@ class PropKaAtom(_ppAtom):
     """
 
     def __init__(self, biopython_atom):
-        """Initialize the Atom object. This method overwrite the default 
+        """Initialize the Atom object. This method overwrite the default
         init method from the super class
 
         Args:
@@ -70,7 +72,7 @@ class PropKaAtom(_ppAtom):
         self.residue_label = fmt.format(r=self)
 
         # ligand atom types
-        self.sybyl_type = ''
+        self.sybyl_type = ""
         self.sybyl_assigned = False
         self.marvin_pka = False
 
@@ -86,65 +88,71 @@ class PropKaAtom(_ppAtom):
         self.res_num = bp_atom.parent.id[1]
         self.res_name = bp_atom.parent.resname
         self.chain_id = bp_atom.parent.parent.id
-        if bp_atom.parent.id[0] != ' ':
-            self.type = 'hetatom'
+        if bp_atom.parent.id[0] != " ":
+            self.type = "hetatom"
         else:
-            self.type = 'atom'
+            self.type = "atom"
         self.occ = bp_atom.occupancy
         self.beta = bp_atom.bfactor
         self.element = bp_atom.element
         self.icode = bp_atom.parent.id[2]
 
+
 class MolecularContainer(_MolContnr):
     """A derived class from MolecularContainer where the container is initiated
     with default options"""
+
     def __init__(self, protonator):
         """Initialize the container. This method overwrite the default
         init method from the super class"""
         self.conformation_names = []
         self.conformations = {}
-        self.options = protonator # get from Protonator Class
+        self.options = protonator  # get from Protonator Class
         self.name = None
-        self.version = protonator.version # same here
+        self.version = protonator.version  # same here
+
 
 def _is_protonated(ph, pka):
-    return pka>ph
+    return pka > ph
+
 
 def _is_deprotonated(ph, pka):
-    return pka<ph
+    return pka < ph
+
 
 class PropKaProtonator:
     """PropKaProtonator class - contains all the information needed to run
     propka calculations on a protein."""
 
     protonation_dict = {
-        'HIS': (_is_protonated, 'HSP'),
-        'ASP': (_is_protonated,'ASPP'),
-        'LYS': (_is_deprotonated, 'LSN'),
-        'GLU': (_is_protonated, 'GLUP'),
-        'CYS': (_is_deprotonated, 'CYSD'),
-        'SER': (_is_deprotonated, 'SERD'),
+        "HIS": (_is_protonated, "HSP"),
+        "ASP": (_is_protonated, "ASPP"),
+        "LYS": (_is_deprotonated, "LSN"),
+        "GLU": (_is_protonated, "GLUP"),
+        "CYS": (_is_deprotonated, "CYSD"),
+        "SER": (_is_deprotonated, "SERD"),
     }
+
     def __init__(
-            self,
-            topology_loader: TopologyGenerator,
-            pH: float = 7.0,
-            reference: str = 'neutral',
-            titrate_only: Optional[str] = None,
-            thermophiles: Optional[str] = None,
-            alignment: Optional[str] = None,
-            mutations: Optional[str] = None,
-            parameter_filename: str = 'propka.cfg',
-            log_level: str = 'INFO',
-            window: Tuple[float, float, float] = (0.0, 14.0, 1.0),
-            grid: Tuple[float, float, float] = (0.0, 14.0, 0.1),
-            mutator: Optional[str] = None,
-            mutator_options: Optional[str] = None,
-            display_coupled_residues: bool = False,
-            reuse_ligand_mol2_file: bool = False,
-            keep_protons: bool = False,
-            protonate_all: bool = False,
-        ) -> None:
+        self,
+        topology_loader: TopologyGenerator,
+        pH: float = 7.0,
+        reference: str = "neutral",
+        titrate_only: Optional[str] = None,
+        thermophiles: Optional[str] = None,
+        alignment: Optional[str] = None,
+        mutations: Optional[str] = None,
+        parameter_filename: str = "propka.cfg",
+        log_level: str = "INFO",
+        window: Tuple[float, float, float] = (0.0, 14.0, 1.0),
+        grid: Tuple[float, float, float] = (0.0, 14.0, 0.1),
+        mutator: Optional[str] = None,
+        mutator_options: Optional[str] = None,
+        display_coupled_residues: bool = False,
+        reuse_ligand_mol2_file: bool = False,
+        keep_protons: bool = False,
+        protonate_all: bool = False,
+    ) -> None:
         """Initialize the PropKaProtonator object."""
         self.pH = pH
         self.reference = reference
@@ -172,11 +180,11 @@ class PropKaProtonator:
         self.conf_container = None
         self.reportable_groups = None
         self.topo = topology_loader
-        self.param = self.topo.param_dict['protein']
+        self.param = self.topo.param_dict["protein"]
 
     def load_model(self, model):
-        """Load a list of PolymerChains to propKa MolecularContainer for pKa 
-        calculations. Only one conformations will be used for calculation, i.e. only 
+        """Load a list of PolymerChains to propKa MolecularContainer for pKa
+        calculations. Only one conformations will be used for calculation, i.e. only
         one altloc in the Disordered atom (the selected child) will be loaded.
 
         Args:
@@ -186,25 +194,24 @@ class PropKaProtonator:
             MolecularContainer with chain atoms loaded
         """
         self.model = model
-        chains = [chain for chain in model if chain.chain_type == 'Polypeptide(L)']
+        chains = [chain for chain in model if chain.chain_type == "Polypeptide(L)"]
         self.mol_container = MolecularContainer(self)
-        conformation_name = '1A'
+        conformation_name = "1A"
         self.conf_container = ConformationContainer(
             name=conformation_name,
             parameters=self.parameters,
-            molecular_container=self.mol_container
+            molecular_container=self.mol_container,
         )
         self.mol_container.conformations = {conformation_name: self.conf_container}
         self.mol_container.conformation_names = [conformation_name]
         for chain in chains:
             chain.sort_residues()
             self.add_chain_to_conf_container(chain)
-        
+
         self.mol_container.top_up_conformations()
         # make a structure precheck
         protein_precheck(
-            self.mol_container.conformations, 
-            self.mol_container.conformation_names
+            self.mol_container.conformations, self.mol_container.conformation_names
         )
         # set up atom bonding and protonation
         setup_bonding_and_protonation(self.mol_container)
@@ -222,14 +229,14 @@ class PropKaProtonator:
         will be labeled accordingly."""
         pka_atoms = []
         for atom in chain.get_atoms():
-            if not self.keep_protons and atom.element == 'H':
+            if not self.keep_protons and atom.element == "H":
                 continue
             pka_atoms.append(PropKaAtom(atom))
         # label NTER and CTER
-        if pka_atoms[0].element == 'N':
-            pka_atoms[0].terminal = 'N+'
-        if pka_atoms[-1].element == 'O':
-            pka_atoms[-1].terminal = 'C-'
+        if pka_atoms[0].element == "N":
+            pka_atoms[0].terminal = "N+"
+        if pka_atoms[-1].element == "O":
+            pka_atoms[-1].terminal = "C-"
         for pka_atom in pka_atoms:
             self.conf_container.add_atom(pka_atom)
 
@@ -251,9 +258,9 @@ class PropKaProtonator:
             if eval_function(self.pH, g.pka_value):
                 self.patches[chain_id][resseq] = patch_name
 
-    def _patch_residue(self, residue, patch_name:str):
+    def _patch_residue(self, residue, patch_name: str):
         fixer = ResidueFixer()
-        topo_def = self.topo.res_def_dict['protein'][patch_name]
+        topo_def = self.topo.res_def_dict["protein"][patch_name]
         if topo_def.is_patch:
             self.topo.patch_residue(residue, patch_name)
         else:
@@ -274,7 +281,7 @@ class PropKaProtonator:
                 residue = self.model[chain_id][resseq]
                 self._patch_residue(residue, patch_name)
                 # Update residue name for HIS
-                if residue.resname == 'HIS':
+                if residue.resname == "HIS":
                     residue.resname = residue.topo_definition.resname
             chain = self.model[chain_id]
             if chain.topology is not None:
@@ -290,9 +297,12 @@ class PropKaProtonator:
         for chain_id, groups in self.reportable_groups.items():
             for i, g in groups.items():
                 out_str = fmt.format(
-                    chain_id = chain_id, i=i, resname=g.atom.res_name, 
-                    pka=g.pka_value, model_pka = g.model_pka,
-                    buried = g.buried
+                    chain_id=chain_id,
+                    i=i,
+                    resname=g.atom.res_name,
+                    pka=g.pka_value,
+                    model_pka=g.model_pka,
+                    buried=g.buried,
                 )
                 print(out_str)
 
@@ -303,20 +313,28 @@ class PropKaProtonator:
             data[chain_id] = {}
             for i, g in groups.items():
                 data[chain_id][i] = {
-                    'resname': g.atom.res_name, 'pka': g.pka_value, 
-                    'model_pka': g.model_pka, 'buriedness': g.buried
+                    "resname": g.atom.res_name,
+                    "pka": g.pka_value,
+                    "model_pka": g.model_pka,
+                    "buriedness": g.buried,
                 }
         return data
-    
+
     def to_dataframe(self):
         """Return a pandas dataframe with pKa values."""
         data = []
         for chain_id, groups in self.reportable_groups.items():
             for i, g in groups.items():
-                data.append({
-                    'chain_id': chain_id, 'resseq': i, 'resname': g.atom.res_name, 
-                    'pka': g.pka_value, 'model_pka': g.model_pka,
-                    'buriedness': g.buried
-                })
+                data.append(
+                    {
+                        "chain_id": chain_id,
+                        "resseq": i,
+                        "resname": g.atom.res_name,
+                        "pka": g.pka_value,
+                        "model_pka": g.model_pka,
+                        "buriedness": g.buried,
+                    }
+                )
         import pandas as pd
+
         return pd.DataFrame(data)

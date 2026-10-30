@@ -603,46 +603,55 @@ class PSFWriter:
                         lp_def = lp_atom.topo_definition
                         if lp_def is not None and lp_def.lonepair_info is not None:
                             info = lp_def.lonepair_info
-                            lp_type = info['type']
+                            lp_type = info["type"]
                             # Determine nhost and values triple per CHARMM convention
-                            if lp_type == 'COLI':
+                            if lp_type == "COLI":
                                 nhost = 2
-                                values = (info['distance'], info.get('scale', 0.0), 0.0)
-                            elif lp_type == 'RELA':
+                                values = (info["distance"], info.get("scale", 0.0), 0.0)
+                            elif lp_type == "RELA":
                                 nhost = 3
-                                values = (info['distance'], info['angle'], info['dihedral'])
-                            elif lp_type == 'BISE':
+                                values = (
+                                    info["distance"],
+                                    info["angle"],
+                                    info["dihedral"],
+                                )
+                            elif lp_type == "BISE":
                                 nhost = 3
-                                values = (-info['distance'], info['angle'], info['dihedral'])
-                            elif lp_type == 'CENT':
-                                nhost = len(info['host_atoms'])
+                                values = (
+                                    -info["distance"],
+                                    info["angle"],
+                                    info["dihedral"],
+                                )
+                            elif lp_type == "CENT":
+                                nhost = len(info["host_atoms"])
                                 values = (0.0, 0.0, 0.0)
                             else:
                                 continue
                             # Build host_atoms list: [LP, host1, host2, ...]
                             # This matches CHARMM's LPHOST array layout
                             host_atom_list = [lp_atom]
-                            for h_name in info['host_atoms']:
+                            for h_name in info["host_atoms"]:
                                 if h_name in residue:
                                     host_atom_list.append(residue[h_name])
                             # Validate all host atoms were found
                             if len(host_atom_list) != nhost + 1:
                                 missing = [
-                                    h for h in info['host_atoms']
-                                    if h not in residue
+                                    h for h in info["host_atoms"] if h not in residue
                                 ]
                                 warnings.warn(
                                     f"LP '{lp_name}' in residue {residue.resname}: "
                                     f"missing host atoms {missing}, skipping NUMLP entry"
                                 )
                                 continue
-                            self._lonepairs.append({
-                                'lp_atom': lp_atom,
-                                'nhost': nhost,
-                                'host_atoms': host_atom_list,
-                                'weight': False,
-                                'values': values,
-                            })
+                            self._lonepairs.append(
+                                {
+                                    "lp_atom": lp_atom,
+                                    "nhost": nhost,
+                                    "host_atoms": host_atom_list,
+                                    "weight": False,
+                                    "values": values,
+                                }
+                            )
 
         # Warn about skipped chains
         if skipped_chains:
@@ -1158,7 +1167,7 @@ class PSFWriter:
         lines = []
         nlp = len(self._lonepairs)
         # NUMLPH = total number of entries in LPHOST array
-        numlph = sum(len(lp['host_atoms']) for lp in self._lonepairs)
+        numlph = sum(len(lp["host_atoms"]) for lp in self._lonepairs)
 
         if self.extended:
             lines.append(f"{nlp:>10d}{numlph:>10d} !NUMLP NUMLPH")
@@ -1170,9 +1179,9 @@ class PSFWriter:
             # Format: fmt06 = (2I10,3X,L1,3G14.6) for extended
             ptr = 1  # 1-based pointer into LPHOST array
             for lp_info in self._lonepairs:
-                nhost = lp_info['nhost']
-                weight = 'T' if lp_info['weight'] else 'F'
-                v1, v2, v3 = lp_info['values']
+                nhost = lp_info["nhost"]
+                weight = "T" if lp_info["weight"] else "F"
+                v1, v2, v3 = lp_info["values"]
                 if self.extended:
                     lines.append(
                         f"{nhost:>10d}{ptr:>10d}   {weight}"
@@ -1183,12 +1192,12 @@ class PSFWriter:
                         f"{nhost:>8d}{ptr:>8d}   {weight}"
                         f"{v1:>14.6E}{v2:>14.6E}{v3:>14.6E}"
                     )
-                ptr += len(lp_info['host_atoms'])
+                ptr += len(lp_info["host_atoms"])
 
             # Packed LPHOST array: all host atom indices
             host_indices = []
             for lp_info in self._lonepairs:
-                for atom in lp_info['host_atoms']:
+                for atom in lp_info["host_atoms"]:
                     host_indices.append(self._atom_map[atom])
             lines.append(self._format_indices(host_indices, items_per_line=8))
 

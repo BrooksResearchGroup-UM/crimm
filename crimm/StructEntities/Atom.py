@@ -8,7 +8,7 @@ from Bio.PDB.Atom import DisorderedAtom as _DisorderedAtom
 class Atom(_Atom):
     """Atom class derived from Biopython Residue and made compatible with
     CHARMM
-    
+
     init args:
     name: str
         Atom name.
@@ -34,19 +34,20 @@ class Atom(_Atom):
     topo_definition: TopoAtom, optional
         Topology definition for the atom.
     """
+
     def __init__(
         self,
         name,
         coord,
         bfactor=0.0,
         occupancy=1.0,
-        altloc=' ',
+        altloc=" ",
         fullname=None,
         serial_number=0,
         element=None,
         pqr_charge=None,
         radius=None,
-        topo_definition = None
+        topo_definition=None,
     ) -> None:
         self.level = "A"
         # Reference to the residue
@@ -81,10 +82,16 @@ class Atom(_Atom):
         self._sorting_keys = {"N": 0, "CA": 1, "C": 2, "O": 3}
         # For atom sorting (nucleic acid backbone atoms first)
         self._sorting_keys.update(
-              {
-                  "P": 0, "OP1": 1, "OP2": 2, "O5'": 3, 
-                  "C5'": 4, "C4'": 5, "C3'": 6, "O3'": 7
-              }
+            {
+                "P": 0,
+                "OP1": 1,
+                "OP2": 2,
+                "O5'": 3,
+                "C5'": 4,
+                "C4'": 5,
+                "C3'": 6,
+                "O3'": 7,
+            }
         )
         # For neighbor lookup and graph building
         self.neighbors = set()
@@ -101,7 +108,7 @@ class Atom(_Atom):
         return f"<Atom {self.get_id()}>"
 
     def __getstate__(self):
-        """Return state of the atom object for pickling, excluding neighbors 
+        """Return state of the atom object for pickling, excluding neighbors
         to avoid infinite recursion errors"""
         state = {k: v for k, v in self.__dict__.items() if k != "neighbors"}
         return state
@@ -129,10 +136,9 @@ class Atom(_Atom):
         if self.parent is not None:
             del self.parent.child_dict[old_name]
             self.parent.child_dict[new_name] = self
-            
 
     def copy(self):
-        """Create a copy of the Atom. 
+        """Create a copy of the Atom.
 
         Parent information and neighbors information is lost.
         """
@@ -163,7 +169,8 @@ class Atom(_Atom):
         if self.parent is None:
             return self
         return self.parent.get_top_parent()
-    
+
+
 class DisorderedAtom(_DisorderedAtom):
     """Disoreded Atom class derived from Biopython Disordered Atom and made compatible with
     OpenMM Atom."""
@@ -174,7 +181,7 @@ class DisorderedAtom(_DisorderedAtom):
         return self.parent.get_top_parent()
 
     def __getstate__(self):
-        """Return state of the atom object for pickling, excluding neighbors 
+        """Return state of the atom object for pickling, excluding neighbors
         to avoid infinite recursion errors"""
         state = {k: v for k, v in self.__dict__.items() if k != "neighbors"}
         return state
@@ -184,10 +191,10 @@ class DisorderedAtom(_DisorderedAtom):
         self.__dict__.update(state)
         if "neighbors" not in self.__dict__:
             self.neighbors = set()
-    
+
     @property
     def topo_definition(self):
-        """Topology related parameters for the atom. This returns the selected 
+        """Topology related parameters for the atom. This returns the selected
         child's topology definition"""
         return self.selected_child.topo_definition
 

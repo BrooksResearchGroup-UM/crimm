@@ -1,4 +1,3 @@
-
 import warnings
 
 import numpy as np
@@ -16,9 +15,10 @@ class ChainSuperimposer(Superimposer):
     performed on CA atoms, backbone atoms, or all atoms. The class is derived
     from Biopython's Superimposer class.
     """
+
     def __init__(self) -> None:
         """Initialize the ChainSuperimposer
-        
+
         Attributes:
         ref_chain: PolymerChain
             Reference chain for superposition
@@ -45,19 +45,17 @@ class ChainSuperimposer(Superimposer):
 
     def _check_chain_type(self, chain):
         if not isinstance(chain, PolymerChain):
-            raise TypeError(
-                "ChainSuperimposer only works with PolymerChain class"
-            )
-        
+            raise TypeError("ChainSuperimposer only works with PolymerChain class")
+
     def get_matching_res(self, ref_chain, mov_chain):
-        """ Find all aligned residues that exist in both chains """
+        """Find all aligned residues that exist in both chains"""
         self.ref_chain = ref_chain
         self.mov_chain = mov_chain
         if self.ref_chain.can_seq == self.mov_chain.can_seq:
             # If canonical sequences are identical
             # Use all present residues from both chains
             self.alignments = ["identical sequences"]
-            complete_range = range(1, len(self.ref_chain.can_seq)+1)
+            complete_range = range(1, len(self.ref_chain.can_seq) + 1)
             id_pairs = zip(complete_range, complete_range)
 
         else:
@@ -68,7 +66,7 @@ class ChainSuperimposer(Superimposer):
             )
             top_alignment = self.alignments[0]
             self.ref_ranges, self.mov_ranges = top_alignment.aligned
-            res_ids = top_alignment.indices+1 # residue seq ids start from 1
+            res_ids = top_alignment.indices + 1  # residue seq ids start from 1
             aligned_ids = np.logical_and(res_ids[0], res_ids[1])
             id_pairs = res_ids.T[aligned_ids]
 
@@ -99,7 +97,7 @@ class ChainSuperimposer(Superimposer):
 
         return ref_aligned_res, mov_aligned_res
 
-    def set_chains(self, ref_chain, mov_chain, on_atoms = 'CA'):
+    def set_chains(self, ref_chain, mov_chain, on_atoms="CA"):
         """Set the chains to be superimposed. mov_chain will be moved to
         ref_chain."""
 
@@ -107,26 +105,30 @@ class ChainSuperimposer(Superimposer):
         self._check_chain_type(mov_chain)
 
         seq_len = len(ref_chain.can_seq)
-        # We don't want highly fragmented alignments. Gap opening is only allowed 
-        # in the middle of the sequence when 20% or more of the sequence length 
+        # We don't want highly fragmented alignments. Gap opening is only allowed
+        # in the middle of the sequence when 20% or more of the sequence length
         # is aligned as a result of that
         self.aligner.target_internal_open_gap_score = -(seq_len // 5)
         self.aligner.query_internal_open_gap_score = -(seq_len // 5)
 
         ref_res, mov_res = self.get_matching_res(ref_chain, mov_chain)
 
-        if on_atoms == 'CA':
-            ref_align_atoms, mov_align_atoms = \
-                    self._find_common_CA_atoms(ref_res, mov_res)
-        elif on_atoms == 'backbone':
-            ref_align_atoms, mov_align_atoms = \
-                    self._find_common_backbone_atoms(ref_res, mov_res)
-        elif on_atoms == 'all':
-            ref_align_atoms, mov_align_atoms = \
-                    self._find_all_common_atoms(ref_res, mov_res)
+        if on_atoms == "CA":
+            ref_align_atoms, mov_align_atoms = self._find_common_CA_atoms(
+                ref_res, mov_res
+            )
+        elif on_atoms == "backbone":
+            ref_align_atoms, mov_align_atoms = self._find_common_backbone_atoms(
+                ref_res, mov_res
+            )
+        elif on_atoms == "all":
+            ref_align_atoms, mov_align_atoms = self._find_all_common_atoms(
+                ref_res, mov_res
+            )
         else:
-            raise ValueError('on_atoms has to be selected from '
-                '{"backbone", "all", "CA"}') 
+            raise ValueError(
+                'on_atoms has to be selected from {"backbone", "all", "CA"}'
+            )
         self.set_atoms(ref_align_atoms, mov_align_atoms)
 
     def _find_all_common_atoms(self, ref_res_list, mov_res_list):
@@ -149,9 +151,9 @@ class ChainSuperimposer(Superimposer):
         for ref_res, mov_res in zip(ref_res_list, mov_res_list):
             # Make sure both residues have the CA atom
             # Otherwise, the missing atom will be excluded
-            if 'CA' in ref_res and 'CA' in mov_res:
-                ref_align_atoms.append(ref_res['CA'])
-                mov_align_atoms.append(mov_res['CA'])
+            if "CA" in ref_res and "CA" in mov_res:
+                ref_align_atoms.append(ref_res["CA"])
+                mov_align_atoms.append(mov_res["CA"])
 
         return ref_align_atoms, mov_align_atoms
 
@@ -159,7 +161,7 @@ class ChainSuperimposer(Superimposer):
         ref_align_atoms = []
         mov_align_atoms = []
         for ref_res, mov_res in zip(ref_res_list, mov_res_list):
-            for atom_id in ['N','CA','C','O']:
+            for atom_id in ["N", "CA", "C", "O"]:
                 # Make sure both residues have the backbone atom
                 # Otherwise, the missing atom will be excluded
                 if atom_id in ref_res and atom_id in mov_res:
@@ -179,9 +181,9 @@ class ChainSuperimposer(Superimposer):
 
     @staticmethod
     def _recur_find_ids(avail_ids, remainder, cur_id, valid_ids, direction):
-        for i in range(1, remainder+1):
+        for i in range(1, remainder + 1):
             # forward_direction == 1, backward == -1
-            cur_id += 1*direction
+            cur_id += 1 * direction
             if cur_id < 1 or cur_id > max(avail_ids):
                 # inclusive on both edges: 1 to max(avail_ids)
                 return
@@ -189,22 +191,17 @@ class ChainSuperimposer(Superimposer):
                 valid_ids.append(cur_id)
             else:
                 ChainSuperimposer._recur_find_ids(
-                    avail_ids, remainder+1-i, cur_id, valid_ids, direction
+                    avail_ids, remainder + 1 - i, cur_id, valid_ids, direction
                 )
                 return
 
-    def set_around_gap(
-            self, ref_chain, mov_chain,
-            ref_gap,
-            cutoff=10
-        ):
-
+    def set_around_gap(self, ref_chain, mov_chain, ref_gap, cutoff=10):
         """
-        Set atoms for superposition around a gap/missing residues on the ref 
+        Set atoms for superposition around a gap/missing residues on the ref
         chain. Start and end residue index needed. Alignment will be performed on
-        backbone atoms. If mov_gap is not specified, identical sequence will be 
+        backbone atoms. If mov_gap is not specified, identical sequence will be
         assumed on both chains, and the reference chain gap locations will be applied
-        on the move chain 
+        on the move chain
         """
         ## TODO(#72): add options for on_atoms
 
@@ -223,17 +220,19 @@ class ChainSuperimposer(Superimposer):
                 mov_edge_res.append(mov_res)
 
         if ref_edge_res is None:
-            warnings.warn('The cutoff value extends out of the available '
-                    'residues in the chain. All backbone atoms on both chains '
-                    'are selected for superposition')
+            warnings.warn(
+                "The cutoff value extends out of the available "
+                "residues in the chain. All backbone atoms on both chains "
+                "are selected for superposition"
+            )
             ref_edge_res, mov_edge_res = all_ref_res, all_mov_res
 
         ref_atoms, mov_atoms = self._find_common_backbone_atoms(
             ref_edge_res, mov_edge_res
         )
         self.set_atoms(ref_atoms, mov_atoms)
-    
-    def apply_transform(self, entity: PolymerChain=None):
+
+    def apply_transform(self, entity: PolymerChain = None):
         if entity is None:
             entity = self.mov_chain
         self.apply(list(entity.get_atoms(include_alt=True)))

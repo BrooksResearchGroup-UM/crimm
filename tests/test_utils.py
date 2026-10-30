@@ -1,4 +1,5 @@
 """Pure-function tests for crimm.Utils.StructureUtils (no structures needed)."""
+
 import numpy as np
 import pytest
 

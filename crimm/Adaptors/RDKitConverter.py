@@ -48,39 +48,43 @@ from crimm.StructEntities.Residue import Heterogen
 
 bond_order_dict = {
     # PDB mmCIF bond type names
-    'SING': rdBond.SINGLE,
-    'DOUB': rdBond.DOUBLE,
-    'TRIP': rdBond.TRIPLE,
-    'QUAD': rdBond.QUADRUPLE,
-    'AROM': rdBond.AROMATIC,
+    "SING": rdBond.SINGLE,
+    "DOUB": rdBond.DOUBLE,
+    "TRIP": rdBond.TRIPLE,
+    "QUAD": rdBond.QUADRUPLE,
+    "AROM": rdBond.AROMATIC,
     # probe bond type names
-    'single': rdBond.SINGLE,
-    'double': rdBond.DOUBLE,
-    'triple': rdBond.TRIPLE,
-    'quadruple': rdBond.QUADRUPLE,
-    'aromatic': rdBond.AROMATIC,
+    "single": rdBond.SINGLE,
+    "double": rdBond.DOUBLE,
+    "triple": rdBond.TRIPLE,
+    "quadruple": rdBond.QUADRUPLE,
+    "aromatic": rdBond.AROMATIC,
 }
+
 
 def get_rdkit_bond_order(bo_name):
     return bond_order_dict.get(bo_name, rdBond.OTHER)
 
+
 ####################### ODDT code starts #######################
 # Mol2 Atom typing
 def _sybyl_atom_type(atom):
-    """ Asign sybyl atom type
+    """Asign sybyl atom type
     Reference #1: http://www.tripos.com/mol2/atom_types.html
     Reference #2: http://chemyang.ccnu.edu.cn/ccb/server/AIMMS/mol2.pdf
     """
     sybyl = None
     atom_symbol = atom.GetSymbol()
     atomic_num = atom.GetAtomicNum()
-    hyb = atom.GetHybridization()-1  # -1 since 1 = sp, 2 = sp1 etc
+    hyb = atom.GetHybridization() - 1  # -1 since 1 = sp, 2 = sp1 etc
     hyb = min(hyb, 3)
     degree = atom.GetDegree()
     aromtic = atom.GetIsAromatic()
 
     # define groups for atom types
-    guanidine = '[NX3,NX2]([!O,!S])!@C(!@[NX3,NX2]([!O,!S]))!@[NX3,NX2]([!O,!S])'  # strict
+    guanidine = (
+        "[NX3,NX2]([!O,!S])!@C(!@[NX3,NX2]([!O,!S]))!@[NX3,NX2]([!O,!S])"  # strict
+    )
     # guanidine = '[NX3]([!O])([!O])!:C!:[NX3]([!O])([!O])' # corina compatible
     # guanidine = '[NX3]!@C(!@[NX3])!@[NX3,NX2]'
     # guanidine = '[NX3]C([NX3])=[NX2]'
@@ -89,43 +93,47 @@ def _sybyl_atom_type(atom):
 
     if atomic_num == 6:
         if aromtic:
-            sybyl = 'C.ar'
+            sybyl = "C.ar"
         elif degree == 3 and _atom_matches_smarts(atom, guanidine):
-            sybyl = 'C.cat'
+            sybyl = "C.cat"
         else:
-            sybyl = '%s.%i' % (atom_symbol, hyb)
+            sybyl = "%s.%i" % (atom_symbol, hyb)
     elif atomic_num == 7:
         if aromtic:
-            sybyl = 'N.ar'
-        elif _atom_matches_smarts(atom, 'C(=[O,S])-N'):
-            sybyl = 'N.am'
-        elif degree == 3 and _atom_matches_smarts(atom, '[$(N!-*),$([NX3H1]-*!-*)]'):
-            sybyl = 'N.pl3'
+            sybyl = "N.ar"
+        elif _atom_matches_smarts(atom, "C(=[O,S])-N"):
+            sybyl = "N.am"
+        elif degree == 3 and _atom_matches_smarts(atom, "[$(N!-*),$([NX3H1]-*!-*)]"):
+            sybyl = "N.pl3"
         elif _atom_matches_smarts(atom, guanidine):  # guanidine has N.pl3
-            sybyl = 'N.pl3'
+            sybyl = "N.pl3"
         elif degree == 4 or hyb == 3 and atom.GetFormalCharge():
-            sybyl = 'N.4'
+            sybyl = "N.4"
         else:
-            sybyl = '%s.%i' % (atom_symbol, hyb)
+            sybyl = "%s.%i" % (atom_symbol, hyb)
     elif atomic_num == 8:
         # http://www.daylight.com/dayhtml_tutorials/languages/smarts/smarts_examples.html
-        if degree == 1 and _atom_matches_smarts(atom, '[CX3](=O)[OX1H0-]'):
-            sybyl = 'O.co2'
+        if degree == 1 and _atom_matches_smarts(atom, "[CX3](=O)[OX1H0-]"):
+            sybyl = "O.co2"
         elif degree == 2 and not aromtic:  # Aromatic Os are sp2
-            sybyl = 'O.3'
+            sybyl = "O.3"
         else:
-            sybyl = 'O.2'
+            sybyl = "O.2"
     elif atomic_num == 16:
         # http://www.daylight.com/dayhtml_tutorials/languages/smarts/smarts_examples.html
-        if degree == 3 and _atom_matches_smarts(atom, '[$([#16X3]=[OX1]),$([#16X3+][OX1-])]'):
-            sybyl = 'S.O'
+        if degree == 3 and _atom_matches_smarts(
+            atom, "[$([#16X3]=[OX1]),$([#16X3+][OX1-])]"
+        ):
+            sybyl = "S.O"
         # https://github.com/rdkit/rdkit/blob/master/Data/FragmentDescriptors.csv
-        elif _atom_matches_smarts(atom, 'S(=,-[OX1;+0,-1])(=,-[OX1;+0,-1])(-[#6])-[#6]'):
-            sybyl = 'S.o2'
+        elif _atom_matches_smarts(
+            atom, "S(=,-[OX1;+0,-1])(=,-[OX1;+0,-1])(-[#6])-[#6]"
+        ):
+            sybyl = "S.o2"
         else:
-            sybyl = '%s.%i' % (atom_symbol, hyb)
+            sybyl = "%s.%i" % (atom_symbol, hyb)
     elif atomic_num == 15 and hyb == 3:
-        sybyl = '%s.%i' % (atom_symbol, hyb)
+        sybyl = "%s.%i" % (atom_symbol, hyb)
 
     if not sybyl:
         sybyl = atom_symbol
@@ -140,36 +148,45 @@ def _atom_matches_smarts(atom, smarts):
             return True
     return False
 
+
 def _amide_bond(bond):
     a1 = bond.GetBeginAtom()
     a2 = bond.GetEndAtom()
-    if (a1.GetAtomicNum() == 6 and a2.GetAtomicNum() == 7 or
-            a2.GetAtomicNum() == 6 and a1.GetAtomicNum() == 7):
+    if (
+        a1.GetAtomicNum() == 6
+        and a2.GetAtomicNum() == 7
+        or a2.GetAtomicNum() == 6
+        and a1.GetAtomicNum() == 7
+    ):
         # https://github.com/rdkit/rdkit/blob/master/Data/FragmentDescriptors.csv
-        patt = Chem.MolFromSmarts('C(=O)-N')
+        patt = Chem.MolFromSmarts("C(=O)-N")
         for m in bond.GetOwningMol().GetSubstructMatches(patt):
             if a1.GetIdx() in m and a2.GetIdx() in m:
                 return True
     return False
 
+
 ######################## ODDT code ends ########################
 
 tripos_bond_order_dict = {
-    rdBond.SINGLE : 1,
-    rdBond.DOUBLE : 2,
-    rdBond.TRIPLE : 3,
-    rdBond.AROMATIC : 'ar',
+    rdBond.SINGLE: 1,
+    rdBond.DOUBLE: 2,
+    rdBond.TRIPLE: 3,
+    rdBond.AROMATIC: "ar",
 }
+
 
 def _check_amide_bond(rdk_bond):
     if _amide_bond(rdk_bond):
-        return 'am'
-    return 'un'
+        return "am"
+    return "un"
+
 
 def determine_tripos_bond_type(rdk_bond):
     return tripos_bond_order_dict.get(
         rdk_bond.GetBondType(), _check_amide_bond(rdk_bond)
     )
+
 
 def _generate_mol2_title_block(resname, n_atoms, n_bonds):
     title_block = f"""# Generated by crimm with rdkit
@@ -183,17 +200,19 @@ GASTEIGER
 """
     return title_block
 
+
 def _determine_ligname(mol):
     atom = list(mol.GetAtoms())[0]
     if info := atom.GetPDBResidueInfo():
         ligname = info.GetResidueName()
-    elif mol.HasProp('Description'):
-        ligname = mol.GetProp('Description')
-    elif mol.HasProp('_Name'):
-        ligname = mol.GetProp('_Name')
+    elif mol.HasProp("Description"):
+        ligname = mol.GetProp("Description")
+    elif mol.HasProp("_Name"):
+        ligname = mol.GetProp("_Name")
     else:
-        ligname = 'LIG'
+        ligname = "LIG"
     return ligname.upper()[:3]
+
 
 def _generate_mol2_atom_name(atom, atom_counts: dict):
     """Generate the mol2 atom name for the atom."""
@@ -202,12 +221,13 @@ def _generate_mol2_atom_name(atom, atom_counts: dict):
         atom_counts[symbol] = 1
     else:
         atom_counts[symbol] += 1
-    
+
     # PDB-style naming (Element + Number)
     atom_name = f"{symbol}{atom_counts[symbol]}"
     return atom_name
 
-def MolToMol2Block(mol, ligname = None):
+
+def MolToMol2Block(mol, ligname=None):
     """Write a mol2 block string from a RDKit Mol Object."""
     if ligname is None:
         ligname = _determine_ligname(mol)
@@ -218,32 +238,29 @@ def MolToMol2Block(mol, ligname = None):
 
     pos = mol.GetConformer().GetPositions()
     atoms = list(mol.GetAtoms())
-    if not atoms[0].HasProp('_GasteigerCharge'):
+    if not atoms[0].HasProp("_GasteigerCharge"):
         Chem.rdPartialCharges.ComputeGasteigerCharges(mol)
 
-    tripos_atom_format = '{:<6} {:<5} {:>7.3f} {:>7.3f} {:>7.3f} {:<6} {} {} {:>6.3f}'
-    tripos_bond_format = '{:<5} {:<5} {:<5} {:<2}'
+    tripos_atom_format = "{:<6} {:<5} {:>7.3f} {:>7.3f} {:>7.3f} {:<6} {} {} {:>6.3f}"
+    tripos_bond_format = "{:<5} {:<5} {:<5} {:<2}"
     atom_lines = []
     bond_lines = []
-    atom_counts={}
+    atom_counts = {}
     for i, (atom, coords) in enumerate(zip(atoms, pos), start=1):
         if pdbinfo := atom.GetPDBResidueInfo():
             name = pdbinfo.GetName()
         else:
             name = _generate_mol2_atom_name(atom, atom_counts)
         sybyl_type = _sybyl_atom_type(atom)
-        charge = atom.GetDoubleProp('_GasteigerCharge')
+        charge = atom.GetDoubleProp("_GasteigerCharge")
         atom_lines.append(
-            tripos_atom_format.format(
-                i, name, *coords, sybyl_type, 1, ligname, charge
-            )
+            tripos_atom_format.format(i, name, *coords, sybyl_type, 1, ligname, charge)
         )
-        
 
     tripos_bonds = []
     for bond in mol.GetBonds():
-        st = bond.GetBeginAtomIdx()+1
-        end = bond.GetEndAtomIdx()+1
+        st = bond.GetBeginAtomIdx() + 1
+        end = bond.GetEndAtomIdx() + 1
         ordered_ids = sorted((st, end))
         bo = determine_tripos_bond_type(bond)
         tripos_bonds.append((*ordered_ids, bo))
@@ -254,39 +271,45 @@ def MolToMol2Block(mol, ligname = None):
     n_atoms, n_bonds = len(atom_lines), len(bond_lines)
     block_string = ""
     block_string += _generate_mol2_title_block(ligname, n_atoms, n_bonds)
-    block_string += '@<TRIPOS>ATOM\n'
+    block_string += "@<TRIPOS>ATOM\n"
     for l in atom_lines:
-        block_string += l+'\n'
-    block_string += '@<TRIPOS>BOND\n'
+        block_string += l + "\n"
+    block_string += "@<TRIPOS>BOND\n"
     for l in bond_lines:
-        block_string += l+'\n'
-    block_string += f'@<TRIPOS>SUBSTRUCTURE\n1 {ligname} 1'
+        block_string += l + "\n"
+    block_string += f"@<TRIPOS>SUBSTRUCTURE\n1 {ligname} 1"
     return block_string
 
-def MolToMol2File(mol, ligname = None, filename = None):
+
+def MolToMol2File(mol, ligname=None, filename=None):
     """Write a mol2 file from a RDKit Mol Object."""
     mol2_string = MolToMol2Block(mol=mol, ligname=ligname)
 
     if filename is None:
-        filename = f'{ligname}.mol2'
-    with open(filename, 'w', encoding='UTF-8') as f:
+        filename = f"{ligname}.mol2"
+    with open(filename, "w", encoding="UTF-8") as f:
         f.write(mol2_string)
+
 
 class LigandBondOrderException(Exception):
     """Define class LigandBondOrderException."""
 
+
 class SmilesQueryException(Exception):
     """Define class SmilesQueryException."""
+
 
 class LigandBondOrderWarning(Warning):
     """Define class LigandBondOrderException."""
 
+
 class SmilesQueryWarning(Warning):
     """Define class SmilesQueryException."""
 
+
 class RDKitHetConverter:
-    """Convert a crimm heterogen object to an rdkit mol object. The mol object 
-    WILL have the correct bond orders. Upon loading the heterogen, the CIF 
+    """Convert a crimm heterogen object to an rdkit mol object. The mol object
+    WILL have the correct bond orders. Upon loading the heterogen, the CIF
     definition is queried from rcsb.org, which contains all the necessary
     information to create the rdkit mol object. The mol object is then used to
     generate a mol2 file.
@@ -301,16 +324,16 @@ class RDKitHetConverter:
         resname (str): The residue name of the heterogen.
         resnum (int): The residue number of the heterogen.
         mol (rdkit.Chem.rdchem.Mol): The constructed rdkit mol object.
-    
+
     Raises:
         TypeError: If the input is not a crimm heterogen object constructed from
         pdb mmcif file.
-    
+
     Methods:
         load_heterogen: Load a heterogen object and create the rdkit mol object.
         get_mol: Return the rdkit mol object.
         write_mol2: Write the mol2 file of the loaded heterogen.
-    
+
     Examples:
         >>> from crimm import fetch_rcsb
         >>> from crimm.Adaptors import RDKitHetConverter
@@ -323,6 +346,7 @@ class RDKitHetConverter:
         >>> mol = rdk_converter.get_mol()
         >>> rdk_converter.write_mol2()
     """
+
     def __init__(self):
         self.lig = None
         self.lig_pdbid = None
@@ -334,11 +358,11 @@ class RDKitHetConverter:
         self._edmol = Chem.EditableMol(Chem.Mol())
         self._pending_hydrogens = None
         self._rd_atoms = None
-        self._sanitize = True # determine if sanitization can be performed
+        self._sanitize = True  # determine if sanitization can be performed
         self.mol = None
         self._atom_counts = None
 
-    def load_heterogen(self, lig, update_hydrogens = True):
+    def load_heterogen(self, lig, update_hydrogens=True):
         """Load a heterogen object and create the rdkit mol object. If the
         heterogen contains metal atoms, the mol object will not be sanitized.
         Hydrogens will not be added to the mol object if the heterogen contains
@@ -366,9 +390,9 @@ class RDKitHetConverter:
 
         cifdict = fetch_rcsb_as_dict(self.lig_pdbid)
 
-        atom_ids = cifdict['chem_comp_atom']['atom_id']
-        element_names = cifdict['chem_comp_atom']['type_symbol']
-        charges = cifdict['chem_comp_atom']['charge']
+        atom_ids = cifdict["chem_comp_atom"]["atom_id"]
+        element_names = cifdict["chem_comp_atom"]["type_symbol"]
+        charges = cifdict["chem_comp_atom"]["charge"]
         self.element_dict = {}
         for i, (atom_id, element_name, charge) in enumerate(
             zip(atom_ids, element_names, charges)
@@ -378,35 +402,35 @@ class RDKitHetConverter:
                 self._sanitize = False
             self.element_dict[atom_id] = (i, element_name, charge)
 
-        bond_info = cifdict['chem_comp_bond']
-        a1, a2 = bond_info['atom_id_1'], bond_info['atom_id_2']
-        bond_order = bond_info['value_order']
-        aro_flag = [flag == 'Y' for flag in bond_info['pdbx_aromatic_flag']]
+        bond_info = cifdict["chem_comp_bond"]
+        a1, a2 = bond_info["atom_id_1"], bond_info["atom_id_2"]
+        bond_order = bond_info["value_order"]
+        aro_flag = [flag == "Y" for flag in bond_info["pdbx_aromatic_flag"]]
         self.bond_dict = list(zip(a1, a2, bond_order, aro_flag))
         self._create_rdkit_mol()
         if update_hydrogens:
             self.update_hydrogens()
-    
-    def load_rdkit_mol(self, mol, ligand_resname = None):
+
+    def load_rdkit_mol(self, mol, ligand_resname=None):
         """Load a rdkit mol object and create the crimm heterogen object. If the
         mol is 2D, a 3D conformer will be generated. The heterogen object will
         be created with the atom information from the mol object. The bond
         information will be stored in the topo_definition attribute of the
         heterogen object.
-        
+
         Args:
             mol (rdkit.Chem.rdchem.Mol): The rdkit mol object to be converted.
         """
         self.mol = mol
-        
+
         if ligand_resname is None:
             self.lig_pdbid = _determine_ligname(mol)
         else:
             self.lig_pdbid = ligand_resname
         self.resname = self.lig_pdbid
         self.resnum = 1
-        res_id = (f'H_{self.resname}', self.resnum, ' ')
-        self.lig = Heterogen(res_id, self.resname, ' ')
+        res_id = (f"H_{self.resname}", self.resnum, " ")
+        self.lig = Heterogen(res_id, self.resname, " ")
         self._sanitize = True
 
         if len(mol.GetConformers()) == 0:
@@ -416,7 +440,6 @@ class RDKitHetConverter:
 
         pos = mol.GetConformer().GetPositions()
         atoms = list(mol.GetAtoms())
-        
 
         atom_counts = {}
         atom_mapping = {}
@@ -427,23 +450,25 @@ class RDKitHetConverter:
             else:
                 name = _generate_mol2_atom_name(atom, atom_counts)
                 pdb_info = Chem.AtomPDBResidueInfo(
-                    name, i, ' ', 
-                    residueName = self.resname,
-                    residueNumber = self.resnum,
-                    isHeteroAtom = True
+                    name,
+                    i,
+                    " ",
+                    residueName=self.resname,
+                    residueNumber=self.resnum,
+                    isHeteroAtom=True,
                 )
                 atom.SetPDBResidueInfo(pdb_info)
             name = name.strip()
             new_atom = Atom(
-                name = name,
+                name=name,
                 coord=coords,
                 bfactor=0.0,
                 occupancy=1.0,
-                altloc=' ',
+                altloc=" ",
                 serial_number=i,
                 element=atom.GetSymbol().upper(),
                 fullname=f"{name:^4}",
-                topo_definition=None
+                topo_definition=None,
             )
             self.lig.add(new_atom)
             atom_mapping[atom_id] = name
@@ -462,12 +487,16 @@ class RDKitHetConverter:
     def _create_rdkit_PDBinfo(self, pdb_atom_name, altloc):
         serial_number = self.element_dict[pdb_atom_name][0]
         pdb_info = Chem.AtomPDBResidueInfo(
-            pdb_atom_name, serial_number, altloc, residueName = self.resname,
-            residueNumber = self.resnum, chainId = self.chain_id,
-            isHeteroAtom = True
+            pdb_atom_name,
+            serial_number,
+            altloc,
+            residueName=self.resname,
+            residueNumber=self.resnum,
+            chainId=self.chain_id,
+            isHeteroAtom=True,
         )
         return pdb_info
-    
+
     def _create_rdkit_atoms(self):
         self._rd_atoms = {}
         for atom in self.lig.atoms:
@@ -484,33 +513,31 @@ class RDKitHetConverter:
         for a1, a2, bo_name, is_arom in self.bond_dict:
             elem1 = self.element_dict[a1][1].capitalize()
             elem2 = self.element_dict[a2][1].capitalize()
-            n_transition_metals = (
-                elem1 in TRANSITION_METALS
-            ) + (
+            n_transition_metals = (elem1 in TRANSITION_METALS) + (
                 elem2 in TRANSITION_METALS
             )
             if a1 not in self._rd_atoms:
                 if a2 not in self._pending_hydrogens:
                     self._pending_hydrogens[a2] = []
                 self._pending_hydrogens[a2].append(a1)
-                if self.element_dict[a1][1] != 'H':
+                if self.element_dict[a1][1] != "H":
                     raise ValueError(
-                        'CIF definition does not match the heterogen instance! '
-                        f'Fail to find atom {a1} in mol {self.resname}'
+                        "CIF definition does not match the heterogen instance! "
+                        f"Fail to find atom {a1} in mol {self.resname}"
                     )
                 continue
             elif a2 not in self._rd_atoms:
                 if a1 not in self._pending_hydrogens:
                     self._pending_hydrogens[a1] = []
                 self._pending_hydrogens[a1].append(a2)
-                if self.element_dict[a2][1] != 'H':
+                if self.element_dict[a2][1] != "H":
                     raise ValueError(
-                        'CIF definition does not match the heterogen instance! '
-                        f'Fail to find atom {a2} in mol {self.resname}'
+                        "CIF definition does not match the heterogen instance! "
+                        f"Fail to find atom {a2} in mol {self.resname}"
                     )
                 continue
             if n_transition_metals == 1:
-                # we assume metal-ligand bond is a dative bond 
+                # we assume metal-ligand bond is a dative bond
                 bo = rdBond.DATIVE
             else:
                 bo = get_rdkit_bond_order(bo_name)
@@ -534,7 +561,7 @@ class RDKitHetConverter:
                 if nei.GetAtomicNum() == 1:
                     nei_hs.append(nei)
             for hydrogen_name, atom in zip(hydrogen_names, nei_hs):
-                pdb_info = self._create_rdkit_PDBinfo(hydrogen_name, '')
+                pdb_info = self._create_rdkit_PDBinfo(hydrogen_name, "")
                 atom.SetPDBResidueInfo(pdb_info)
 
     def _create_rdkit_mol(self):
@@ -545,8 +572,8 @@ class RDKitHetConverter:
         mol.AddConformer(conf)
         if not self._sanitize:
             warnings.warn(
-                'The heterogen contains metal atoms! Sanitization is not performed.'
-                'Hygrogen atoms are not added to the mol object.'
+                "The heterogen contains metal atoms! Sanitization is not performed."
+                "Hygrogen atoms are not added to the mol object."
             )
             self.mol = mol
             return
@@ -567,8 +594,8 @@ class RDKitHetConverter:
     def get_ligand(self):
         """Return the crimm heterogen object."""
         return self.lig
-    
-    def write_mol2(self, filename = None):
+
+    def write_mol2(self, filename=None):
         """Write the mol2 file of the loaded heterogen."""
         MolToMol2File(self.mol, self.resname, filename)
 
@@ -580,29 +607,30 @@ class RDKitHetConverter:
         """Add hydrogens to the ligand residue object."""
         if self.mol is None:
             self._create_rdkit_mol()
-        last_serial = list(self.lig.get_atoms())[0].serial_number+1
+        last_serial = list(self.lig.get_atoms())[0].serial_number + 1
         for atom, coord in zip(
             self.mol.GetAtoms(), self.mol.GetConformer(0).GetPositions()
         ):
             atom_name = atom.GetPDBResidueInfo().GetName()
 
-            if atom.GetSymbol() == 'H' and atom_name not in self.lig:
+            if atom.GetSymbol() == "H" and atom_name not in self.lig:
                 new_atom = Atom(
-                    name = atom_name,
+                    name=atom_name,
                     coord=coord,
                     bfactor=0.0,
                     occupancy=1.0,
-                    altloc=' ',
+                    altloc=" ",
                     serial_number=last_serial,
                     element=atom.GetSymbol(),
                     fullname=f"{atom_name:^4}",
-                    topo_definition=None
+                    topo_definition=None,
                 )
                 self.lig.add(new_atom)
-                last_serial+=1
+                last_serial += 1
+
 
 def _build_smiles_query(resname):
-    query = '''
+    query = """
     {
         chem_comps(comp_ids: ["{var_lig_id}"]) {
             rcsb_id
@@ -611,50 +639,50 @@ def _build_smiles_query(resname):
             }
         }
     }
-    '''.replace("{var_lig_id}", resname)
+    """.replace("{var_lig_id}", resname)
     return query
+
 
 def query_rcsb_for_smiles(het_res):
     """Query the canonical SMILES for the heterogen molecule from PDB based on chem_comps
     ID"""
-    url="https://data.rcsb.org/graphql"
+    url = "https://data.rcsb.org/graphql"
     response = requests.post(
-            url, json={'query': _build_smiles_query(het_res.resname)}, timeout=1000
-        )
+        url, json={"query": _build_smiles_query(het_res.resname)}, timeout=1000
+    )
     response_dict = json.loads(response.text)
-    return_vals = response_dict['data']['chem_comps']
+    return_vals = response_dict["data"]["chem_comps"]
     if not return_vals:
         warnings.warn(
-            f'Query on {het_res.resname} did not return requested information: '
-            'chem_comps (smiles string)'
+            f"Query on {het_res.resname} did not return requested information: "
+            "chem_comps (smiles string)"
         )
         return
 
-    smiles = return_vals[0]['rcsb_chem_comp_descriptor']['SMILES']
+    smiles = return_vals[0]["rcsb_chem_comp_descriptor"]["SMILES"]
     return smiles
+
 
 def heterogen_to_rdkit(het_res, smiles=None):
     """Convert a heterogen to an rdkit mol. The bond orders are set based on the
     SMILES string. If the SMILES string is not provided, the function will query
     the RCSB PDB for the SMILES string.
-    
+
     Args:
         het_res (Heterogen): The heterogen to be converted.
         smiles (str, optional): The SMILES string of the heterogen. Defaults to None.
-        
+
     Returns:
         rdkit.Chem.rdchem.Mol: The rdkit mol of the heterogen.
     """
-    mol = Chem.MolFromPDBBlock(
-        get_pdb_str(het_res, chain_id_policy='renumber')
-    )
+    mol = Chem.MolFromPDBBlock(get_pdb_str(het_res, chain_id_policy="renumber"))
     if smiles is None:
         smiles = query_rcsb_for_smiles(het_res)
     # We do not allow rdkit mol return if the correct bond orders are not set
     if smiles is None:
         msg = (
-            'Fail to set bond orders on the Ligand mol! PDB query on SMILES does not'
-            'return any result.'
+            "Fail to set bond orders on the Ligand mol! PDB query on SMILES does not"
+            "return any result."
         )
         warnings.warn(msg, SmilesQueryWarning)
         return
@@ -664,16 +692,17 @@ def heterogen_to_rdkit(het_res, smiles=None):
     try:
         mol = AllChem.AssignBondOrdersFromTemplate(template, mol)
         if het_res.pdbx_description is not None:
-            mol.SetProp('Description', str(het_res.pdbx_description))
+            mol.SetProp("Description", str(het_res.pdbx_description))
         return mol
 
     except ValueError:
         msg = (
-            'No structure match found! Possibly the SMILES string supplied or reported on PDB '
-            'mismatches the ligand structure.'
+            "No structure match found! Possibly the SMILES string supplied or reported on PDB "
+            "mismatches the ligand structure."
         )
         warnings.warn(msg, LigandBondOrderWarning)
         return
+
 
 def create_probe_mol(probe, use_conf=True):
     edmol = Chem.EditableMol(Chem.Mol())
@@ -701,15 +730,14 @@ def create_probe_mol(probe, use_conf=True):
     # Chem.AssignStereochemistryFrom3D(mol)
     return mol
 
-def create_probe_confomers(
-        probe, conf_coords: np.ndarray, scores: np.ndarray = None
-    ):
+
+def create_probe_confomers(probe, conf_coords: np.ndarray, scores: np.ndarray = None):
     if conf_coords.shape[1] != len(probe.atoms):
         raise ValueError(
-            'Number of atoms in probe and number of coordinates do not match!'
+            "Number of atoms in probe and number of coordinates do not match!"
         )
-    
-    if hasattr(probe, 'rdkit_mol'):
+
+    if hasattr(probe, "rdkit_mol"):
         # Make a copy of the stored rdkit mol, and remove all conf
         mol = Chem.RWMol(probe.rdkit_mol).GetMol()
         mol.RemoveAllConformers()
@@ -726,23 +754,22 @@ def create_probe_confomers(
         return mol
 
     if scores.shape[0] != conf_coords.shape[0]:
-        raise ValueError(
-            'Number of conformers and number of scores do not match!'
-        )
+        raise ValueError("Number of conformers and number of scores do not match!")
     for conf_coord, score in zip(conf_coords, scores):
         conf = Chem.Conformer()
         conf.Set3D(True)
-        conf.SetDoubleProp('Score', float(score))
+        conf.SetDoubleProp("Score", float(score))
         for atom_idx, coord in enumerate(conf_coord):
             coord = Point3D(*coord.astype(np.float64))
             conf.SetAtomPosition(atom_idx, coord)
         mol.AddConformer(conf, assignId=True)
     return mol
 
+
 def write_conformers_sdf(mol, filename):
     conformers = mol.GetConformers()
     if not conformers:
-        raise ValueError('No conformers found in the molecule!')
+        raise ValueError("No conformers found in the molecule!")
     with AllChem.SDWriter(filename) as writer:
         for conf in conformers:
             writer.write(mol, confId=conf.GetId())

@@ -11,6 +11,7 @@ from crimm.StructEntities.Structure import Structure
 class Topology(OMMTop):
     """Model/Topology class derived from Biopython Model and made compatible with
     OpenMM Topology."""
+
     def __init__(self, model: Model):
         self._bonds = []
         self._periodicBoxVectors = None
@@ -20,7 +21,7 @@ class Topology(OMMTop):
         self._retype_elements()
         self.createStandardBonds()
         self.createDisulfideBonds(construct_omm_positions(self.model))
-    
+
     def __repr__(self):
         return self.model.__repr__()
 
@@ -33,13 +34,13 @@ class Topology(OMMTop):
         for chain in self.model:
             residues.extend(chain.child_list)
         return residues
-    
+
     @property
     def _chains(self):
         """List of Chains in the Model/Topology
         (OpenMM compatible private attribute)"""
         return self.model.child_list
-    
+
     @property
     def _numAtoms(self):
         """Return the number of atoms in the Topology.
@@ -86,15 +87,11 @@ class Topology(OMMTop):
 
     def addResidue(self, id=None):
         """OpenMM residue adding methods are disallowed. NotImplementedError will be raised."""
-        raise NotImplementedError(
-            'OpenMM residue adding methods are disallowed!'
-        )
-    
+        raise NotImplementedError("OpenMM residue adding methods are disallowed!")
+
     def addAtom(self, id=None):
         """OpenMM atom adding methods are disallowed. NotImplementedError will be raised."""
-        raise NotImplementedError(
-            'OpenMM atom adding methods are disallowed!'
-        )
+        raise NotImplementedError("OpenMM atom adding methods are disallowed!")
 
     def _assign_periodic_box_vecs(self):
         if self.model.parent is None or self.model.parent.cell_info is None:
@@ -107,7 +104,7 @@ class Topology(OMMTop):
             cell["length_c"],
             cell["angle_alpha"],
             cell["angle_beta"],
-            cell["angle_gamma"]
+            cell["angle_gamma"],
         )
         self.setPeriodicBoxVectors(periodic_box_vectors)
 
@@ -118,6 +115,7 @@ class Topology(OMMTop):
                 continue
             atom.element = element.get_by_symbol(atom.element)
 
+
 def construct_omm_positions(entity):
     if isinstance(entity, Structure):
         # take the first model if a structure is supplied
@@ -125,5 +123,5 @@ def construct_omm_positions(entity):
 
     positions = []
     for atom in entity.get_atoms():
-        positions.append(Vec3(*(atom.coord/10)))
+        positions.append(Vec3(*(atom.coord / 10)))
     return unit.Quantity(value=positions, unit=unit.nanometers)
