@@ -13,3 +13,8 @@ mmCIF files downloaded unmodified from `https://files.rcsb.org/download/<ID>.cif
 
 To add a fixture, keep it under about 250 KB, add a row here, and add its expected values
 to `EXPECTED` in `tests/conftest.py`.
+
+## `golden/`
+
+Reference PSF and CRD output for `tests/test_golden.py`, not input data. Written by
+`pytest tests/test_golden.py --update-golden`, without the title lines. Do not edit by hand.
