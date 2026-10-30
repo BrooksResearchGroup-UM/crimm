@@ -100,13 +100,13 @@ def test_string_and_file_output_agree(shared_prepared, tmp_path):
     assert "PSF" in get_psf_str(model).splitlines()[0]
 
 
+def atom_key(atom):
+    return atom.parent.segid, atom.parent.id[1], atom.name
+
+
 @pytest.mark.parametrize("pdb_id", CONSISTENT)
 def test_crd_round_trip_preserves_coordinates(written, pdb_id):
     model, _, crd_path = written(pdb_id)
-
-    def atom_key(atom):
-        return atom.parent.segid, atom.parent.id[1], atom.name
-
     original = sorted(model.get_atoms(), key=atom_key)
     reread = sorted(crd_atoms(crd_path), key=atom_key)
     assert [atom_key(atom) for atom in reread] == [atom_key(atom) for atom in original]
@@ -125,6 +125,11 @@ def test_load_psf_crd_round_trip(written, pdb_id):
     assert [len(chain) for chain in reloaded.protein] == [
         len(chain) for chain in model.protein
     ]
+    original = sorted(model.get_atoms(), key=atom_key)
+    reread = sorted(reloaded.get_atoms(), key=atom_key)
+    assert [atom_key(atom) for atom in reread] == [atom_key(atom) for atom in original]
+    for before, after in zip(original, reread):
+        assert after.coord == pytest.approx(before.coord, abs=1e-5), atom_key(before)
 
 
 @pytest.mark.xfail(
