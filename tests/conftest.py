@@ -56,6 +56,14 @@ EXPECTED = {
 ALL_IDS = sorted(EXPECTED)
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--update-golden",
+        action="store_true",
+        help="Rewrite the files in tests/data/golden instead of comparing with them.",
+    )
+
+
 def parse_structure(pdb_id, **parser_kwargs):
     """Parse a fixture mmCIF file with the same options ``fetch_rcsb`` uses."""
     from crimm.IO import MMCIFParser

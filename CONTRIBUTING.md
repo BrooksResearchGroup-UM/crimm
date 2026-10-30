@@ -35,6 +35,11 @@ Markers: `network`, `pycharmm`, `cgenff`, `slow`, `gpu`. Every bug fix adds a te
 without it. The standards behind this are in
 [docs/dev/BEST_PRACTICES.md](docs/dev/BEST_PRACTICES.md).
 
+`tests/test_golden.py` compares PSF and CRD output with reference files in
+`tests/data/golden`. If you change the output on purpose, run
+`pytest tests/test_golden.py --update-golden`, and commit the regenerated files in the same pull
+request with a `CHANGELOG.md` entry, so the reviewer sees exactly what moved.
+
 ## Lint
 
 ```bash
