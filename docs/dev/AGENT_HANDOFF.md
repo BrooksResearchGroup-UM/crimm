@@ -362,6 +362,8 @@ Newest first. Append only. Template:
   swapping x and y in `CRDParser` fails the stronger round-trip test (3 of 3). Offline suite 143
   passed, 16 xfailed on `test/39-golden-files`; `-m pycharmm` 8 passed, 2 xfailed. The test files
   applied on #117's head: `ruff format --check` clean, tests pass.
+- verified `[ran]`: CI by hand (`gh workflow run CI`) on `test/39-golden-files` at cd63883, run
+  41108339529: lint and all 9 test cells passed, so the golden files also match there.
 - not verified: that the golden PSFs match CHARMM, beyond
   the existing `tests/test_pycharmm.py` comparison, which is what #39's design relies on; a PR
   for the fix branch.
