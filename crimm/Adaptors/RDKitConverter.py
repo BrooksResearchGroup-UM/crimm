@@ -325,10 +325,6 @@ class RDKitHetConverter:
         resnum (int): The residue number of the heterogen.
         mol (rdkit.Chem.rdchem.Mol): The constructed rdkit mol object.
 
-    Raises:
-        TypeError: If the input is not a crimm heterogen object constructed from
-        pdb mmcif file.
-
     Methods:
         load_heterogen: Load a heterogen object and create the rdkit mol object.
         get_mol: Return the rdkit mol object.
@@ -369,15 +365,15 @@ class RDKitHetConverter:
         metal atoms. If the heterogen does not contain metal atoms, the mol
         object will be sanitized and hydrogens will be added to the mol object.
         Args:
-            lig (Heterogen): The heterogen residue object to be converted.
+            lig (Heterogen): The heterogen residue object to be converted. Any other
+                residue, such as one read from a CRD file, is accepted with a warning.
             update_hydrogens (bool): If True, hydrogens positions calculted by rdkit
                 will be updated on the crimm ligand residue. Defaults to True.
         """
-        if isinstance(lig, Heterogen):
-            self.lig = lig
-        else:
-            raise TypeError("Input must be a Heterogen object (Residue level).")
+        if not isinstance(lig, Heterogen):
+            warnings.warn("Input is not a Heterogen object (Residue level).")
 
+        self.lig = lig
         self.lig_pdbid = lig.resname
         self.chain_id = lig.parent.id
         self.resname = lig.resname
@@ -669,7 +665,8 @@ def heterogen_to_rdkit(het_res, smiles=None):
     the RCSB PDB for the SMILES string.
 
     Args:
-        het_res (Heterogen): The heterogen to be converted.
+        het_res (Residue): The heterogen to be converted. A plain residue, such as
+            one read from a CRD file, works too.
         smiles (str, optional): The SMILES string of the heterogen. Defaults to None.
 
     Returns:
@@ -691,8 +688,9 @@ def heterogen_to_rdkit(het_res, smiles=None):
     template = Chem.RemoveHs(template)
     try:
         mol = AllChem.AssignBondOrdersFromTemplate(template, mol)
-        if het_res.pdbx_description is not None:
-            mol.SetProp("Description", str(het_res.pdbx_description))
+        description = getattr(het_res, "pdbx_description", None)
+        if description is not None:
+            mol.SetProp("Description", str(description))
         return mol
 
     except ValueError:
