@@ -12,3 +12,13 @@ Releases up to 2026.2.1 are described on the
 ### Added
 
 - `test` extra: `pip install crimm[test]` installs pytest for running the test suite.
+
+### Changed
+
+- `RDKitHetConverter.load_heterogen` warns instead of raising `TypeError` when given a residue
+  that is not a `Heterogen`, such as one read from a CRD file.
+
+### Fixed
+
+- `heterogen_to_rdkit` no longer raises `AttributeError` on a residue without
+  `pdbx_description`, such as one read from a CRD file.
