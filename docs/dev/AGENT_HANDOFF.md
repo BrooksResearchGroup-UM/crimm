@@ -7,7 +7,7 @@ humans read it second.
 schema: agent-handoff/1
 repo: github.com/BrooksResearchGroup-UM/crimm
 default_branch: master
-last_updated: 2026-10-30
+last_updated: 2026-11-02
 ```
 
 ## 0. Protocol
@@ -103,6 +103,7 @@ Follow these unless the owner says otherwise in your own session.
 | 2026-10-28 | Pull requests are merged by the owner once CI is green and reviewed afterwards in batches (label `review-after-merge`), except changes to Stan's files, which wait for his approval. Small pull requests, one concern each. Rule: CONTRIBUTING, "Review and merge". | `[told]` |
 | 2026-10-28 | Not every TODO comment has to be resolved before the refactor and restructure phases. Some are refactoring work themselves. Which phase a TODO belongs to is decided when its resolution starts, not in advance. Every TODO still carries its issue number. | `[told]` |
 | 2026-10-30 | The project, not only Stan, prefers small pull requests (CONTRIBUTING, "Issues and pull requests"). Merging most of them first and reviewing later stays. The owner gives Stan a deadline with each review request. | `[told]` |
+| 2026-11-02 | Design ideas for later improvements go in ROADMAP Phase 7 (planned features and robustness), after the minimizer, as problems surface. First: a simulation system object with a readiness check before writing files or handing the system to another program. The owner adds notes. | `[told]` |
 | 2026-10-06 | `import-fix.md` (repo root) is folded into ROADMAP 1.5. Delete the file as the last step of that fix, not before. | `[told]` |
 | 2026-10-06 | Commit only when asked; never push unless asked. The owner asked for the 2026-10-06 commits explicitly; that does not carry over to later sessions. | `[told]` for those commits, `[inferred]` as a standing rule |
 | 2026-10-08 | CHARMM (and so pyCHARMM) is licensed and not accessible to developers without a licence. Keep CHARMM and pyCHARMM tooling and tests in the roadmap, gated by the `pycharmm` marker; document the licence limit. Never put CHARMM source, binaries or libraries in the repository or in issues. | `[told]` |
@@ -199,70 +200,63 @@ Things that cost a previous agent time or would produce wrong results silently.
 | G12 | Other sessions edit `docs/dev/*.md` concurrently. Re-read a file immediately before editing it, and make targeted edits, never whole-file rewrites. | `[ran 2026-10-06: ROADMAP.md and NOTES.md changed under an active session]` |
 | G13 | ROADMAP section numbers are not stable identifiers. 1.3 to 1.5 were renumbered on 2026-10-06. Cite the section title with the number. | `[ran 2026-10-06]` |
 | G15 | Two PSF or CRD files of one structure are not byte-identical: angle and dihedral order varies (#120), and water hydrogens use the unseeded global NumPy generator. Compare through `tests/test_golden.py::normalized_psf`, and seed before building the model, as `seeded_model` does. `shared_prepared` models were built unseeded. | `[ran 2026-10-30]` |
-| G14 | The test suite lives only on `cleanup/phase0-tests-and-dev-docs` until it is merged. A branch cut from `master` has no `tests/test_*.py`, so `pytest` there collects nothing and reports no failures. | `[ran 2026-10-06]` |
+| G14 | The test suite lives only on `cleanup/phase0-tests-and-dev-docs` until it is merged. A branch cut from `master` has no `tests/test_*.py`, so `pytest` there collects nothing and reports no failures. SUPERSEDED 2026-11-02: merged with PR #108. | `[ran 2026-10-06]` |
+| G16 | Segment IDs are assigned to the model by writing a PSF (`PSFWriter._assign_segids`, also via `get_psf_str`). A CRD written before that has blank segment IDs, which `CRDParser` cannot read (#124). Write the PSF first. | `[ran 2026-11-02]` |
 
 ## 5. State
 
-Rewrite in place. True as of `2026-10-30`.
+Rewrite in place. True as of `2026-11-02`.
 
 ```yaml
-branches:                          # master = origin/master = 826c103, the merge of PR #117
-                                   # (2026-10-30, by the owner) [ran].
+branches:                          # master = origin/master = c54318e, the squash merge of PR #122
+                                   # (2026-10-30) [ran 2026-11-02].
                                    # From 2026-10-28 [told]: one short branch per concern, cut
                                    # from master, one small PR each.
-  test/39-golden-files:            # agent, 2026-10-30, #39. Cut from 826c103. Pushed, PR open.
-                                   # Also holds this session's docs, in their own commits.
-  fix/59-rdkit-plain-residue:      # agent, 2026-10-30, #59. PR #121. Commit 1816fbb on
-                                   # 2ebbc05, which is now in master, so a PR shows only the fix.
-                                   # Checked out in the extra worktree (CLAUDE.local.md).
+  chore/dev-docs-post-123:         # agent, 2026-11-02: Phase 7 in ROADMAP, this State. Pushed.
+  fix/122-golden-crd-segids:       # Stan's, PR #123: CRD golden files with segment IDs (#124).
+                                   # Two commits added by an agent at the owner's request
+                                   # 2026-11-02: no CHANGELOG entry (test-only), TODO(#124).
+  fix/59-rdkit-plain-residue:      # merged as b7a2b6e (PR #121, squash). Kept, local, in the
+                                   # extra worktree, until a downstream project stops importing
+                                   # from that worktree (CLAUDE.local.md). Then remove both.
   feat/coordmanipulator-find-max-dim:    # the owner's solvation edits. Pushed 2026-10-30, no PR
     - 9971782                      # CoordManipulator.find_max_dim; Solvator TODO(#66). Based on
-                                   # 829a4fd; merge-tree 2026-10-28 says it merges cleanly with
-                                   # #117. Touches Stan's files: needs his approval.
+                                   # 829a4fd; touches Stan's files: needs his approval.
   minimizer:                       # owner's, local only, 2477c3b (2026-05-14), based on 829cd10.
                                    # Prototype of the Phase 6 minimizer (crimm/Potentials.py);
                                    # starting point of #113. Keep until #113 has ported it.
   # deleted 2026-10-14 at the owner's request (local only, unmerged): cleanup-wip 5c07b28,
   # remove 6ff13f8. Restore with `git branch <name> <sha>` while the objects exist.
-  # deleted 2026-10-16 at the owner's request: solvator-coor-orient-options fa7338a
-  # (contained in the cleanup branch, so `git branch -d` accepted it).
-  # deleted 2026-10-28 at the owner's request, local and origin: cleanup/phase0-tests-and-dev-docs
-  # 2dbfde0 (merged by PR #108); chore/dev-docs-post-108 and chore/111-pre-commit (merged).
-  # deleted 2026-10-30 after PR #117 merged: style/110-ruff-format 2ebbc05.
+  # deleted 2026-10-16 at the owner's request: solvator-coor-orient-options fa7338a.
+  # deleted 2026-10-28, local and origin: cleanup/phase0-tests-and-dev-docs 2dbfde0 (PR #108);
+  # chore/dev-docs-post-108 and chore/111-pre-commit (merged).
   # deleted 2026-10-30 at the owner's request (local only, unmerged): RDKConverter-Het 8075b75,
-  # reimplemented as 1816fbb; backup/find-max-dim-44e9bf6 44e9bf6, same patch as 9971782 apart
-  # from one whitespace fix and the TODO number.
+  # reimplemented as 1816fbb; backup/find-max-dim-44e9bf6 44e9bf6. After PR #117:
+  # style/110-ruff-format 2ebbc05.
+  # deleted 2026-11-02 at the owner's request: test/39-golden-files f870a2d (squash-merged as
+  # PR #122; its only difference from master was PR #121's files).
 env: "crimm-dev from environment-dev.yml, plus pycharmm and CHARMM_LIB_DIR (section 3).
       Account-specific install details: CLAUDE.local.md"
-uncommitted_owner_work: none       # tutorials/CHARMMLoader.ipynb restored by the owner 2026-10-30;
-                                   # all the tutorials are to be dealt with later [told]
+uncommitted_owner_work: none       # tutorials: all to be dealt with later [told 2026-10-30]
 uncommitted_agent_work: none
 worktrees: "one extra worktree, on fix/59-rdkit-plain-residue (CLAUDE.local.md)"
 untracked_not_ours:
   - import-fix.md                  # work order, see standing instructions
 github:
-  issues: "#39 to #120 (no #105), milestones 1 to 7 = Phases 0 to 6. #120 filed 2026-10-30.
-           #111 closed by PR #117 2026-10-30; #110 stays open for its second half.
-           Closed by PR #108 2026-10-26: #40, #41, #42, #57. Milestone 3 is still titled 'Phase
-           2: Resolve every TODO comment' (wording predates the 2026-10-28 policy) [ran 2026-10-28]"
+  issues: "#39 to #124 (no #105), milestones 1 to 7 = Phases 0 to 6; Phase 7 has no milestone.
+           #120 filed 2026-10-30, #124 2026-11-02. Closed 2026-10-30: #39, #59, #111.
+           Milestone 3 is still titled 'Phase 2: Resolve every TODO comment' [ran 2026-10-28]"
   branch_protection: "master: all-green required (strict false), 1 approving review, force pushes disallowed, deletions disallowed, admins not enforced [ran 2026-10-12, gh api; set by the owner]"
   repo_settings: "automatically delete head branches: on, since 2026-10-28 [told]"
-  labels: "review-after-merge, created 2026-10-28 (CONTRIBUTING, 'Review and merge'); on #116,
-           #117, #118"
-  pull_requests: "Open 2026-10-30: #121 (fix/59-rdkit-plain-residue) and the one from
-                  test/39-golden-files; both merge after green CI, then review-after-merge.
-                  #117 merged 2026-10-30 by the owner with a merge commit (826c103),
-                  so 7ead967 in .git-blame-ignore-revs exists on master. #116 merged 2026-10-28
-                  with a merge commit (cac252e). #118 merged 2026-10-28 into #117's branch.
-                  #108 MERGED 2026-10-26 by Truman-Xu with a merge commit (829a4fd), after
-                  stanislc approved. His review found that the CRD round-trip test sorted x, y
-                  and z independently (np.sort axis=0), so wrong coordinates passed; he fixed
-                  it in 2dbfde0 [ran 2026-10-28, gh api]. "
+  labels: "review-after-merge, created 2026-10-28; on #116, #117, #118, #121, #122"
+  pull_requests: "#123 open (Stan), green, ready; the owner merges it. The PR from
+                  chore/dev-docs-post-123. Merged 2026-10-30 by the owner: #117 (merge commit
+                  826c103), #121 (squash b7a2b6e), #122 (squash c54318e)."
 owner_reminders:                   # tell the owner at the start of the next session
-  - "Reminders for private downstream projects (hotfix #59): CLAUDE.local.md"
-  - "`pre-commit install` in any other clone (done in the owner's main clone 2026-10-30 [ran])"
-test_suite: {passed: 143, xfailed: 16, deselected: 13, date: 2026-10-30}   # offline default run, NumPy 2, on test/39-golden-files
-test_suite_pycharmm: {passed: 8, xfailed: 2, date: 2026-10-30}   # pytest -m pycharmm in crimm-dev
+  - "Reminders for private downstream projects (#59 fix): CLAUDE.local.md"
+  - "Open the PR for feat/coordmanipulator-find-max-dim, with a review deadline for Stan"
+test_suite: {passed: 147, xfailed: 16, deselected: 13, date: 2026-11-02}   # offline default run on c54318e, NumPy 2
+test_suite_pycharmm: {passed: 8, xfailed: 2, date: 2026-11-02}   # pytest -m pycharmm in crimm-dev, on PR #123
 roadmap_done:
   - "Phase 0: offline pytest suite, markers, benchmark move, ruff (lint only), CI workflow;
      all merged with PR #108 2026-10-26"
@@ -272,23 +266,25 @@ roadmap_done:
      closed 2026-10-28, its last point moved to #119 (Phase 5)"
   - "Phase 0: every xfail reason starts with its issue number; CHANGELOG.md with an
      Unreleased section (2026-10-16)"
-  - "Phase 0: #110 first half (ruff format) and #111 (pre-commit), merged with PR #117 2026-10-30"
+  - "Phase 0: #110 first half (ruff format) and #111 (pre-commit), PR #117 2026-10-30"
+  - "Phase 0: #39 golden-file tests, PR #122 2026-10-30; CRD files fixed by PR #123"
+  - "Phase 1: #59, PR #121 2026-10-30"
 roadmap_next:
-  - "Owner merges #121 and the PR from test/39-golden-files after green CI, and labels them
-     review-after-merge. Squash-merge is fine: neither adds to .git-blame-ignore-revs"
-  - "Tutorials: all of them later, as a block [told 2026-10-30]; see #94"
-  - "Phase 0 left after that: #109 ignored ruff rules; second half of #110 (wider rule set)"
+  - "Merge #123 (owner), then this docs PR"
+  - "#124: the strict xfail test the rules require is not written yet; the fix itself later
+     [told 2026-11-02]"
+  - "Phase 0 left: #109 ignored ruff rules; second half of #110 (wider rule set)"
   - "Next code change: #58 (ROADMAP 1.5, optional imports), the first Phase 1 PR; it ends
-     by deleting import-fix.md. Does not depend on #39"
-  - "#120 PSF term order: small; removes UNORDERED_SECTIONS from tests/test_golden.py"
+     by deleting import-fix.md"
+  - "Phase 7 design notes: the owner adds to 7.1 (system object, readiness check)"
   - "Later, owner's choice 2026-10-16 [told]: #112 disulfide dihedrals (owner's area; xfails in
      test_topology.py and test_pycharmm.py); Phase 6 minimizer (#113 to #115), planned in
      detail only when it starts"
   - "TODO issues (#60 to #70, #87): phase decided when each starts (section 2, 2026-10-28)"
 library_code_changed_by_agents: "2026-10-12 and 2026-10-14, behaviour-neutral only: lint fixes
   (2026-10-12; 2026-10-14 in Stan's files), ruff format of Stan's three files, TODO comment
-  text. Suite unchanged. 2026-10-30, on fix/59-rdkit-plain-residue only: RDKitConverter.py,
-  a TypeError becomes a warning (#59). PR #117, merged 2026-10-30: ruff format of the rest."
+  text. PR #117, merged 2026-10-30: ruff format of the rest. PR #121, merged 2026-10-30:
+  RDKitConverter.py, a TypeError becomes a warning (#59)."
 ```
 
 ## 6. Claims
@@ -330,6 +326,30 @@ Newest first. Append only. Template:
 - found:
 - next:
 ```
+
+### 2026-11-02 claude-opus/claude-code/review-123-phase7
+
+- asked: review Stan's PR #123 (golden CRD files without segment IDs); then: no CHANGELOG
+  entry for it, `TODO(#124)` on the workaround, delete `test/39-golden-files`, and a ROADMAP
+  phase after the minimizer for design ideas, starting with a system readiness check.
+  `[told 2026-11-02]`
+- found `[ran]`: the CRD golden files of #122 had blank segment IDs. The test wrote the CRD from a
+  fresh model; segment IDs are assigned only by `PSFWriter._assign_segids`, in place. The
+  2026-10-30 checks missed it: the scratch script that inspected the output wrote the PSF first,
+  and no test parsed the committed CRDs. PR #123 writes the PSF first and parses the CRD.
+- found `[ran]`: CHARMM reads a CRD with blank segment IDs (1CRN, `read.coor_card` after
+  `load_model`) to the same coordinates as with `PROA`; only `CRDParser` fails, since it splits
+  on whitespace. Filed #124; its xfail test is not written.
+- verified `[ran]` on #123: 3,319 atom lines changed, all only in the segment-ID columns (`PROA`,
+  `SOLV`); the old files fail the new parse; without the PSF call the three CRD tests fail;
+  offline 147 passed, 16 xfailed; `-m pycharmm` 8 passed, 2 xfailed; CI green. Its
+  segment-ID assertion cannot fail on its own: a blank segment ID already makes the parse raise.
+- did: on #123's branch, at the owner's request: removed its CHANGELOG entry (test-only; the
+  record is this entry) and added `TODO(#124)`. ROADMAP Phase 7 with 7.1 (system object and
+  readiness check, the owner's idea); bookkeeping for #121 to #124; this State. Deleted
+  `test/39-golden-files`.
+- claims: none held.
+- next: State `roadmap_next`.
 
 ### 2026-10-30 claude-opus/claude-code/golden-files-and-59
 
