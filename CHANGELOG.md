@@ -20,7 +20,5 @@ Releases up to 2026.2.1 are described on the
 
 ### Fixed
 
-- CRD golden references now include segment IDs and are checked for readability
-  before regeneration.
 - `heterogen_to_rdkit` no longer raises `AttributeError` on a residue without
   `pdbx_description`, such as one read from a CRD file.
