@@ -15,7 +15,7 @@ import numpy as np
 import pytest
 from conftest import DATA_DIR
 
-from crimm.IO import get_crd_str, get_psf_str
+from crimm.IO import CRDParser, get_crd_str, get_psf_str
 
 GOLDEN_DIR = DATA_DIR / "golden"
 PSF_IDS = ["1ubq", "2igd"]
@@ -68,6 +68,8 @@ def normalized_psf(model):
 
 
 def normalized_crd(model):
+    # Match PSF/CRD export order: the PSF writer assigns segment IDs in place.
+    get_psf_str(model)
     return drop_title(get_crd_str(model))
 
 
@@ -121,8 +123,12 @@ def test_psf_matches_golden(seeded_model, request, pdb_id):
 
 
 @pytest.mark.parametrize("pdb_id", CRD_IDS)
-def test_crd_matches_golden(seeded_model, request, pdb_id):
+def test_crd_matches_golden(seeded_model, request, tmp_path, pdb_id):
     text = normalized_crd(seeded_model(pdb_id))
+    path = tmp_path / f"{pdb_id}.crd"
+    path.write_text(text)
+    reread = CRDParser(QUIET=True).get_structure(str(path))
+    assert all(residue.segid.strip() for residue in reread.get_residues())
     assert_matches_golden(text, f"{pdb_id}.crd", request)
 
 
