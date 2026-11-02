@@ -272,11 +272,11 @@ def MolToMol2Block(mol, ligname=None):
     block_string = ""
     block_string += _generate_mol2_title_block(ligname, n_atoms, n_bonds)
     block_string += "@<TRIPOS>ATOM\n"
-    for l in atom_lines:
-        block_string += l + "\n"
+    for line in atom_lines:
+        block_string += line + "\n"
     block_string += "@<TRIPOS>BOND\n"
-    for l in bond_lines:
-        block_string += l + "\n"
+    for line in bond_lines:
+        block_string += line + "\n"
     block_string += f"@<TRIPOS>SUBSTRUCTURE\n1 {ligname} 1"
     return block_string
 

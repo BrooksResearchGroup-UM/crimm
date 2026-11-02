@@ -195,7 +195,8 @@ class ResidueDefinition:
         internal coordinates, by which the atom can be built."""
         self.atom_lookup_dict = {}
         atom_lookup_entries = []
-        for (i, j, k, l), ic in self.ic.items():
+        # i, j, k, l: CHARMM's names for the four atoms of an internal coordinate
+        for (i, j, k, l), ic in self.ic.items():  # noqa: E741
             is_improper = int(ic["improper"])
             for atom_name in (i, l):
                 if atom_name == "BLNK":

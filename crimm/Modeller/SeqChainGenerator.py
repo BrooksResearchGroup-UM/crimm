@@ -143,7 +143,8 @@ class SeqChainGenerator:
 
     def _find_init_coord_for_nei(self, standard_coord_dict, atoms, nei_atoms):
         (i, a1), (j, a2) = atoms
-        (k, a3), (l, a4) = nei_atoms
+        # i < j < k < l: the order of the four atom indices, as in CHARMM's notation
+        (k, a3), (l, a4) = nei_atoms  # noqa: E741
         if i < j < k < l:
             atom_names = (a2, a3, a4)
         elif l < k < j < i:

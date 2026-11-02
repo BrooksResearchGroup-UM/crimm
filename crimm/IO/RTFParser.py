@@ -1,9 +1,9 @@
 import warnings
 
 
-def skip_line(l):
+def skip_line(line):
     """Return if the line should be skipped (empty lines or comment only)"""
-    x = l.strip()
+    x = line.strip()
     return x.startswith("!") or x.startswith("*") or x.startswith("read rtf") or x == ""
 
 
@@ -139,7 +139,8 @@ def ic_parser(line):
         raise ValueError(
             f"Invalid length of topology specification: {line}\n9 fields required"
         )
-    i, j, k, l, r_ij, t_ijk, phi, t_jkl, r_kl = fields
+    # i, j, k, l: CHARMM's names for the four atoms of an internal coordinate
+    i, j, k, l, r_ij, t_ijk, phi, t_jkl, r_kl = fields  # noqa: E741
     if k.startswith("*"):
         is_improper = True
         first_angle = "R(I-K)"
@@ -264,10 +265,14 @@ class RTFParser:
         self.unparsed_lines = []
         self.mass_dict = {}
         if rtf_block is not None:
-            self.lines = [l.strip() for l in rtf_block.split("\n") if not skip_line(l)]
+            self.lines = [
+                line.strip() for line in rtf_block.split("\n") if not skip_line(line)
+            ]
         elif file_path is not None:
             with open(file_path, encoding="utf-8") as f:
-                self.lines = [l.strip() for l in f.readlines() if not skip_line(l)]
+                self.lines = [
+                    line.strip() for line in f.readlines() if not skip_line(line)
+                ]
         else:
             raise ValueError("Either file_path or rtf_block has to be provided!")
         self._parse_lines()
@@ -279,22 +284,22 @@ class RTFParser:
         ##TODO(#62): Need to handle keywords DIHE, ANGLE, and PATCH
         self.rtf_version = ".".join(self.lines[0].strip().split())
         self.topo_dict = {}
-        for l in self.lines[1:]:
-            l = l.upper()
-            if l.startswith("MASS"):
-                symbol, mass, desc, element = mass_parser(l)
+        for line in self.lines[1:]:
+            line = line.upper()
+            if line.startswith("MASS"):
+                symbol, mass, desc, element = mass_parser(line)
                 self.mass_dict.update({symbol: (float(mass), desc, element)})
-            elif l.startswith("DECL"):
-                atom = decl_parser(l)
+            elif line.startswith("DECL"):
+                atom = decl_parser(line)
                 self.decl_peptide_atoms.append(atom)
-            elif l.startswith("DEFA"):
-                first_patch, last_patch = defa_parser(l)
+            elif line.startswith("DEFA"):
+                first_patch, last_patch = defa_parser(line)
                 self.default_patchs["FIRST"] = first_patch
                 self.default_patchs["LAST"] = last_patch
-            elif l.startswith("AUTO"):
-                self.default_autogen = auto_parser(l)
-            elif l.startswith("RESI") or l.startswith("PRES"):
-                res_name, total_charge, desc = resi_parser(l)
+            elif line.startswith("AUTO"):
+                self.default_autogen = auto_parser(line)
+            elif line.startswith("RESI") or line.startswith("PRES"):
+                res_name, total_charge, desc = resi_parser(line)
                 if res_name not in self.topo_dict:
                     # index first group
                     cur_group_i = -1
@@ -312,21 +317,21 @@ class RTFParser:
                         "cmap": [],
                         "lonepairs": [],
                         "ic": {},
-                        "is_patch": l.startswith("PRES"),
+                        "is_patch": line.startswith("PRES"),
                     }
                 self.topo_dict.update({res_name: cur_res})
-            elif l.startswith("GROU"):
+            elif line.startswith("GROU"):
                 # Update group number
                 cur_group_i += 1
                 cur_atom_group = {cur_group_i: {}}
                 cur_res["atoms"].update(cur_atom_group)
-            elif l.startswith("ATOM"):
+            elif line.startswith("ATOM"):
                 if cur_group_i == -1:
                     # if no GROUP keyword exist for patch, create a single group
                     cur_group_i = 0
                     cur_atom_group = {cur_group_i: {}}
                     cur_res["atoms"].update(cur_atom_group)
-                atom_name, atom_type, atom_charge = atom_parser(l)
+                atom_name, atom_type, atom_charge = atom_parser(line)
                 if atom_type not in self.mass_dict:
                     # CGENFF rtf files do not have MASS table
                     cur_atom_dict = {
@@ -346,56 +351,56 @@ class RTFParser:
                         }
                     }
                 cur_atom_group[cur_group_i].update(cur_atom_dict)
-            elif l.startswith("DONO"):
+            elif line.startswith("DONO"):
                 if "H_donors" not in cur_res:
                     cur_res["H_donors"] = []
-                donors = tuple(l.split()[1:])
+                donors = tuple(line.split()[1:])
                 cur_res["H_donors"].append(donors)
-            elif l.startswith("ACCE"):
+            elif line.startswith("ACCE"):
                 if "H_acceptors" not in cur_res:
                     cur_res["H_acceptors"] = []
-                acceptors = tuple(l.split()[1:])
+                acceptors = tuple(line.split()[1:])
                 cur_res["H_acceptors"].append(acceptors)
-            elif l.startswith("BOND"):
-                single_bonds = pairwise_parser(l)
+            elif line.startswith("BOND"):
+                single_bonds = pairwise_parser(line)
                 cur_res["bonds"]["single"].extend(single_bonds)
-            elif l.startswith("DOUB"):
-                double_bonds = pairwise_parser(l)
+            elif line.startswith("DOUB"):
+                double_bonds = pairwise_parser(line)
                 cur_res["bonds"]["double"].extend(double_bonds)
-            elif l.startswith("TRIP"):
-                triple_bonds = pairwise_parser(l)
+            elif line.startswith("TRIP"):
+                triple_bonds = pairwise_parser(line)
                 cur_res["bonds"]["triple"].extend(triple_bonds)
-            elif l.startswith("AROM"):
-                aromatic_bonds = pairwise_parser(l)
+            elif line.startswith("AROM"):
+                aromatic_bonds = pairwise_parser(line)
                 cur_res["bonds"]["triple"].extend(aromatic_bonds)
-            elif l.startswith("IMPR"):
+            elif line.startswith("IMPR"):
                 # Improper (branching structures)
                 ##TODO(#60): quad_parser is not correct for IMPR
-                impropers = quad_parser(l)
+                impropers = quad_parser(line)
                 cur_res["impropers"].extend(impropers)
-            elif l.startswith("CMAP"):
+            elif line.startswith("CMAP"):
                 # Dihedral crossterm energy correction map
-                cmap = octa_parser(l)
+                cmap = octa_parser(line)
                 cur_res["cmap"].append(cmap)
-            elif l.startswith("IC") or l.startswith("BILD"):
+            elif line.startswith("IC") or line.startswith("BILD"):
                 # Internal Coordinates
-                ic_key, ic_param_dict = ic_parser(l)
+                ic_key, ic_param_dict = ic_parser(line)
                 cur_res["ic"][ic_key] = ic_param_dict
-            elif l.startswith("LONE"):
-                lp_entry = lonepair_parser(l)
+            elif line.startswith("LONE"):
+                lp_entry = lonepair_parser(line)
                 cur_res["lonepairs"].append(lp_entry)
-            elif l.startswith("DELE"):
+            elif line.startswith("DELE"):
                 if "delete" not in cur_res:
                     cur_res["delete"] = []
-                delete_entry = delete_parser(l)
+                delete_entry = delete_parser(line)
                 cur_res["delete"].append(delete_entry)
-            elif l.startswith("DIHE"):
+            elif line.startswith("DIHE"):
                 pass
-            elif l.startswith("ANGL"):
+            elif line.startswith("ANGL"):
                 pass
-            elif l.startswith("PATC"):
+            elif line.startswith("PATC"):
                 pass
-            elif l.startswith("END"):
+            elif line.startswith("END"):
                 break
             else:
-                self.unparsed_lines.append(l)
+                self.unparsed_lines.append(line)
