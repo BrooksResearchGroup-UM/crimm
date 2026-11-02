@@ -64,9 +64,9 @@ extend-exclude = ["docs/_build"]
 # left to a formatter), I import order, B bugbear, UP pyupgrade.
 select = ["F", "E4", "E7", "E9", "I", "B", "UP"]
 ignore = [
-    "B028",  # warnings.warn without stacklevel: 138 calls, fix together
-    "UP006", # `typing.List` and friends: modernise with the type-hint work
-    "UP035", # deprecated typing imports: modernise with the type-hint work
+    "B028",  # warnings.warn without stacklevel: 139 calls, fixed with the logging work (#77)
+    "UP006", # `typing.List` and friends: modernised with the type hints (#83)
+    "UP035", # deprecated typing imports: modernised with the type hints (#83)
 ]
 
 [tool.ruff.lint.per-file-ignores]
