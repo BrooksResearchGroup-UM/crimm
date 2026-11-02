@@ -201,6 +201,7 @@ Things that cost a previous agent time or would produce wrong results silently.
 | G13 | ROADMAP section numbers are not stable identifiers. 1.3 to 1.5 were renumbered on 2026-10-06. Cite the section title with the number. | `[ran 2026-10-06]` |
 | G15 | Two PSF or CRD files of one structure are not byte-identical: angle and dihedral order varies (#120), and water hydrogens use the unseeded global NumPy generator. Compare through `tests/test_golden.py::normalized_psf`, and seed before building the model, as `seeded_model` does. `shared_prepared` models were built unseeded. | `[ran 2026-10-30]` |
 | G14 | The test suite lives only on `cleanup/phase0-tests-and-dev-docs` until it is merged. A branch cut from `master` has no `tests/test_*.py`, so `pytest` there collects nothing and reports no failures. SUPERSEDED 2026-11-02: merged with PR #108. | `[ran 2026-10-06]` |
+| G17 | ruff `B007` (unused loop variable) only looks inside the loop body. A variable used after the loop, for example one that keeps the value at a `break`, is flagged too; renaming it raises `NameError`. Check uses after the loop before fixing (`TopoDefinitions._create_init_atom_coords`). | `[ran 2026-11-02]` |
 | G16 | Segment IDs are assigned to the model by writing a PSF (`PSFWriter._assign_segids`, also via `get_psf_str`). A CRD written before that has blank segment IDs, which `CRDParser` cannot read (#124). Write the PSF first. | `[ran 2026-11-02]` |
 
 ## 5. State
@@ -208,14 +209,11 @@ Things that cost a previous agent time or would produce wrong results silently.
 Rewrite in place. True as of `2026-11-02`.
 
 ```yaml
-branches:                          # master = origin/master = c54318e, the squash merge of PR #122
-                                   # (2026-10-30) [ran 2026-11-02].
+branches:                          # master = origin/master = ede6dd7, the merge commit of PR #126
+                                   # (2026-11-02) [ran].
                                    # From 2026-10-28 [told]: one short branch per concern, cut
                                    # from master, one small PR each.
-  chore/dev-docs-post-123:         # agent, 2026-11-02: Phase 7 in ROADMAP, this State. Pushed.
-  fix/122-golden-crd-segids:       # Stan's, PR #123: CRD golden files with segment IDs (#124).
-                                   # Two commits added by an agent at the owner's request
-                                   # 2026-11-02: no CHANGELOG entry (test-only), TODO(#124).
+  chore/phase0-done:               # agent, 2026-11-02: Phase 0 marked done, this State.
   fix/59-rdkit-plain-residue:      # merged as b7a2b6e (PR #121, squash). Kept, local, in the
                                    # extra worktree, until a downstream project stops importing
                                    # from that worktree (CLAUDE.local.md). Then remove both.
@@ -233,8 +231,8 @@ branches:                          # master = origin/master = c54318e, the squas
   # deleted 2026-10-30 at the owner's request (local only, unmerged): RDKConverter-Het 8075b75,
   # reimplemented as 1816fbb; backup/find-max-dim-44e9bf6 44e9bf6. After PR #117:
   # style/110-ruff-format 2ebbc05.
-  # deleted 2026-11-02 at the owner's request: test/39-golden-files f870a2d (squash-merged as
-  # PR #122; its only difference from master was PR #121's files).
+  # deleted 2026-11-02, all merged: test/39-golden-files f870a2d, chore/dev-docs-post-123
+  # a5da19a, style/109-lint-rules 6151f6e; on origin by GitHub after their merges.
 env: "crimm-dev from environment-dev.yml, plus pycharmm and CHARMM_LIB_DIR (section 3).
       Account-specific install details: CLAUDE.local.md"
 uncommitted_owner_work: none       # tutorials: all to be dealt with later [told 2026-10-30]
@@ -243,39 +241,39 @@ worktrees: "one extra worktree, on fix/59-rdkit-plain-residue (CLAUDE.local.md)"
 untracked_not_ours:
   - import-fix.md                  # work order, see standing instructions
 github:
-  issues: "#39 to #124 (no #105), milestones 1 to 7 = Phases 0 to 6; Phase 7 has no milestone.
-           #120 filed 2026-10-30, #124 2026-11-02. Closed 2026-10-30: #39, #59, #111.
-           Milestone 3 is still titled 'Phase 2: Resolve every TODO comment' [ran 2026-10-28]"
+  issues: "#39 to #127 (no #105). Milestones 1 to 7 = Phases 0 to 6; milestone 1 (Phase 0)
+           CLOSED 2026-11-02, 8 of 8 issues closed; Phase 7 has no milestone. #120 filed
+           2026-10-30, #124 and #127 on 2026-11-02. Milestone 3 is still titled 'Phase 2:
+           Resolve every TODO comment' [ran 2026-11-02]"
   branch_protection: "master: all-green required (strict false), 1 approving review, force pushes disallowed, deletions disallowed, admins not enforced [ran 2026-10-12, gh api; set by the owner]"
   repo_settings: "automatically delete head branches: on, since 2026-10-28 [told]"
-  labels: "review-after-merge, created 2026-10-28; on #116, #117, #118, #121, #122"
-  pull_requests: "#123 open (Stan), green, ready; the owner merges it. The PR from
-                  chore/dev-docs-post-123. Merged 2026-10-30 by the owner: #117 (merge commit
-                  826c103), #121 (squash b7a2b6e), #122 (squash c54318e)."
+  labels: "review-after-merge, created 2026-10-28; on #116, #117, #118, #121, #122, #123, #125,
+           #126: none reviewed yet"
+  pull_requests: "Open: the one from chore/phase0-done. Merged by the owner: 2026-10-30 #117
+                  (merge commit 826c103), #121 (squash b7a2b6e), #122 (squash c54318e);
+                  2026-11-02 #123 (squash 5466236), #125 (squash fb61a45), #126 (merge commit
+                  ede6dd7, three SHAs in .git-blame-ignore-revs)."
 owner_reminders:                   # tell the owner at the start of the next session
   - "Reminders for private downstream projects (#59 fix): CLAUDE.local.md"
   - "Open the PR for feat/coordmanipulator-find-max-dim, with a review deadline for Stan"
-test_suite: {passed: 147, xfailed: 16, deselected: 13, date: 2026-11-02}   # offline default run on c54318e, NumPy 2
-test_suite_pycharmm: {passed: 8, xfailed: 2, date: 2026-11-02}   # pytest -m pycharmm in crimm-dev, on PR #123
+  - "Send Stan the review batch: the 8 PRs labelled review-after-merge, in merge order"
+test_suite: {passed: 147, xfailed: 16, deselected: 13, date: 2026-11-02}   # offline default run, NumPy 2, on PR #126's branch
+test_suite_pycharmm: {passed: 8, xfailed: 2, date: 2026-11-02}   # pytest -m pycharmm in crimm-dev, on PR #126's branch
 roadmap_done:
-  - "Phase 0: offline pytest suite, markers, benchmark move, ruff (lint only), CI workflow;
-     all merged with PR #108 2026-10-26"
-  - "Phase 0: ROADMAP as index (2026-10-12); TODO(#N) in every TODO (2026-10-14)"
-  - "Phase 0: Stan's files linted and formatted (2026-10-14)"
-  - "Phase 0: #107 CHARMM build, pyCHARMM in crimm-dev, tests/test_pycharmm.py (2026-10-14);
-     closed 2026-10-28, its last point moved to #119 (Phase 5)"
-  - "Phase 0: every xfail reason starts with its issue number; CHANGELOG.md with an
-     Unreleased section (2026-10-16)"
-  - "Phase 0: #110 first half (ruff format) and #111 (pre-commit), PR #117 2026-10-30"
-  - "Phase 0: #39 golden-file tests, PR #122 2026-10-30; CRD files fixed by PR #123"
+  - "Phase 0 DONE 2026-11-02, milestone closed: offline suite, markers, benchmark move, CI on 9
+     cells (PR #108); CHARMM/pyCHARMM tests (#107); ruff check, ruff format, pre-commit
+     (#110, #111, PR #117); golden files (#39, PR #122, fixed by PR #123); B007, E741, UP031
+     (#109, PR #126). Moved to Phase 3: B028 to #77, UP006/UP035 to #83, rule set to #127"
   - "Phase 1: #59, PR #121 2026-10-30"
 roadmap_next:
-  - "Merge #123 (owner), then this docs PR"
   - "#124: the strict xfail test the rules require is not written yet; the fix itself later
      [told 2026-11-02]"
-  - "Phase 0 left: #109 ignored ruff rules; second half of #110 (wider rule set)"
+  - "PR for feat/coordmanipulator-find-max-dim (Stan's review, with a deadline); the review
+     batch for Stan (owner_reminders)"
   - "Next code change: #58 (ROADMAP 1.5, optional imports), the first Phase 1 PR; it ends
      by deleting import-fix.md"
+  - "Phase 1 priority: #43 and #44 are Stan's (solvation mirror image, PCA transform); ask him
+     when he can take them"
   - "Phase 7 design notes: the owner adds to 7.1 (system object, readiness check)"
   - "Later, owner's choice 2026-10-16 [told]: #112 disulfide dihedrals (owner's area; xfails in
      test_topology.py and test_pycharmm.py); Phase 6 minimizer (#113 to #115), planned in
@@ -284,7 +282,8 @@ roadmap_next:
 library_code_changed_by_agents: "2026-10-12 and 2026-10-14, behaviour-neutral only: lint fixes
   (2026-10-12; 2026-10-14 in Stan's files), ruff format of Stan's three files, TODO comment
   text. PR #117, merged 2026-10-30: ruff format of the rest. PR #121, merged 2026-10-30:
-  RDKitConverter.py, a TypeError becomes a warning (#59)."
+  RDKitConverter.py, a TypeError becomes a warning (#59). PR #126, merged 2026-11-02:
+  B007, E741, UP031 fixes, behaviour-neutral (variable names, f-strings)."
 ```
 
 ## 6. Claims
@@ -326,6 +325,32 @@ Newest first. Append only. Template:
 - found:
 - next:
 ```
+
+### 2026-11-02 claude-opus/claude-code/phase0-close
+
+- asked: finish Phase 0 today, as a plan first; then step 3 of it (docs, milestone).
+  `[told 2026-11-02]`
+- did: PR #126 (merged by the owner with a merge commit, ede6dd7): one commit per rule for
+  `B007`, `E741`, `UP031`, each removing its rule from `ignore`; comments on the remaining
+  ignores point at #77 and #83; the three lint SHAs in `.git-blame-ignore-revs`. Issues: `B028`
+  moved to #77, `UP006`/`UP035` to #83, widening the rule set to new #127 (Phase 3); boxes
+  on #109 and #110 ticked with links. After the merge: milestone 1 closed (0 open, 8 closed);
+  ROADMAP Phase 0 marked done; this State.
+- found `[ran]`: `B007` flagged `a, b, c` in `TopoDefinitions._create_init_atom_coords`, which
+  are used after the loop. Renaming them would have raised `NameError`. See G17.
+- decided: `E741` names were changed through the syntax tree, per function, refusing a name
+  already in use; `i, j, k, l` stay where they are CHARMM's names for the four atoms of an
+  internal coordinate, with `# noqa: E741` and a comment.
+- verified `[ran]`: after each commit the offline suite gave 147 passed, 16 xfailed; `-m
+  pycharmm` 8 passed, 2 xfailed; `MolToMol2Block` output for ten molecules byte-identical to
+  master (no offline test covers it); CI green on all 11 checks; `git blame` with the ignore
+  file credits the original authors. A downstream suite that imports the RTF/PRM parsers gave
+  the same result against master and the branch (CLAUDE.local.md).
+- not verified: one failure in the first downstream run did not recur in three more, and its
+  name was not captured. Its counts changed between runs; its working tree had uncommitted
+  changes, so it was probably being edited at the time `[inferred]`.
+- claims: none held.
+- next: State `roadmap_next`.
 
 ### 2026-11-02 claude-opus/claude-code/review-123-phase7
 
