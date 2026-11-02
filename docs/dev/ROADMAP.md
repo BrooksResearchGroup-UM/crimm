@@ -25,11 +25,11 @@ Issue #105 does not exist.
 
 | Where | Issues |
 | --- | --- |
-| Phase 0: Safety net | #39 golden files, #40 ruff, #41 CI, #42 benchmarks, #107 CHARMM and pyCHARMM (closed 2026-10-28), #109 to #111 ruff follow-ups (ignored rules, repo-wide format, pre-commit). #40 to #42 closed when PR #108 merged (2026-10-26); #111 and the format half of #110 merged with PR #117 (2026-10-30) |
+| Phase 0: Safety net | #39 golden files, #40 ruff, #41 CI, #42 benchmarks, #107 CHARMM and pyCHARMM (closed 2026-10-28), #109 to #111 ruff follow-ups (ignored rules, repo-wide format, pre-commit). #40 to #42 closed when PR #108 merged (2026-10-26); #111 and the format half of #110 merged with PR #117 (2026-10-30); #109 and #110 closed by PR #126 (2026-11-02). **Phase 0 done 2026-11-02, milestone closed.** |
 | Phase 1: Bugs | #43, #44 (Stan), #45 to #49 (found by tests), #50 to #56, #57 (closed by PR #108, 2026-10-26), #59 (hotfix, needed by a downstream project), #58 (optional imports, 1.5), #112 (disulfide dihedrals, found by the pyCHARMM tests), #120 (PSF term order, found by the golden-file tests), #124 (blank segment IDs in a CRD written before the PSF) |
 | Phase 2: TODOs | #60 to #70 (planned here; each one's phase is decided when it starts), #87 (topology TODOs 16 to 21, resolved in Phase 4) |
 | Features, no milestone | #71 to #76 (TODOs 22 to 27) |
-| Phase 3: Refactor | #77 to #85 |
+| Phase 3: Refactor | #77 to #85, #127 (wider ruff rule set, moved from #110) |
 | Phase 4: Restructure | #86 to #95 |
 | Phase 5: Release | #96 to #100, #106 (toppar licence), #119 (release checklist for the test layers CI cannot run) |
 | Phase 6: Minimizer utility (own release) | #113 to #115 |
@@ -38,7 +38,7 @@ Issue #105 does not exist.
 
 ## Phase 0: Safety net
 
-Nothing here changes behaviour.
+**Done 2026-11-02** (milestone closed). Nothing here changes behaviour.
 
 | Item | Done when | Size |
 | --- | --- | --- |
@@ -50,6 +50,7 @@ Nothing here changes behaviour.
 | #40 **Done 2026-10-12 (lint only).** `ruff` configured in `pyproject.toml`; current findings fixed or explicitly ignored | `ruff check crimm tests` is clean. Ignored rules are listed with reasons in `pyproject.toml`. Stan's three files were linted and formatted on 2026-10-14 with his agreement (`2b019d3`, `85640ad`, both in `.git-blame-ignore-revs`). Follow-ups: #109 ignored rules, #110 repo-wide `ruff format` and wider rules, #111 `pre-commit` | S |
 | #41 **Done 2026-10-12 in `.github/workflows/ci.yml`; merged with PR #108 2026-10-26.** CI workflow: lint and tests on Python 3.9 to 3.13, on both NumPy 1.x and 2.x | Required check (`all-green`) on pull requests to `master`. `all-green` is required on `master` (set by the owner, 2026-10-12). 2026-10-14: the NumPy 1 cell on Python 3.12 had been running NumPy 2, fixed in `6a00566`. Open: core-install import guard (#58, step 7). Lesson: [lessons/ci-basics.md](lessons/ci-basics.md) | M |
 | #42 **Done 2026-10-12.** Move `tests/benchmark_pipeline.py` to `benchmarks/` | `tests/` holds only pytest tests | S |
+| #109 to #111 **Done 2026-11-02 (#111: PR #117, 2026-10-30).** Ruff follow-ups: `ruff format` over the package with a CI check (#110, PR #117), pre-commit hooks (#111), and `B007`, `E741`, `UP031` fixed (#109, PR #126). Moved to Phase 3: `B028` to #77, `UP006`/`UP035` to #83, widening the rule set to #127 | `ruff check` and `ruff format --check` clean in CI; the rules still ignored each name their issue | M |
 | #107 **Done 2026-10-14.** CHARMM and pyCHARMM in the developer environment: build the CHARMM library locally with pyCHARMM support and make it usable from `crimm-dev` (steps in `NOTES.md`, "Building CHARMM for the `pycharmm` tests") | `import pycharmm` works in `crimm-dev`, and the steps are written down | L |
 | #107 **Done 2026-10-14 (`tests/test_pycharmm.py`).** `pycharmm` tests: load the PSF/CRD that crimm writes into pyCHARMM, and check energies and counts against CHARMM's own reading. Depends on the row above | `pytest -m pycharmm` passes on a machine with a CHARMM build and is skipped elsewhere: 8 passed, 2 xfailed (#112) with the build; 10 skipped without `CHARMM_LIB_DIR`. #107 closed 2026-10-28; running them before a release moved to #119 | M |
 
@@ -257,15 +258,16 @@ Internals only. Public names and behaviour stay the same; the golden-file tests 
 
 | Item | Detail | Size |
 | --- | --- | --- |
-| #77 Logging | `logging.getLogger(__name__)` per module replaces about 60 `print` calls. One documented way to set verbosity replaces the `QUIET` keyword arguments (kept as deprecated aliases). | M |
+| #77 Logging | `logging.getLogger(__name__)` per module replaces about 60 `print` calls. One documented way to set verbosity replaces the `QUIET` keyword arguments (kept as deprecated aliases).  Includes ruff `B028` (139 `warnings.warn` calls without `stacklevel`), moved from #109. | M |
 | #78 Exceptions | A small hierarchy rooted at `CrimmError` (topology, parsing, fetch, solvation). | S |
 | #79 HTTP | One helper for RCSB and AlphaFold requests with a sensible timeout (30 s, not 500), retries with backoff, and proxy handling. Replaces 10 call sites. | S |
 | #80 Duplication | Orientation methods (done in 1.2); the title and timestamp block repeated in `CRDWriter.py` and `PSFWriter.py`; ion name tables repeated inside `Solvator.py`. | M |
 | #81 Resources | `importlib.resources` to locate toppar files and `water_coords.npy`. | S |
 | #82 Global state | `LOADED_TOPOLOGY_TYPES` and the visualization backend become explicit objects or context managers. | M |
-| #83 Types and docstrings | Type hints on public functions; NumPy-style docstrings throughout; fix wrong annotations (for example `_find_transformation_operators -> None` returns a matrix). | L |
+| #83 Types and docstrings | Type hints on public functions; NumPy-style docstrings throughout; fix wrong annotations (for example `_find_transformation_operators -> None` returns a matrix).  Includes ruff `UP006` and `UP035` (116 findings), moved from #109. | L |
 | #84 Dead code | Commented-out `StructEntities/__init__.py`, unused attributes such as `_convex_hull`, leftover commented lines. | S |
 | #85 Reproducibility (Stan) | Monte Carlo ion placement takes a `seed` or `Generator`. | S |
+| #127 Ruff rule set | Widen `select` in `[tool.ruff.lint]`: `E501` (142), `SIM` (about 35), then try `NPY`, `PIE`, `RET`. One commit per rule; behaviour-neutral ones go in `.git-blame-ignore-revs`. Moved from #110. | M |
 
 ## Phase 4: Restructure
 
