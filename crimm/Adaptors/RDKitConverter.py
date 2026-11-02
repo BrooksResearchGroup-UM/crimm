@@ -97,7 +97,7 @@ def _sybyl_atom_type(atom):
         elif degree == 3 and _atom_matches_smarts(atom, guanidine):
             sybyl = "C.cat"
         else:
-            sybyl = "%s.%i" % (atom_symbol, hyb)
+            sybyl = f"{atom_symbol}.{hyb:d}"
     elif atomic_num == 7:
         if aromtic:
             sybyl = "N.ar"
@@ -110,7 +110,7 @@ def _sybyl_atom_type(atom):
         elif degree == 4 or hyb == 3 and atom.GetFormalCharge():
             sybyl = "N.4"
         else:
-            sybyl = "%s.%i" % (atom_symbol, hyb)
+            sybyl = f"{atom_symbol}.{hyb:d}"
     elif atomic_num == 8:
         # http://www.daylight.com/dayhtml_tutorials/languages/smarts/smarts_examples.html
         if degree == 1 and _atom_matches_smarts(atom, "[CX3](=O)[OX1H0-]"):
@@ -131,9 +131,9 @@ def _sybyl_atom_type(atom):
         ):
             sybyl = "S.o2"
         else:
-            sybyl = "%s.%i" % (atom_symbol, hyb)
+            sybyl = f"{atom_symbol}.{hyb:d}"
     elif atomic_num == 15 and hyb == 3:
-        sybyl = "%s.%i" % (atom_symbol, hyb)
+        sybyl = f"{atom_symbol}.{hyb:d}"
 
     if not sybyl:
         sybyl = atom_symbol

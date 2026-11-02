@@ -165,8 +165,8 @@ class StructureBuilder:
         if not self._is_completely_disordered(duplicate_residue):
             # if this exception is ignored, a residue will be missing.
             raise AtomAltLocException(
-                "Blank altlocs in duplicate residue %s ('%s', %i, '%s')"
-                % (resname, field, resseq, icode)
+                f"Blank altlocs in duplicate residue {resname} "
+                f"('{field}', {resseq:d}, '{icode}')"
             )
 
         chain.detach_child(duplicate_residue.id)

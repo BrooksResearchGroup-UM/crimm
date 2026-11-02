@@ -66,7 +66,6 @@ select = ["F", "E4", "E7", "E9", "I", "B", "UP"]
 ignore = [
     "B028",  # warnings.warn without stacklevel: 138 calls, fix together
     "UP006", # `typing.List` and friends: modernise with the type-hint work
-    "UP031", # printf-style formatting: 5 calls
     "UP035", # deprecated typing imports: modernise with the type-hint work
 ]
 
