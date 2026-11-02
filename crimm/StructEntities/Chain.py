@@ -416,7 +416,7 @@ class PolymerChain(Chain):
 
         prev_idx = missing_res[0][0]
         cur_set = set()
-        for idx, res_name in missing_res[1:]:
+        for idx, _res_name in missing_res[1:]:
             cur_set.add(prev_idx)
             if idx - prev_idx > 1:
                 gaps.append(cur_set)

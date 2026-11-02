@@ -11,3 +11,9 @@
 85640ad4245995ca9b0eaac5f5ca642384ee6cd0
 # Format crimm and tests with ruff format (#110)
 7ead967f151839f079eb30b1ea97d7ce0e71fb39
+# Fix unused loop variables (ruff B007, #109)
+e9458ceac2a562ad9ecfba549f06bdab70cf5eb9
+# Rename variables called l (ruff E741, #109)
+c428a9ab6900583cb4378eb0008f7a6402a4460e
+# Use f-strings instead of printf-style formatting (ruff UP031, #109)
+5f0f2700e804928d518712fb149b765b329ee26b

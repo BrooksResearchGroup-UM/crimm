@@ -143,7 +143,7 @@ def load_pdbid_in_charmm(
             pcm_set_verbosity(prev_level)
         new_model.add(chain)
 
-    for chain_id, chain in na_chains.items():
+    for chain in na_chains.values():
         # Missing loop is very unlikely in nucleotide chains on PDB
         # but if it exsits, an error will be raise
         if not chain.is_continuous():

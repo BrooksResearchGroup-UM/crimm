@@ -26,40 +26,40 @@ def categorize_lines(lines):
     }
     is_continued = False
     for line in lines:
-        l = line.strip().upper()
-        if skip_line(l):
+        text = line.strip().upper()
+        if skip_line(text):
             continue
-        if l.endswith("-"):
+        if text.endswith("-"):
             if is_continued:
-                is_continued += l.rstrip("-")
+                is_continued += text.rstrip("-")
             else:
-                is_continued = l.rstrip("-")
+                is_continued = text.rstrip("-")
             continue
         if is_continued:
-            l = is_continued
+            text = is_continued
             is_continued = False
-        if l.startswith("ATOMS"):
+        if text.startswith("ATOMS"):
             cur_section = line_dict["mass"]
-        elif l.startswith("BONDS"):
+        elif text.startswith("BONDS"):
             cur_section = line_dict["bonds"]
-        elif l.startswith("ANGLES"):
+        elif text.startswith("ANGLES"):
             cur_section = line_dict["angles"]
-        elif l.startswith("DIHEDRALS"):
+        elif text.startswith("DIHEDRALS"):
             cur_section = line_dict["dihedrals"]
-        elif l.startswith("IMPROPER"):
+        elif text.startswith("IMPROPER"):
             cur_section = line_dict["improper"]
-        elif l.startswith("CMAP"):
+        elif text.startswith("CMAP"):
             cur_section = line_dict["cmap"]
-        elif l.startswith("NONBONDED"):
+        elif text.startswith("NONBONDED"):
             cur_section = line_dict["nonbonded"]
-        elif l.startswith("NBFIX"):
+        elif text.startswith("NBFIX"):
             cur_section = line_dict["nbfix"]
-        elif l.startswith("HBOND"):
+        elif text.startswith("HBOND"):
             pass
-        elif l.startswith("END"):
+        elif text.startswith("END"):
             break
         else:
-            cur_section.append(l)
+            cur_section.append(text)
     return line_dict
 
 
@@ -158,8 +158,8 @@ def nbfix_parser(line):
 
 def simple_collector(param_line_dict, parser):
     param_dict = {}
-    for l in param_line_dict:
-        key, val = parser(l)
+    for line in param_line_dict:
+        key, val = parser(line)
         if key in param_dict:
             continue
         param_dict[key] = val
@@ -168,8 +168,8 @@ def simple_collector(param_line_dict, parser):
 
 def dihedral_collector(param_line_dict, parser):
     param_dict = {}
-    for l in param_line_dict:
-        key, val = parser(l)
+    for line in param_line_dict:
+        key, val = parser(line)
         if key not in param_dict:
             param_dict[key] = []
         param_dict[key].append(val)
@@ -181,8 +181,8 @@ def dihedral_collector(param_line_dict, parser):
 def extended_collector(param_line_dict, parser):
     param_dict = {}
     extended_param_dict = {}
-    for l in param_line_dict:
-        key, val1, val2 = parser(l)
+    for line in param_line_dict:
+        key, val1, val2 = parser(line)
         param_dict[key] = val1
         if val2 is not None:
             extended_param_dict[key] = val2
@@ -199,13 +199,13 @@ def parse_line_dict(line_dict):
     impr_dict = simple_collector(line_dict["improper"], improper_parser)
 
     cmap_lines = {}
-    for l in line_dict["cmap"]:
-        if not (l[0].isdigit() or l[0] == "-"):
-            key, n = cmap_key_parser(l)
+    for line in line_dict["cmap"]:
+        if not (line[0].isdigit() or line[0] == "-"):
+            key, n = cmap_key_parser(line)
             cmap_lines[key] = {"n": n, "entries": []}
             cur_cmap_lines = cmap_lines[key]["entries"]
         else:
-            cur_cmap_lines.append(l)
+            cur_cmap_lines.append(line)
 
     cmap_dict = {}
     for k, v in cmap_lines.items():

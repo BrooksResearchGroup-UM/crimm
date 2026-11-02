@@ -460,7 +460,7 @@ class MMCIFParser:
                     sb.chain = chain
                     # This is the mmCIF label chain id
                     sb.chain.id = chain_id
-                    for resseq, res_info in res_dict.items():
+                    for res_info in res_dict.values():
                         resname = res_info["resname"]
                         res_id = res_info["res_id"]
                         author_seq_id = res_info["author_seq_id"]

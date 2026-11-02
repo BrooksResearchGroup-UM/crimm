@@ -95,10 +95,12 @@ class CRDParser:
     def create_namedtuples(self, filepath):
         """Create a list of namedtuples from the CRD file."""
         with open(filepath) as f:
-            lines = [l.rstrip() for l in f.readlines() if not l.startswith("*")]
+            lines = [
+                line.rstrip() for line in f.readlines() if not line.startswith("*")
+            ]
         entries = []
-        for l in lines[1:]:
-            entry = l.split()
+        for line in lines[1:]:
+            entry = line.split()
             (serial, resnum, resname, atomname, x, y, z, segid, resid, tempFactor) = (
                 entry
             )

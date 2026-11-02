@@ -44,8 +44,8 @@ def letters_to_index(letters):
         letters_to_index('AAA') = 702
     """
     index = -1
-    for i, l in enumerate(reversed(letters)):
-        cur_index = ascii_uppercase.find(l) + 1
+    for i, letter in enumerate(reversed(letters)):
+        cur_index = ascii_uppercase.find(letter) + 1
         index += cur_index * (26**i)
     return index
 

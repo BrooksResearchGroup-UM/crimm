@@ -384,7 +384,7 @@ class BaseTopology:
 
     def delete_atom_related_elements(self, atom: Atom):
         """Delete all topology elements related to the atom"""
-        for topo_type_name, topo_list in self:
+        for _topo_type_name, topo_list in self:
             if topo_list is None:
                 continue
             remove_list = []
