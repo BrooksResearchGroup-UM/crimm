@@ -69,6 +69,7 @@ def normalized_psf(model):
 
 def normalized_crd(model):
     # Match PSF/CRD export order: the PSF writer assigns segment IDs in place.
+    # TODO(#124): drop this call once the CRD writer no longer needs a PSF written first.
     get_psf_str(model)
     return drop_title(get_crd_str(model))
 
