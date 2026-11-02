@@ -26,13 +26,14 @@ Issue #105 does not exist.
 | Where | Issues |
 | --- | --- |
 | Phase 0: Safety net | #39 golden files, #40 ruff, #41 CI, #42 benchmarks, #107 CHARMM and pyCHARMM (closed 2026-10-28), #109 to #111 ruff follow-ups (ignored rules, repo-wide format, pre-commit). #40 to #42 closed when PR #108 merged (2026-10-26); #111 and the format half of #110 merged with PR #117 (2026-10-30) |
-| Phase 1: Bugs | #43, #44 (Stan), #45 to #49 (found by tests), #50 to #56, #57 (closed by PR #108, 2026-10-26), #59 (hotfix, needed by a downstream project), #58 (optional imports, 1.5), #112 (disulfide dihedrals, found by the pyCHARMM tests), #120 (PSF term order, found by the golden-file tests) |
+| Phase 1: Bugs | #43, #44 (Stan), #45 to #49 (found by tests), #50 to #56, #57 (closed by PR #108, 2026-10-26), #59 (hotfix, needed by a downstream project), #58 (optional imports, 1.5), #112 (disulfide dihedrals, found by the pyCHARMM tests), #120 (PSF term order, found by the golden-file tests), #124 (blank segment IDs in a CRD written before the PSF) |
 | Phase 2: TODOs | #60 to #70 (planned here; each one's phase is decided when it starts), #87 (topology TODOs 16 to 21, resolved in Phase 4) |
 | Features, no milestone | #71 to #76 (TODOs 22 to 27) |
 | Phase 3: Refactor | #77 to #85 |
 | Phase 4: Restructure | #86 to #95 |
 | Phase 5: Release | #96 to #100, #106 (toppar licence), #119 (release checklist for the test layers CI cannot run) |
 | Phase 6: Minimizer utility (own release) | #113 to #115 |
+| Phase 7: Planned features and robustness | Design note, no issues or milestone yet: 7.1 system object with a readiness check |
 | crimm-ml track, no milestone | #101 to #104 |
 
 ## Phase 0: Safety net
@@ -45,7 +46,7 @@ Nothing here changes behaviour.
 | **Done 2026-10-06.** Markers for `network`, `pycharmm`, `cgenff`, `slow` | Default `pytest` run skips them; each can be selected with `-m`. `pycharmm` tests exist since 2026-10-14 (`tests/test_pycharmm.py`) | S |
 | **Done 2026-10-07.** Agent and contributor files: `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, issue forms, PR template, `CODEOWNERS`, `environment-dev.yml` | A fresh agent session finds the handoff; contributors can set up an environment from one file | S |
 | **Issues created 2026-10-08 (#39 to #107), milestones set up.** This ROADMAP indexes the issues since 2026-10-12. TODO comments carry `TODO(#N)` since 2026-10-14 (`b2cb021`); `xfail` reasons start with `#N:` since 2026-10-16 (`f0a3220`) | Every item below has an issue (done); every `xfail` and TODO names its issue number | M |
-| #39 **PR open 2026-10-30 (`test/39-golden-files`).** Golden-file tests for PSF and CRD output | A refactor that changes one byte of output fails a test | M |
+| #39 **Done 2026-10-30, PR #122; CRD files corrected by PR #123 (#124).** Golden-file tests for PSF and CRD output | A refactor that changes one byte of output fails a test | M |
 | #40 **Done 2026-10-12 (lint only).** `ruff` configured in `pyproject.toml`; current findings fixed or explicitly ignored | `ruff check crimm tests` is clean. Ignored rules are listed with reasons in `pyproject.toml`. Stan's three files were linted and formatted on 2026-10-14 with his agreement (`2b019d3`, `85640ad`, both in `.git-blame-ignore-revs`). Follow-ups: #109 ignored rules, #110 repo-wide `ruff format` and wider rules, #111 `pre-commit` | S |
 | #41 **Done 2026-10-12 in `.github/workflows/ci.yml`; merged with PR #108 2026-10-26.** CI workflow: lint and tests on Python 3.9 to 3.13, on both NumPy 1.x and 2.x | Required check (`all-green`) on pull requests to `master`. `all-green` is required on `master` (set by the owner, 2026-10-12). 2026-10-14: the NumPy 1 cell on Python 3.12 had been running NumPy 2, fixed in `6a00566`. Open: core-install import guard (#58, step 7). Lesson: [lessons/ci-basics.md](lessons/ci-basics.md) | M |
 | #42 **Done 2026-10-12.** Move `tests/benchmark_pipeline.py` to `benchmarks/` | `tests/` holds only pytest tests | S |
@@ -139,7 +140,8 @@ and the marker is not removed.
 | #55 Version strings | `pyproject.toml` 2026.2, `docs/conf.py` 2026.1a, tag 2026.2.1, no `crimm.__version__`. | Single source (see Phase 4); in the meantime align them. | S |
 | #56 `crimm/Data/residues.xml` | Tracked, not packaged, not referenced. | Delete, or package and use it. | S |
 | #57 `pyflakes` findings | Unused imports and variables in `Solvator.py`, `StructureUtils.py`, `PropKaAdaptors.py`, `RDKitConverter.py`, `charmm_struct_prep.py`. | Remove. **Done: 2026-10-12, and in `Solvator.py` 2026-10-14 (`2b019d3`, Stan agreed). PR #108 closes it.** The unused variables left in `LoopBuilder.py` belong to #50. | S |
-| #59 `Adaptors/RDKitConverter.py` (`RDKitHetConverter`, `heterogen_to_rdkit`) | Raises `TypeError` for a plain `Residue`, and `heterogen_to_rdkit` reads `pdbx_description`, which a residue read from a CRD file lacks. Fixed with tests in PR #121 (`fix/59-rdkit-plain-residue`, 2026-10-30); a downstream project needs it (see the handoff). Issue #59. | Add a test with a plain `Residue` read from a CRD file; review the removed `TypeError`; then merge. | S |
+| #124 `IO/CRDWriter.py`, `IO/CRDParser.py` | A CRD written before a PSF has blank segment IDs, because `PSFWriter` assigns them to the model in place. CHARMM reads such a file, but `CRDParser` splits on whitespace and fails. Found by PR #123. No xfail test yet. | Parse the fixed columns; give the CRD writer the PSF's segment ID policy without changing the model. Then drop the PSF call in `tests/test_golden.py::normalized_crd`. | S |
+| #59 `Adaptors/RDKitConverter.py` (`RDKitHetConverter`, `heterogen_to_rdkit`) | Raises `TypeError` for a plain `Residue`, and `heterogen_to_rdkit` reads `pdbx_description`, which a residue read from a CRD file lacks. **Done 2026-10-30, PR #121**; a downstream project needs it (see the handoff). Issue #59. | Add a test with a plain `Residue` read from a CRD file; review the removed `TypeError`; then merge. | S |
 
 ### 1.5 Make rdkit and nglview optional at import time (#58)
 
@@ -319,6 +321,35 @@ minimizes is right. The pyCHARMM tests (#107) are the reference for every energy
 | #113 Energy terms: port `Potentials.py` onto current `master` | Every term agrees with CHARMM to 1e-3 kcal/mol on 1UBQ and 2IGD (`pycharmm` test), with offline tests against saved reference values | M |
 | #114 Analytic gradients for every term | Gradient check against central finite differences passes per term; 1UBQ minimizes in reasonable time | M |
 | #115 User-facing API, docs, and its own release | `minimize(entity, ...)` with restraints and staged minimization; tutorial notebook; CHANGELOG entry; release cut separately from Phase 5 | M |
+
+## Phase 7: Planned features and robustness
+
+Opened 2026-11-02 by the owner. A design note for improvements that problems in the earlier
+phases point to. It comes after Phase 6 and does not block any earlier phase. An entry here is
+an idea, not a plan: it becomes an issue, with acceptance criteria and a size, once its design
+is settled. Add to it as problems surface, and link the issue that showed the problem.
+
+### 7.1 A simulation system object, with a readiness check
+
+**Idea (owner, 2026-11-02; not fully developed, more notes to come).** An object that holds
+the structures together with the system information a simulation needs, and knows about the
+system as completely as possible. File writers (PSF, CRD, PDB) and adaptors (pyCHARMM,
+OpenMM, ...) take their information from this object instead of each reading a model on its
+own, which makes handing a system over safer.
+
+**First feature: a system readiness check.** Run on the system object before it is passed to
+another program or written out as a structure file, so that an incomplete or inconsistent
+system is reported before it leaves crimm, not discovered by the program that reads it.
+
+Problems already found that such a check or object would have caught or prevented `[inferred]`:
+
+- #124: a CRD written before a PSF has blank segment IDs, because segment IDs are assigned as a
+  side effect of writing the PSF.
+- #46: a ligand without topology is written to the CRD but left out of the PSF.
+- #47 and G5 in the handoff: atoms without a `topo_definition`, after which a chain's
+  `total_charge` is `None` instead of an error.
+
+What the system contains, what the check covers and how it reports are open.
 
 ## Parallel track: crimm-ml integration (RFdiffusion loop building)
 
