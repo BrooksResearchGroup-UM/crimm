@@ -33,6 +33,7 @@ Issue #105 does not exist.
 | Phase 4: Restructure | #86 to #95 |
 | Phase 5: Release | #96 to #100, #106 (toppar licence), #119 (release checklist for the test layers CI cannot run) |
 | Phase 6: Minimizer utility (own release) | #113 to #115 |
+| Phase 7: Planned features and robustness | Design note, no issues or milestone yet: 7.1 system object with a readiness check |
 | crimm-ml track, no milestone | #101 to #104 |
 
 ## Phase 0: Safety net
@@ -319,6 +320,35 @@ minimizes is right. The pyCHARMM tests (#107) are the reference for every energy
 | #113 Energy terms: port `Potentials.py` onto current `master` | Every term agrees with CHARMM to 1e-3 kcal/mol on 1UBQ and 2IGD (`pycharmm` test), with offline tests against saved reference values | M |
 | #114 Analytic gradients for every term | Gradient check against central finite differences passes per term; 1UBQ minimizes in reasonable time | M |
 | #115 User-facing API, docs, and its own release | `minimize(entity, ...)` with restraints and staged minimization; tutorial notebook; CHANGELOG entry; release cut separately from Phase 5 | M |
+
+## Phase 7: Planned features and robustness
+
+Opened 2026-11-02 by the owner. A design note for improvements that problems in the earlier
+phases point to. It comes after Phase 6 and does not block any earlier phase. An entry here is
+an idea, not a plan: it becomes an issue, with acceptance criteria and a size, once its design
+is settled. Add to it as problems surface, and link the issue that showed the problem.
+
+### 7.1 A simulation system object, with a readiness check
+
+**Idea (owner, 2026-11-02; not fully developed, more notes to come).** An object that holds
+the structures together with the system information a simulation needs, and knows about the
+system as completely as possible. File writers (PSF, CRD, PDB) and adaptors (pyCHARMM,
+OpenMM, ...) take their information from this object instead of each reading a model on its
+own, which makes handing a system over safer.
+
+**First feature: a system readiness check.** Run on the system object before it is passed to
+another program or written out as a structure file, so that an incomplete or inconsistent
+system is reported before it leaves crimm, not discovered by the program that reads it.
+
+Problems already found that such a check or object would have caught or prevented `[inferred]`:
+
+- #124: a CRD written before a PSF has blank segment IDs, because segment IDs are assigned as a
+  side effect of writing the PSF.
+- #46: a ligand without topology is written to the CRD but left out of the PSF.
+- #47 and G5 in the handoff: atoms without a `topo_definition`, after which a chain's
+  `total_charge` is `None` instead of an error.
+
+What the system contains, what the check covers and how it reports are open.
 
 ## Parallel track: crimm-ml integration (RFdiffusion loop building)
 
