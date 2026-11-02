@@ -826,5 +826,5 @@ element_dict = {
 }
 
 all_element_dict = {}
-for key, value in element_dict.items():
+for value in element_dict.values():
     all_element_dict.update(value)

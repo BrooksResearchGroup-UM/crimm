@@ -172,7 +172,7 @@ class ResidueDefinition:
 
     def assign_donor_acceptor(self):
         """Assign donor and acceptor properties to atoms."""
-        for hydrogen_name, donor_name in self.H_donors:
+        for _hydrogen_name, donor_name in self.H_donors:
             atom_def = self.atom_dict[donor_name]
             atom_def.is_donor = True
 
@@ -202,7 +202,7 @@ class ResidueDefinition:
                     continue
                 atom_lookup_entries.append((is_improper, atom_name, (i, j, k, l)))
         # we need to sort the entries so that the non-improper entries are first
-        for is_improper, atom_name, ic_key in sorted(atom_lookup_entries):
+        for _is_improper, atom_name, ic_key in sorted(atom_lookup_entries):
             if atom_name not in self.atom_lookup_dict:
                 self.atom_lookup_dict[(atom_name)] = []
             self.atom_lookup_dict[atom_name].append(ic_key)
@@ -227,7 +227,8 @@ class ResidueDefinition:
     def _create_init_atom_coords(self):
         """Find the atoms that can be used to build the initial coordinates for
         residue with ic table filled."""
-        for (a, b, c, d), base_ic1 in self.ic.items():
+        # a, b, c are used after the loop: it stops at the first entry that is not improper.
+        for (a, b, c, _d), base_ic1 in self.ic.items():  # noqa: B007
             if not base_ic1["improper"]:
                 break
 
@@ -236,7 +237,7 @@ class ResidueDefinition:
         rad_abc = base_ic1.get("T(I-J-K)")  # or base_ic1.get('T(I-K-J)')
         t_abc = np.deg2rad(rad_abc)
         r_bc = None
-        for (i, j, k, l), ic_entry in self.ic.items():
+        for (i, j, k, _l), ic_entry in self.ic.items():
             is_improper = ic_entry["improper"]
             if ((i == b and j == c) or (j == b and i == c)) and not is_improper:
                 r_bc = ic_entry["R(I-J)"]

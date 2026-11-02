@@ -506,7 +506,7 @@ class RDKitHetConverter:
 
     def _add_rdkit_bonds(self):
         self._pending_hydrogens = {}
-        for a1, a2, bo_name, is_arom in self.bond_dict:
+        for a1, a2, bo_name, _is_arom in self.bond_dict:
             elem1 = self.element_dict[a1][1].capitalize()
             elem2 = self.element_dict[a2][1].capitalize()
             n_transition_metals = (elem1 in TRANSITION_METALS) + (
