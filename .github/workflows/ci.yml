@@ -36,7 +36,9 @@ jobs:
         run: ruff format --check crimm tests
 
   test:
-    runs-on: ubuntu-latest
+    # TODO(#131): ubuntu-latest (26.04) has no Python 3.9 for setup-python, so the 3.9
+    # cells run on 24.04. Drop Python 3.9 before GitHub retires that image.
+    runs-on: ${{ matrix.python-version == '3.9' && 'ubuntu-24.04' || 'ubuntu-latest' }}
     timeout-minutes: 30
     strategy:
       # Let every combination finish, so the pattern of failures is visible.
