@@ -229,6 +229,7 @@ Things that cost a previous agent time or would produce wrong results silently.
 | G14 | The test suite lives only on `cleanup/phase0-tests-and-dev-docs` until it is merged. A branch cut from `master` has no `tests/test_*.py`, so `pytest` there collects nothing and reports no failures. SUPERSEDED 2026-11-02: merged with PR #108. | `[ran 2026-10-06]` |
 | G17 | ruff `B007` (unused loop variable) only looks inside the loop body. A variable used after the loop, for example one that keeps the value at a `break`, is flagged too; renaming it raises `NameError`. Check uses after the loop before fixing (`TopoDefinitions._create_init_atom_coords`). | `[ran 2026-11-02]` |
 | G16 | Segment IDs are assigned to the model by writing a PSF (`PSFWriter._assign_segids`, also via `get_psf_str`). A CRD written before that has blank segment IDs, which `CRDParser` cannot read (#124). Write the PSF first. | `[ran 2026-11-02]` |
+| G18 | The remote has a branch named `docs`, so no branch named `docs/<anything>` can be pushed: GitHub rejects it with "directory file conflict". Use another prefix, for example `chore/`. | `[ran 2026-11-07]` |
 
 ## 5. State, claims, open questions and log
 
