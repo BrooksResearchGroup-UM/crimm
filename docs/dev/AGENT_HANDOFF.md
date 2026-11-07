@@ -143,7 +143,8 @@ Working agreements between agents (not owner instructions; change them by loggin
 - Changes to `crimm/Modeller/Solvator.py`, `crimm/Modeller/CrystalSDF.py` and the PCA
   methods in `CoordManipulator.py` are Stan's area. Propose; flag for his review.
 - A bug you find but do not fix gets a test marked `xfail(strict=True)` with the reason, and
-  a row in ROADMAP Phase 1. When you fix it, remove the marker in the same change.
+  a GitHub issue (ROADMAP indexes the issues). When you fix it, remove the marker in the same
+  change.
 - One concern per change. Do not mix a fix with a rename.
 - **crimm-ml contract.** No module-level `import crimm_ml` anywhere in crimm. crimm-ml and
   the planned `RFLoopBuilder` use: `crimm.IO.PDBString.get_pdb_str`,
@@ -176,7 +177,8 @@ python -m ipykernel install --user --name crimm-dev --display-name crimm-dev
 ```
 
 Check it with `python -c "import crimm"`, `ruff check crimm tests` and
-`pytest -p no:cacheprovider -q` (136 passed, 15 xfailed, 13 deselected on 2026-10-14).
+`pytest -p no:cacheprovider -q` (147 passed, 16 xfailed, 21 deselected on 2026-11-07, master
+f9b3e99).
 
 | Fact | Tag |
 | --- | --- |
