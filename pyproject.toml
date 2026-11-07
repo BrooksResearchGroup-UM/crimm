@@ -73,7 +73,7 @@ ignore = [
 # `__init__.py` imports names to re-export them.
 "__init__.py" = ["F401"]
 # ArcLoopBuilder is unfinished (undefined `topo`, unused results); see ROADMAP 1.4 and
-# handoff Q2. Remove this entry when it is finished or deleted.
+# #50. Remove this entry when it is finished or deleted.
 "crimm/Modeller/LoopBuilder.py" = ["F821", "F841"]
 
 [tool.mypy]

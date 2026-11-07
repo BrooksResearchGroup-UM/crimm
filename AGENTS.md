@@ -5,12 +5,14 @@ build loops, assign topology, solvate, write PSF/CRD). It must stay lightweight:
 dependencies are optional extras, imported lazily.
 
 **Before doing anything, read [`docs/dev/AGENT_HANDOFF.md`](docs/dev/AGENT_HANDOFF.md)**
-sections 0 to 5: protocol, the owner's standing instructions, environment facts, traps,
-current state and claims. Work is tracked as GitHub issues and indexed in
+sections 0 to 4: protocol, the owner's standing instructions, environment facts and traps.
+Current state, claims and the session log are in the open GitHub issue labelled
+`agent-log` (`gh issue list --label agent-log --state open`): read its description and
+newest three comments. Work is tracked as GitHub issues and indexed in
 [`docs/dev/ROADMAP.md`](docs/dev/ROADMAP.md); standards are in
 [`docs/dev/BEST_PRACTICES.md`](docs/dev/BEST_PRACTICES.md); developer rules, which bind you
-too, are in [`CONTRIBUTING.md`](CONTRIBUTING.md). When you finish, log what you did in the
-handoff.
+too, are in [`CONTRIBUTING.md`](CONTRIBUTING.md). When you finish, post what you did as a
+comment on that issue and update its State (handoff, section 0). That needs no pull request.
 
 The rules that matter most, in case you read nothing else:
 
