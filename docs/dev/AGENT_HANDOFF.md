@@ -108,8 +108,8 @@ log comment.
   `RFLoopBuilder.py` name here and in the contract below is the original placeholder plan;
   the layout is open (issue #101).
 - **To pick up crimm-ml context:** in the crimm-ml repository, read `AGENTS.md`, then
-  sections 0 to 5 of its `docs/dev/AGENT_HANDOFF.md` (same protocol as this file) and its
-  `docs/dev/ROADMAP.md`. The owner's local checkout path is in `CLAUDE.local.md`. Do not copy
+  sections 0 to 4 of its `docs/dev/AGENT_HANDOFF.md` (same protocol as this file), its open
+  `agent-log` issue and its `docs/dev/ROADMAP.md`. The owner's local checkout path is in `CLAUDE.local.md`. Do not copy
   its facts here; link to them.
 - **Private downstream projects.** Projects that depend on crimm and are not public are
   described in the owner's `CLAUDE.local.md` (not in the repository): what they import from
@@ -150,11 +150,12 @@ Working agreements between agents (not owner instructions; change them by loggin
   `crimm.Modeller.ResidueTopologySet` (and `ResidueDefinition.create_residue`),
   `TopologyGenerator.apply_topo_def_on_residue`, `ResidueFixer.load_residue` /
   `build_missing_atoms`, `PolymerChain.gaps`, `.missing_res`, `.sort_residues`. If you rename
-  or change one, keep the deprecated alias (as for any public API) and log a one-line
-  pointer in crimm-ml's AGENT_HANDOFF.
+  or change one, keep the deprecated alias (as for any public API) and post a one-line
+  pointer as a comment on crimm-ml's `agent-log` issue.
 - **Private downstream contracts.** `CLAUDE.local.md` lists the crimm names that private
-  projects import. The same rule applies: keep a deprecated alias and log a one-line
-  pointer in that project's handoff. `[inferred: same rule as for crimm-ml]`
+  projects import. The same rule applies: keep a deprecated alias and post a one-line
+  pointer in that project's agent log (its `agent-log` issue). `[inferred: same rule as for
+  crimm-ml]`
 - Do not delete the branch `RDKConverter-Het` or rewrite `8075b75` without telling the owner;
   a downstream project depends on it (`CLAUDE.local.md`). `[inferred]` SUPERSEDED 2026-10-30:
   deleted at the owner's request, reimplemented on `fix/59-rdkit-plain-residue`.
