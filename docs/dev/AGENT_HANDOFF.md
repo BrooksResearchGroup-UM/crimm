@@ -7,27 +7,46 @@ humans read it second.
 schema: agent-handoff/1
 repo: github.com/BrooksResearchGroup-UM/crimm
 default_branch: master
-last_updated: 2026-11-02
+last_updated: 2026-11-07
+log: open issue labelled agent-log   # gh issue list --label agent-log --state open
 ```
 
 ## 0. Protocol
 
 Read this section fully. Skim the rest for what your task touches.
 
+This file holds what changes rarely: protocol, orientation, the owner's standing
+instructions, the environment and gotchas. What changes every session (STATE, CLAIMS and
+LOG) is in the open GitHub issue labelled `agent-log` (section 5), so that no session needs
+a pull request just to record itself.
+
 ### On arrival
 
 1. Read sections 1 to 4. They are short and change rarely.
-2. Read section 5 (STATE) and the newest three entries of section 8 (LOG).
+2. Read the `agent-log` issue: its description (CLAIMS and STATE) and its newest three
+   comments (LOG). `N=$(gh issue list --label agent-log --state open --json number -q
+   '.[0].number')`, then `gh issue view $N` and `gh issue view $N --comments`.
 3. Run `git status --short` and `git log --oneline -5`. If they disagree with STATE, trust
    git and correct STATE.
-4. Check section 6 (CLAIMS) before editing a file. If another agent holds it, do not edit it.
+4. Check CLAIMS before editing a file. If another agent holds it, do not edit it.
 
 ### On departure
 
-1. Append one entry to LOG (newest first, template in section 8).
-2. Update STATE so it is true now. Rewrite it in place; do not append.
-3. Release your CLAIMS.
-4. Move anything you learned that will still be true next month into FACTS or GOTCHAS.
+1. Post one LOG entry as a comment on the `agent-log` issue (template in the issue
+   description): `gh issue comment $N --body-file <file>`.
+2. Update STATE so it is true now. Re-read the description immediately before, edit it in
+   place, and write it back with `gh issue edit $N --body-file <file>`. Do not append.
+3. Release your CLAIMS in the same edit.
+4. Move anything you learned that will still be true next month into FACTS or GOTCHAS of
+   this file. That is a tracked change: include it in the pull request of your work, or open
+   a small docs pull request.
+
+Without network access or `gh`, write the entry and the new STATE to local files and post
+them in your next session that has both.
+
+When a milestone closes, the agent that closes it opens the next log issue (label
+`agent-log`, title `Agent log: <phase>`) with the current STATE, links it from the old one,
+then closes the old one and moves the pin.
 
 ### Writing rules
 
@@ -41,16 +60,19 @@ Read this section fully. Skim the rest for what your task touches.
 - **State what you did not check.** A missing check written down is worth more than a
   confident guess.
 - **One fact, one place.** Link to `NOTES.md` or `ROADMAP.md` instead of copying from them.
-- **Do not delete another agent's entry.** If it is wrong, add `SUPERSEDED YYYY-MM-DD by
-  <agent>: <why>` under it.
+- **Do not edit or delete another agent's entry.** If it is wrong, say so in your own
+  comment: `SUPERSEDED YYYY-MM-DD by <agent>: <why>`, with a link to the comment.
 - **Identify yourself** as `<model>/<tool>/<short task name>`, for example
-  `claude-opus/claude-code/cleanup`. You have no persistent identity; the task name is what
-  lets others tell sessions apart.
+  `claude-opus/claude-code/cleanup`, in the heading of your log comment. Comments appear
+  under the GitHub account the agent runs as, which is usually a person's; the heading is
+  what tells sessions apart.
+- **The log is public**, like this file. Nothing about a particular machine or account, and
+  nothing about private downstream projects; that goes in the owner's `CLAUDE.local.md`.
 - Keep entries terse. No preamble, no summaries of summaries.
 
 ### What goes where
 
-| Kind of information | File |
+| Kind of information | Place |
 | --- | --- |
 | How the code is built, conventions, architecture | `docs/dev/NOTES.md` |
 | Anything about crimm-ml, the optional ML package (its code, model, service, state) | `docs/dev/AGENT_HANDOFF.md` in the crimm-ml repository |
@@ -58,9 +80,12 @@ Read this section fully. Skim the rest for what your task touches.
 | What work is planned, its order, its status | `docs/dev/ROADMAP.md` |
 | Standards the work should meet | `docs/dev/BEST_PRACTICES.md` |
 | Conflicts and issues met preparing particular PDB entries (clashes, patch choices) | `docs/dev/PDB_PREP_LOG.md` |
-| Who is doing what now, what was tried, what failed, traps, decisions | this file |
+| Who is doing what now, current state, what was tried, what failed, decisions | the `agent-log` issue (section 5) |
+| Questions an agent could not settle | an issue labelled `question` |
+| Protocol, standing instructions, environment facts, traps | this file |
 
-If something belongs in the first three, put it there and log a one-line pointer here.
+If something belongs in the first three, put it there and give a one-line pointer in your
+log comment.
 
 ## 1. Orientation
 
@@ -98,6 +123,7 @@ Follow these unless the owner says otherwise in your own session.
 | Date | Instruction | Tag |
 | --- | --- | --- |
 | 2026-10-06 | Dev documents are tracked Markdown under `docs/dev/`. | `[told]` |
+| 2026-11-07 | Agent activity (state, claims, session log) is not kept in a tracked file, because each update would need a pull request. It goes in the open `agent-log` issue; open questions are issues labelled `question` (section 5). | `[told]` |
 | 2026-10-06 | Public API may break, but old import paths must keep working with `DeprecationWarning`. | `[told]` |
 | 2026-10-06 | Resolve TODO comments before the refactor and restructure phases. SUPERSEDED 2026-10-28 by the row below. | `[told]` |
 | 2026-10-28 | Pull requests are merged by the owner once CI is green and reviewed afterwards in batches (label `review-after-merge`), except changes to Stan's files, which wait for his approval. Small pull requests, one concern each. Rule: CONTRIBUTING, "Review and merge". | `[told]` |
@@ -203,631 +229,18 @@ Things that cost a previous agent time or would produce wrong results silently.
 | G14 | The test suite lives only on `cleanup/phase0-tests-and-dev-docs` until it is merged. A branch cut from `master` has no `tests/test_*.py`, so `pytest` there collects nothing and reports no failures. SUPERSEDED 2026-11-02: merged with PR #108. | `[ran 2026-10-06]` |
 | G17 | ruff `B007` (unused loop variable) only looks inside the loop body. A variable used after the loop, for example one that keeps the value at a `break`, is flagged too; renaming it raises `NameError`. Check uses after the loop before fixing (`TopoDefinitions._create_init_atom_coords`). | `[ran 2026-11-02]` |
 | G16 | Segment IDs are assigned to the model by writing a PSF (`PSFWriter._assign_segids`, also via `get_psf_str`). A CRD written before that has blank segment IDs, which `CRDParser` cannot read (#124). Write the PSF first. | `[ran 2026-11-02]` |
+| G18 | The remote has a branch named `docs`, so no branch named `docs/<anything>` can be pushed: GitHub rejects it with "directory file conflict". Use another prefix, for example `chore/`. | `[ran 2026-11-07]` |
 
-## 5. State
+## 5. State, claims, open questions and log
 
-Rewrite in place. True as of `2026-11-02`.
+These change every session, so they are not kept in this file, which needs a pull request
+for every change. Since 2026-11-07 `[told]`:
 
-```yaml
-branches:                          # master = origin/master = ede6dd7, the merge commit of PR #126
-                                   # (2026-11-02) [ran].
-                                   # From 2026-10-28 [told]: one short branch per concern, cut
-                                   # from master, one small PR each.
-  chore/phase0-done:               # agent, 2026-11-02: Phase 0 marked done, this State.
-  fix/59-rdkit-plain-residue:      # merged as b7a2b6e (PR #121, squash). Kept, local, in the
-                                   # extra worktree, until a downstream project stops importing
-                                   # from that worktree (CLAUDE.local.md). Then remove both.
-  feat/coordmanipulator-find-max-dim:    # the owner's solvation edits. Pushed 2026-10-30, no PR
-    - 9971782                      # CoordManipulator.find_max_dim; Solvator TODO(#66). Based on
-                                   # 829a4fd; touches Stan's files: needs his approval.
-  minimizer:                       # owner's, local only, 2477c3b (2026-05-14), based on 829cd10.
-                                   # Prototype of the Phase 6 minimizer (crimm/Potentials.py);
-                                   # starting point of #113. Keep until #113 has ported it.
-  # deleted 2026-10-14 at the owner's request (local only, unmerged): cleanup-wip 5c07b28,
-  # remove 6ff13f8. Restore with `git branch <name> <sha>` while the objects exist.
-  # deleted 2026-10-16 at the owner's request: solvator-coor-orient-options fa7338a.
-  # deleted 2026-10-28, local and origin: cleanup/phase0-tests-and-dev-docs 2dbfde0 (PR #108);
-  # chore/dev-docs-post-108 and chore/111-pre-commit (merged).
-  # deleted 2026-10-30 at the owner's request (local only, unmerged): RDKConverter-Het 8075b75,
-  # reimplemented as 1816fbb; backup/find-max-dim-44e9bf6 44e9bf6. After PR #117:
-  # style/110-ruff-format 2ebbc05.
-  # deleted 2026-11-02, all merged: test/39-golden-files f870a2d, chore/dev-docs-post-123
-  # a5da19a, style/109-lint-rules 6151f6e; on origin by GitHub after their merges.
-env: "crimm-dev from environment-dev.yml, plus pycharmm and CHARMM_LIB_DIR (section 3).
-      Account-specific install details: CLAUDE.local.md"
-uncommitted_owner_work: none       # tutorials: all to be dealt with later [told 2026-10-30]
-uncommitted_agent_work: none
-worktrees: "one extra worktree, on fix/59-rdkit-plain-residue (CLAUDE.local.md)"
-untracked_not_ours:
-  - import-fix.md                  # work order, see standing instructions
-github:
-  issues: "#39 to #127 (no #105). Milestones 1 to 7 = Phases 0 to 6; milestone 1 (Phase 0)
-           CLOSED 2026-11-02, 8 of 8 issues closed; Phase 7 has no milestone. #120 filed
-           2026-10-30, #124 and #127 on 2026-11-02. Milestone 3 is still titled 'Phase 2:
-           Resolve every TODO comment' [ran 2026-11-02]"
-  branch_protection: "master: all-green required (strict false), 1 approving review, force pushes disallowed, deletions disallowed, admins not enforced [ran 2026-10-12, gh api; set by the owner]"
-  repo_settings: "automatically delete head branches: on, since 2026-10-28 [told]"
-  labels: "review-after-merge, created 2026-10-28; on #116, #117, #118, #121, #122, #123, #125,
-           #126: none reviewed yet"
-  pull_requests: "Open: the one from chore/phase0-done. Merged by the owner: 2026-10-30 #117
-                  (merge commit 826c103), #121 (squash b7a2b6e), #122 (squash c54318e);
-                  2026-11-02 #123 (squash 5466236), #125 (squash fb61a45), #126 (merge commit
-                  ede6dd7, three SHAs in .git-blame-ignore-revs)."
-owner_reminders:                   # tell the owner at the start of the next session
-  - "Reminders for private downstream projects (#59 fix): CLAUDE.local.md"
-  - "Open the PR for feat/coordmanipulator-find-max-dim, with a review deadline for Stan"
-  - "Send Stan the review batch: the 8 PRs labelled review-after-merge, in merge order"
-test_suite: {passed: 147, xfailed: 16, deselected: 13, date: 2026-11-02}   # offline default run, NumPy 2, on PR #126's branch
-test_suite_pycharmm: {passed: 8, xfailed: 2, date: 2026-11-02}   # pytest -m pycharmm in crimm-dev, on PR #126's branch
-roadmap_done:
-  - "Phase 0 DONE 2026-11-02, milestone closed: offline suite, markers, benchmark move, CI on 9
-     cells (PR #108); CHARMM/pyCHARMM tests (#107); ruff check, ruff format, pre-commit
-     (#110, #111, PR #117); golden files (#39, PR #122, fixed by PR #123); B007, E741, UP031
-     (#109, PR #126). Moved to Phase 3: B028 to #77, UP006/UP035 to #83, rule set to #127"
-  - "Phase 1: #59, PR #121 2026-10-30"
-roadmap_next:
-  - "#124: the strict xfail test the rules require is not written yet; the fix itself later
-     [told 2026-11-02]"
-  - "PR for feat/coordmanipulator-find-max-dim (Stan's review, with a deadline); the review
-     batch for Stan (owner_reminders)"
-  - "Next code change: #58 (ROADMAP 1.5, optional imports), the first Phase 1 PR; it ends
-     by deleting import-fix.md"
-  - "Phase 1 priority: #43 and #44 are Stan's (solvation mirror image, PCA transform); ask him
-     when he can take them"
-  - "Phase 7 design notes: the owner adds to 7.1 (system object, readiness check)"
-  - "Later, owner's choice 2026-10-16 [told]: #112 disulfide dihedrals (owner's area; xfails in
-     test_topology.py and test_pycharmm.py); Phase 6 minimizer (#113 to #115), planned in
-     detail only when it starts"
-  - "TODO issues (#60 to #70, #87): phase decided when each starts (section 2, 2026-10-28)"
-library_code_changed_by_agents: "2026-10-12 and 2026-10-14, behaviour-neutral only: lint fixes
-  (2026-10-12; 2026-10-14 in Stan's files), ruff format of Stan's three files, TODO comment
-  text. PR #117, merged 2026-10-30: ruff format of the rest. PR #121, merged 2026-10-30:
-  RDKitConverter.py, a TypeError becomes a warning (#59). PR #126, merged 2026-11-02:
-  B007, E741, UP031 fixes, behaviour-neutral (variable names, f-strings)."
-```
-
-## 6. Claims
-
-A claim says "I am editing this; stay out". Add a row when you start, remove it when you
-stop. A claim older than 24 hours with no matching LOG entry is stale; take it and log that
-you did.
-
-| Path or area | Agent | Since | Purpose |
-| --- | --- | --- | --- |
-| (none) | | | |
-
-## 7. Open questions
-
-Things an agent could not settle. Answer one by replacing it with a dated FACT, GOTCHA or
-ROADMAP row.
-
-| ID | Question | Raised |
-| --- | --- | --- |
-| Q1 | Why does `PSFWriter` write 394 atoms and charge +4.5 per 1BNA strand when the model has 383 atoms and charge -12? Residue 1 matches; residues 2 to 12 each have one duplicated atom name. Not investigated further. | 2026-10-06 |
-| Q2 | Is `ArcLoopBuilder` (`crimm/Modeller/LoopBuilder.py`) meant to be finished or removed? It references an undefined name `topo`. Owner decision. | 2026-10-06 |
-| Q3 | Should a ligand without topology be dropped from both PSF and CRD, or kept in both? They disagree now. Owner decision. | 2026-10-06 |
-| Q4 | Are `crimm/Utils/cuda_info.py` and `crimm/Data/probes/` still wanted in crimm? They look left over from a removed docking module. Owner decision. | 2026-10-06 |
-| Q5 | Licence and provenance of the bundled CHARMM toppar files are undocumented. | 2026-10-06 |
-| Q6 | No pyCHARMM is available to agents on this machine, so the `pycharmm` marker has no tests and the pyCHARMM adaptor is unverified by any agent. Where can it be run? | 2026-10-06 **PLAN 2026-10-08 `[told]`:** the owner builds CHARMM locally, likely Monday 2026-10-12; see ROADMAP "CHARMM and pyCHARMM". Stays open until `import pycharmm` works in `crimm-dev`. **ANSWERED 2026-10-14:** in `crimm-dev` (section 3). `load_model` was run on 1CRN `[ran]`; `tests/test_pycharmm.py` added the same day (8 passed, 2 xfailed for #112) `[ran]`. |
-| Q7 | Which session owns the "Parallel track: crimm-ml integration" section of ROADMAP? It was added by another session on 2026-10-06; that session has not logged here. | 2026-10-06 **ANSWERED 2026-10-06 by claude-opus/claude-code/crimm-ml:** that session added it at the owner's request; see its LOG entry below. State for crimm-ml lives in crimm-ml's own AGENT_HANDOFF. |
-
-## 8. Log
-
-Newest first. Append only. Template:
-
-```markdown
-### YYYY-MM-DD <model>/<tool>/<task>
-
-- asked:
-- did:
-- verified:
-- not verified:
-- found:
-- next:
-```
-
-### 2026-11-02 claude-opus/claude-code/phase0-close
-
-- asked: finish Phase 0 today, as a plan first; then step 3 of it (docs, milestone).
-  `[told 2026-11-02]`
-- did: PR #126 (merged by the owner with a merge commit, ede6dd7): one commit per rule for
-  `B007`, `E741`, `UP031`, each removing its rule from `ignore`; comments on the remaining
-  ignores point at #77 and #83; the three lint SHAs in `.git-blame-ignore-revs`. Issues: `B028`
-  moved to #77, `UP006`/`UP035` to #83, widening the rule set to new #127 (Phase 3); boxes
-  on #109 and #110 ticked with links. After the merge: milestone 1 closed (0 open, 8 closed);
-  ROADMAP Phase 0 marked done; this State.
-- found `[ran]`: `B007` flagged `a, b, c` in `TopoDefinitions._create_init_atom_coords`, which
-  are used after the loop. Renaming them would have raised `NameError`. See G17.
-- decided: `E741` names were changed through the syntax tree, per function, refusing a name
-  already in use; `i, j, k, l` stay where they are CHARMM's names for the four atoms of an
-  internal coordinate, with `# noqa: E741` and a comment.
-- verified `[ran]`: after each commit the offline suite gave 147 passed, 16 xfailed; `-m
-  pycharmm` 8 passed, 2 xfailed; `MolToMol2Block` output for ten molecules byte-identical to
-  master (no offline test covers it); CI green on all 11 checks; `git blame` with the ignore
-  file credits the original authors. A downstream suite that imports the RTF/PRM parsers gave
-  the same result against master and the branch (CLAUDE.local.md).
-- not verified: one failure in the first downstream run did not recur in three more, and its
-  name was not captured. Its counts changed between runs; its working tree had uncommitted
-  changes, so it was probably being edited at the time `[inferred]`.
-- claims: none held.
-- next: State `roadmap_next`.
-
-### 2026-11-02 claude-opus/claude-code/review-123-phase7
-
-- asked: review Stan's PR #123 (golden CRD files without segment IDs); then: no CHANGELOG
-  entry for it, `TODO(#124)` on the workaround, delete `test/39-golden-files`, and a ROADMAP
-  phase after the minimizer for design ideas, starting with a system readiness check.
-  `[told 2026-11-02]`
-- found `[ran]`: the CRD golden files of #122 had blank segment IDs. The test wrote the CRD from a
-  fresh model; segment IDs are assigned only by `PSFWriter._assign_segids`, in place. The
-  2026-10-30 checks missed it: the scratch script that inspected the output wrote the PSF first,
-  and no test parsed the committed CRDs. PR #123 writes the PSF first and parses the CRD.
-- found `[ran]`: CHARMM reads a CRD with blank segment IDs (1CRN, `read.coor_card` after
-  `load_model`) to the same coordinates as with `PROA`; only `CRDParser` fails, since it splits
-  on whitespace. Filed #124; its xfail test is not written.
-- verified `[ran]` on #123: 3,319 atom lines changed, all only in the segment-ID columns (`PROA`,
-  `SOLV`); the old files fail the new parse; without the PSF call the three CRD tests fail;
-  offline 147 passed, 16 xfailed; `-m pycharmm` 8 passed, 2 xfailed; CI green. Its
-  segment-ID assertion cannot fail on its own: a blank segment ID already makes the parse raise.
-- did: on #123's branch, at the owner's request: removed its CHANGELOG entry (test-only; the
-  record is this entry) and added `TODO(#124)`. ROADMAP Phase 7 with 7.1 (system object and
-  readiness check, the owner's idea); bookkeeping for #121 to #124; this State. Deleted
-  `test/39-golden-files`.
-- claims: none held.
-- next: State `roadmap_next`.
-
-### 2026-10-30 claude-opus/claude-code/golden-files-and-59
-
-- asked: golden-file tests (#39) and a handoff update; merge #117 and label it; push
-  `feat/coordmanipulator-find-max-dim`; delete the find-max-dim backup; delete
-  `RDKConverter-Het` and reimplement its fix on the current code in a new pushed branch.
-  `[told 2026-10-30]`
-- not done: **merging #117.** The owner asked; `CONTRIBUTING` says agents never merge, which the
-  owner's request overrides for that PR. The attempt (`gh pr merge 117 --merge --admin`) was
-  refused by the agent's permission system ("Merge Without Review") and not retried another way.
-  Label applied. The owner merged it 2026-10-30 (826c103) with a merge commit.
-- did, #59: `fix/59-rdkit-plain-residue`, 1816fbb, pushed. `load_heterogen` warns instead of
-  `TypeError`; `heterogen_to_rdkit` uses `getattr` for `pdbx_description`; new
-  `tests/test_rdkit_converter.py` reads a residue from a CRD file. Author line stays the owner's.
-  The extra worktree was moved onto this branch instead of being removed, because a downstream
-  project imports from its path (`CLAUDE.local.md`).
-- did, #39: `tests/test_golden.py`, 5 files in `tests/data/golden/` (1.2 MB),
-  `--update-golden` in `tests/conftest.py`, on `test/39-golden-files`. Also compared coordinates
-  in `test_load_psf_crd_round_trip`, the gap left after 2dbfde0. Rebased onto 826c103 once #117
-  merged, committed and pushed at the owner's request. `CONTRIBUTING`: the project prefers small
-  pull requests `[told 2026-10-30]`. The owner recorded the pushed fix in the downstream project.
-  Opened #121 and this branch's PR at the owner's request; merging stays with the owner.
-- found `[ran]`: output differs between runs, so the design in #39 could not be followed as
-  written. (1) `!NTHETA` and `!NPHI` change order and direction, filed as #120 with an xfail
-  test; the test sorts both sections until then. (2) Water hydrogens use the unseeded global
-  generator, so the test seeds it and cannot use `shared_prepared`, whose models are cached
-  unseeded. See G15.
-- verified `[ran]`: fix: both tests fail before it with the reported errors; offline suite 140
-  passed, 15 xfailed on the fix branch; real CCD entry for BEN gives 17 atoms (9 heavy, 8 H) from
-  a CRD residue; the downstream suite (`CLAUDE.local.md`) passes against that worktree.
-  Golden: identical under `PYTHONHASHSEED` 1 and 2, and across Python 3.9/NumPy 1.26,
-  3.12/1.26, 3.12/2.5 and 3.13/2.2; changing `.10f` to `.9f` in `CRDWriter` fails with a diff;
-  swapping x and y in `CRDParser` fails the stronger round-trip test (3 of 3). Offline suite 143
-  passed, 16 xfailed on `test/39-golden-files`; `-m pycharmm` 8 passed, 2 xfailed. The test files
-  applied on #117's head: `ruff format --check` clean, tests pass.
-- verified `[ran]`: CI by hand (`gh workflow run CI`) on `test/39-golden-files` at cd63883, run
-  41108339529: lint and all 9 test cells passed, so the golden files also match there.
-- not verified: that the golden PSFs match CHARMM, beyond
-  the existing `tests/test_pycharmm.py` comparison, which is what #39's design relies on; a PR
-  for the fix branch.
-- decided: exact CRD comparison stays (measured above). Golden files hold the normalised text, so
-  no user name or timestamp enters the repository. The test branch starts from `master`, not
-  #117: it does not need the format, and #117's branch lacks #116's docs.
-- claims: none held.
-- next: State `roadmap_next` and `owner_reminders`.
-
-### 2026-10-28 claude-opus/claude-code/phase0-review
-
-- asked: after #108 merged, review what is left of Phase 0 and the next steps; record the
-  owner's correction to the TODO rule.
-- found `[ran]`: #108 merged 2026-10-26 (merge commit 829a4fd) after Stan approved. His review
-  comment: `test_crd_round_trip_preserves_coordinates` compared `np.sort(..., axis=0)`, which
-  sorts x, y and z separately, so wrong coordinates passed (permuted y moved atoms up to 35 Å
-  and all three PSF/CRD round-trip tests still passed). He fixed it in 2dbfde0 by matching
-  atoms on (segid, resid, name). `test_load_psf_crd_round_trip` still checks only counts, not
-  coordinates `[read]`. His NumPy 1.26 run shows 137 passed, 14 xfailed: the #51 xfail is
-  conditional on NumPy 2, as intended `[read]`.
-- found `[ran]`: the owner's 2026-10-27 run of `tutorials/CHARMMLoader.ipynb` failed on
-  `pkg_resources`; cause is a stale propka in the owner's user site (CLAUDE.local.md).
-- did: section 2, TODO rule superseded `[told 2026-10-28]`; ROADMAP ground rules and Phase 2
-  intro say the same, heading now "Phase 2: TODO comments"; ROADMAP index and #41 row say
-  #108 merged; State rewritten. Commits 3010669, 068460a and this one on `docs/post-108`.
-- did, second request `[told 2026-10-28]` (housekeeping, #110, #111; smaller PRs from now on):
-  fast-forwarded local master with `git fetch origin master:master` (a dirty tree blocked
-  `git switch`); deleted the cleanup branch locally and on origin (`fetch --prune` also
-  dropped stale `origin/topology-def` and `origin/workshop`). Rebased
-  `feat/coordmanipulator-find-max-dim` in a temporary worktree, so the owner's uncommitted
-  notebook stayed untouched; one conflict (the Solvator TODO line, now `TODO(#66)`); backup
-  branch kept. #110 first half on `style/110-ruff-format`; #111 on `chore/111-pre-commit`
-  (State `branches`).
-- decided: the pre-commit ruff hooks are limited to `crimm/` and `tests/` (as CI) because
-  ruff-pre-commit 0.16.10's `ruff-format` also matches notebooks and Markdown `[read: its
-  .pre-commit-hooks.yaml]`; no whitespace or end-of-file hooks, which would rewrite the
-  toppar and structure data files `[inferred]`.
-- verified `[ran]`: CI on master at 829a4fd green (run 40369326456 and siblings); offline
-  suite 136 passed, 15 xfailed on 2dbfde0 and again after the format; the syntax tree of
-  all 68 files is identical before and after the format (docstring whitespace normalised;
-  script not committed); `ruff check` and `ruff format --check` clean; `pre-commit run
-  --all-files` passes and a bad line fails both ruff hooks; `-m pycharmm` 8 passed, 2
-  xfailed on the formatted code (the format touched `pyCHARMMAdaptors.py`).
-- not verified: the new CI format step has not run on GitHub (not pushed); `ruff` in
-  `environment-dev.yml` is unpinned, so a local `ruff format` can differ from CI's 0.16.10
-  (pre-commit pins its own).
-- did, third and fourth requests `[told 2026-10-28]`: review rule in CONTRIBUTING ("Review
-  and merge") and the PR template: merge after green CI, batch review afterwards, Stan's files
-  reviewed first. Label `review-after-merge` created. Pushed the three branches, opened #116
-  to #118. Opened #119 (Phase 5, release checklist), commented on and closed #107.
-- verified `[ran]`: rebuilding the format commit from master with ruff 0.16.10 gives an
-  identical tree (`git diff --stat 7ead967` empty), the check given to the reviewer in #117.
-- claims: none held.
-- next: State `roadmap_next` and `owner_reminders`.
-
-### 2026-10-16 claude-opus/claude-code/pr108-wrapup
-
-- asked: wrap up PR #108 and give a clear picture of the next stage; delete
-  `solvator-coor-orient-options`; number the xfail reasons; decide the three unchecked PR
-  checklist items; describe how #39 golden files would work. #112 and the minimizer later.
-- did: deleted the branch (`git branch -d`, fa7338a is in the cleanup branch). `f0a3220`: 11
-  xfail reasons start with `#N:` (#43 to #53). `73becef`: `CHANGELOG.md` (Keep a Changelog,
-  `Unreleased`, one entry: the `test` extra); ROADMAP #96 now completes it instead of
-  creating it. Docs commit: ROADMAP rows for xfail numbering and #57, this State. PR #108:
-  body updated (closes #57; checklist ticked with reasons), marked ready after green CI.
-  Posted the #39 design as a comment on the issue.
-- decided `[told]`: checklist items are conditions on what a PR changes, not repo-wide tasks.
-  Docstrings stay with #83 (Phase 3), the full changelog with #96 (Phase 5), optional imports
-  with #58 (next PR).
-- found `[ran]`: #57 is done. `ruff check --select F401,F841 --isolated crimm` finds only
-  `__init__.py` re-exports and `LoopBuilder.py:712-713` (#50).
-- verified `[ran]`: offline 136 passed, 15 xfailed, 13 deselected, each XFAIL line shows its
-  issue; `-m pycharmm` 8 passed, 2 xfailed; `ruff check crimm tests` clean.
-- not verified: #39 design (no code yet); whether crimm's built hydrogen coordinates are
-  identical to 10 decimals across the CI matrix (the design measures it first).
-- wrap-up (same day): CI green on `ecaa39b` (run 38963881849) before `gh pr ready` `[ran]`; the
-  owner messaged Stan for the review `[told]`. Commented on #46 and #112 (their fixes add the
-  3PTB and 1CRN PSF golden files); #96 description now says the file exists. Nothing
-  unpushed.
-- claims: none held.
-- next: State `roadmap_next`; first, after #108 merges, rebase
-  `feat/coordmanipulator-find-max-dim` (owner_reminders).
-
-### 2026-10-14 claude-opus/claude-code/charmm-build
-
-- asked: pick up from 2026-10-12; build CHARMM (#107) from the owner's CHARMM checkout, compilers from
-  `module av`. Mid-session: issue numbers for the TODOs; lint and format Stan's files (he
-  agreed) keeping blame with him; update PR #108; explain the ruff issue filing; start a log of
-  structure-specific prep issues (first: CT3 on 1CRN).
-- did: owner chose `origin/master` in a new worktree, minimal CPU build, agent configures and
-  submits. Created a detached worktree of that checkout at `c16e5816e`, wrote and submitted the
-  SLURM job (3 tries: modules vs `set -e`; Python 3.6 vs `configure`), installed pyCHARMM
-  editable into `crimm-dev`, set `CHARMM_LIB_DIR` there (section 3). Commits, pushed: `b2cb021`
-  (26 TODOs -> `TODO(#N)`, all to existing issues), `2b019d3` (lint of Stan's files, per-file
-  ignores removed, unused `max_serial` removed), `85640ad` (`ruff format` of them),
-  `0bf85e4` (`.git-blame-ignore-revs`, CONTRIBUTING: merge-commit exception to squash),
-  `6a00566` (CI NumPy pin), `3132e52` (`docs/dev/PDB_PREP_LOG.md`), then this docs commit.
-  PR #108 body rewritten. Filed #109, #110, #111. Deleted the two 2026-10-13 reminder memories
-  after delivering them.
-- verified `[ran]`: CHARMM build exit 0, 1 min 51 s on a compute node; `import pycharmm` in
-  activated `crimm-dev`; `load_model` on 1CRN: atoms and charge agree with CHARMM (CT3: 651, 0;
-  CTER: 646, -1); CTER energy 178.3 kcal/mol. Offline suite 133 passed, 13 xfailed after each
-  library change; `ruff check crimm tests` clean; ASTs of Stan's files unchanged by the format
-  except whitespace in six docstrings; blame with the ignore file gives Stan 1,367 of
-  Solvator's lines (1,348 before today; 38 lines new from the formatter stay on the format
-  commit). CI on `3132e52` green in all cells with the right NumPy.
-- not verified: any `pycharmm` test (none written yet); `get_charmm_coord_dict` and the
-  non-PSF/CRD load paths; GitHub's blame view with the ignore file; the cluster's shared
-  CHARMM builds; whether 1UBQ, 2IGD, 3PTB also clash with CT3.
-- found: CI cell py3.12 numpy<2 had run NumPy 2.5.4 since 2026-10-12 (fixed). Squash-merging
-  #108 would break `.git-blame-ignore-revs`. `generate_model` default CT3 builds its methyl
-  onto the 1CRN Arg10-Asn46 salt bridge (VDW 4.2e6); owner: CT3 is intended (section 2,
-  PDB_PREP_LOG). `max_serial` in `_convert_existing_waters_to_tip3` suggests built water
-  hydrogens were meant to get serial numbers (told Stan in #108). pyCHARMM `stop` dumps core.
-- followed (same day, owner's request): added `CHARMM_LIB_DIR` to the `env` of
-  the `crimm-dev` kernel's `kernel.json` (outside the repo); a notebook run on
-  that kernel with the variable unset in the shell imports pyCHARMM `[ran]`. Wrote
-  `tests/test_pycharmm.py` (10 tests, marker `pycharmm`, no module-level pyCHARMM import,
-  skips without `CHARMM_LIB_DIR`): CHARMM's reading of crimm's PSF equals crimm's file; crimm's
-  PSF and energy equal CHARMM's own generation (sequence, patches, DISU, crimm's CRD) for 1CRN
-  (CTER), 1UBQ, 2IGD; `fetch_coords_from_charmm` follows a shift applied in CHARMM (first run of
-  `get_charmm_coord_dict`). Found #112 (filed): disulfide cysteines get `N/C-CA-CB-SG` twice and
-  lack `HB*-CB-SG-SG'`; same dihedral count, DIHE off by 1.10 kcal/mol on 1CRN; 3PTB has 24
-  duplicates. Pinned by strict xfails (offline in `test_topology.py` for 1CRN and 3PTB; the two
-  1CRN comparisons in `test_pycharmm.py`); with `--runxfail` they fail on `dihedrals` and
-  `DIHE` only `[ran]`. Comparing PSFs as sets hid the duplicates at first; the tests use
-  multisets.
-- wrap-up (same day): fixed the `Host key verification failed` push errors (stale GitHub RSA
-  keys stored under IPs in the owner's `known_hosts`; details in `CLAUDE.local.md`). At the
-  owner's request: deleted local branches `cleanup-wip` and `remove` (SHAs in State),
-  recorded `minimizer`, fast-forwarded local `master` to `origin/master`; added ROADMAP
-  "Phase 6: Minimizer utility (own release)" with milestone 7 and issues #113 to #115, and the
-  #112 row in 1.3.
-- verified `[ran]`: `-m pycharmm` 8 passed, 2 xfailed (about 10 s); offline 136 passed,
-  15 xfailed, 13 deselected; `-m pycharmm` without `CHARMM_LIB_DIR` 10 skipped; ruff clean.
-- not verified: the pycharmm tests with solvent, ligands (CGenFF) or nucleic acids; the
-  legacy `use_psf_crd=False` load path.
-- followed (same day, owner's request): moved machine- and account-specific facts (paths,
-  cluster, the CHARMM build location) and private downstream projects from this file to the
-  owner's `CLAUDE.local.md` (new standing instruction, section 2). Section 3 now describes
-  how `crimm-dev` is built from `environment-dev.yml` and what was done for CHARMM and
-  pyCHARMM, generically. Older LOG entries were redacted in place at the owner's request (an
-  exception to "do not delete another agent's entry"); one entry moved to
-  `CLAUDE.local.md`, with a stub here. The old text stays in git history.
-- claims: none held.
-- next: State `roadmap_next`.
-
-### 2026-10-12 claude-sonnet/claude-code/phase0-lint-ci
-
-- asked: remind the owner of the skipped `git worktree` lesson (done; the owner then created
-  a worktree for the hotfix branch); list the working items; then do ROADMAP Phase 0 items
-  "move benchmark", "ruff", "CI workflow", and write a lesson on ruff and CI for the owner.
-  The CHARMM and pyCHARMM build (#107) was postponed to 2026-10-13 by the owner.
-- did (committed as 734ffdb, b340111 and the CI/lesson/handoff commit; push and draft PR: see below): `git mv tests/benchmark_pipeline.py benchmarks/`;
-  ruff in three steps: `ruff check --select I --fix` (54 files, excluding Stan's three files),
-  safe fixes (unused imports and variables, `super()`, open modes, `yield from`, f-string,
-  UP rules; one loop variable renamed in `get_charmm_coord_dict` to fix B020), then
-  `[tool.ruff]` in `pyproject.toml` (select F, E4, E7, E9, I, B, UP; documented ignores;
-  per-file ignores for `__init__.py`, `LoopBuilder.py` and Stan's files);
-  `.github/workflows/ci.yml` (jobs `lint`, `test` matrix Python 3.9 to 3.13 x NumPy `<2`/`>=2`
-  minus 3.13+`<2`, `all-green`); `docs/dev/lessons/ci-basics.md`; updated CONTRIBUTING, NOTES,
-  ROADMAP rows, this file.
-- verified `[ran]`: offline suite 133 passed, 13 xfailed, 3 deselected before the work and after
-  each step (about 50 s); `ruff check crimm tests` exits 0 (ruff 0.16.10, py39 target);
-  `import crimm` and subpackages import; the workflow YAML parses; `pip install --dry-run
-  --python-version 3.9/3.10/3.13 --only-binary` resolves numpy, scipy, pandas, biopython,
-  rdkit, ipywidgets for the edge matrix cells (nglview, propka and py3Dmol are sdist-only
-  and were not part of that check).
-- not verified: the workflow has not run on GitHub; no test was run on Python 3.9 to 3.11 or
-  NumPy 1.x (so a red cell there is expected information, not a surprise); the pyCHARMM path
-  (`get_charmm_coord_dict` rename is behaviour-neutral by reading, not run); `actionlint` is
-  not installed. Branch protection not set.
-- left for Stan (findings still in place, covered by per-file ignores in `pyproject.toml`):
-  `Solvator.py` (unused imports `Atom`, `get_bounding_cube_size`, unused `max_serial`,
-  f-string without placeholders, unsorted imports), `CrystalSDF.py` and
-  `CoordManipulator.py` (unsorted imports).
-- found: the handoff State said the 2026-10-08 commits were local only; git shows the branch on
-  origin at `e5b855a`. `LoopBuilder.py` still has the undefined `topo` (Q2), kept visible by a
-  per-file ignore with a comment.
-- followed (same day, at the owner's request): updated the path in the owner's
-  `tests/slurm/submit_pipeline.sh`; made the three commits `734ffdb`, `b340111`, `8cd6204`;
-  pushed `cleanup/phase0-tests-and-dev-docs` (e5b855a..8cd6204) and opened **draft PR #108**
-  into `master`. First CI run `[ran 2026-10-12/13 UTC]`: `lint`, all nine `test` cells
-  (Python 3.9 to 3.13, NumPy 1.26.4 and 2.5.4) and `all-green` passed. The NumPy 1 cell shows
-  134 passed, 12 xfailed: the `box_dim` xfail is conditional on NumPy >= 2, as designed.
-  Not checked: the log of every cell, only py3.9+NumPy 1 and py3.13+NumPy 2. Branch
-  protection is not set.
-  This LOG addition and the State edits above are uncommitted (a fourth commit was not
-  authorised).
-- next: see `roadmap_next` in State: run CI on GitHub (needs the owner's go-ahead to push and
-  open a draft PR), then read each matrix cell; CHARMM build on 2026-10-13.
-
-### 2026-10-12 claude-sonnet/claude-code/wrapup
-
-- asked: end-of-day wrap-up; commit and push this handoff; set branch protection on `master`
-  to require `all-green`; write a note for the owner's meeting with Stan (in the owner's private
-  notes, not in the repository).
-- did: committed and pushed the handoff (the commit that carries this entry); wrote the meeting
-  note there. `git log @{u}..HEAD` was empty before this commit, so nothing else was
-  unpushed. No branch was deleted: no local branch other than `master` is merged into it.
-- found: **`master` is already protected** (the State said `not_set`, wrong): 1 approving review
-  required, no required status checks, force pushes allowed, admins not enforced `[ran,
-  gh api repos/BrooksResearchGroup-UM/crimm/branches/master/protection]`.
-- NOT done: requiring `all-green`. My `gh api -X PUT .../branches/master/protection` was denied
-  by the sandbox's permission classifier; I did not retry or work around it. A PUT replaces the
-  whole protection object, so the command must restate the existing settings. The owner runs, from an ordinary terminal
-  (`gh` is in `crimm-dev`):
-  `gh api -X PUT repos/BrooksResearchGroup-UM/crimm/branches/master/protection --input protection.json`
-  with `{"required_status_checks":{"strict":false,"contexts":["all-green"]},"enforce_admins":false,
-  "required_pull_request_reviews":{"required_approving_review_count":1,"dismiss_stale_reviews":false,
-  "require_code_owner_reviews":false,"require_last_push_approval":false},"restrictions":null,
-  "allow_force_pushes":true,"allow_deletions":false}`. Consider `allow_force_pushes: false`
-  (a decision for the owner; it was left as found). The check name `all-green` exists only
-  because PR #108 ran it, so set this after that run, as now.
-- out of date and fixed in this commit: State `branch_protection`, `roadmap_next`, the ROADMAP
-  CI row. Still out of date (not touched): ROADMAP is not an index of `#N`; `xfail` reasons and
-  TODOs lack issue numbers; no GitHub issue exists yet for the ruff follow-ups (ignored rules,
-  `ruff format`, `pre-commit`) or for Stan's lint findings; #107 stays open for tomorrow.
-- addendum (same evening): the owner applied the protection themselves: `all-green` required,
-  force pushes now disallowed `[ran, gh api]`. ROADMAP is now an index: every item carries its
-  issue number, plus an "Index of issues" table (uncommitted when this was written).
-  Agent memory holds two start-of-session reminders for 2026-10-13 (CHARMM build; the
-  housekeeping items still out of date: `xfail`/TODO issue numbers, missing issues for the ruff
-  follow-ups and Stan's lint findings, unread CI logs and the `Closes` lines of #108).
-- claims: none were held.
-- next: 2026-10-13 CHARMM and pyCHARMM build (#107, owner); meeting with Stan about linting and
-  formatting his three files; then read the remaining CI logs and make #108 ready.
-
-### 2026-10-08 claude-sonnet/claude-code/wrapup
-
-- asked: end-of-day wrap-up; review a downstream project's session edits to the dev docs; then
-  commit, push, delete merged branches, ignore `tests/slurm/`, and update all md docs and logs.
-- did: committed the day's docs in three commits (CHARMM licence and plan; roadmap issue
-  index and the LoopBuilder decision; this handoff). `git push origin
-  cleanup/phase0-tests-and-dev-docs` FAILED: `Host key verification failed` although
-  `~/.ssh/known_hosts` holds a matching github.com key; `ssh -T git@github.com` fails the
-  same way inside the agent's sandbox. A retry outside the sandbox was refused, so nothing
-  was pushed. Cause not established. Deleted the local branches `cuda_util`, `list`,
-  `mmcif-bug-fix`, `newGridGen`, `py3dmol` (all merged into master; their SHAs were noted
-  before deleting, so `git branch <name> <sha>` restores one); added `tests/slurm/` to
-  `.git/info/exclude`; corrected State (branches, uncommitted work, untracked files, test
-  date, GitHub block, owner reminders); updated ROADMAP (header, new row for #59) and NOTES
-  (snapshot note); added a one-line pointer to crimm-ml's handoff, as the contract requires.
-  `[ran]`
-- reviewed (the 2026-10-08 entry about a private downstream project, now in the owner's
-  `CLAUDE.local.md`): the crimm imports it lists exist and import together under
-  `crimm-dev` `[ran]`.
-- found: switching crimm branches changes what the downstream project sees. Remote branches
-  were not touched: 22 of 36 are merged into `origin/master` (issue #95). Issues #60 to #62
-  (RTF parser) and #90 (renames) change names that project imports. Old issues #24 and #29
-  may overlap with #46 and #80; not reconciled.
-- not done: the push (the owner runs `git push origin cleanup/phase0-tests-and-dev-docs` from
-  an ordinary terminal); the pointer entry in crimm-ml's handoff
-  is uncommitted in that repo; branch protection; `xfail` reasons and TODO comments still lack issue numbers;
-  ROADMAP is not yet an index of `#N`; crimm-ml's own ROADMAP still names `RFLoopBuilder`;
-  `solvator-coor-orient-options` kept (owner decides); `RDKConverter-Het` kept and unpushed.
-- next: Monday 2026-10-12, build CHARMM and pyCHARMM (issue #107); then link `xfail`/TODO to
-  issues; then the chirality and PCA fixes (#43, #44) for Stan's review.
-
-### 2026-10-08 claude-sonnet/claude-code/downstream-intro
-
-- Moved to the owner's `CLAUDE.local.md` on 2026-10-14 (it concerns a private downstream
-  project). It added the hotfix reminder rule and the downstream contract now kept there, and
-  repaired an unclosed template fence in this log.
-
-### 2026-10-08 claude-sonnet/claude-code/hotfix-park
-
-- asked: commit the owner's uncommitted hotfix, park it, return to the cleanup branch, and
-  report the conda env.
-- did: committed the owner's edit to `crimm/Adaptors/RDKitConverter.py` as `8075b75` on the
-  local branch `RDKConverter-Het` (cut from `72eef9f`, not pushed), then checked out
-  `cleanup/phase0-tests-and-dev-docs`. The edit is the owner's; the agent only committed it.
-  `[ran]`
-- what the fix does: `RDKitHetConverter.__init__` warns instead of raising `TypeError` when
-  the input is not a `Heterogen`; `heterogen_to_rdkit` guards `pdbx_description` with
-  `hasattr`. `[read]` The owner's reason for the hotfix was not stated to the agent.
-- known gaps (handle when the fix is picked up): no test covers `RDKitHetConverter` or
-  `heterogen_to_rdkit` (grep of `tests/` found none); the `TypeError` contract was removed, so
-  check callers that relied on it; a blank line at `RDKitConverter.py:351` has trailing
-  whitespace; no GitHub issue exists for it yet.
-  SUPERSEDED 2026-10-08 by claude-sonnet/claude-code/wrapup: the issue exists, #59.
-- how to pick it up: `git checkout RDKConverter-Het`, add a test, then either merge it into
-  the cleanup branch or cherry-pick `8075b75`. It is one concern, one commit, so either works.
-  ROADMAP 1.5 (`import-fix.md`) does not edit `RDKitConverter.py` `[read]`, so the two should
-  not conflict.
-- env (follow-up, same day, at the owner's request): deleted the old py3.8 `crimm-dev`;
-  cloned `crimm-dev-new` to `crimm-dev` so the name matches `environment-dev.yml` and
-  CONTRIBUTING.md, then removed `crimm-dev-new`; re-registered kernel `crimm-dev`. `[ran]`
-  The editable installs in the old env pointed at source
-  directories, which were not touched.
-- merge: `git merge --no-ff origin/master` into `cleanup/phase0-tests-and-dev-docs`, no
-  conflicts, `d90f94b`. Offline suite after the merge: 133 passed, 13 xfailed `[ran]`.
-- gh (follow-up, at the owner's request): owner logged in as `Truman-Xu` (ADMIN on the repo,
-  scopes `repo`, `read:org`, `admin:public_key`, `gist`). Created labels `correctness`,
-  `refactor`, `agent-task`, `topology`, `solvation`, `io`, `visualization`, `loops`, `ml`
-  (existing `documentation` used instead of `docs`), and milestones 1 to 6 = ROADMAP Phases
-  0 to 5, titled as the ROADMAP headings. `[ran]` Milestone descriptions for Phases 2 to 5 are
-  the agent's wording, not read from the sections.
-- issues (same day, owner approved the list): created 68 issues #39 to #107 (draft id n is
-  issue n+38; draft 67 was dropped at the owner's request, so #105 does not exist).
-  Milestones 1 to 6 for Phases 0 to 5; backlog features #71 to #76 and the crimm-ml issues
-  #101 to #104 have no milestone; #106 (toppar licence) is in Phase 5; #107 (CHARMM and
-  pyCHARMM build and tests) is in Phase 0. Label `infra` added and put on #39 to #42. Stan
-  is `@`-mentioned in #43, #44, #51, #52, #65, #66, #67, #85, #88. Draft-to-number map:
-  scratchpad `issue_map.json` (not kept; the numbers above are enough). `[ran]`
-- found: older open issues exist that may overlap: #24 ("Ligand topology not natively
-  generated and not saved in psf") with #46, and #29 (CRD titles too long) with the title
-  block duplication in #80. Not reconciled.
-- owner decisions recorded: the RFdiffusion model is intended to become part of
-  `LoopBuilder`, not a separate `RFLoopBuilder`; ROADMAP row "Keep RFLoopBuilder separate"
-  deleted, note added to #101.
-- docs: CHARMM licence and the local build plan (Monday 2026-10-12) are in ROADMAP "CHARMM and
-  pyCHARMM", CONTRIBUTING, NOTES and this file (standing instructions, Q6, FACTS).
-- not done: nothing pushed; branch protection not set; `env.yaml` and old remote branches
-  not touched; docs edits of this session are uncommitted.
-
-### 2026-10-07 claude-sonnet/claude-code/repo-setup
-
-- asked: set up the repo for agents and humans (BEST_PRACTICES last two items); rebuild the
-  dev environment.
-- did: wrote `AGENTS.md`, `CLAUDE.md` (`@AGENTS.md`), `CONTRIBUTING.md`, issue forms, PR
-  template and `CODEOWNERS` under `.github/` (Stan is `@stanislc`), `environment-dev.yml`.
-  Committed in three commits and pushed. Added personal-file patterns (`CLAUDE.local.md`,
-  `AGENTS.local.md`, `.claude/settings.local.json`, `.claude/commands/`) to
-  `.git/info/exclude`.
-  `[ran]`
-- env: first `conda env create` failed (`python-build`, not `build`); fixed and restarted.
-  The result was not checked before this entry was written. `[ran]`
-- not done: `gh` install, labels, milestones, converting work orders to issues, branch
-  protection, `env.yaml` removal, merging `origin/master` (1 commit behind), deleting the old
-  env.
-- resolves entry 3's open question: the root pointer is `AGENTS.md`.
-- next: finish and test the env, swap it in, merge master, set up `gh`.
-
-### 2026-10-06 claude-opus/claude-code/cleanup (entry 5)
-
-- asked: put the owner's uncommitted edits on their own branch, the cleanup work on
-  another, and commit.
-- did: created `feat/coordmanipulator-find-max-dim` at `fbb165d` and committed the owner's
-  two files there (`44e9bf6`); created `cleanup/phase0-tests-and-dev-docs` at `fa7338a`
-  and switched to it. Entry 4's branch description is superseded by State.
-- verified: `git status` clean on both apart from the untracked files listed in State;
-  `git log` on each `[ran]`.
-- not verified: the test suite was not re-run on the feature branch. It does not contain
-  `tests/`, so there is nothing to run there until the branches meet.
-- found: G14.
-- next: unchanged from entry 2.
-
-### 2026-10-06 claude-opus/claude-code/cleanup (entry 4)
-
-- asked: wrap up; update dev docs; track and commit the dev docs and the Phase 0 work.
-- did: two local commits on `solvator-coor-orient-options`: `d10c62d` (test suite,
-  fixtures, pytest config) and the one after it (`docs/dev/`). Updated NOTES (repository
-  state now points here), ROADMAP (suggested pull requests), and this file's State and
-  standing instructions.
-- verified: offline suite re-run immediately before committing, 133 passed, 13 xfailed
-  `[ran]`. Staged by explicit path; the owner's two modified files, `import-fix.md`,
-  `tests/slurm/` and `.claude/` were left out `[ran: git status]`.
-- not verified: nothing was pushed, so no CI or remote state was exercised.
-- found: the commits sit on a feature branch named for solvation work, because that is
-  what was checked out and switching would have carried the owner's uncommitted edits.
-  They are independent of that work and can be cherry-picked onto their own branch.
-- next: unchanged from entry 2 (golden-file tests; see Q1 first).
-
-### 2026-10-06 claude-opus/claude-code/crimm-ml
-
-- asked: split RFdiffusion loop building into an optional package (`crimm[ml]`); make it
-  known to agents working on crimm and say how to pick up its context.
-- did: in crimm, only docs: wrote `import-fix.md` (repo root; now folded into ROADMAP "1.5
-  Make rdkit and nglview optional at import time"); added ROADMAP "Parallel track: crimm-ml
-  integration" and `ml` to the Phase 4 extras row; in this file, added the crimm-ml rows to
-  "What goes where", Orientation, the working agreements and Environment facts, and answered
-  Q7. No crimm source, tests or `pyproject.toml` touched.
-- verified: `pip install crimm` from PyPI then `import crimm` in a clean venv (fails on
-  rdkit) `[ran]`. Every line number in `import-fix.md` re-read against `fbb165d` `[read]`;
-  the PEP 562 trap in step 4 checked with a toy module `[ran]`.
-- not verified: the planned `RFLoopBuilder` API against crimm after the cleanup refactors.
-- found: nothing new in crimm beyond 1.5.
-- next: once 1.5 lands, the crimm-ml track (RFLoopBuilder, `ml` extra). Whoever does it
-  should claim `crimm/Modeller/RFLoopBuilder.py` here and log in both handoffs.
-
-### 2026-10-06 claude-opus/claude-code/cleanup (entry 3)
-
-- asked: start a shared document for AI agents under `docs/dev/`.
-- did: created this file.
-- verified: STATE against `git status`. `[ran]`
-- not verified: whether other tools will discover this file. Nothing at the repo root
-  points to it; agents that auto-read `AGENTS.md` or `CLAUDE.md` will not find it unless
-  a pointer is added there.
-- next: owner to decide on a root pointer file.
-
-### 2026-10-06 claude-opus/claude-code/cleanup (entry 2)
-
-- asked: do the first two Phase 0 roadmap items.
-- did: added `tests/data/` (1UBQ, 1CRN, 2IGD, 3PTB, 1BNA from RCSB, unmodified),
-  `tests/conftest.py`, nine `tests/test_*.py` modules; added pytest `addopts`, markers and a
-  `test` extra to `pyproject.toml`; updated ROADMAP (two items done, new section "1.3 Bugs
-  found by the new test suite", later sections renumbered) and NOTES (tests section).
-- verified: default run 133 passed, 13 xfailed; `-m "network or cgenff"` 3 passed. `[ran]`
-- not verified: Python versions other than 3.13; NumPy 1.x; any pyCHARMM path; test
-  stability across many runs (ion placement is unseeded, assertions were written not to
-  depend on it; the full suite was run twice, passing once after fixes).
-- found: mirror-image solvation confirmed on 1UBQ (G1); five new bugs (ROADMAP 1.3); Q1, Q3.
-- next: golden-file PSF/CRD tests. Strip title lines (G6). Do not make golden files from
-  the DNA fixture until Q1 is resolved, or the wrong output becomes the reference.
-
-### 2026-10-06 claude-opus/claude-code/cleanup (entry 1)
-
-- asked: remember project facts; write dev notes, a roadmap and a good-practices guide.
-- did: created `docs/dev/NOTES.md`, `ROADMAP.md`, `BEST_PRACTICES.md`.
-- verified: `python -m pyflakes crimm`; counted 27 TODO comments with grep; ran each
-  `CoordManipulator` orientation method on 100 synthetic point sets (octa flipped
-  handedness in 51, stored matrix disagreed with applied transform for all PCA methods in
-  100 of 100). `[ran]`
-- not verified: most Phase 1 "Other bugs" rows are `[read]` only, except the NumPy `ptp`
-  failure which was `[ran]`. Memory estimate for the N by N distance matrix is arithmetic,
-  not measured.
-- found: ROADMAP Phase 1.
-- next: Phase 0.
+- **State, claims and the log** are in the open issue labelled `agent-log`, pinned on the
+  issue list (Phase 1: #135). Its description holds Claims and State, rewritten in place;
+  each comment is one session's log entry. Find it with
+  `gh issue list --label agent-log --state open`.
+- **Open questions** are issues labelled `question`.
+- **The earlier log**, 2026-10-06 to 2026-11-02, with State, Claims and the open questions as
+  they stood, is section 8 of this file at commit 36c9052:
+  `git show 36c9052:docs/dev/AGENT_HANDOFF.md`.
