@@ -56,12 +56,19 @@ class CoordManipulator:
         return self.op_mat
 
     def find_max_dim(self) -> float:
-        """find the maximum dimension of the molecular system (length of the major axis)."""
-        a1, a2 = self.end_i, self.end_j
-        # coordinates of the farthest atom pair
-        o1, o2 = self.coords[a1], self.coords[a2]
-        major_axis = o1 - o2
-        return norm(major_axis)
+        """Return the largest dimension of the loaded system, in Å.
+
+        This is the distance between the farthest pair of atoms (the major
+        axis), which `load_entity` has already found. Nothing is modified.
+
+        Raises
+        ------
+        ValueError
+            If no entity has been loaded.
+        """
+        if self.entity is None:
+            raise ValueError("No structure entity loaded!")
+        return float(self.dist_matrix[self.end_i, self.end_j])
 
     def _find_transformation_operators(self) -> None:
         a1, a2 = self.end_i, self.end_j
