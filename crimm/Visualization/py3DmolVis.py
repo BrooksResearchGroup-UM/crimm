@@ -176,6 +176,16 @@ class View:
                     },
                 )
 
+    def _opaque_backdrop(self, model_idx, color="lightgrey"):
+        """Give a polymer model an opaque, light cartoon.
+
+        3Dmol.js applies cartoon opacity to a whole chain, so residues
+        highlighted on a translucent chain come out translucent too. Chains
+        that carry a highlight get an opaque light backdrop instead.
+        """
+        if model_idx in self._polymer_models:
+            self.view.setStyle({"model": model_idx}, {"cartoon": {"color": color}})
+
     def _residue_lookup_by_model(self, residues):
         """Return {model_idx: [resi, ...]} for the given residues."""
         result = {}
@@ -222,6 +232,7 @@ class View:
         self.subdue_all_entities()
         resi_by_model = self._residue_lookup_by_model(residues)
         for model_idx, resi_list in resi_by_model.items():
+            self._opaque_backdrop(model_idx)
             sel = {"model": model_idx, "resi": resi_list}
             self.view.addStyle(sel, {"cartoon": {"color": color}})
             if add_licorice:
@@ -244,6 +255,8 @@ class View:
         serial_by_model = self._atom_serial_lookup_by_model(atoms)
         representation = "stick" if add_licorice else "cartoon"
         for model_idx, serial_list in serial_by_model.items():
+            if representation == "cartoon":
+                self._opaque_backdrop(model_idx)
             self.view.addStyle(
                 {"model": model_idx, "serial": serial_list},
                 {representation: {"color": color}},

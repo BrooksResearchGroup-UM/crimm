@@ -1,6 +1,7 @@
 """Visualization: every show/highlight path follows set_backend (#140)."""
 
 import inspect
+import re
 import warnings
 
 import pytest
@@ -141,3 +142,23 @@ def test_sdf_has_one_record_per_conformer(two_conformers):
 @pytest.mark.parametrize("cls", [NGLVisualization.View, py3DmolVis.View])
 def test_load_rdkit_takes_conf_id(cls, two_conformers):
     cls().load_rdkit(two_conformers, conf_id=1)
+
+
+def _last_model_style(view, model_idx):
+    """The last setStyle call for one model in the generated py3Dmol JS."""
+    calls = re.findall(r"setStyle\((\{[^)]*\})\)", view.view.startjs)
+    mine = [c for c in calls if f'"model": {model_idx}}}' in c]
+    return mine[-1]
+
+
+@pytest.mark.parametrize("method", ["highlight_residues", "highlight_atoms"])
+def test_py3dmol_highlight_backdrop_is_opaque(chain, method):
+    # 3Dmol.js applies cartoon opacity per chain, so a translucent backdrop would
+    # make the highlight translucent too (#140).
+    view = py3DmolVis.View()
+    view.load_entity(chain)
+    if method == "highlight_residues":
+        view.highlight_residues([chain[10], chain[11]])
+    else:
+        view.highlight_atoms(list(chain[10].get_atoms()), add_licorice=False)
+    assert "opacity" not in _last_model_style(view, 0)
