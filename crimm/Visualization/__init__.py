@@ -31,9 +31,12 @@ def get_backend():
 
 
 def show(entity, **kwargs):
-    """Show entity using the active backend (see :func:`set_backend`)."""
+    """Show entity using the active backend (see :func:`set_backend`).
+
+    Both backends accept ``width`` and ``height`` (pixels).
+    """
     if _backend == "ngl":
-        return show_nglview(entity)
+        return show_nglview(entity, **kwargs)
     from .py3DmolVis import show_py3dmol
 
     return show_py3dmol(entity, **kwargs)
@@ -42,7 +45,7 @@ def show(entity, **kwargs):
 def show_multiple(entity_list, **kwargs):
     """Show a list of entities using the active backend."""
     if _backend == "ngl":
-        return show_nglview_multiple(entity_list)
+        return show_nglview_multiple(entity_list, **kwargs)
     from .py3DmolVis import show_py3dmol_multiple
 
     return show_py3dmol_multiple(entity_list, **kwargs)
@@ -51,7 +54,7 @@ def show_multiple(entity_list, **kwargs):
 def get_viewer(**kwargs):
     """Return a new View instance for the active backend."""
     if _backend == "ngl":
-        return NGLView()
+        return NGLView(**kwargs)
     from .py3DmolVis import View as Py3DmolView
 
     return Py3DmolView(**kwargs)
@@ -64,7 +67,7 @@ def show_residue(residue, **kwargs):
     a subdued grey cartoon and the residue is highlighted as ball+stick.
     """
     if _backend == "ngl":
-        return show_nglview_residue(residue)
+        return show_nglview_residue(residue, **kwargs)
     from .py3DmolVis import show_py3dmol_residue
 
     return show_py3dmol_residue(residue, **kwargs)

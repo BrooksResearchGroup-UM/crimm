@@ -5,7 +5,6 @@ from Bio.Align import PairwiseAligner
 from Bio.PDB import Superimposer
 
 from crimm.StructEntities.Chain import PolymerChain
-from crimm.Visualization.NGLVisualization import show_nglview_multiple
 
 
 ##TODO(#70): Refactor this!! Add examples to docstrings
@@ -237,5 +236,11 @@ class ChainSuperimposer(Superimposer):
             entity = self.mov_chain
         self.apply(list(entity.get_atoms(include_alt=True)))
 
-    def show(self):
-        return show_nglview_multiple([self.ref_chain, self.mov_chain])
+    def show(self, **kwargs):
+        """Show both chains with the active visualization backend.
+
+        kwargs (``width``, ``height``) go to :func:`crimm.Visualization.show_multiple`.
+        """
+        from crimm.Visualization import show_multiple
+
+        return show_multiple([self.ref_chain, self.mov_chain], **kwargs)

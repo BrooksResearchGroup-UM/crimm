@@ -13,6 +13,7 @@ from Bio.PDB.Selection import unfold_entities
 
 from crimm.IO.PDBString import get_pdb_str
 from crimm.StructEntities.Chain import PolymerChain
+from crimm.Visualization._common import rdkit_mol_to_sdf, rgb_to_hex
 
 
 def _get_pdb_str(entity):
@@ -95,6 +96,14 @@ def show_py3dmol_residue(residue, width=800, height=400):
     return view
 
 
+def _warn_ignored(kwargs):
+    if kwargs:
+        warnings.warn(
+            f"The py3Dmol backend ignores these arguments: {sorted(kwargs)}",
+            stacklevel=3,
+        )
+
+
 class View:
     """py3Dmol-based viewer with the same API as NGLVisualization.View."""
 
@@ -138,17 +147,10 @@ class View:
         return model_indices
 
     def load_rdkit(self, mol, conf_id=None):
-        """Load an RDKit molecule into the viewer."""
-        from rdkit import Chem
-
-        n_conf = mol.GetNumConformers()
-        if n_conf == 0:
-            sdf_str = Chem.MolToMolBlock(mol)
-        elif conf_id is not None:
-            sdf_str = Chem.MolToMolBlock(mol, confId=conf_id)
-        else:
-            sdf_str = Chem.MolToMolBlock(mol, confId=0)
-        self.view.addModel(sdf_str, "sdf")
+        """Load an RDKit molecule. All conformers are shown unless conf_id is given."""
+        sdf_str = rdkit_mol_to_sdf(mol, conf_id=conf_id)
+        # multimodel + onemol: read every SDF record into this one model
+        self.view.addModel(sdf_str, "sdf", {"multimodel": True, "onemol": True})
         model_idx = self._model_count
         self._model_count += 1
         self.entity_dict[mol] = model_idx
@@ -199,6 +201,7 @@ class View:
 
     def highlight_residues(self, residues, add_licorice=False, color="red", **_kwargs):
         """Highlight residues; subdues everything else."""
+        _warn_ignored(_kwargs)
         if len(self.entity_dict) == 0:
             raise ValueError("No entity loaded!")
         if len(residues) == 0:
@@ -226,6 +229,7 @@ class View:
 
     def highlight_atoms(self, atoms, add_licorice=True, color="red", **_kwargs):
         """Highlight atoms; subdues everything else."""
+        _warn_ignored(_kwargs)
         if len(atoms) == 0:
             warnings.warn("No atoms provided for highlighting!")
             return
@@ -247,6 +251,7 @@ class View:
 
     def highlight_chains(self, chains, color="red", **_kwargs):
         """Highlight entire chains; subdues everything else."""
+        _warn_ignored(_kwargs)
         if len(chains) == 0:
             warnings.warn("No chains provided for highlighting!")
             return
@@ -269,6 +274,22 @@ class View:
                         "sphere": {"color": color, "radius": 0.3},
                     },
                 )
+
+    def add_arrow(self, start, end, color=(1, 0, 0), radius=0.5, name="arrow"):
+        """Draw an arrow from start to end (coordinates in Å).
+
+        color is an RGB triple with components in [0, 1], or a colour name. name
+        is accepted for
+        parity with the NGL backend; py3Dmol shapes have no name.
+        """
+        self.view.addArrow(
+            {
+                "start": dict(zip("xyz", map(float, start))),
+                "end": dict(zip("xyz", map(float, end))),
+                "radius": radius,
+                "color": rgb_to_hex(color),
+            }
+        )
 
     def show(self):
         """Render and display the viewer."""
