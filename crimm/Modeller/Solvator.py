@@ -21,6 +21,7 @@ from crimm.StructEntities.Chain import Ion, Solvent
 from crimm.StructEntities.Model import Model
 from crimm.StructEntities.Residue import Residue
 
+## TODO(#66): Gather all constants in one place under Data/constants.py
 WATER_COORD_PATH = os.path.join(os.path.dirname(Data.__file__), "water_coords.npy")
 BOXWIDTH = 18.662  # water unit cube width
 

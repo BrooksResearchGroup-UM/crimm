@@ -55,6 +55,21 @@ class CoordManipulator:
             self.op_mat = self._find_transformation_operators()
         return self.op_mat
 
+    def find_max_dim(self) -> float:
+        """Return the largest dimension of the loaded system, in Å.
+
+        This is the distance between the farthest pair of atoms (the major
+        axis), which `load_entity` has already found. Nothing is modified.
+
+        Raises
+        ------
+        ValueError
+            If no entity has been loaded.
+        """
+        if self.entity is None:
+            raise ValueError("No structure entity loaded!")
+        return float(self.dist_matrix[self.end_i, self.end_j])
+
     def _find_transformation_operators(self) -> None:
         a1, a2 = self.end_i, self.end_j
         # coordinates of the farthest atom pair
