@@ -285,21 +285,15 @@ class ChainLoopBuilder:
         """
         Highlight the repaired gaps with color (default: cyan)
         """
-        try:
-            from crimm.Visualization.NGLVisualization import View
-        except ImportError as exc:
-            raise ImportError(
-                "WARNING: nglview not found! Install nglview to show"
-                "protein structures."
-                "http://nglviewer.org/nglview/latest/index.html#installation"
-            ) from exc
+        from crimm.Visualization import get_viewer
+
         fixed_res = []
         for res_list in self.repaired_gaps:
             for res_seq in res_list:
                 fixed_res.append(self.model_chain[res_seq])
         if len(fixed_res) < 5:
             add_licorice = True  # cartoon will not render if there are too few residues
-        view = View()
+        view = get_viewer()
         view.load_entity(self.model_chain)
         view.highlight_residues(fixed_res, color=color, add_licorice=add_licorice)
 
@@ -311,15 +305,9 @@ class ChainLoopBuilder:
         """
         if len(self.model_chain.gaps) == 0:
             warnings.warn(f"No gap found in {self.model_chain}!")
-        try:
-            from crimm.Visualization.NGLVisualization import View
-        except ImportError as exc:
-            raise ImportError(
-                "WARNING: nglview not found! Install nglview to show"
-                "protein structures."
-                "http://nglviewer.org/nglview/latest/index.html#installation"
-            ) from exc
-        view = View()
+        from crimm.Visualization import get_viewer
+
+        view = get_viewer()
 
         view.load_entity(self.model_chain)
         view.subdue_all_entities()
@@ -333,16 +321,18 @@ class ChainLoopBuilder:
                 st_coord = self.model_chain[st]["CA"].coord
                 end_coord = self.model_chain[end]["CA"].coord
                 arrow_name = f"gap:{st + 1}-{end - 1}"
-                view.shape.add_arrow(
-                    st_coord, end_coord, rgb_red, line_width, arrow_name
-                )
+                view.add_arrow(st_coord, end_coord, rgb_red, line_width, arrow_name)
 
         return view
 
-    def show(self):
-        from crimm.Visualization.NGLVisualization import show_nglview_multiple
+    def show(self, **kwargs):
+        """Show the model and template chains with the active visualization backend.
 
-        return show_nglview_multiple([self.model_chain, self.template_chain])
+        kwargs (``width``, ``height``) go to :func:`crimm.Visualization.show_multiple`.
+        """
+        from crimm.Visualization import show_multiple
+
+        return show_multiple([self.model_chain, self.template_chain], **kwargs)
 
     @staticmethod
     def _build_seq_query(seq_string, max_num_match, identity_score_cutoff):

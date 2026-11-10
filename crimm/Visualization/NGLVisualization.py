@@ -10,9 +10,9 @@ import warnings
 
 import nglview as nv
 from Bio.PDB.Selection import unfold_entities
-from rdkit import Chem
 
 from crimm.IO.PDBString import get_pdb_str
+from crimm.Visualization._common import rdkit_mol_to_sdf
 
 
 class NGLStructure(nv.Structure):
@@ -43,15 +43,18 @@ class NGLRDKitStructure(nv.Structure):
         self.conf_id = conf_id
 
     def get_structure_string(self):
-        n_conf = self.entity.GetNumConformers()
-        if n_conf == 0:
-            return Chem.MolToMolBlock(self.entity)
-        elif self.conf_id is not None:
-            return Chem.MolToMolBlock(self.entity, confId=self.conf_id)
-        struct_str = ""
-        for i in range(n_conf):
-            struct_str += Chem.MolToMolBlock(self.entity, confId=i)
-        return struct_str
+        return rdkit_mol_to_sdf(self.entity, conf_id=self.conf_id)
+
+
+def _set_size(view, width=None, height=None):
+    """Size an nglview widget. Numbers are pixels, as in the py3Dmol backend."""
+    if width is not None:
+        view.layout.width = f"{width}px" if isinstance(width, (int, float)) else width
+    if height is not None:
+        view.layout.height = (
+            f"{height}px" if isinstance(height, (int, float)) else height
+        )
+    return view
 
 
 def _load_ngl_view(entity, view):
@@ -62,11 +65,11 @@ def _load_ngl_view(entity, view):
         view.add_representation("licorice", component=component._index)
 
 
-def show_nglview(entity):
+def show_nglview(entity, width=None, height=None):
     """
     Load pdb string into nglview instance
     """
-    view = nv.NGLWidget()
+    view = _set_size(nv.NGLWidget(), width, height)
     if entity.level == "S":
         for chain in entity.models[0].chains:
             _load_ngl_view(chain, view)
@@ -78,7 +81,7 @@ def show_nglview(entity):
     return view
 
 
-def show_nglview_residue(residue):
+def show_nglview_residue(residue, width=None, height=None):
     """Show a residue in context of its polymer chain.
 
     The whole chain is rendered as a subdued grey cartoon and the residue is
@@ -87,7 +90,7 @@ def show_nglview_residue(residue):
     """
     from crimm.StructEntities.Chain import PolymerChain
 
-    view = nv.NGLWidget()
+    view = _set_size(nv.NGLWidget(), width, height)
     chain = residue.parent
     if chain is not None and isinstance(chain, PolymerChain):
         res_id = residue.id[1]
@@ -107,11 +110,11 @@ def show_nglview_residue(residue):
     return view
 
 
-def show_nglview_multiple(entity_list):
+def show_nglview_multiple(entity_list, width=None, height=None):
     """
     Load a list of entity into nglview instance
     """
-    view = nv.NGLWidget()
+    view = _set_size(nv.NGLWidget(), width, height)
     for entity in entity_list:
         ngl_structure = NGLStructure(entity)
         component = view.add_component(ngl_structure)
@@ -124,8 +127,9 @@ def show_nglview_multiple(entity_list):
 class View(nv.NGLWidget):
     """Customized NGLView Widget class for visualizing crimm.Structure.Structure on jupyter notebook"""
 
-    def __init__(self):
+    def __init__(self, width=None, height=None):
         super().__init__()
+        _set_size(self, width, height)
         self.entity_dict = {}
         self.atom_id_lookup = {}
 
@@ -154,8 +158,9 @@ class View(nv.NGLWidget):
             components.append(self._load_entity(entity))
         return components
 
-    def load_rdkit(self, mol):
-        ngl_structure = NGLRDKitStructure(mol)
+    def load_rdkit(self, mol, conf_id=None):
+        """Load an RDKit molecule. All conformers are shown unless conf_id is given."""
+        ngl_structure = NGLRDKitStructure(mol, conf_id=conf_id)
         component = self.add_component(ngl_structure)
         self.entity_dict[mol] = component
         return component
@@ -239,7 +244,7 @@ class View(nv.NGLWidget):
         entity_chains = set(unfold_entities(loaded_entities, "C"))
         atom_chains = set(unfold_entities(atoms, "C"))
         if not atom_chains.issubset(entity_chains):
-            raise ValueError("Residues are not from the loaded entity!")
+            raise ValueError("Atoms are not from the loaded entity!")
 
         # Organize the selected atoms ids by component id
         atom_id_dict = self._create_selected_atom_id_lookup(atoms)
@@ -270,7 +275,7 @@ class View(nv.NGLWidget):
         loaded_entities = list(self.entity_dict.keys())
         entity_chains = set(unfold_entities(loaded_entities, "C"))
         if not set(chains).issubset(entity_chains):
-            raise ValueError("Residues are not from the loaded entity!")
+            raise ValueError("Chains are not from the loaded entity!")
 
         self.subdue_all_entities()
         if "colorScheme" not in kwargs:
@@ -280,3 +285,12 @@ class View(nv.NGLWidget):
             comp_idx = component._index
             self.clear_representations(component=comp_idx)
             self.add_representation("cartoon", component=comp_idx, **kwargs)
+
+    def add_arrow(self, start, end, color=(1, 0, 0), radius=0.5, name="arrow"):
+        """Draw an arrow from start to end (coordinates in Å).
+
+        color is an RGB triple with components in [0, 1], or a colour name.
+        """
+        if not isinstance(color, str):
+            color = list(color)
+        self.shape.add_arrow(list(start), list(end), color, radius, name)
