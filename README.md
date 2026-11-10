@@ -22,7 +22,7 @@ This is a Python toolkit for biomolecule structure preparation, designed to unif
 - Solvate in cubic or truncated octahedral water boxes
 - Add monovalent ions at target concentrations (SPLIT, SLTCAP methods)
 - Build missing loops from homology models
-- Visualize structures in Jupyter notebooks with NGLView
+- Visualize structures in Jupyter notebooks with NGLView or py3Dmol
 
 ## Installation
 
@@ -30,11 +30,17 @@ This is a Python toolkit for biomolecule structure preparation, designed to unif
 pip install crimm
 ```
 
-Optional cheminformatics and protonation extras:
+Optional extras:
 
 ```bash
-pip install "crimm[all]"
+pip install "crimm[viz]"              # notebook viewers: nglview, ipywidgets, py3Dmol
+pip install "crimm[cheminformatics]"  # rdkit, for ligands and CGenFF
+pip install "crimm[protonation]"      # propka
+pip install "crimm[all]"              # all of the above
 ```
+
+> **Upgrading:** nglview, ipywidgets and py3Dmol are no longer installed by
+> `pip install crimm`. To keep viewing structures in Jupyter, install `crimm[viz]`.
 
 Requires Python >= 3.9. For a complete development environment:
 
