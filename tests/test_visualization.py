@@ -162,3 +162,41 @@ def test_py3dmol_highlight_backdrop_is_opaque(chain, method):
     else:
         view.highlight_atoms(list(chain[10].get_atoms()), add_licorice=False)
     assert "opacity" not in _last_model_style(view, 0)
+
+
+BACKEND_API = ["show", "show_multiple", "show_residue", "View"]
+
+
+@pytest.mark.parametrize("module", [NGLVisualization, py3DmolVis])
+def test_backend_modules_define_the_interface(module):
+    # crimm.Visualization calls the active backend's module by these names (#145).
+    missing = [
+        name for name in BACKEND_API if not callable(getattr(module, name, None))
+    ]
+    assert missing == []
+
+
+@pytest.mark.parametrize("name", ["show", "show_multiple", "show_residue"])
+def test_backend_functions_share_parameters(name):
+    def params(module):
+        return list(inspect.signature(getattr(module, name)).parameters)
+
+    assert params(NGLVisualization) == params(py3DmolVis)
+
+
+def test_function_imported_before_set_backend_follows_it(chain):
+    from crimm.Visualization import show as imported_early
+
+    previous = Visualization.get_backend()
+    try:
+        Visualization.set_backend("ngl")
+        assert isinstance(imported_early(chain), FIGURE["ngl"])
+        Visualization.set_backend("py3dmol")
+        assert isinstance(imported_early(chain), FIGURE["py3dmol"])
+    finally:
+        Visualization.set_backend(previous)
+
+
+def test_unknown_backend_is_rejected():
+    with pytest.raises(ValueError, match="Unknown backend"):
+        Visualization.set_backend("pymol")
