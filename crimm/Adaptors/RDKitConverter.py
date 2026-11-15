@@ -332,7 +332,7 @@ class RDKitHetConverter:
 
     Examples:
         >>> from crimm import fetch_rcsb
-        >>> from crimm.Adaptors import RDKitHetConverter
+        >>> from crimm.Adaptors.RDKitConverter import RDKitHetConverter
         >>> model = fetch_rcsb('1aka')
         ### Select the heterogen from the structure
         ### Note that the heterogen is at residue level not chain level
