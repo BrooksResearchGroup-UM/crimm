@@ -312,3 +312,10 @@ class View:
     def _repr_html_(self):
         self.view.zoomTo()
         return self.view._repr_html_()
+
+
+# The backend interface: every backend module defines show, show_multiple,
+# show_residue and View, and crimm.Visualization calls them by these names (#145).
+show = show_py3dmol
+show_multiple = show_py3dmol_multiple
+show_residue = show_py3dmol_residue

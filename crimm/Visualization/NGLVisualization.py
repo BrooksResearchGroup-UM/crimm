@@ -294,3 +294,10 @@ class View(nv.NGLWidget):
         if not isinstance(color, str):
             color = list(color)
         self.shape.add_arrow(list(start), list(end), color, radius, name)
+
+
+# The backend interface: every backend module defines show, show_multiple,
+# show_residue and View, and crimm.Visualization calls them by these names (#145).
+show = show_nglview
+show_multiple = show_nglview_multiple
+show_residue = show_nglview_residue
