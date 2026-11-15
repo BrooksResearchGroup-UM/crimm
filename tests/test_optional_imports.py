@@ -104,14 +104,17 @@ def test_cgenff_loader_needs_rdkit_only_when_constructed():
 def test_lazy_names_resolve_when_installed():
     pytest.importorskip("rdkit")
     pytest.importorskip("nglview")
-    from crimm.Adaptors import RDKitHetConverter
     from crimm.Adaptors.RDKitConverter import RDKitHetConverter as direct
     from crimm.Visualization import NGLView, show_nglview
     from crimm.Visualization.NGLVisualization import View
     from crimm.Visualization.NGLVisualization import show_nglview as ngl_show
 
-    assert RDKitHetConverter is direct
     assert (NGLView, show_nglview) == (View, ngl_show)
+
+    # Deprecated alias (#97): still works, and warns.
+    with pytest.warns(DeprecationWarning, match="crimm.Adaptors.RDKitConverter"):
+        from crimm.Adaptors import RDKitHetConverter
+    assert RDKitHetConverter is direct
 
 
 def test_unknown_names_still_raise_attribute_error():

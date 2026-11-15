@@ -1,17 +1,21 @@
-# RDKitHetConverter needs rdkit, an optional extra. It is loaded on first
-# access so that `import crimm.Adaptors` works without rdkit (#58).
-_LAZY = {"RDKitHetConverter": "crimm.Adaptors.RDKitConverter"}
-
-__all__ = ["RDKitHetConverter"]
+# Deprecated alias: RDKitHetConverter lives in crimm.Adaptors.RDKitConverter. The
+# alias is loaded on first access, so `import crimm.Adaptors` works without rdkit
+# (#58), and it warns when used.
+# TODO(#97): remove this shim when its deprecation period ends; the file is then empty.
+_DEPRECATED = {"RDKitHetConverter": "crimm.Adaptors.RDKitConverter"}
 
 
 def __getattr__(name):
-    if name in _LAZY:
+    if name in _DEPRECATED:
         import importlib
+        import warnings
 
-        return getattr(importlib.import_module(_LAZY[name]), name)
+        module = _DEPRECATED[name]
+        warnings.warn(
+            f"Importing {name} from crimm.Adaptors is deprecated and will be "
+            f"removed in a future release; use `from {module} import {name}`.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return getattr(importlib.import_module(module), name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
-
-def __dir__():
-    return sorted(set(globals()) | set(_LAZY))
