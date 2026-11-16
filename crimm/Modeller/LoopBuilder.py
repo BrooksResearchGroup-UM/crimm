@@ -135,10 +135,48 @@ def report_loops(chain: PolymerChain):
     return loops
 
 
+def _load_template_chain(template):
+    """Return (first polymer chain, structure id) from a file path or crimm entity."""
+    import os
+
+    from crimm.StructEntities.Chain import BaseChain
+
+    if isinstance(template, (str, os.PathLike)):
+        path = os.fspath(template)
+        if not path.lower().endswith((".cif", ".mmcif")):
+            raise ValueError(
+                f"{path}: only mmCIF templates can be read directly, because the "
+                "template needs a sequence. For a PDB file, load it, run "
+                "crimm.Utils.StructureUtils.renumber_by_sequence and pass the chain."
+            )
+        from crimm.IO.MMCIFParser import MMCIFParser
+
+        structure = MMCIFParser(QUIET=True).get_structure(path)
+        entity, structure_id = structure, os.path.basename(path)
+    else:
+        entity = template
+        top = template.get_top_parent() if hasattr(template, "get_top_parent") else None
+        structure_id = getattr(top, "id", None) or getattr(template, "id", "template")
+    if isinstance(entity, BaseChain):
+        chains = [entity]
+    else:
+        level = getattr(entity, "level", None)
+        if level == "S":
+            entity = entity.child_list[0]
+        chains = list(entity)
+    for chain in chains:
+        if isinstance(chain, PolymerChain) and chain.can_seq:
+            return chain, structure_id
+    raise ValueError(f"No polymer chain with a sequence found in {template}.")
+
+
 class ChainLoopBuilder:
     """
     loop modeller for PDB protein structures by homology modeling
     """
+
+    # C-N distance (Å) above which a copied gap is reported as not joined.
+    junction_warn = 2.0
 
     def __init__(
         self,
@@ -146,6 +184,7 @@ class ChainLoopBuilder:
         model_can_seq=None,
         pdbid=None,
         inplace=False,
+        uniprot_id=None,
     ):
         """
         Args:
@@ -158,6 +197,9 @@ class ChainLoopBuilder:
                 (model or structure containing the chain).
             inplace: if True, the model_chain will be modified in place. Default
                 is False.
+            uniprot_id (optional): UniProt accession of the chain, used by
+                build_from_alphafold() instead of looking it up from the PDB ID.
+                Give this for chains that do not come from the PDB.
         """
         if not inplace:
             self.model_chain = model_chain.copy()
@@ -174,6 +216,8 @@ class ChainLoopBuilder:
         self.template_can_seq = None
         self.translated_ids = None
         self.query_results = None
+        self.uniprot_id = uniprot_id
+        self.build_report = []
         self.pdbid = pdbid
         if self.pdbid is None:
             if (parent := (model_chain.get_top_parent())).level == "S":
@@ -182,7 +226,7 @@ class ChainLoopBuilder:
                 parent := model_chain.get_top_parent()
             ).level == "M" and parent.pdb_id is not None:
                 self.pdbid = parent.pdb_id
-            else:
+            elif uniprot_id is None:
                 warnings.warn(
                     f"PDB ID not set for {model_chain}! "
                     "Make sure the chain is loaded from a MMCIF file or from fetch() "
@@ -480,23 +524,30 @@ class ChainLoopBuilder:
         self.model_chain.reset_atom_serial_numbers()
         self.repaired_residues.update(repair_candidates)
 
-    def build_from_alphafold(self, include_terminal=False):
+    def build_from_alphafold(self, include_terminal=False, uniprot_id=None):
         """Build the missing loops of the model chain from AlphaFold models.
         The AlphaFold models are downloaded from the AlphaFold database. If
         include_terminal is True, the missing terminal residues will be copied
-        from the AlphaFold model."""
+        from the AlphaFold model.
+
+        The UniProt accession is taken from ``uniprot_id`` if given, then from
+        the ``uniprot_id`` given to the constructor, and otherwise looked up
+        from the PDB ID. Per-gap results are added to ``self.build_report``.
+        """
 
         if len(self.model_chain.missing_res) == 0:
             warnings.warn(f"{self.model_chain} does not have any missing residues")
             return
 
-        if self.pdbid is None:
-            warnings.warn(
-                "Missing looper not built due to no PDB ID provided "
-                f"for {self.model_chain}."
-            )
-            return
-        uniprot_id = uniprot_id_query(self.pdbid, self.model_chain.entity_id)
+        uniprot_id = uniprot_id or self.uniprot_id
+        if uniprot_id is None:
+            if self.pdbid is None:
+                warnings.warn(
+                    "Missing looper not built due to no PDB ID or UniProt ID "
+                    f"provided for {self.model_chain}."
+                )
+                return
+            uniprot_id = uniprot_id_query(self.pdbid, self.model_chain.entity_id)
         af_struct = fetch_alphafold(uniprot_id)
         if af_struct is None:
             warnings.warn(
@@ -506,35 +557,186 @@ class ChainLoopBuilder:
             return
 
         af_chain = af_struct.child_list[0].child_list[0]
-        self.set_template_chain(af_chain)
-        repairables = self.get_repair_residues_from_template(rmsd_threshold=None)
+        self._build_from_template_chain(
+            af_chain,
+            structure_id=af_struct.id,
+            include_terminal=include_terminal,
+            rmsd_threshold=None,
+            allow_mismatch=False,
+            bfactor_label="pLDDT",
+        )
+
+    def build_from_template(
+        self,
+        template,
+        include_terminal=False,
+        rmsd_threshold=None,
+        allow_mismatch=False,
+        bfactor_label=None,
+    ):
+        """Build the missing loops of the model chain from a template you provide.
+
+        Use this when the template is not in the PDB or the AlphaFold database,
+        e.g. an AlphaFold Server or other predicted model of the full sequence.
+
+        Args:
+            template: an mmCIF file path, or a PolymerChain, Model or Structure
+                (the first polymer chain is used). The template needs a
+                canonical sequence; for a PDB file, load it and run
+                crimm.Utils.StructureUtils.renumber_by_sequence first.
+            include_terminal: if True, also copy missing terminal residues.
+            rmsd_threshold: skip a gap if the superposition RMSD of the residues
+                around it is above this value (Å). Default: no limit.
+            allow_mismatch: copy a gap even if the template's residue names
+                there differ from the model chain's sequence. Default: such
+                gaps are skipped with a warning.
+            bfactor_label: name of the per-residue value in the template's
+                B-factor column, reported per gap (e.g. "pLDDT"). Default:
+                "pLDDT" for files whose name starts with "fold_" or "AF-",
+                otherwise "B-factor".
+
+        Per-gap results are added to ``self.build_report``; ``report()`` prints them.
+        """
+        if len(self.model_chain.missing_res) == 0:
+            warnings.warn(f"{self.model_chain} does not have any missing residues")
+            return
+        template_chain, structure_id = _load_template_chain(template)
+        if bfactor_label is None:
+            name = str(structure_id).rsplit("/", 1)[-1]
+            bfactor_label = "pLDDT" if name.startswith(("fold_", "AF-")) else "B-factor"
+        self._build_from_template_chain(
+            template_chain,
+            structure_id=structure_id,
+            include_terminal=include_terminal,
+            rmsd_threshold=rmsd_threshold,
+            allow_mismatch=allow_mismatch,
+            bfactor_label=bfactor_label,
+        )
+
+    def _gap_name_mismatches(self, gap, residues):
+        """(resseq, model resname, template resname) where the names differ."""
+        expected = dict(self.model_chain.missing_res)
+        out = []
+        for resseq, res in zip(sorted(gap), sorted(residues, key=lambda r: r.id[1])):
+            exp = expected.get(resseq)
+            name = "HIS" if res.resname in ("HSD", "HSE", "HSP") else res.resname
+            if exp is not None and name != exp:
+                out.append((resseq, exp, res.resname))
+        return out
+
+    def _build_from_template_chain(
+        self,
+        template_chain,
+        structure_id,
+        include_terminal,
+        rmsd_threshold,
+        allow_mismatch,
+        bfactor_label,
+    ):
+        self.set_template_chain(template_chain)
+        repairables = self.get_repair_residues_from_template(
+            rmsd_threshold=rmsd_threshold
+        )
 
         if len(repairables) == 0:
             warnings.warn(
                 f"No repairable residues found for {self.model_chain} "
-                f"from AlphaFold model {af_struct.id}."
+                f"from template {structure_id}."
             )
             return
 
+        seq_len = len(self.model_chain.can_seq)
         if not include_terminal:
-            missing_terminals = []
-            for gap in repairables:
-                if 1 in gap or len(self.model_chain.can_seq) in gap:
-                    missing_terminals.append(gap)
-            # remove alphafold terminal residues from repairables
-            for gap in missing_terminals:
+            for gap in [g for g in repairables if 1 in g or seq_len in g]:
                 repairables.pop(gap)
             self.model_can_seq = self.model_chain.can_seq
 
-        for gap_ids, repairable_info_dict in repairables.items():
-            repairable_info_dict["structure_id"] = af_struct.id
-            copy_residues = repairable_info_dict["residues"]
-            self._copy_gap_residues(
-                gap=gap_ids,
-                residues=copy_residues,
+        for gap in list(repairables):
+            mismatches = self._gap_name_mismatches(gap, repairables[gap]["residues"])
+            if mismatches and not allow_mismatch:
+                listed = ", ".join(f"{e}{i} (template: {t})" for i, e, t in mismatches)
+                warnings.warn(
+                    f"Gap {min(gap)}-{max(gap)} not built: the template's residues "
+                    f"differ from the sequence at {listed}. Use allow_mismatch=True "
+                    "to copy them anyway."
+                )
+                repairables.pop(gap)
+                continue
+            repairables[gap]["name_mismatches"] = mismatches
+
+        for gap_ids, info in sorted(repairables.items()):
+            info["structure_id"] = structure_id
+            bfactors = [
+                res["CA"].get_bfactor() for res in info["residues"] if "CA" in res
+            ]
+            self._copy_gap_residues(gap=gap_ids, residues=info["residues"])
+            self.build_report.append(
+                {
+                    "gap": (min(gap_ids), max(gap_ids)),
+                    "n_residues": len(gap_ids),
+                    "template": structure_id,
+                    "local_rmsd": round(float(info["rmsd"]), 3),
+                    "bfactor_label": bfactor_label,
+                    "mean_bfactor": (
+                        round(float(np.mean(bfactors)), 1) if bfactors else None
+                    ),
+                    "junction_CN": self._junction_distances(gap_ids),
+                    "name_mismatches": info["name_mismatches"],
+                }
             )
         self.model_chain.reset_atom_serial_numbers()
         self.repaired_residues.update(repairables)
+        stretched = [
+            f"{item['gap'][0]}-{item['gap'][1]} ({side} {dist:.1f} Å)"
+            for item in self.build_report[-len(repairables) :]
+            for side, dist in item["junction_CN"].items()
+            if dist > self.junction_warn
+        ]
+        if stretched:
+            warnings.warn(
+                "Copied gaps do not join the chain: C-N distance above "
+                f"{self.junction_warn} Å at {', '.join(stretched)}. The template "
+                "differs from the model around these gaps; the chain needs loop "
+                "closure or restrained minimization before simulation."
+            )
+
+    def _junction_distances(self, gap_ids):
+        """C-N distances (Å) where a copied gap joins the residues before and after it."""
+        out = {}
+        first, last = min(gap_ids), max(gap_ids)
+        for label, (i, j) in {
+            "before": (first - 1, first),
+            "after": (last, last + 1),
+        }.items():
+            if i in self.model_chain and j in self.model_chain:
+                res_i, res_j = self.model_chain[i], self.model_chain[j]
+                if "C" in res_i and "N" in res_j:
+                    dist = np.linalg.norm(res_i["C"].coord - res_j["N"].coord)
+                    out[label] = round(float(dist), 2)
+        return out
+
+    def report(self, bond_warn=None):
+        """Print one line per built gap; junctions longer than bond_warn (Å) are flagged."""
+        if bond_warn is None:
+            bond_warn = self.junction_warn
+        if not self.build_report:
+            print("No gaps built yet.")
+            return
+        for item in self.build_report:
+            start, end = item["gap"]
+            junctions = ", ".join(
+                f"{side} {dist:.2f} Å" + (" (stretched)" if dist > bond_warn else "")
+                for side, dist in item["junction_CN"].items()
+            )
+            bfac = (
+                f"mean {item['bfactor_label']} {item['mean_bfactor']}"
+                if item["mean_bfactor"] is not None
+                else ""
+            )
+            print(
+                f"{start}-{end} ({item['n_residues']} res) from {item['template']}: "
+                f"local RMSD {item['local_rmsd']:.2f} Å, {bfac}; C-N junction {junctions}"
+            )
 
     def get_chain(self, return_incomplete_chain=False):
         """If no missing loop exists or return_incomplete_chain is True, this
