@@ -159,3 +159,25 @@ def test_orientation_of_a_real_structure(load_structure):
     after = np.array([atom.coord for atom in model.get_atoms()])
     assert pdist(after[:150]) == pytest.approx(pdist(before[:150]), abs=1e-2)
     assert handedness(after) == handedness(before)
+
+
+def test_find_max_dim_is_the_largest_interatomic_distance():
+    coords = random_cloud(7)
+    manipulator = CoordManipulator()
+    manipulator.load_entity(FakeEntity(coords))
+    max_dim = manipulator.find_max_dim()
+    assert isinstance(max_dim, float)
+    assert max_dim == pytest.approx(pdist(coords).max(), rel=1e-6)
+
+
+def test_find_max_dim_is_unchanged_by_orientation():
+    coords = random_cloud(8)
+    _, oriented = orient("orient_coords", coords)
+    reloaded = CoordManipulator()
+    reloaded.load_entity(FakeEntity(oriented))
+    assert reloaded.find_max_dim() == pytest.approx(pdist(coords).max(), abs=1e-3)
+
+
+def test_find_max_dim_without_entity_raises():
+    with pytest.raises(ValueError):
+        CoordManipulator().find_max_dim()
