@@ -135,6 +135,39 @@ def report_loops(chain: PolymerChain):
     return loops
 
 
+def _clean_sequence(sequence):
+    """One-letter sequence without whitespace, upper case; rejects other characters."""
+    seq = "".join(str(sequence).split()).upper()
+    if not seq or not seq.isalpha():
+        raise ValueError(f"Not a one-letter sequence: {sequence!r}")
+    return seq
+
+
+def _parse_pdbids(pdbids):
+    """{PDBID: [chain ids] or None} from "1ABC", "1ABC.A", "1ABC_A", a list or a dict."""
+    if isinstance(pdbids, dict):
+        return {
+            str(k).upper(): (
+                None if v is None else [v] if isinstance(v, str) else list(v)
+            )
+            for k, v in pdbids.items()
+        }
+    if isinstance(pdbids, str):
+        pdbids = [pdbids]
+    entries = {}
+    for item in pdbids:
+        item = str(item).strip()
+        pdbid, _, chain_id = item.replace("_", ".").partition(".")
+        pdbid = pdbid.upper()
+        if len(pdbid) != 4:
+            raise ValueError(f"Not a PDB ID: {item!r}")
+        if not chain_id:
+            entries[pdbid] = None
+        elif entries.get(pdbid, []) is not None:
+            entries.setdefault(pdbid, []).append(chain_id)
+    return entries
+
+
 def _load_template_chain(template):
     """Return (first polymer chain, structure id) from a file path or crimm entity."""
     import os
@@ -379,24 +412,45 @@ class ChainLoopBuilder:
         return show_multiple([self.model_chain, self.template_chain], **kwargs)
 
     @staticmethod
-    def _build_seq_query(seq_string, max_num_match, identity_score_cutoff):
+    def _build_seq_query(
+        seq_string, max_num_match, identity_score_cutoff, uniprot_id=None
+    ):
         """
         Args:
             seq_string: str
             max_num_match: int
             identity_score_cutoff: float (from 0 to 1)
+            uniprot_id: if given, keep only polymer entities mapped to this
+                UniProt accession
         """
-        query_dict = {
-            "query": {
-                "type": "terminal",
-                "service": "sequence",
-                "parameters": {
-                    "evalue_cutoff": 1,
-                    "identity_cutoff": identity_score_cutoff,
-                    "sequence_type": "protein",
-                    "value": seq_string,
-                },
+        query = {
+            "type": "terminal",
+            "service": "sequence",
+            "parameters": {
+                "evalue_cutoff": 1,
+                "identity_cutoff": identity_score_cutoff,
+                "sequence_type": "protein",
+                "value": seq_string,
             },
+        }
+        if uniprot_id is not None:
+            accession = {
+                "type": "terminal",
+                "service": "text",
+                "parameters": {
+                    "attribute": "rcsb_polymer_entity_container_identifiers."
+                    "reference_sequence_identifiers.database_accession",
+                    "operator": "exact_match",
+                    "value": str(uniprot_id).strip().upper(),
+                },
+            }
+            query = {
+                "type": "group",
+                "logical_operator": "and",
+                "nodes": [query, accession],
+            }
+        query_dict = {
+            "query": query,
             "request_options": {
                 "scoring_strategy": "sequence",
                 "paginate": {"start": 0, "rows": max_num_match},
@@ -406,22 +460,32 @@ class ChainLoopBuilder:
 
         return query_dict
 
-    def query_seq_match(self, max_num_match, identity_score_cutoff):
+    def query_seq_match(
+        self, max_num_match, identity_score_cutoff, sequence=None, uniprot_id=None
+    ):
         """
         Make RCSB PDB query for protein sequence
 
-        :param seq_string : string of the query sequence
         :param max_num_match : maximum number of top matches returned.
         :param identity_score_cutoff: lowest identity score accepted
+        :param sequence: one-letter query sequence; default: the chain's
+            canonical sequence
+        :param uniprot_id: keep only hits mapped to this UniProt accession
         :rtype retults : dict consists (sequence_matching_score, PDB_ID, entity_ID)
         """
-        seq_string = str(self.model_can_seq)
+        if sequence is None:
+            seq_string = str(self.model_can_seq)
+        else:
+            seq_string = _clean_sequence(sequence)
         json_q = ChainLoopBuilder._build_seq_query(
-            seq_string, max_num_match, identity_score_cutoff
+            seq_string, max_num_match, identity_score_cutoff, uniprot_id=uniprot_id
         )
         # entry point of rcsb.org for advancced search
         url = "https://search.rcsb.org/rcsbsearch/v2/query?"
         response = requests.post(url, json=json_q, timeout=500)
+        if getattr(response, "status_code", 200) == 204:
+            # RCSB answers "204 No Content" when nothing matches
+            return {}
         r_dict = json.loads(response.text)
 
         if "result_set" not in r_dict:
@@ -448,17 +512,44 @@ class ChainLoopBuilder:
         Return a generator of all template chains from the query result dict
         """
         for entity_dict in query_results.values():
-            for pdbid, chain_ids in entity_dict.items():
-                first_model = fetch_rcsb(
-                    pdbid,
-                    use_bio_assembly=False,
-                    include_solvent=False,
-                    local_entry=local_entry_point,
-                    first_model_only=True,
-                )
-                for chain_id in chain_ids:
-                    template_chain = first_model[chain_id]
-                    yield (pdbid, template_chain)
+            yield from ChainLoopBuilder._iter_pdb_templates(
+                entity_dict, local_entry_point
+            )
+
+    @staticmethod
+    def _iter_pdb_templates(entries: dict, local_entry_point=None):
+        """Yield (pdbid, chain) for {pdbid: [chain ids] or None}; None means
+        every polypeptide chain of the first model. Entries or chains that
+        cannot be loaded are skipped with a warning."""
+        for pdbid, chain_ids in entries.items():
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    first_model = fetch_rcsb(
+                        pdbid,
+                        use_bio_assembly=False,
+                        include_solvent=False,
+                        local_entry=local_entry_point,
+                        first_model_only=True,
+                    )
+            except Exception as exc:  # network, missing file, parse error
+                warnings.warn(f"Template {pdbid} skipped: could not load it ({exc}).")
+                continue
+            if chain_ids is None:
+                chain_ids = [
+                    chain.id
+                    for chain in first_model
+                    if getattr(chain, "chain_type", None) == "Polypeptide(L)"
+                ]
+            for chain_id in chain_ids:
+                if chain_id not in first_model:
+                    warnings.warn(
+                        f"Template {pdbid} has no chain {chain_id}; chain IDs are "
+                        "label_asym_id, as in RCSB polymer instance IDs "
+                        f"(available: {[c.id for c in first_model]})."
+                    )
+                    continue
+                yield (pdbid, first_model[chain_id])
 
     def _reject_by_rmsd(self, overall_rmsd_threshold):
         if overall_rmsd_threshold is not None:
@@ -482,47 +573,157 @@ class ChainLoopBuilder:
         rmsd_threshold=None,
         overall_rmsd_threshold=None,
         local_entry_point=None,
+        sequence=None,
+        uniprot_id=None,
+        include_terminal=True,
+        allow_mismatch=False,
     ):
         """Build the missing loops of the model chain from homology models from
         PDB. Seqeunce search query is performed first to find the closest homology
-        models based on sequence identity scores."""
+        models based on sequence identity scores.
+
+        Args:
+            max_num_match: number of top search hits (polymer instances) to try.
+            identity_score_cutoff: lowest sequence identity of a hit (0 to 1).
+            rmsd_threshold: skip a gap if the superposition RMSD of the residues
+                around it is above this value (Å).
+            overall_rmsd_threshold: skip a template whose whole-chain
+                superposition RMSD is above this value (Å).
+            local_entry_point: path of a local PDB mmCIF archive; default rcsb.org.
+            sequence: one-letter sequence to search with instead of the chain's
+                canonical sequence, e.g. a construct or a related sequence.
+            uniprot_id: keep only hits whose PDB entity is mapped to this
+                UniProt accession. The PDB often maps entries to a strain- or
+                isoform-specific accession (e.g. viral polyproteins), so check
+                the accession in the entries you expect if nothing is found.
+                The ``uniprot_id`` given to the constructor is not used here.
+            include_terminal: also copy missing terminal residues.
+            allow_mismatch: copy a gap even if the template's residues there
+                differ from the model chain's sequence. Default: such gaps
+                are taken from another template or left unbuilt.
+
+        For each gap, the template with the lowest local RMSD is used. Per-gap
+        results are added to ``self.build_report``.
+        """
         # if local_entry_point is None, rcsb.org will be used
         if self.model_chain.is_continuous():
             warnings.warn(f"{self.model_chain} does not have any missing loops")
             return
 
-        self.query_results = self.query_seq_match(max_num_match, identity_score_cutoff)
+        self.query_results = self.query_seq_match(
+            max_num_match,
+            identity_score_cutoff,
+            sequence=sequence,
+            uniprot_id=uniprot_id,
+        )
 
         if not self.query_results:
+            hint = ""
+            if uniprot_id is not None:
+                hint = (
+                    f" No hit is mapped to UniProt {uniprot_id}. The PDB often maps "
+                    "entries to a strain- or isoform-specific accession; run without "
+                    "uniprot_id, or check the accession of the entries you expect."
+                )
             warnings.warn(
                 f"No homology model found for {self.pdbid}-{self.model_chain.id} "
-                "from sequence search!"
+                f"from sequence search!{hint}"
             )
             return
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            # create a generator for all the templates
-            all_templates = self.get_templates(self.query_results, local_entry_point)
+        all_templates = self.get_templates(self.query_results, local_entry_point)
+        self._build_from_pdb_templates(
+            all_templates,
+            include_terminal=include_terminal,
+            rmsd_threshold=rmsd_threshold,
+            overall_rmsd_threshold=overall_rmsd_threshold,
+            allow_mismatch=allow_mismatch,
+        )
 
-        repair_candidates = {}
-        for pdbid, template in all_templates:
+    def build_from_pdbids(
+        self,
+        pdbids,
+        rmsd_threshold=None,
+        overall_rmsd_threshold=None,
+        local_entry_point=None,
+        include_terminal=True,
+        allow_mismatch=False,
+    ):
+        """Build the missing loops of the model chain from PDB entries you choose.
+
+        Args:
+            pdbids: PDB IDs of the templates. Accepts "1ABC" (every polypeptide
+                chain of the entry is tried), "1ABC.A" or "1ABC_A" (one chain),
+                a list of these, or a dict {"1ABC": ["A", "B"]}. Chain IDs are
+                label_asym_id, the same as RCSB polymer instance IDs.
+            rmsd_threshold, overall_rmsd_threshold, local_entry_point,
+            include_terminal, allow_mismatch: as in build_from_homology().
+
+        For each gap, the template with the lowest local RMSD is used. Per-gap
+        results are added to ``self.build_report``.
+        """
+        if len(self.model_chain.missing_res) == 0:
+            warnings.warn(f"{self.model_chain} does not have any missing residues")
+            return
+        entries = _parse_pdbids(pdbids)
+        templates = self._iter_pdb_templates(entries, local_entry_point)
+        self._build_from_pdb_templates(
+            templates,
+            include_terminal=include_terminal,
+            rmsd_threshold=rmsd_threshold,
+            overall_rmsd_threshold=overall_rmsd_threshold,
+            allow_mismatch=allow_mismatch,
+        )
+
+    def _build_from_pdb_templates(
+        self,
+        templates,
+        include_terminal,
+        rmsd_threshold,
+        overall_rmsd_threshold,
+        allow_mismatch,
+    ):
+        """Try each (pdbid, chain); fill each gap from the template with the
+        lowest local RMSD."""
+        repair_candidates, skipped = {}, {}
+        tried = []
+        for pdbid, template in templates:
+            tried.append(f"{pdbid}.{template.id}")
             self.set_template_chain(template)
             if self._reject_by_rmsd(overall_rmsd_threshold):
                 continue
-            if cur_repairables := self.get_repair_residues_from_template(
-                rmsd_threshold=rmsd_threshold
-            ):
+            cur_repairables, cur_skipped = self._collect_repairables(
+                structure_id=pdbid,
+                include_terminal=include_terminal,
+                rmsd_threshold=rmsd_threshold,
+                allow_mismatch=allow_mismatch,
+                bfactor_label="B-factor",
+                warn_mismatch=False,
+            )
+            for gap, mismatches in cur_skipped.items():
+                skipped.setdefault(gap, []).append(
+                    (f"{pdbid}.{template.id}", mismatches)
+                )
+            if cur_repairables:
                 self._update_candidates(cur_repairables, repair_candidates, pdbid)
 
-        for gap in sorted(repair_candidates):
-            copy_residues = repair_candidates[gap]["residues"]
-            self._copy_gap_residues(
-                gap=gap,
-                residues=copy_residues,
+        unfilled = {g: v for g, v in skipped.items() if g not in repair_candidates}
+        for gap, per_template in sorted(unfilled.items()):
+            label, mismatches = per_template[0]
+            listed = ", ".join(f"{e}{i} (template: {t})" for i, e, t in mismatches)
+            warnings.warn(
+                f"Gap {min(gap)}-{max(gap)} not built: the residues there differ "
+                f"from the sequence in every template that covers it "
+                f"({len(per_template)}; e.g. {label} at {listed}). Use "
+                "allow_mismatch=True to copy them anyway."
             )
-        self.model_chain.reset_atom_serial_numbers()
-        self.repaired_residues.update(repair_candidates)
+        if not repair_candidates:
+            warnings.warn(
+                f"No repairable residues found for {self.model_chain} from "
+                f"templates {tried}."
+            )
+            return
+        self._apply_repairables(repair_candidates)
 
     def build_from_alphafold(self, include_terminal=False, uniprot_id=None):
         """Build the missing loops of the model chain from AlphaFold models.
@@ -634,61 +835,97 @@ class ChainLoopBuilder:
         bfactor_label,
     ):
         self.set_template_chain(template_chain)
-        repairables = self.get_repair_residues_from_template(
-            rmsd_threshold=rmsd_threshold
+        repairables, _ = self._collect_repairables(
+            structure_id=structure_id,
+            include_terminal=include_terminal,
+            rmsd_threshold=rmsd_threshold,
+            allow_mismatch=allow_mismatch,
+            bfactor_label=bfactor_label,
+            warn_mismatch=True,
         )
-
         if len(repairables) == 0:
             warnings.warn(
                 f"No repairable residues found for {self.model_chain} "
                 f"from template {structure_id}."
             )
             return
+        self._apply_repairables(repairables)
 
+    def _collect_repairables(
+        self,
+        structure_id,
+        include_terminal,
+        rmsd_threshold,
+        allow_mismatch,
+        bfactor_label,
+        warn_mismatch,
+    ):
+        """Gaps the current template can fill, after the terminal and
+        residue-name checks. Returns (repairables, skipped) where skipped maps
+        each gap rejected for differing residue names to its mismatches."""
+        repairables = self.get_repair_residues_from_template(
+            rmsd_threshold=rmsd_threshold
+        )
         seq_len = len(self.model_chain.can_seq)
         if not include_terminal:
             for gap in [g for g in repairables if 1 in g or seq_len in g]:
                 repairables.pop(gap)
             self.model_can_seq = self.model_chain.can_seq
 
+        skipped = {}
         for gap in list(repairables):
-            mismatches = self._gap_name_mismatches(gap, repairables[gap]["residues"])
+            info = repairables[gap]
+            mismatches = self._gap_name_mismatches(gap, info["residues"])
             if mismatches and not allow_mismatch:
-                listed = ", ".join(f"{e}{i} (template: {t})" for i, e, t in mismatches)
-                warnings.warn(
-                    f"Gap {min(gap)}-{max(gap)} not built: the template's residues "
-                    f"differ from the sequence at {listed}. Use allow_mismatch=True "
-                    "to copy them anyway."
-                )
+                skipped[gap] = mismatches
                 repairables.pop(gap)
+                if warn_mismatch:
+                    listed = ", ".join(
+                        f"{e}{i} (template: {t})" for i, e, t in mismatches
+                    )
+                    warnings.warn(
+                        f"Gap {min(gap)}-{max(gap)} not built: the template's "
+                        f"residues differ from the sequence at {listed}. Use "
+                        "allow_mismatch=True to copy them anyway."
+                    )
                 continue
-            repairables[gap]["name_mismatches"] = mismatches
-
-        for gap_ids, info in sorted(repairables.items()):
-            info["structure_id"] = structure_id
             bfactors = [
                 res["CA"].get_bfactor() for res in info["residues"] if "CA" in res
             ]
-            self._copy_gap_residues(gap=gap_ids, residues=info["residues"])
-            self.build_report.append(
-                {
-                    "gap": (min(gap_ids), max(gap_ids)),
-                    "n_residues": len(gap_ids),
-                    "template": structure_id,
-                    "local_rmsd": round(float(info["rmsd"]), 3),
-                    "bfactor_label": bfactor_label,
-                    "mean_bfactor": (
-                        round(float(np.mean(bfactors)), 1) if bfactors else None
-                    ),
-                    "junction_CN": self._junction_distances(gap_ids),
-                    "name_mismatches": info["name_mismatches"],
-                }
+            info["name_mismatches"] = mismatches
+            info["structure_id"] = structure_id
+            info["template_chain"] = getattr(self.template_chain, "id", None)
+            info["bfactor_label"] = bfactor_label
+            info["mean_bfactor"] = (
+                round(float(np.mean(bfactors)), 1) if bfactors else None
             )
+        return repairables, skipped
+
+    def _apply_repairables(self, repairables):
+        """Copy the chosen gap residues into the model chain and report them."""
+        new_items = []
+        for gap_ids, info in sorted(repairables.items()):
+            self._copy_gap_residues(gap=gap_ids, residues=info["residues"])
+            template = info["structure_id"]
+            if info.get("template_chain") and not str(template).endswith(".cif"):
+                template = f"{template}.{info['template_chain']}"
+            item = {
+                "gap": (min(gap_ids), max(gap_ids)),
+                "n_residues": len(gap_ids),
+                "template": template,
+                "local_rmsd": round(float(info["rmsd"]), 3),
+                "bfactor_label": info["bfactor_label"],
+                "mean_bfactor": info["mean_bfactor"],
+                "junction_CN": self._junction_distances(gap_ids),
+                "name_mismatches": info["name_mismatches"],
+            }
+            self.build_report.append(item)
+            new_items.append(item)
         self.model_chain.reset_atom_serial_numbers()
         self.repaired_residues.update(repairables)
         stretched = [
             f"{item['gap'][0]}-{item['gap'][1]} ({side} {dist:.1f} Å)"
-            for item in self.build_report[-len(repairables) :]
+            for item in new_items
             for side, dist in item["junction_CN"].items()
             if dist > self.junction_warn
         ]

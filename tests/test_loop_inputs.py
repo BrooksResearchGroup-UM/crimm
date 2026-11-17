@@ -320,3 +320,179 @@ def test_no_pdb_id_warning_when_uniprot_id_given(ubq_chain, tmp_path):
         warnings.simplefilter("always")
         ChainLoopBuilder(chain, uniprot_id="P0CG48")
     assert not [w for w in caught if "PDB ID" in str(w.message)]
+
+
+# --- ChainLoopBuilder with PDB templates: search sequence and chosen entries -----
+
+
+def _fake_fetch_rcsb(load_structure, calls=None):
+    def fetch(pdb_id, **kwargs):
+        if calls is not None:
+            calls.append(pdb_id)
+        if pdb_id != "1UBQ":
+            raise ValueError(f"Could not load file for {pdb_id}")
+        return load_structure("1ubq", include_solvent=False).models[0]
+
+    return fetch
+
+
+class _FakeResponse:
+    status_code = 200
+    text = '{"result_set": [{"identifier": "1UBQ.A", "score": 1.0}]}'
+
+
+class _NoContent:
+    status_code = 204
+    text = ""
+
+
+def test_query_seq_match_uses_given_sequence(ubq_chain, tmp_path, monkeypatch):
+    chain = _merged(_pieces_pdb(ubq_chain, tmp_path))
+    sent = []
+
+    def fake_post(url, json, timeout):
+        sent.append(json)
+        return _FakeResponse()
+
+    monkeypatch.setattr(LoopBuilder.requests, "post", fake_post)
+    builder = ChainLoopBuilder(chain, pdbid="NONE")
+    assert builder.query_seq_match(5, 0.9) == {1.0: {"1UBQ": ["A"]}}
+    assert sent[-1]["query"]["parameters"]["value"] == UBQ_SEQ
+    builder.query_seq_match(5, 0.9, sequence=" mqifvktltg\nktitlev ")
+    assert sent[-1]["query"]["parameters"]["value"] == "MQIFVKTLTGKTITLEV"
+    with pytest.raises(ValueError, match="Not a one-letter sequence"):
+        builder.query_seq_match(5, 0.9, sequence="MQI-FV")
+    assert sent[-1]["query"]["type"] == "terminal"
+
+
+def test_uniprot_filter_is_added_to_the_search(ubq_chain, tmp_path, monkeypatch):
+    chain = _merged(_pieces_pdb(ubq_chain, tmp_path))
+    sent = []
+
+    def fake_post(url, json, timeout):
+        sent.append(json)
+        return _FakeResponse()
+
+    monkeypatch.setattr(LoopBuilder.requests, "post", fake_post)
+    builder = ChainLoopBuilder(chain, pdbid="NONE")
+    builder.query_seq_match(5, 0.9, uniprot_id="p0cg48")
+    query = sent[-1]["query"]
+    assert query["type"] == "group" and query["logical_operator"] == "and"
+    sequence_node, accession_node = query["nodes"]
+    assert sequence_node["parameters"]["value"] == UBQ_SEQ
+    assert accession_node["parameters"]["value"] == "P0CG48"
+    assert accession_node["parameters"]["attribute"].endswith("database_accession")
+
+
+def test_empty_uniprot_filtered_search_warns_with_hint(
+    ubq_chain, tmp_path, monkeypatch
+):
+    chain = _merged(_pieces_pdb(ubq_chain, tmp_path))
+    monkeypatch.setattr(
+        LoopBuilder.requests, "post", lambda url, json, timeout: _NoContent()
+    )
+    builder = ChainLoopBuilder(chain, pdbid="NONE")
+    with pytest.warns(UserWarning, match="strain- or isoform-specific accession"):
+        builder.build_from_homology(uniprot_id="P14340")
+    assert builder.query_results == {}
+
+
+def test_build_from_homology_passes_sequence_and_fills_gaps(
+    ubq_chain, tmp_path, load_structure, monkeypatch
+):
+    chain = _merged(_pieces_pdb(ubq_chain, tmp_path))
+    queried = []
+
+    def fake_query(
+        self, max_num_match, identity_score_cutoff, sequence=None, uniprot_id=None
+    ):
+        queried.append(sequence)
+        return {1.0: {"1UBQ": ["A"]}}
+
+    monkeypatch.setattr(ChainLoopBuilder, "query_seq_match", fake_query)
+    monkeypatch.setattr(LoopBuilder, "fetch_rcsb", _fake_fetch_rcsb(load_structure))
+    builder = ChainLoopBuilder(chain, pdbid="NONE")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        builder.build_from_homology(sequence="MQIFVKTLTGK")
+    assert queried == ["MQIFVKTLTGK"]
+    assert len(builder.get_chain()) == 76
+    assert [item["template"] for item in builder.build_report] == ["1UBQ.A"] * 2
+
+
+@pytest.mark.parametrize(
+    "pdbids",
+    ["1ubq", "1UBQ.A", ["1UBQ_A"], {"1UBQ": ["A"]}, {"1UBQ": None}],
+)
+def test_build_from_pdbids_fills_gaps(
+    ubq_chain, tmp_path, load_structure, monkeypatch, pdbids
+):
+    chain = _merged(_pieces_pdb(ubq_chain, tmp_path))
+    monkeypatch.setattr(LoopBuilder, "fetch_rcsb", _fake_fetch_rcsb(load_structure))
+    builder = ChainLoopBuilder(chain, pdbid="NONE")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        builder.build_from_pdbids(pdbids)
+    assert len(builder.get_chain()) == 76
+    assert [item["gap"] for item in builder.build_report] == [(31, 40), (50, 52)]
+    assert builder.build_report[0]["template"] == "1UBQ.A"
+    assert builder.build_report[0]["bfactor_label"] == "B-factor"
+
+
+def test_build_from_pdbids_skips_bad_entries_and_chains(
+    ubq_chain, tmp_path, load_structure, monkeypatch
+):
+    chain = _merged(_pieces_pdb(ubq_chain, tmp_path))
+    calls = []
+    monkeypatch.setattr(
+        LoopBuilder, "fetch_rcsb", _fake_fetch_rcsb(load_structure, calls)
+    )
+    builder = ChainLoopBuilder(chain, pdbid="NONE")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        builder.build_from_pdbids(["9ZZZ", "1UBQ.Q", "1UBQ.A"])
+    messages = [str(w.message) for w in caught]
+    assert any("9ZZZ skipped" in m for m in messages)
+    assert any("has no chain Q" in m for m in messages)
+    assert calls == ["9ZZZ", "1UBQ"]
+    assert len(builder.get_chain()) == 76
+
+
+def test_build_from_pdbids_rejects_malformed_id(ubq_chain, tmp_path):
+    chain = _merged(_pieces_pdb(ubq_chain, tmp_path))
+    builder = ChainLoopBuilder(chain, pdbid="NONE")
+    with pytest.raises(ValueError, match="Not a PDB ID"):
+        builder.build_from_pdbids(["UBQ"])
+
+
+def test_pdb_templates_with_different_residues_leave_gap_unbuilt(
+    ubq_chain, tmp_path, load_structure, monkeypatch
+):
+    chain = _merged(_pieces_pdb(ubq_chain, tmp_path))
+
+    def fetch_variant(pdb_id, **kwargs):
+        model = load_structure("1ubq", include_solvent=False).models[0]
+        template = model["A"]
+        template[35].resname = "ALA"
+        template.reported_res[34] = (35, "ALA")
+        template.can_seq = Seq(UBQ_SEQ[:34] + "A" + UBQ_SEQ[35:])
+        return model
+
+    monkeypatch.setattr(LoopBuilder, "fetch_rcsb", fetch_variant)
+    builder = ChainLoopBuilder(chain, pdbid="NONE")
+    with pytest.warns(UserWarning, match=r"Gap 31-40 not built.*every template"):
+        builder.build_from_pdbids("1UBQ")
+    assert [item["gap"] for item in builder.build_report] == [(50, 52)]
+
+
+@pytest.mark.network
+def test_rcsb_sequence_search_finds_ubiquitin(ubq_chain, tmp_path):
+    chain = _merged(_pieces_pdb(ubq_chain, tmp_path))
+    builder = ChainLoopBuilder(chain, pdbid="NONE")
+    results = builder.query_seq_match(50, 0.95, sequence=UBQ_SEQ)
+    assert any("1UBQ" in entries for entries in results.values())
+    # 1UBQ is mapped to P0CG48 (polyubiquitin-C), so the filter keeps it ...
+    results = builder.query_seq_match(50, 0.95, uniprot_id="P0CG48")
+    assert any("1UBQ" in entries for entries in results.values())
+    # ... and an unrelated accession leaves nothing
+    assert builder.query_seq_match(50, 0.95, uniprot_id="P69905") == {}
