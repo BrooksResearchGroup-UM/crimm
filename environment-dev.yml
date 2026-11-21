@@ -17,7 +17,12 @@ dependencies:
   - requests>=2.31
   - pysocks
   # crimm optional: visualization, cheminformatics, protonation, MD engines
-  - nglview>=3.1
+  # Below 4: nglview 4.0.1 ships the 3.1.5 JupyterLab extension while its Python side
+  # asks for 4.0, so NGL widgets fail to load in JupyterLab (nglviewer/nglview#1181).
+  # Lift both pins when upstream publishes a matching extension.
+  - nglview>=3.1,<4
+  # nglview 3.1.x imports pkg_resources, which setuptools 81 removed.
+  - setuptools<81
   - ipywidgets>=8.1
   - py3dmol
   - rdkit>=2023
