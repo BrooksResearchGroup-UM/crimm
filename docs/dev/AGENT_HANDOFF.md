@@ -126,22 +126,24 @@ Follow these unless the owner says otherwise in your own session.
 | 2026-11-07 | Agent activity (state, claims, session log) is not kept in a tracked file, because each update would need a pull request. It goes in the open `agent-log` issue; open questions are issues labelled `question` (section 5). | `[told]` |
 | 2026-10-06 | Public API may break, but old import paths must keep working with `DeprecationWarning`. | `[told]` |
 | 2026-10-06 | Resolve TODO comments before the refactor and restructure phases. SUPERSEDED 2026-10-28 by the row below. | `[told]` |
-| 2026-10-28 | Pull requests are merged by the owner once CI is green and reviewed afterwards in batches (label `review-after-merge`), except changes to Stan's files, which wait for his approval. Small pull requests, one concern each. Rule: CONTRIBUTING, "Review and merge". | `[told]` |
+| 2026-10-28 | Pull requests are merged by the owner once CI is green and reviewed afterwards in batches (label `review-after-merge`), except changes to Stan's files, which wait for his approval. Small pull requests, one concern each. Rule: CONTRIBUTING, "Review and merge". The exception for Stan's files is SUPERSEDED 2026-11-21. | `[told]` |
+| 2026-11-21 | Every pull request that changes code gets a Macroscope review, requested with an `@macroscope-app review` comment after opening and after each push of fixes. The agent reads the findings, applies the suggested fixes that are right (with a test), commits and pushes, and replies on each thread; findings without a fix, or needing a design decision, go to the owner with a proposed solution. The owner decides and merges, for now; a more autonomous merge rule may follow. This applies to Stan's files too; his review is no longer requested. Rule: CONTRIBUTING, "Review and merge". | `[told]` |
 | 2026-10-28 | Not every TODO comment has to be resolved before the refactor and restructure phases. Some are refactoring work themselves. Which phase a TODO belongs to is decided when its resolution starts, not in advance. Every TODO still carries its issue number. | `[told]` |
-| 2026-10-30 | The project, not only Stan, prefers small pull requests (CONTRIBUTING, "Issues and pull requests"). Merging most of them first and reviewing later stays. The owner gives Stan a deadline with each review request. | `[told]` |
+| 2026-10-30 | The project, not only Stan, prefers small pull requests (CONTRIBUTING, "Issues and pull requests"). Merging most of them first and reviewing later stays. The owner gives Stan a deadline with each review request (SUPERSEDED 2026-11-21: his review is no longer requested). | `[told]` |
 | 2026-11-02 | Design ideas for later improvements go in ROADMAP Phase 7 (planned features and robustness), after the minimizer, as problems surface. First: a simulation system object with a readiness check before writing files or handing the system to another program. The owner adds notes. | `[told]` |
 | 2026-10-06 | `import-fix.md` (repo root) is folded into ROADMAP 1.5. Delete the file as the last step of that fix, not before. | `[told]` |
 | 2026-10-06 | Commit only when asked; never push unless asked. The owner asked for the 2026-10-06 commits explicitly; that does not carry over to later sessions. | `[told]` for those commits, `[inferred]` as a standing rule |
 | 2026-10-08 | CHARMM (and so pyCHARMM) is licensed and not accessible to developers without a licence. Keep CHARMM and pyCHARMM tooling and tests in the roadmap, gated by the `pycharmm` marker; document the licence limit. Never put CHARMM source, binaries or libraries in the repository or in issues. | `[told]` |
 | 2026-10-08 | The owner compiles CHARMM locally, as part of the developer environment setup, in the next session (likely Monday 2026-10-12). Do not start the build or install anything for it before then. SUPERSEDED 2026-10-14: built (section 3). | `[told]` |
-| 2026-10-14 | Stan agreed that his modules (`Solvator.py`, `CrystalSDF.py`, `CoordManipulator.py`) may be linted and formatted, with git blame kept to him: lint and format commits go in `.git-blame-ignore-revs`, and such a PR is merged with a merge commit. Other changes to his code still go to him for review. | `[told]` |
+| 2026-10-14 | Stan agreed that his modules (`Solvator.py`, `CrystalSDF.py`, `CoordManipulator.py`) may be linted and formatted, with git blame kept to him: lint and format commits go in `.git-blame-ignore-revs`, and such a PR is merged with a merge commit. Other changes to his code still go to him for review (SUPERSEDED 2026-11-21: they go through Macroscope like any other code). | `[told]` |
 | 2026-10-14 | The default C-terminal patch `CT3` in `generate_model` is intended. Structure-specific problems it causes are logged per entry in `docs/dev/PDB_PREP_LOG.md`. | `[told]` |
 | 2026-10-14 | Machine- and account-specific setup (paths, cluster, accounts) and private downstream projects go in the owner's `CLAUDE.local.md`, not in `docs/dev/`. Published docs describe the setup generically. | `[told]` |
 
 Working agreements between agents (not owner instructions; change them by logging why):
 
 - Changes to `crimm/Modeller/Solvator.py`, `crimm/Modeller/CrystalSDF.py` and the PCA
-  methods in `CoordManipulator.py` are Stan's area. Propose; flag for his review.
+  methods in `CoordManipulator.py` are Stan's area: say in the pull request what changes in
+  his code. Review goes through Macroscope (section 2, 2026-11-21), not to him.
 - A bug you find but do not fix gets a test marked `xfail(strict=True)` with the reason, and
   a GitHub issue (ROADMAP indexes the issues). When you fix it, remove the marker in the same
   change.

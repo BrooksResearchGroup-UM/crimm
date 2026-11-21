@@ -64,7 +64,8 @@ A commit that only lints or reformats goes in its own commit and is listed in
 - Library code logs or raises; it does not `print`. Do not use `assert` to validate input.
 - Public API may break, but old import paths keep working with a `DeprecationWarning`.
 - Solvation code (`Solvator.py`, `CrystalSDF.py`, PCA methods of `CoordManipulator.py`) is
-  Stan's area; topology code is Truman's. Ask them to review changes there.
+  Stan's area; topology code is Truman's. Their review is not requested by default; every
+  code change goes through the Macroscope review below.
 - A `TODO` in code carries an issue number.
 
 ## Issues and pull requests
@@ -82,17 +83,26 @@ A commit that only lints or reformats goes in its own commit and is listed in
 
 ### Review and merge
 
-Adopted 2026-10-28. Reviewer time is limited, so most pull requests are merged first and
-reviewed afterwards, in batches.
+Adopted 2026-10-28, revised 2026-11-21. Reviewer time is limited, so every pull request that
+changes code is first reviewed by [Macroscope](https://docs.macroscope.com), an AI reviewer
+installed on this repository, and people review afterwards, in batches.
 
-- **Merge after green CI, review later.** Once the `all-green` check passes, the owner
-  (`@Truman-Xu`) merges the pull request and labels it `review-after-merge`. Branch protection
-  still asks for one approval, so the owner merges with admin rights
-  (`gh pr merge --admin`). Agents never merge.
-- **Exception: Stan's files are reviewed first.** A pull request that changes a file
-  `CODEOWNERS` assigns to `@stanislc` (`Solvator.py`, `CrystalSDF.py`, `CoordManipulator.py`)
-  waits for his approval before it is merged. Keep such changes in their own pull request, so
-  they do not hold up the rest.
+- **Macroscope reviews every pull request that changes code**, Stan's files included. After
+  opening the pull request, and again after pushing fixes, the author comments
+  `@macroscope-app review`; the project does not rely on automatic review. Pull requests that
+  change only documentation, CI or the dev environment skip it.
+- **Acting on its findings.** A finding with a suggested fix that is right is applied, with a
+  test, in a commit that names the review; reply on its thread with the commit. A suggested
+  fix that is wrong or incomplete gets a reply saying why, and what was done instead. A
+  finding without a suggested fix, or one that needs a design decision, is left open for the
+  owner with a proposed solution. A thread the owner has answered follows his answer.
+- **The owner merges, people review later.** Once the `all-green` check passes and the owner
+  has decided on the open findings, he (`@Truman-Xu`) merges the pull request and labels it
+  `review-after-merge`. Branch protection still asks for one approval, so he merges with admin
+  rights (`gh pr merge --admin`). Agents never merge. Merge rules that need less of him may
+  come later.
+- **Stan's files follow the same rules** (since 2026-11-21; before, they waited for his
+  approval). Keep changes to them in their own pull request all the same.
 - **Batches.** Before a review session, post the list of `review-after-merge` pull requests
   in merge order, with what to check in each and what can be skimmed. The reviewer removes
   the label when done.
