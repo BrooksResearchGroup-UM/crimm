@@ -496,3 +496,23 @@ def test_rcsb_sequence_search_finds_ubiquitin(ubq_chain, tmp_path):
     assert any("1UBQ" in entries for entries in results.values())
     # ... and an unrelated accession leaves nothing
     assert builder.query_seq_match(50, 0.95, uniprot_id="P69905") == {}
+
+
+# --- review fixes -----------------------------------------------------------------
+
+
+def test_merge_keeps_dna_sequence(load_structure):
+    strand = load_structure("1bna", include_solvent=False).models[0]["A"]
+    merged = merge_chains([strand])
+    assert str(merged.can_seq) == "CGCGAATTCGCG"
+
+
+@pytest.mark.parametrize("resseq, resname", [(1, "MSE"), (68, "HSE")])
+def test_variant_name_matching_the_sequence_is_not_a_gap(
+    ubq_chain, tmp_path, resseq, resname
+):
+    model = _pieces_pdb(ubq_chain, tmp_path, mutate={resseq: resname})
+    chain = _merged(model)
+    assert chain[resseq].resname == resname
+    assert [(min(g), max(g)) for g in chain.gaps] == [(31, 40), (50, 52)]
+

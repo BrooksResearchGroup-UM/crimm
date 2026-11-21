@@ -294,7 +294,8 @@ def _one_letter(resname, chain_type):
         **{v: v for v in nucleic_letters_3to1_extended.values()},
         **nucleic_letters_3to1_extended,
     }
-    return lookup.get(resname, "X")
+    # Biopython's nucleic keys are padded to three characters ("DA ").
+    return lookup.get(resname, lookup.get(resname.ljust(3), "X"))
 
 
 def _letters_match(observed, expected):
@@ -554,6 +555,10 @@ def renumber_by_sequence(
             offsets.setdefault(src_chain, set()).add(pos - src_resseq)
             res.id = (res.id[0], pos, " ")
             if _letters_match(letter, sequence[pos - 1]):
+                # Keep the observed name (MSE for M, any name at an X), so
+                # missing_res, which compares names, counts it as present.
+                if res.resname not in ("HSD", "HSE", "HSP"):
+                    resnames[pos - 1] = res.resname
                 continue
             expected = resnames[pos - 1]
             piece_mismatches.append((pos, res.resname, expected))
