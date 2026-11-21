@@ -606,7 +606,10 @@ class ChainLoopBuilder:
         results are added to ``self.build_report``.
         """
         # if local_entry_point is None, rcsb.org will be used
-        if self.model_chain.is_continuous():
+        # is_continuous() ignores missing termini, which this method can build.
+        if not self.model_chain.missing_res or (
+            not include_terminal and self.model_chain.is_continuous()
+        ):
             warnings.warn(f"{self.model_chain} does not have any missing loops")
             return
 

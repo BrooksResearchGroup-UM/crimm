@@ -516,3 +516,23 @@ def test_variant_name_matching_the_sequence_is_not_a_gap(
     assert chain[resseq].resname == resname
     assert [(min(g), max(g)) for g in chain.gaps] == [(31, 40), (50, 52)]
 
+
+class _SearchCalled(Exception):
+    pass
+
+
+def test_homology_search_runs_when_only_termini_are_missing(ubq_chain, monkeypatch):
+    chain = ubq_chain.copy()
+    for resseq in (1, 2, 75, 76):
+        chain.detach_child((" ", resseq, " "))
+    assert chain.is_continuous() and len(chain.missing_res) == 4
+
+    def search(*args, **kwargs):
+        raise _SearchCalled
+
+    builder = ChainLoopBuilder(chain)
+    monkeypatch.setattr(builder, "query_seq_match", search)
+    with pytest.raises(_SearchCalled):
+        builder.build_from_homology(include_terminal=True)
+    with pytest.warns(UserWarning, match="does not have any missing loops"):
+        builder.build_from_homology(include_terminal=False)
