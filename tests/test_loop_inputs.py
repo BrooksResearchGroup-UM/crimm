@@ -659,3 +659,19 @@ def test_present_variant_is_not_copied_over(load_structure, missing):
     assert out[35].resname == "ALA"
     assert len(out) == 76
     assert {res.id[1] for res in out} == set(range(1, 77))
+
+
+def test_junctions_around_a_kept_variant_are_reported(load_structure):
+    chain = load_structure("1ubq", include_solvent=False).models[0]["A"]
+    chain[35].resname = "ALA"
+    for resseq in (31, 32, 33, 34, 36):
+        chain.detach_child((" ", resseq, " "))
+    builder = ChainLoopBuilder(chain, pdbid="NONE")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        builder.build_from_template(_full_template(load_structure))
+    (item,) = builder.build_report
+    assert item["gap"] == (31, 36)
+    assert set(item["junction_CN"]) == {"before", "34-35", "35-36", "after"}
+    for dist in item["junction_CN"].values():
+        assert dist == pytest.approx(1.33, abs=0.05)

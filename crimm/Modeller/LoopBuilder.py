@@ -1019,13 +1019,24 @@ class ChainLoopBuilder:
         self.model_can_seq = chain.can_seq
 
     def _junction_distances(self, gap_ids):
-        """C-N distances (Å) where a copied gap joins the residues before and after it."""
+        """C-N distances (Å) at every join between copied and present residues.
+
+        "before" and "after" are the joins at the ends of the gap. A gap can have
+        holes where a residue was already present (see _drop_occupied_positions);
+        the joins around a hole are labelled "i-j" by residue number.
+        """
         out = {}
-        first, last = min(gap_ids), max(gap_ids)
-        for label, (i, j) in {
-            "before": (first - 1, first),
-            "after": (last, last + 1),
-        }.items():
+        copied = set(gap_ids)
+        first, last = min(copied), max(copied)
+        pairs = []
+        for i in sorted(copied):
+            if i - 1 not in copied:
+                label = "before" if i == first else f"{i - 1}-{i}"
+                pairs.append((label, i - 1, i))
+            if i + 1 not in copied:
+                label = "after" if i == last else f"{i}-{i + 1}"
+                pairs.append((label, i, i + 1))
+        for label, i, j in pairs:
             if i in self.model_chain and j in self.model_chain:
                 res_i, res_j = self.model_chain[i], self.model_chain[j]
                 if "C" in res_i and "N" in res_j:
