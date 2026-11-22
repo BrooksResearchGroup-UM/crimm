@@ -360,7 +360,11 @@ def merge_chains(chains, new_chain_id=None, sequence=None, **renumber_kwargs):
         chain_type=chain_type,
         known_sequence=seq,
         canon_sequence=seq,
-        reported_res=[(i, res.resname) for i, res in enumerate(residues, start=1)],
+        # missing_res compares names with HSD/HSE/HSP read as HIS
+        reported_res=[
+            (i, "HIS" if res.resname in ("HSD", "HSE", "HSP") else res.resname)
+            for i, res in enumerate(residues, start=1)
+        ],
         reported_missing_res=[],
     )
     for i, res in enumerate(residues, start=1):

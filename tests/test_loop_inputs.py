@@ -581,3 +581,10 @@ def test_copied_variant_is_not_a_gap_afterwards(ubq_chain, tmp_path, load_struct
     # building again finds nothing to do instead of re-inserting residue 35
     with pytest.warns(UserWarning, match="does not have any missing residues"):
         builder.build_from_template(template, allow_mismatch=True)
+
+
+def test_merge_without_sequence_keeps_charmm_histidines_present(ubq_chain, tmp_path):
+    model = _pieces_pdb(ubq_chain, tmp_path, mutate={68: "HSD"})
+    merged = merge_chains([model["A"], model["B"]])
+    assert merged.missing_res == []
+
