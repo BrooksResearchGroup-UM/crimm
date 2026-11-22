@@ -4,6 +4,7 @@ import warnings
 import numpy as np
 import requests
 from Bio.Align import PairwiseAligner
+from Bio.Seq import Seq
 
 from crimm.Fetchers import fetch_alphafold, fetch_rcsb, uniprot_id_query
 from crimm.Modeller.TopoLoader import ResidueTopologySet
@@ -923,6 +924,7 @@ class ChainLoopBuilder:
         new_items = []
         for gap_ids, info in sorted(repairables.items()):
             self._copy_gap_residues(gap=gap_ids, residues=info["residues"])
+            self._accept_variants(info["name_mismatches"])
             template = info["structure_id"]
             if info.get("template_chain") and not str(template).endswith(".cif"):
                 template = f"{template}.{info['template_chain']}"
@@ -953,6 +955,22 @@ class ChainLoopBuilder:
                 "differs from the model around these gaps; the chain needs loop "
                 "closure or restrained minimization before simulation."
             )
+
+    def _accept_variants(self, name_mismatches):
+        """Record copied residues whose names differ from the sequence (copied
+        with allow_mismatch=True) in reported_res and can_seq, as merge_chains
+        does for mismatches, so missing_res no longer lists them."""
+        if not name_mismatches:
+            return
+        chain = self.model_chain
+        index = {resseq: i for i, (resseq, _) in enumerate(chain.reported_res)}
+        can_seq = list(str(chain.can_seq))
+        for resseq, _expected, resname in name_mismatches:
+            name = "HIS" if resname in ("HSD", "HSE", "HSP") else resname
+            chain.reported_res[index[resseq]] = (resseq, name)
+            can_seq[resseq - 1] = chain.letter_3to1_dict.get(name, "X")
+        chain.can_seq = Seq("".join(can_seq))
+        self.model_can_seq = chain.can_seq
 
     def _junction_distances(self, gap_ids):
         """C-N distances (Å) where a copied gap joins the residues before and after it."""

@@ -563,3 +563,21 @@ def test_template_without_anchors_does_not_stop_the_others(
     assert len(builder.get_chain()) == 76
     assert {item["template"] for item in builder.build_report} == {"1UBQ.A"}
 
+
+def test_copied_variant_is_not_a_gap_afterwards(ubq_chain, tmp_path, load_structure):
+    chain = _merged(_pieces_pdb(ubq_chain, tmp_path))
+    template = _full_template(load_structure)
+    template[35].resname = "ALA"
+    template.reported_res[34] = (35, "ALA")
+    template.can_seq = Seq(UBQ_SEQ[:34] + "A" + UBQ_SEQ[35:])
+    builder = ChainLoopBuilder(chain, pdbid="NONE")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        builder.build_from_template(template, allow_mismatch=True)
+    out = builder.model_chain
+    assert len(out.missing_res) == 0
+    assert out.reported_res[34] == (35, "ALA")
+    assert out.can_seq[34] == "A"
+    # building again finds nothing to do instead of re-inserting residue 35
+    with pytest.warns(UserWarning, match="does not have any missing residues"):
+        builder.build_from_template(template, allow_mismatch=True)
