@@ -44,10 +44,19 @@ def _local_identity(query, target):
 
     aligner = PairwiseAligner()
     aligner.mode = "local"
-    aligner.substitution_matrix = substitution_matrices.load("BLOSUM62")
+    matrix = substitution_matrices.load("BLOSUM62")
+    aligner.substitution_matrix = matrix
     aligner.open_gap_score = -10
     aligner.extend_gap_score = -0.5
-    alignment = aligner.align(query, target)[0]
+    # BLOSUM62 has no selenocysteine (U) or pyrrolysine (O): score them as C and K,
+    # anything else outside its alphabet as X. Identity is counted on the original
+    # letters below; the positions are the same.
+    stand_in = {"U": "C", "O": "K"}
+
+    def scorable(seq):
+        return "".join(c if c in matrix.alphabet else stand_in.get(c, "X") for c in seq)
+
+    alignment = aligner.align(scorable(query), scorable(target))[0]
     identical = aligned = 0
     for (q0, q1), (t0, t1) in zip(*alignment.aligned):
         aligned += q1 - q0

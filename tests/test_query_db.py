@@ -79,6 +79,15 @@ def test_identity_of_a_variant():
     assert coverage == 1.0
 
 
+def test_identity_with_selenocysteine_and_pyrrolysine():
+    # U and O are not in BLOSUM62; they must still align and count as identical
+    seq = UBQ_SEQ[:20] + "U" + UBQ_SEQ[21:50] + "O" + UBQ_SEQ[51:]
+    assert query_db._local_identity(seq, seq) == (1.0, 1.0)
+    identity, coverage = query_db._local_identity(seq, UBQ_SEQ)
+    assert coverage == 1.0
+    assert identity == round(74 / 76, 3)
+
+
 def test_accepts_a_chain(stub_rcsb, load_structure):
     chain = load_structure("1ubq", include_solvent=False).models[0]["A"]
     find_uniprot_ids(chain, identity_cutoff=0.5, max_hits=7)
