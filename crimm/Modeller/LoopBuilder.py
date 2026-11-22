@@ -963,6 +963,8 @@ class ChainLoopBuilder:
         if not name_mismatches:
             return
         chain = self.model_chain
+        # Entity.copy() shares this list with the chain the builder was given
+        chain.reported_res = list(chain.reported_res)
         index = {resseq: i for i, (resseq, _) in enumerate(chain.reported_res)}
         can_seq = list(str(chain.can_seq))
         for resseq, _expected, resname in name_mismatches:
