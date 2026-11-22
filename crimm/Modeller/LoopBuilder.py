@@ -330,10 +330,16 @@ class ChainLoopBuilder:
             )
 
         rmsd_qualified = {}
+        self.unanchored_gaps = []
         for gap, template_resseqs in self.translated_ids.items():
-            self.imposer.set_around_gap(
-                self.model_chain, self.template_chain, gap, cutoff=5
-            )
+            try:
+                self.imposer.set_around_gap(
+                    self.model_chain, self.template_chain, gap, cutoff=5
+                )
+            except ValueError:
+                # no residue present in both chains to superimpose on
+                self.unanchored_gaps.append(gap)
+                continue
             self.imposer.apply_transform(self.template_chain)
             rmsd = self.imposer.rms
             if rmsd_threshold is not None and rmsd > rmsd_threshold:
@@ -869,6 +875,14 @@ class ChainLoopBuilder:
         repairables = self.get_repair_residues_from_template(
             rmsd_threshold=rmsd_threshold
         )
+        if self.unanchored_gaps:
+            listed = ", ".join(
+                f"{min(g)}-{max(g)}" for g in sorted(self.unanchored_gaps, key=min)
+            )
+            warnings.warn(
+                f"Template {structure_id}: no residues in common with the model "
+                f"chain around gap {listed}; skipped for this template."
+            )
         seq_len = len(self.model_chain.can_seq)
         if not include_terminal:
             for gap in [g for g in repairables if 1 in g or seq_len in g]:

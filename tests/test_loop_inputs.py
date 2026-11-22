@@ -536,3 +536,30 @@ def test_homology_search_runs_when_only_termini_are_missing(ubq_chain, monkeypat
         builder.build_from_homology(include_terminal=True)
     with pytest.warns(UserWarning, match="does not have any missing loops"):
         builder.build_from_homology(include_terminal=False)
+
+
+def test_template_without_anchors_does_not_stop_the_others(
+    ubq_chain, tmp_path, load_structure, monkeypatch
+):
+    chain = _merged(_pieces_pdb(ubq_chain, tmp_path))
+
+    def fetch(pdb_id, **kwargs):
+        model = load_structure("1ubq", include_solvent=False).models[0]
+        if pdb_id == "2AAA":
+            # has gap 31-40 but no residue in common with the model chain
+            template = model["A"]
+            for res in list(template):
+                if not 31 <= res.id[1] <= 40:
+                    template.detach_child(res.id)
+        return model
+
+    monkeypatch.setattr(LoopBuilder, "fetch_rcsb", fetch)
+    builder = ChainLoopBuilder(chain, pdbid="NONE")
+    with pytest.warns(
+        UserWarning,
+        match=r"2AAA.*no residues in common with the model chain around gap 31-40",
+    ):
+        builder.build_from_pdbids(["2AAA.A", "1UBQ.A"])
+    assert len(builder.get_chain()) == 76
+    assert {item["template"] for item in builder.build_report} == {"1UBQ.A"}
+
