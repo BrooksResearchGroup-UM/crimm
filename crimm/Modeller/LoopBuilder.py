@@ -911,7 +911,9 @@ class ChainLoopBuilder:
                     )
                 continue
             bfactors = [
-                res["CA"].get_bfactor() for res in info["residues"] if "CA" in res
+                res["CA"].get_bfactor()
+                for res in info["residues"]
+                if "CA" in res and res["CA"].get_bfactor() is not None
             ]
             info["name_mismatches"] = mismatches
             info["structure_id"] = structure_id

@@ -622,3 +622,18 @@ def test_build_from_template_leaves_the_callers_template_in_place(
     assert len(builder.get_chain()) == 76
     after = np.array([atom.coord for atom in template.get_atoms()])
     assert np.allclose(after, before)
+
+
+def test_template_without_b_factors_still_builds(ubq_chain, tmp_path, load_structure):
+    chain = _merged(_pieces_pdb(ubq_chain, tmp_path))
+    template = _full_template(load_structure)
+    for resseq in range(31, 41):
+        template[resseq]["CA"].set_bfactor(None)
+    builder = ChainLoopBuilder(chain, pdbid="NONE")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        builder.build_from_template(template)
+    assert len(builder.get_chain()) == 76
+    report = {item["gap"]: item for item in builder.build_report}
+    assert report[(31, 40)]["mean_bfactor"] is None
+    assert report[(50, 52)]["mean_bfactor"] is not None
