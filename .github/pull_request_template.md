@@ -11,4 +11,5 @@ Closes #
 - [ ] `import crimm` still needs only core dependencies
 - [ ] Docstrings state units and whether arguments are modified in place
 - [ ] Changelog entry for any user-visible change
-- [ ] Code changed: `@macroscope-app review` commented, and each finding applied, answered or left for the owner with a proposed solution (CONTRIBUTING, "Review and merge")
+- [ ] Label `documentation` if and only if nothing but documentation changed (Macroscope skips those)
+- [ ] Each Macroscope finding applied, answered, or left for the owner with a proposed solution (CONTRIBUTING, "Review and merge")

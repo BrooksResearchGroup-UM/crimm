@@ -27,10 +27,11 @@ The rules that matter most, in case you read nothing else:
 - `import crimm` must not import rdkit, nglview, ipywidgets or py3Dmol. Import optional
   packages inside the function that uses them. No module-level `import crimm_ml` either.
 - Public API may break, but old import paths keep working with a `DeprecationWarning`.
-- Every pull request that changes code gets a Macroscope review: comment
-  `@macroscope-app review` after opening it and after each push of fixes. Apply the suggested
-  fixes that are right, answer the ones that are not, and leave findings without a fix, or
-  needing a design decision, to the owner with a proposed solution. The owner merges.
+- Macroscope reviews every pull request automatically, when it is opened and on each push,
+  except pull requests labelled `documentation`: give that label to documentation-only pull
+  requests and to no others. Apply the suggested fixes that are right, answer the ones that
+  are not, and leave findings without a fix, or needing a design decision, to the owner with
+  a proposed solution. The owner merges.
   Stan's files (`Solvator.py`, `CrystalSDF.py`, `CoordManipulator.py`) follow the same rules;
   his review is no longer requested. Details: CONTRIBUTING, "Review and merge".
 - A bug you find but do not fix gets an `xfail(strict=True)` test with the reason and a

@@ -83,14 +83,15 @@ A commit that only lints or reformats goes in its own commit and is listed in
 
 ### Review and merge
 
-Adopted 2026-10-28, revised 2026-11-21. Reviewer time is limited, so every pull request that
+Adopted 2026-10-28, revised 2026-11-21 (Macroscope review, then made automatic). Reviewer time is limited, so every pull request that
 changes code is first reviewed by [Macroscope](https://docs.macroscope.com), an AI reviewer
 installed on this repository, and people review afterwards, in batches.
 
-- **Macroscope reviews every pull request that changes code**, Stan's files included. After
-  opening the pull request, and again after pushing fixes, the author comments
-  `@macroscope-app review`; the project does not rely on automatic review. Pull requests that
-  change only documentation, CI or the dev environment skip it.
+- **Macroscope reviews every pull request automatically**, Stan's files included: when it is
+  opened and again on each push. The one exception is a pull request labelled
+  `documentation`, which it skips; give that label only to pull requests that change nothing
+  but documentation. To review a skipped pull request or re-run a review, comment
+  `@macroscope-app review`.
 - **Acting on its findings.** A finding with a suggested fix that is right is applied, with a
   test, in a commit that names the review; reply on its thread with the commit. A suggested
   fix that is wrong or incomplete gets a reply saying why, and what was done instead. A
