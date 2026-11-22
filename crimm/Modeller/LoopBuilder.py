@@ -812,6 +812,9 @@ class ChainLoopBuilder:
             warnings.warn(f"{self.model_chain} does not have any missing residues")
             return
         template_chain, structure_id = _load_template_chain(template)
+        # Superposition moves the template; work on a copy so the caller's
+        # structure keeps its geometry.
+        template_chain = template_chain.copy()
         if bfactor_label is None:
             name = str(structure_id).rsplit("/", 1)[-1]
             bfactor_label = "pLDDT" if name.startswith(("fold_", "AF-")) else "B-factor"

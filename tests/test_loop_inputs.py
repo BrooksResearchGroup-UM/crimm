@@ -605,3 +605,20 @@ def test_accepting_a_variant_leaves_the_input_chain_alone(
     assert builder.model_chain.reported_res[34] == (35, "ALA")
     assert chain.reported_res == before
     assert str(chain.can_seq) == UBQ_SEQ
+
+
+def test_build_from_template_leaves_the_callers_template_in_place(
+    ubq_chain, tmp_path, load_structure
+):
+    chain = _merged(_pieces_pdb(ubq_chain, tmp_path))
+    template = _full_template(load_structure)
+    for atom in template.get_atoms():
+        atom.coord = atom.coord + np.array([10.0, 0.0, 0.0])
+    before = np.array([atom.coord for atom in template.get_atoms()])
+    builder = ChainLoopBuilder(chain, pdbid="NONE")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        builder.build_from_template(template)
+    assert len(builder.get_chain()) == 76
+    after = np.array([atom.coord for atom in template.get_atoms()])
+    assert np.allclose(after, before)
