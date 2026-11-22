@@ -827,6 +827,44 @@ class ChainLoopBuilder:
             bfactor_label=bfactor_label,
         )
 
+    def _drop_occupied_positions(self, repairables, structure_id):
+        """Remove gap positions the model chain already has a residue at.
+
+        missing_res lists a present residue whose name differs from the
+        sequence (ALA where GLY is expected) as missing, so its position can end
+        up in a gap. Copying the template's residue there would add a second
+        residue with the same ID; the present one is kept instead.
+        """
+        chain = self.model_chain
+        out, kept = {}, []
+        for gap, info in repairables.items():
+            ids = sorted(gap)
+            occupied = [i for i in ids if i in chain]
+            if not occupied:
+                out[gap] = info
+                continue
+            kept.extend(occupied)
+            residues = sorted(info["residues"], key=lambda r: r.id[1])
+            pairs = [(i, r) for i, r in zip(ids, residues) if i not in chain]
+            if pairs:
+                out[tuple(i for i, _ in pairs)] = {
+                    **info,
+                    "residues": [r for _, r in pairs],
+                }
+        if kept:
+            expected = dict(chain.reported_res)
+            listed = ", ".join(
+                f"{chain[i].resname}{i} (sequence: {expected.get(i, '?')})"
+                for i in sorted(set(kept))
+            )
+            warnings.warn(
+                f"{listed} is present under another residue name and is not "
+                f"replaced from template {structure_id}. To use the sequence's "
+                "residue, renumber the chain with "
+                "renumber_by_sequence(substitute_mismatches=True)."
+            )
+        return out
+
     def _gap_name_mismatches(self, gap, residues):
         """(resseq, model resname, template resname) where the names differ."""
         expected = dict(self.model_chain.missing_res)
@@ -887,6 +925,7 @@ class ChainLoopBuilder:
                 f"Template {structure_id}: no residues in common with the model "
                 f"chain around gap {listed}; skipped for this template."
             )
+        repairables = self._drop_occupied_positions(repairables, structure_id)
         seq_len = len(self.model_chain.can_seq)
         if not include_terminal:
             for gap in [g for g in repairables if 1 in g or seq_len in g]:

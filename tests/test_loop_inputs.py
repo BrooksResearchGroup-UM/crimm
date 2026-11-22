@@ -637,3 +637,25 @@ def test_template_without_b_factors_still_builds(ubq_chain, tmp_path, load_struc
     report = {item["gap"]: item for item in builder.build_report}
     assert report[(31, 40)]["mean_bfactor"] is None
     assert report[(50, 52)]["mean_bfactor"] is not None
+
+
+@pytest.mark.parametrize("missing", [(), (31, 32, 33, 34, 36)])
+def test_present_variant_is_not_copied_over(load_structure, missing):
+    # residue 35 is present as ALA where the sequence says GLY: missing_res lists it,
+    # but the template's GLY35 must not be added on top of it
+    chain = load_structure("1ubq", include_solvent=False).models[0]["A"]
+    chain[35].resname = "ALA"
+    for resseq in missing:
+        chain.detach_child((" ", resseq, " "))
+    assert (35, "GLY") in chain.missing_res
+    builder = ChainLoopBuilder(chain, pdbid="NONE")
+    with pytest.warns(
+        UserWarning, match=r"ALA35 \(sequence: GLY\) is present.*not replaced"
+    ):
+        builder.build_from_template(
+            _full_template(load_structure), include_terminal=True
+        )
+    out = builder.model_chain
+    assert out[35].resname == "ALA"
+    assert len(out) == 76
+    assert {res.id[1] for res in out} == set(range(1, 77))
