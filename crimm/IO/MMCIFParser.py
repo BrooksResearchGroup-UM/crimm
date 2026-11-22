@@ -10,6 +10,10 @@ import warnings
 from copy import deepcopy
 
 import numpy as np
+from Bio.Data.PDBData import (
+    nucleic_letters_3to1_extended,
+    protein_letters_3to1_extended,
+)
 from Bio.PDB.PDBExceptions import PDBConstructionWarning
 
 from crimm.IO.MMCIF2Dict import MMCIF2Dict
@@ -25,6 +29,18 @@ from crimm.StructEntities.Chain import (
 )
 from crimm.StructEntities.Model import Model
 from crimm.Utils.StructureUtils import get_coords, index_to_letters, letters_to_index
+
+
+def _one_letter_seq(reported_res, entity_type):
+    """One-letter sequence from (num, mon_id) pairs; unknown monomers become X."""
+    if str(entity_type).lower().startswith("polypeptide"):
+        lookup = protein_letters_3to1_extended
+    else:
+        lookup = {
+            **{v: v for v in nucleic_letters_3to1_extended.values()},
+            **nucleic_letters_3to1_extended,
+        }
+    return "".join(lookup.get(mon_id, "X") for _num, mon_id in reported_res)
 
 
 class MMCIFParser:
@@ -155,14 +171,23 @@ class MMCIFParser:
         polymer_dict = dict()
         for auth_chain_id, entity_info in entity_poly_dict.items():
             entity_id = entity_info.entity_id
+            reported_res = reported_res_dict[entity_info.entity_id]
+            known_seq = getattr(entity_info, "pdbx_seq_one_letter_code", None)
+            can_seq = getattr(entity_info, "pdbx_seq_one_letter_code_can", None)
+            if known_seq is None or can_seq is None:
+                # Some files, e.g. AlphaFold Server models, omit the one-letter
+                # codes; rebuild them from _entity_poly_seq.
+                seq_from_res = _one_letter_seq(reported_res, entity_info.type)
+                known_seq = seq_from_res if known_seq is None else known_seq
+                can_seq = seq_from_res if can_seq is None else can_seq
             chain = PolymerChain(
                 None,
                 entity_id,
                 auth_chain_id,
                 entity_info.type,
-                entity_info.pdbx_seq_one_letter_code,
-                entity_info.pdbx_seq_one_letter_code_can,
-                reported_res_dict[entity_info.entity_id],
+                known_seq,
+                can_seq,
+                reported_res,
                 missing_res_dict.get(auth_chain_id),
             )
             polymer_dict[entity_id] = chain
