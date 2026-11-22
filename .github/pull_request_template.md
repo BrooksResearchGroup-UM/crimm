@@ -11,4 +11,4 @@ Closes #
 - [ ] `import crimm` still needs only core dependencies
 - [ ] Docstrings state units and whether arguments are modified in place
 - [ ] Changelog entry for any user-visible change
-- [ ] Stan's files touched (`CODEOWNERS`): wait for his approval before merging; otherwise merge after green CI and label `review-after-merge` (CONTRIBUTING, "Review and merge")
+- [ ] Code changed: `@macroscope-app review` commented, and each finding applied, answered or left for the owner with a proposed solution (CONTRIBUTING, "Review and merge")
