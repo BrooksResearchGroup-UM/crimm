@@ -1,6 +1,7 @@
 import warnings
 
 import numpy as np
+from Bio import BiopythonWarning
 from Bio.PDB.Entity import Entity
 from Bio.PDB.Residue import DisorderedResidue as _DisorderedResidue
 from Bio.PDB.Residue import Residue as _Residue
@@ -168,6 +169,40 @@ class Residue(_Residue):
 
 
 class DisorderedResidue(_DisorderedResidue):
+    """Residue with alternative residue names at one position (e.g. a point
+    mutation), each stored as a child ``Residue`` keyed by its residue name."""
+
+    # Biopython stores the wrapper's id as a plain attribute, so assigning
+    # ``res.id`` renumbered the wrapper but left its alternatives (and the parent
+    # chain's lookup) under the old number (#153). The property keeps them in step.
+    # Attributes are read from ``__dict__`` because ``__getattr__`` forwards
+    # missing names to the selected child, and the setter runs inside
+    # ``__init__`` before ``parent`` and ``child_dict`` exist.
+    @property
+    def id(self):
+        return self.__dict__["_id"]
+
+    @id.setter
+    def id(self, value):
+        old = self.__dict__.get("_id")
+        parent = self.__dict__.get("parent")
+        if value != old and parent is not None and parent.child_dict.get(old) is self:
+            if value in parent.child_dict:
+                warnings.warn(
+                    f"The id `{value}` is already used for a sibling of this entity. "
+                    f"Changing id from `{old}` to `{value}` might create access "
+                    "inconsistencies to children of the parent entity.",
+                    BiopythonWarning,
+                )
+            del parent.child_dict[old]
+            parent.child_dict[value] = self
+        self.__dict__["_id"] = value
+        for child in self.__dict__.get("child_dict", {}).values():
+            # Not ``child.id = value``: the child's parent is the chain, and
+            # Entity's setter would re-key the chain's entry, which is this wrapper.
+            child._id = value
+            child._reset_full_id()
+
     def get_top_parent(self):
         if self.parent is None:
             return self
