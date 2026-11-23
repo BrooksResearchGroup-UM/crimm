@@ -20,5 +20,8 @@ Releases up to 2026.2.1 are described on the
 
 ### Fixed
 
+- Renumbering a residue with alternative residue names (`DisorderedResidue`, e.g. a point
+  mutation) now renumbers every alternative and the parent chain's lookup, not only the
+  wrapper; `missing_res` no longer reports the new position as missing.
 - `heterogen_to_rdkit` no longer raises `AttributeError` on a residue without
   `pdbx_description`, such as one read from a CRD file.
