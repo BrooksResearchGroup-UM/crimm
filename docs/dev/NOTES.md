@@ -30,8 +30,8 @@ and everything else is an optional extra that is imported only when used.
 | `crimm/Visualization` | NGLView and py3Dmol backends behind `show()`, `set_backend()` | Backend choice is module-level global state. |
 | `crimm/Superimpose` | `ChainSuperimposer` | Used by `Fetchers` and loop building. |
 | `crimm/Fetchers.py` | RCSB and AlphaFold DB download | |
-| `crimm/Utils` | Structure helpers, RCSB queries, `cuda_info` | `cuda_info` is exported from the top-level package but nothing in crimm uses it. |
-| `crimm/Data` | Bundled CHARMM toppar files, element tables, `water_coords.npy`, probes | 11 MB, almost all toppar. |
+| `crimm/Utils` | Structure helpers, RCSB queries | |
+| `crimm/Data` | Bundled CHARMM toppar files, element tables, `water_coords.npy` | 11 MB, almost all toppar. |
 
 The chain classes in `StructEntities/Chain.py` are: `BaseChain`, `Chain`, `PolymerChain`,
 `Heterogens`, `Ligand`, `Macrolide`, `Oligosaccharide`, `Solvent`, `CoSolvent`, `Ion`,

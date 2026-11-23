@@ -282,7 +282,7 @@ Breaking changes, each with a compatibility shim.
 | #89 Public API | `__all__` in every package, lazy top-level imports, `crimm.__version__` from package metadata, entity classes exported from `crimm.StructEntities`. | M |
 | #90 Module names | snake_case module and package names; the CamelCase paths re-export with `DeprecationWarning`. Do this last and in one release, since it touches every import. | L |
 | #91 Extras | `viz`, `cheminformatics`, `protonation`, `openmm`, `dev`, `docs`, `all`; `ml` is added by the crimm-ml track below and stays out of `all`. | S |
-| #92 Orphans | Decide the future of `Utils/cuda_info.py` (445 lines, exported at top level, unused inside crimm) and `Data/probes` (994 lines). Both look left over from the removed docking module; they may belong in a separate package. | S |
+| #92 Orphans **Done 2026-11-23:** `Data/probes` moved to crimm-dock (PR #143); `cuda_info.py` removed, no downstream user (#134). | Decide the future of `Utils/cuda_info.py` (445 lines, exported at top level, unused inside crimm) and `Data/probes` (994 lines). Both look left over from the removed docking module; they may belong in a separate package. | S |
 | #93 Docs build | Remove `docs/_build` from git; build and deploy in CI from `master`; retire the `docs` branch. Replace the placeholder `index.rst`. | M |
 | #94 Notebooks | Strip outputs on commit (`nbstripout`) and render them in the docs build instead; run them in CI. | M |
 | #95 Repository hygiene | Delete merged remote branches; remove the duplicate `main` branch. | S |

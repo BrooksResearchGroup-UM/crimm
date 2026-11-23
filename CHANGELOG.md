@@ -18,6 +18,11 @@ Releases up to 2026.2.1 are described on the
 - `RDKitHetConverter.load_heterogen` warns instead of raising `TypeError` when given a residue
   that is not a `Heterogen`, such as one read from a CRD file.
 
+### Removed
+
+- `crimm.CUDAInfo`, `crimm.is_cuda_available` and the module `crimm.Utils.cuda_info`. Nothing in
+  crimm used them, and no known downstream project imports them.
+
 ### Fixed
 
 - `heterogen_to_rdkit` no longer raises `AttributeError` on a residue without
