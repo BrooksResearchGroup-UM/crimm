@@ -2,6 +2,7 @@ import warnings
 from typing import Dict, List, Tuple
 
 from Bio.Data.PDBData import (
+    nucleic_letters_3to1,
     nucleic_letters_3to1_extended,
     protein_letters_3to1_extended,
 )
@@ -11,6 +12,12 @@ from Bio.PDB.PDBExceptions import PDBConstructionException
 from Bio.Seq import Seq
 
 from crimm.StructEntities.Residue import DisorderedResidue
+
+# Biopython pads nucleic residue names to three characters ("DA ", "A  "), but
+# residue names in a parsed structure are stripped ("DA", "A").
+nucleic_letters_3to1_stripped = {
+    k.strip(): v for k, v in nucleic_letters_3to1_extended.items()
+}
 
 
 class BaseChain(_Chain):
@@ -204,10 +211,11 @@ class Chain(BaseChain):
         super().__init__(chain_id)
         self._ppb = PPBuilder()
         # There is no way to distinguish the type of the chain. Hence, the
-        # nucleic letter codes are limited to one letter codes
+        # nucleic letter codes are limited to the standard RNA and DNA names
         self.letter_3to1_dict = {
             **protein_letters_3to1_extended,
-            **{v: v for k, v in nucleic_letters_3to1_extended.items()},
+            **{v: v for v in nucleic_letters_3to1_extended.values()},
+            **{k.strip(): v for k, v in nucleic_letters_3to1.items()},
         }
         self.het_resseq_lookup = {}
 
@@ -341,8 +349,8 @@ class PolymerChain(Chain):
             self.letter_3to1_dict = protein_letters_3to1_extended
         else:
             self.letter_3to1_dict = {
-                **{v: v for k, v in nucleic_letters_3to1_extended.items()},
-                **nucleic_letters_3to1_extended,
+                **{v: v for v in nucleic_letters_3to1_stripped.values()},
+                **nucleic_letters_3to1_stripped,
             }
 
     def __contains__(self, id):
