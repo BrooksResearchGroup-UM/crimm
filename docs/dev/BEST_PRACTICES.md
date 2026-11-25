@@ -159,7 +159,8 @@ If only ten things happen, these give the most for the effort:
 - Protect `master`: changes arrive by pull request, CI must pass, and one approval is
   required. With two maintainers this is light, and it is what keeps solvation changes in
   front of Stan and topology changes in front of Truman.
-- `CODEOWNERS` to request those reviews automatically.
+- `CODEOWNERS` to request those reviews automatically. Since 2026-11-25 it names only the
+  owner; Macroscope reviews every pull request (CONTRIBUTING, "Review and merge").
 - Short-lived branches, deleted on merge. Clear out the roughly 35 old remote branches and
   keep one default branch.
 - Squash-merge, with a commit message that explains why the change was made.

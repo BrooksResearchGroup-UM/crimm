@@ -128,6 +128,7 @@ Follow these unless the owner says otherwise in your own session.
 | 2026-10-06 | Resolve TODO comments before the refactor and restructure phases. SUPERSEDED 2026-10-28 by the row below. | `[told]` |
 | 2026-10-28 | Pull requests are merged by the owner once CI is green and reviewed afterwards in batches (label `review-after-merge`), except changes to Stan's files, which wait for his approval. Small pull requests, one concern each. Rule: CONTRIBUTING, "Review and merge". The exception for Stan's files is SUPERSEDED 2026-11-21. | `[told]` |
 | 2026-11-21 | Every pull request that changes code gets a Macroscope review. Macroscope runs automatically when a pull request is opened and on each push; it skips pull requests labelled `documentation`, so documentation-only pull requests carry that label and no others do (first rule of the day was a manual `@macroscope-app review` comment, replaced the same day when the owner set Macroscope to always run). The agent reads the findings, applies the suggested fixes that are right (with a test), commits and pushes, and replies on each thread; findings without a fix, or needing a design decision, go to the owner with a proposed solution. The owner decides and merges, for now; a more autonomous merge rule may follow. This applies to Stan's files too; his review is no longer requested. Rule: CONTRIBUTING, "Review and merge". | `[told]` |
+| 2026-11-25 | The project maintains Stan's files (`Solvator.py`, `CrystalSDF.py`, `CoordManipulator.py`) itself; `CODEOWNERS` no longer names him, so GitHub stops requesting his review. | `[told]` |
 | 2026-10-28 | Not every TODO comment has to be resolved before the refactor and restructure phases. Some are refactoring work themselves. Which phase a TODO belongs to is decided when its resolution starts, not in advance. Every TODO still carries its issue number. | `[told]` |
 | 2026-10-30 | The project, not only Stan, prefers small pull requests (CONTRIBUTING, "Issues and pull requests"). Merging most of them first and reviewing later stays. The owner gives Stan a deadline with each review request (SUPERSEDED 2026-11-21: his review is no longer requested). | `[told]` |
 | 2026-11-02 | Design ideas for later improvements go in ROADMAP Phase 7 (planned features and robustness), after the minimizer, as problems surface. First: a simulation system object with a readiness check before writing files or handing the system to another program. The owner adds notes. | `[told]` |
@@ -142,8 +143,9 @@ Follow these unless the owner says otherwise in your own session.
 Working agreements between agents (not owner instructions; change them by logging why):
 
 - Changes to `crimm/Modeller/Solvator.py`, `crimm/Modeller/CrystalSDF.py` and the PCA
-  methods in `CoordManipulator.py` are Stan's area: say in the pull request what changes in
-  his code. Review goes through Macroscope (section 2, 2026-11-21), not to him.
+  methods in `CoordManipulator.py` were Stan's area and are maintained by the project since
+  2026-11-25: say in the pull request what changes in his code. Review goes through
+  Macroscope (section 2, 2026-11-21), not to him.
 - A bug you find but do not fix gets a test marked `xfail(strict=True)` with the reason, and
   a GitHub issue (ROADMAP indexes the issues). When you fix it, remove the marker in the same
   change.

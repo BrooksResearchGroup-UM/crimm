@@ -63,9 +63,9 @@ A commit that only lints or reformats goes in its own commit and is listed in
   that names the extra.
 - Library code logs or raises; it does not `print`. Do not use `assert` to validate input.
 - Public API may break, but old import paths keep working with a `DeprecationWarning`.
-- Solvation code (`Solvator.py`, `CrystalSDF.py`, PCA methods of `CoordManipulator.py`) is
-  Stan's area; topology code is Truman's. Their review is not requested by default; every
-  code change goes through the Macroscope review below.
+- Solvation code (`Solvator.py`, `CrystalSDF.py`, PCA methods of `CoordManipulator.py`) was
+  written by Stan and is now maintained by the project like any other code; every code
+  change goes through the Macroscope review below.
 - A `TODO` in code carries an issue number.
 
 ## Issues and pull requests
@@ -103,7 +103,8 @@ installed on this repository, and people review afterwards, in batches.
   rights (`gh pr merge --admin`). Agents never merge. Merge rules that need less of him may
   come later.
 - **Stan's files follow the same rules** (since 2026-11-21; before, they waited for his
-  approval). Keep changes to them in their own pull request all the same.
+  approval). Since 2026-11-25 the project maintains them and `CODEOWNERS` no longer names
+  him. Keep changes to them in their own pull request all the same.
 - **Batches.** Before a review session, post the list of `review-after-merge` pull requests
   in merge order, with what to check in each and what can be skimmed. The reviewer removes
   the label when done.

@@ -60,7 +60,8 @@ By commit history (262 commits: Truman Xu 217, Stanislav Cherepanov 45):
 - **Truman**: the entity model, parsers, topology loader, loop builder, adaptors,
   visualization.
 
-Stan knows the solvation code best. Changes to it are reviewed through Macroscope like any
+Stan knows the solvation code best. Since 2026-11-25 the project maintains it and
+`CODEOWNERS` no longer names him. Changes to it are reviewed through Macroscope like any
 other code (CONTRIBUTING, "Review and merge"); the pull request says what changes in his
 code.
 

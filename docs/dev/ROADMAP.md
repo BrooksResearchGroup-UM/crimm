@@ -11,9 +11,10 @@ standards the work should meet are in [BEST_PRACTICES.md](BEST_PRACTICES.md).
   is decided when its resolution starts (owner, 2026-10-28).
 - **Public API may change, with deprecation.** Old import paths and names keep working and
   emit `DeprecationWarning` for at least one release before removal.
-- **Solvation is Stan's area.** Items touching `Solvator.py`, `CrystalSDF.py` or the PCA
+- **Solvation was Stan's area.** Items touching `Solvator.py`, `CrystalSDF.py` or the PCA
   orientation methods are marked (Stan). Since 2026-11-21 they are reviewed like any other
-  code change (CONTRIBUTING, "Review and merge").
+  code change (CONTRIBUTING, "Review and merge"), and since 2026-11-25 the project
+  maintains them.
 - **One concern per pull request.** A bug fix does not ride along with a rename.
 
 Sizes are rough: S is under a day, M is a few days, L is a week or more.
