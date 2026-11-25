@@ -72,8 +72,8 @@ code.
   `crimm.__version__`.
 - The classifier is still `Development Status :: 2 - Pre-Alpha`.
 - `README.md` says Python 3.9 or newer; `env.yaml` asks for 3.10 or newer.
-- Data files ship through `MANIFEST.in`. `crimm/Data/residues.xml` is tracked in git but is
-  not in `MANIFEST.in`, and no Python file refers to it.
+- Data files ship through `MANIFEST.in`. The unused `crimm/Data/residues.xml` was deleted on
+  2026-11-25 (#56).
 - `tests` is excluded from the built package.
 
 ## Dependencies
