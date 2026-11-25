@@ -25,6 +25,10 @@ Releases up to 2026.2.1 are described on the
 
 ### Fixed
 
+- `CoordManipulator.load_entity` no longer builds the N by N distance matrix (about 20 GB at
+  50,000 atoms). The farthest atom pair is found over the convex hull, and only when
+  `orient_coords` or `find_max_dim` needs it; the result is unchanged. `dist_matrix` is still
+  available, built on first access.
 - Renumbering a residue with alternative residue names (`DisorderedResidue`, e.g. a point
   mutation) now renumbers every alternative and the parent chain's lookup, not only the
   wrapper; `missing_res` no longer reports the new position as missing.

@@ -2,7 +2,7 @@
 
 import numpy as np
 import pytest
-from scipy.spatial.distance import pdist
+from scipy.spatial.distance import pdist, squareform
 
 from crimm.Modeller.CoordManipulator import CoordManipulator
 
@@ -181,3 +181,95 @@ def test_find_max_dim_is_unchanged_by_orientation():
 def test_find_max_dim_without_entity_raises():
     with pytest.raises(ValueError):
         CoordManipulator().find_max_dim()
+
+
+def brute_force_farthest_pair(coords):
+    """The pair `load_entity` used to find, from the full distance matrix."""
+    dist_matrix = squareform(pdist(coords))
+    i, j = np.unravel_index(np.argmax(dist_matrix), dist_matrix.shape)
+    return (int(i), int(j)), float(dist_matrix[i, j])
+
+
+def assert_matches_brute_force(coords):
+    manipulator = CoordManipulator()
+    manipulator.load_entity(FakeEntity(coords))
+    pair, max_dim = brute_force_farthest_pair(coords)
+    assert (manipulator.end_i, manipulator.end_j) == pair
+    assert manipulator.find_max_dim() == max_dim
+    assert manipulator._dist_matrix is None, "the N x N matrix must not be built"
+
+
+def lattice(n):
+    """n**3 grid points: many coplanar hull points and many tied farthest pairs."""
+    axis = np.arange(n, dtype=float)
+    return np.stack(np.meshgrid(axis, axis, axis, indexing="ij"), -1).reshape(-1, 3)
+
+
+@pytest.mark.parametrize("seed", range(10))
+@pytest.mark.parametrize("n", [5, 30, 500, 3000])
+def test_farthest_pair_matches_brute_force_on_random_sets(seed, n):
+    assert_matches_brute_force(random_cloud(seed, n))
+
+
+@pytest.mark.parametrize("seed", range(5))
+def test_farthest_pair_matches_brute_force_in_single_precision(seed):
+    # atom coordinates are float32
+    assert_matches_brute_force(random_cloud(seed, 2000).astype(np.float32))
+
+
+@pytest.mark.parametrize("pdb_id", ["1ubq", "1crn", "3ptb", "1bna"])
+def test_farthest_pair_matches_brute_force_on_structures(load_structure, pdb_id):
+    model = load_structure(pdb_id).models[0]
+    coords = np.array([atom.coord for atom in model.get_atoms()])
+    assert_matches_brute_force(coords)
+
+
+rng = np.random.default_rng(52)
+DEGENERATE = {
+    "one point": np.ones((1, 3)),
+    "two points": np.array([[0.0, 0, 0], [1, 2, 3]]),
+    "three points": rng.normal(size=(3, 3)),
+    "four points": rng.normal(size=(4, 3)),
+    "identical points": np.tile([1.5, -2.0, 3.0], (10, 1)),
+    "collinear": np.outer(rng.normal(size=50), [1.0, 2.0, -0.5]),
+    "coplanar": np.column_stack([rng.normal(size=(200, 2)), np.zeros(200)]),
+    "tilted plane": rng.normal(size=(200, 2)) @ [[1.0, 0.3, -2.0], [0.5, 1.0, 1.0]],
+    "cube corners": lattice(2),
+    "lattice": lattice(6),
+    "duplicated ends": np.vstack([random_cloud(9, 100)] * 3),
+    "regular polygon": np.column_stack(
+        [np.cos(np.arange(12) * np.pi / 6), np.sin(np.arange(12) * np.pi / 6), [0] * 12]
+    ),
+}
+
+
+@pytest.mark.parametrize("name", DEGENERATE)
+def test_farthest_pair_matches_brute_force_on_degenerate_sets(name):
+    assert_matches_brute_force(DEGENERATE[name])
+
+
+def test_farthest_pair_is_not_computed_by_load_entity(monkeypatch):
+    def fail(self):
+        raise AssertionError("farthest pair computed although not needed")
+
+    monkeypatch.setattr(CoordManipulator, "_find_farthest_atom_indices", fail)
+    manipulator = CoordManipulator()
+    manipulator.load_entity(FakeEntity(random_cloud(10)))
+    manipulator.orient_coords_ortho()
+
+
+def test_farthest_pair_is_that_of_the_loaded_coordinates():
+    coords = random_cloud(11)
+    pair, _ = brute_force_farthest_pair(coords)
+    manipulator = CoordManipulator()
+    manipulator.load_entity(FakeEntity(coords.copy()))
+    manipulator.orient_coords_octa()
+    assert (manipulator.end_i, manipulator.end_j) == pair
+
+
+def test_dist_matrix_is_built_on_request():
+    coords = random_cloud(12)
+    manipulator = CoordManipulator()
+    assert manipulator.dist_matrix is None
+    manipulator.load_entity(FakeEntity(coords))
+    assert np.array_equal(manipulator.dist_matrix, squareform(pdist(coords)))

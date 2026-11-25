@@ -136,7 +136,7 @@ and the marker is not removed.
 | --- | --- | --- | --- |
 | #50 `Modeller/LoopBuilder.py:659` (`ArcLoopBuilder.reconstruct_backbone`) | Undefined name `topo`; the method raises `NameError` whenever it runs. `best_backbone` and `min_clashes` in `build` are assigned and never used, so the builder looks unfinished. | Decide whether `ArcLoopBuilder` is finished or removed; if kept, pass in a topology set and add a test. | M |
 | #51 `Modeller/CoordManipulator.py:128` (`box_dim`) | `self.coords.ptp(0)`; `ndarray.ptp` was removed in NumPy 2. | `np.ptp(self.coords, axis=0)`. | S |
-| #52 `CoordManipulator.load_entity` | Builds the full N by N distance matrix to find the farthest pair. Memory is quadratic: about 20 GB at 50,000 atoms. Runs even when a PCA method is used and the result is never needed. | Farthest pair over convex-hull vertices (`scipy.spatial.ConvexHull`), computed lazily. | S |
+| #52 `CoordManipulator.load_entity` | Builds the full N by N distance matrix to find the farthest pair. Memory is quadratic: about 20 GB at 50,000 atoms. Runs even when a PCA method is used and the result is never needed. | Farthest pair over convex-hull vertices (`scipy.spatial.ConvexHull`), computed lazily. **Done: branch `fix/52-farthest-pair`.** | S |
 | #53 `StructEntities/TopoElements.py` (`Dihedral.angle`) | Returns `0.000` for any dihedral. | Implement (this is also TODO 5 below). | S |
 | #54 `CoordManipulator`, `Solvator`, `OrganizedModel`, `Atom` | `assert` used for runtime validation; stripped under `python -O`. | Raise real exceptions. | S |
 | #55 Version strings | `pyproject.toml` 2026.2, `docs/conf.py` 2026.1a, tag 2026.2.1, no `crimm.__version__`. | Single source (see Phase 4); in the meantime align them. | S |
