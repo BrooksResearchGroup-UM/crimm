@@ -10,10 +10,7 @@ import warnings
 from copy import deepcopy
 
 import numpy as np
-from Bio.Data.PDBData import (
-    nucleic_letters_3to1_extended,
-    protein_letters_3to1_extended,
-)
+from Bio.Data.PDBData import protein_letters_3to1_extended
 from Bio.PDB.PDBExceptions import PDBConstructionWarning
 
 from crimm.IO.MMCIF2Dict import MMCIF2Dict
@@ -26,6 +23,7 @@ from crimm.StructEntities.Chain import (
     Oligosaccharide,
     PolymerChain,
     Solvent,
+    nucleic_letters_3to1_stripped,
 )
 from crimm.StructEntities.Model import Model
 from crimm.Utils.StructureUtils import get_coords, index_to_letters, letters_to_index
@@ -37,8 +35,8 @@ def _one_letter_seq(reported_res, entity_type):
         lookup = protein_letters_3to1_extended
     else:
         lookup = {
-            **{v: v for v in nucleic_letters_3to1_extended.values()},
-            **nucleic_letters_3to1_extended,
+            **{v: v for v in nucleic_letters_3to1_stripped.values()},
+            **nucleic_letters_3to1_stripped,
         }
     return "".join(lookup.get(mon_id, "X") for _num, mon_id in reported_res)
 

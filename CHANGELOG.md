@@ -30,3 +30,5 @@ Releases up to 2026.2.1 are described on the
   wrapper; `missing_res` no longer reports the new position as missing.
 - `heterogen_to_rdkit` no longer raises `AttributeError` on a residue without
   `pdbx_description`, such as one read from a CRD file.
+- `PolymerChain.seq` gives the one-letter code of DNA residues (`DA`, `DC`, `DG`, `DT`) and
+  of other nucleotides with names shorter than three characters, instead of `X`.

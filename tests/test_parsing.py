@@ -92,14 +92,72 @@ def test_dna_canonical_sequence(load_structure):
         assert str(model[chain_id].can_seq) == "CGCGAATTCGCG"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="#48: PolymerChain.seq returns 'X' for every DNA residue (DC/DG/DA/DT are not "
-    "in its lookup), while can_seq is correct",
-)
 def test_dna_present_sequence_matches_canonical(load_structure):
     chain = load_structure("1bna").models[0]["A"]
     assert str(chain.seq) == str(chain.can_seq)
+
+
+def _polymer_chain(chain_type, resnames):
+    from crimm.StructEntities.Atom import Atom
+    from crimm.StructEntities.Chain import PolymerChain
+    from crimm.StructEntities.Residue import Residue
+
+    reported = list(enumerate(resnames, start=1))
+    chain = PolymerChain("A", 1, "A", chain_type, "", "X" * len(resnames), reported)
+    for resseq, resname in reported:
+        residue = Residue((" ", resseq, " "), resname, " ")
+        residue.add(Atom("P", np.zeros(3), 0.0, 1.0, " ", " P", resseq, "P"))
+        chain.add(residue)
+    return chain
+
+
+@pytest.mark.parametrize(
+    "chain_type, resnames, expected",
+    [
+        # DNA, RNA and modified nucleotides (PSU, 5MC) map to their parent base
+        ("Polydeoxyribonucleotide", ["DA", "DC", "DG", "DT"], "ACGT"),
+        ("Polyribonucleotide", ["A", "C", "G", "U", "PSU", "5MC"], "ACGUUC"),
+        ("Polyribonucleotide", ["A", "UNL"], "AX"),
+        ("Polypeptide(L)", ["ALA", "MSE", "UNK"], "AMX"),
+    ],
+)
+def test_present_sequence_one_letter_codes(chain_type, resnames, expected):
+    assert str(_polymer_chain(chain_type, resnames).seq) == expected
+
+
+def test_sequence_from_reported_residues_for_dna():
+    from crimm.IO.MMCIFParser import _one_letter_seq
+
+    reported = [(1, "DC"), (2, "DG"), (3, "DA"), (4, "DT"), (5, "A"), (6, "U")]
+    assert _one_letter_seq(reported, "polydeoxyribonucleotide") == "CGATAU"
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="#165: chain_to_polymerchain checks residue names against Biopython's padded "
+    "nucleic keys ('DA '), so a DNA or RNA chain raises ValueError",
+)
+def test_chain_to_polymerchain_accepts_dna(load_structure):
+    from crimm.Utils.StructureUtils import chain_to_polymerchain
+
+    chain = load_structure("1bna").models[0]["A"]
+    polymer = chain_to_polymerchain(chain)
+    assert str(polymer.seq) == "CGCGAATTCGCG"
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="#165: PDBParser checks residue names against Biopython's padded nucleic keys "
+    "('DA '), so a DNA chain read from PDB stays an untyped Chain",
+)
+def test_pdb_parser_types_dna_chain(load_structure, tmp_path):
+    from crimm.IO import PDBParser
+    from crimm.IO.PDBString import get_pdb_str
+
+    path = tmp_path / "1bna.pdb"
+    path.write_text(get_pdb_str(load_structure("1bna").models[0]))
+    chain = PDBParser(QUIET=True).get_structure(str(path)).models[0]["A"]
+    assert chain.chain_type != "Chain"
 
 
 def test_connect_records(load_structure):
