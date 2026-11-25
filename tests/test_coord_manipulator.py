@@ -139,11 +139,6 @@ def test_orient_without_entity_raises():
         CoordManipulator().orient_coords()
 
 
-@pytest.mark.xfail(
-    np.lib.NumpyVersion(np.__version__) >= "2.0.0",
-    strict=True,
-    reason="#51: box_dim calls ndarray.ptp, which NumPy 2 removed",
-)
 def test_box_dim():
     coords = random_cloud(6)
     manipulator, oriented = orient("orient_coords", coords)
