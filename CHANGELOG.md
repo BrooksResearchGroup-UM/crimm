@@ -25,6 +25,10 @@ Releases up to 2026.2.1 are described on the
 
 ### Fixed
 
+- Angles and dihedrals in a PSF file come in the same order and direction on every run:
+  sorted by atom number, each written from its end with the lower number. They used to vary
+  with `PYTHONHASHSEED`, and for structures with alternate locations between two runs in one
+  process, so two PSF files of one structure could not be compared with `diff` (#120).
 - Renumbering a residue with alternative residue names (`DisorderedResidue`, e.g. a point
   mutation) now renumbers every alternative and the parent chain's lookup, not only the
   wrapper; `missing_res` no longer reports the new position as missing.
