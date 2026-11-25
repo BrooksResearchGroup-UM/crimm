@@ -25,6 +25,7 @@ Releases up to 2026.2.1 are described on the
 
 ### Fixed
 
+- `CoordManipulator.box_dim` works on NumPy 2; it called `ndarray.ptp`, which NumPy 2 removed.
 - Renumbering a residue with alternative residue names (`DisorderedResidue`, e.g. a point
   mutation) now renumbers every alternative and the parent chain's lookup, not only the
   wrapper; `missing_res` no longer reports the new position as missing.

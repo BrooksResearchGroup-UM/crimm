@@ -131,7 +131,7 @@ class CoordManipulator:
         """Return the dimensions of the bounding box of the coordinates (N, 3).
         The three sides of the box are parallel to the x, y, and z axes.
         """
-        return self.coords.ptp(0)
+        return np.ptp(self.coords, axis=0)
 
     def apply_coords(self, coords) -> np.array:
         """Apply the transformation to the coordinates (N, 3). Specifically, the

@@ -90,8 +90,8 @@ code.
 only an extra. The two import chains and the fix are written up in `import-fix.md` at the
 repo root and scheduled in the roadmap (Phase 1).
 
-There is no upper bound on numpy, and at least one call (`ndarray.ptp`) no longer exists in
-NumPy 2.
+There is no upper bound on numpy. The one call that NumPy 2 removed (`ndarray.ptp`, in
+`CoordManipulator.box_dim`) was replaced on 2026-11-25 (#51).
 
 ## Tests and CI
 
