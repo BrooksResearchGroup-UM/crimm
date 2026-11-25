@@ -38,7 +38,7 @@ without it. The standards behind this are in
 `tests/test_golden.py` compares PSF and CRD output with reference files in
 `tests/data/golden`. If you change the output on purpose, run
 `pytest tests/test_golden.py --update-golden`, and commit the regenerated files in the same pull
-request with a `CHANGELOG.md` entry, so the reviewer sees exactly what moved.
+request with a changelog fragment, so the reviewer sees exactly what moved.
 
 ## Lint
 
@@ -58,6 +58,9 @@ A commit that only lints or reformats goes in its own commit and is listed in
 ## Changing code
 
 - One concern per commit and per pull request. A fix does not ride along with a rename.
+- A user-visible change adds a fragment to `changelog.d/` (one file per entry, named
+  `<issue>.<type>.md`; see [changelog.d/README.md](changelog.d/README.md)). Do not edit
+  `CHANGELOG.md` directly; towncrier writes the fragments into it at release.
 - `import crimm` needs only the core dependencies. Import optional packages (rdkit, nglview,
   ipywidgets, py3Dmol, propka) inside the function that uses them, and raise an `ImportError`
   that names the extra.

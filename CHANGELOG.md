@@ -7,26 +7,7 @@ User-visible changes to crimm. The format follows
 Releases up to 2026.2.1 are described on the
 [GitHub releases page](https://github.com/BrooksResearchGroup-UM/crimm/releases).
 
-## [Unreleased]
+Entries for the next release are in [`changelog.d/`](changelog.d/README.md), one file
+per change, until towncrier writes them in at release time.
 
-### Added
-
-- `test` extra: `pip install crimm[test]` installs pytest for running the test suite.
-
-### Changed
-
-- `RDKitHetConverter.load_heterogen` warns instead of raising `TypeError` when given a residue
-  that is not a `Heterogen`, such as one read from a CRD file.
-
-### Removed
-
-- `crimm.CUDAInfo`, `crimm.is_cuda_available` and the module `crimm.Utils.cuda_info`. Nothing in
-  crimm used them, and no known downstream project imports them.
-
-### Fixed
-
-- Renumbering a residue with alternative residue names (`DisorderedResidue`, e.g. a point
-  mutation) now renumbers every alternative and the parent chain's lookup, not only the
-  wrapper; `missing_res` no longer reports the new position as missing.
-- `heterogen_to_rdkit` no longer raises `AttributeError` on a residue without
-  `pdbx_description`, such as one read from a CRD file.
+<!-- towncrier release notes start -->

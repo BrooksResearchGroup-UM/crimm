@@ -10,6 +10,6 @@ Closes #
 - [ ] `pytest -q` passes offline
 - [ ] `import crimm` still needs only core dependencies
 - [ ] Docstrings state units and whether arguments are modified in place
-- [ ] Changelog entry for any user-visible change
+- [ ] Changelog fragment in `changelog.d/` for any user-visible change (see its README)
 - [ ] Label `documentation` if and only if nothing but documentation changed (Macroscope skips those)
 - [ ] Each Macroscope finding applied, answered, or left for the owner with a proposed solution (CONTRIBUTING, "Review and merge")
