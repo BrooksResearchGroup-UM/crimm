@@ -33,6 +33,15 @@ Releases up to 2026.2.1 are described on the
   `dot(cross(N - CA, C - CA), CB - CA)`: it is positive for L-amino acids and negative for
   all of them in a mirrored structure. Ortho, tetra and hexa boxes with their default orientation
   were not affected.
+- After a PCA orientation (`CoordManipulator.orient_coords_octa`, `orient_coords_ortho`,
+  `orient_coords_hexa`), the stored matrix (`op_mat`, `get_transformation_matrix`) is the
+  transform that was applied, so `apply_coords` and `apply_entity` reproduce it; they applied
+  a different transform before. All orientation methods now share one column-vector
+  convention, and the PCA methods round coordinates to 4 decimals like `orient_coords`.
+- The PCA orientation methods honour `apply_to_parent=True`: the whole parent entity is
+  moved, each atom once, as `orient_coords` already did. They ignored the argument before.
+  `Solvator.solvate()` passes it when the model has a parent structure, so the other models
+  of a multi-model structure now move with the solvated one for every box type.
 - Renumbering a residue with alternative residue names (`DisorderedResidue`, e.g. a point
   mutation) now renumbers every alternative and the parent chain's lookup, not only the
   wrapper; `missing_res` no longer reports the new position as missing.

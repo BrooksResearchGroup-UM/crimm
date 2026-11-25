@@ -107,6 +107,9 @@ with every residue's N, C, CB arrangement around CA inverted
 
 ### 1.2 PCA orientation stores a transform that does not match what it applied (Stan) (#44)
 
+**Fixed 2026-11-25 on branch `fix/44-pca-transform` (stacked on `fix/43-octa-reflection`, not
+yet merged), including `apply_to_parent`.**
+
 The three PCA methods compute `new = centered @ rotation` (row-vector convention) and store
 the translation in row 3 of `op_mat`. `apply_coords` and `apply_entity` read `op_mat` as a
 column-vector matrix. Calling `apply_coords` on the original coordinates after any PCA
