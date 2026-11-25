@@ -1,3 +1,4 @@
+import io
 import pathlib
 import warnings
 
@@ -33,43 +34,43 @@ def check_chain_type(residues, resname_lookup, extended_lookup=None):
     return True
 
 
-def _wide_resnames(filepath):
+def _wide_resnames(lines):
     """Residue names that fill columns 18-21 (TIP3, POPC), as CHARMM and VMD write them.
 
-    Biopython reads the residue name from columns 18-20 only. Returns a dict keyed by
-    (model index, chain ID, resseq, icode), following Biopython's model numbering.
+    Biopython reads the residue name from columns 18-20 only. Takes the file's lines
+    and returns a dict keyed by (model index, chain ID, resseq, icode), following
+    Biopython's model numbering.
     """
     names = {}
     model_index = -1
     model_open = False
-    with open(filepath) as handle:
-        for line in handle:
-            record_type = line[0:6]
-            if record_type == "MODEL ":
+    for line in lines:
+        record_type = line[0:6]
+        if record_type == "MODEL ":
+            model_index += 1
+            model_open = True
+        elif record_type == "ENDMDL":
+            model_open = False
+        elif record_type in ("END   ", "CONECT"):
+            break
+        elif record_type in ("ATOM  ", "HETATM"):
+            if not model_open:
                 model_index += 1
                 model_open = True
-            elif record_type == "ENDMDL":
-                model_open = False
-            elif record_type in ("END   ", "CONECT"):
-                break
-            elif record_type in ("ATOM  ", "HETATM"):
-                if not model_open:
-                    model_index += 1
-                    model_open = True
-                if len(line) < 27 or line[20] == " ":
-                    continue
-                try:
-                    resseq = int(line[22:26])
-                except ValueError:
-                    continue
-                key = (model_index, line[21], resseq, line[26])
-                names[key] = line[17:21].strip()
+            if len(line) < 27 or line[20] == " ":
+                continue
+            try:
+                resseq = int(line[22:26])
+            except ValueError:
+                continue
+            key = (model_index, line[21], resseq, line[26])
+            names[key] = line[17:21].strip()
     return names
 
 
-def _restore_wide_resnames(structure, filepath):
+def _restore_wide_resnames(structure, lines):
     """Give residues their full 4-character names from columns 18-21 of the file."""
-    names = _wide_resnames(filepath)
+    names = _wide_resnames(lines)
     if not names:
         return
     for model_index, model in enumerate(structure):
@@ -205,8 +206,17 @@ class PDBParser(_PDBParser):
         """Return the structure contained in file."""
         if structure_id is None:
             structure_id = pathlib.Path(filepath).stem
-        structure = super().get_structure(structure_id, filepath)
-        _restore_wide_resnames(structure, filepath)
+        if hasattr(filepath, "read"):
+            # An open handle (the SwissModel fetchers pass an io.StringIO) can be read
+            # only once, so parse and scan the same text.
+            text = filepath.read()
+            structure = super().get_structure(structure_id, io.StringIO(text))
+            lines = text.splitlines()
+        else:
+            structure = super().get_structure(structure_id, filepath)
+            with open(filepath) as handle:
+                lines = handle.readlines()
+        _restore_wide_resnames(structure, lines)
         if self.first_model_only:
             structure.child_list = structure.child_list[:1]
             structure.child_dict = {c.id: c for c in structure.child_list}

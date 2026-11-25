@@ -1,5 +1,7 @@
 """PDB string output and the PDB parser."""
 
+import io
+
 import numpy as np
 import pytest
 
@@ -85,6 +87,19 @@ def test_parser_reads_four_character_resnames_in_every_model(tmp_path):
         ("POPC", ("H_POPC", 1, " ")),
         ("POPC", ("H_POPC", 1, " ")),
     ]
+
+
+@pytest.mark.parametrize("resname", ["POPC", "ALA"])
+def test_parser_reads_an_open_file_handle(resname):
+    # The SwissModel fetchers pass an io.StringIO and an explicit structure id.
+    record = (
+        f"HETATM    1  P   {resname:<4}L   1       0.000   0.000   0.000  1.00  0.00"
+        "           P  "
+    )
+    handle = io.StringIO(f"{record}\nEND\n")
+    structure = PDBParser(QUIET=True).get_structure(handle, "from-handle")
+    residues = list(structure.get_residues())
+    assert [res.resname for res in residues] == [resname]
 
 
 def test_include_alt_writes_all_locations(load_structure):
