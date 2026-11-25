@@ -67,9 +67,9 @@ code.
 ## Packaging and release
 
 - Build backend is setuptools via `pyproject.toml`. Versioning is calendar-based.
-- **The version is written in several places and they disagree**: `pyproject.toml` says
-  `2026.2`, `docs/conf.py` says `2026.1a`, the newest git tag is `2026.2.1`. There is no
-  `crimm.__version__`.
+- **The version is written in two places**: `pyproject.toml` and `docs/conf.py`, aligned at
+  `2026.2.1` on 2026-11-25 (#55) and checked by `tests/test_version.py`.
+  `crimm.__version__` reads the installed package's metadata. A single source comes with #89.
 - The classifier is still `Development Status :: 2 - Pre-Alpha`.
 - `README.md` says Python 3.9 or newer; `env.yaml` asks for 3.10 or newer.
 - Data files ship through `MANIFEST.in`. `crimm/Data/residues.xml` is tracked in git but is

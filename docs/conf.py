@@ -14,7 +14,7 @@ sys.path.insert(0, str(base_dir))
 project = 'crimm'
 copyright = '2026, Truman Xu'
 author = 'Truman Xu'
-release = '2026.1a'
+release = '2026.2.1'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
