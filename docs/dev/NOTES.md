@@ -180,8 +180,9 @@ Described as they are, not as they should be. See the best-practices guide for t
   `CoordManipulator.orient_coords_octa`.
 - Atoms are shared objects between a model and its parent structure, so moving a model's
   atoms moves the structure's too.
-- `CoordManipulator` has two matrix conventions. `orient_coords` builds a column-vector
-  4x4 matrix; the PCA variants store a row-vector one in the same attribute.
+- `CoordManipulator` had two matrix conventions: `orient_coords` built a column-vector
+  4x4 matrix, the PCA variants stored a row-vector one in the same attribute. Fixed on
+  `fix/44-pca-transform` (#44): all use `_build_op_mat` (column vectors).
 - `TopoElements.Dihedral.angle` is a stub that returns `0.000`.
 - `CGENFFTopologyLoader` writes into the current working directory when no `save_path` is
   given.

@@ -82,6 +82,9 @@ are from reading it and from `pyflakes`.
 
 ### 1.1 Solvation can mirror the structure (Stan) — highest priority (#43)
 
+**Fixed 2026-11-25 on branch `fix/43-octa-reflection` (not yet merged), with the release
+note in `CHANGELOG.md`.**
+
 `CoordManipulator.orient_coords_octa` (`crimm/Modeller/CoordManipulator.py`) rotates with the
 raw PCA axes from `np.linalg.svd` and never checks the determinant. When the determinant is
 -1 the "rotation" is a reflection, so every chiral centre is inverted and L-amino acids
@@ -103,6 +106,9 @@ with every residue's N, C, CB arrangement around CA inverted
 - Size: S for the fix, plus the release note.
 
 ### 1.2 PCA orientation stores a transform that does not match what it applied (Stan) (#44)
+
+**Fixed 2026-11-25 on branch `fix/44-pca-transform` (stacked on `fix/43-octa-reflection`, not
+yet merged), including `apply_to_parent`.**
 
 The three PCA methods compute `new = centered @ rotation` (row-vector convention) and store
 the translation in row 3 of `op_mat`. `apply_coords` and `apply_entity` read `op_mat` as a

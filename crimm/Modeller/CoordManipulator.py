@@ -32,6 +32,8 @@ class CoordManipulator:
         # pair of indices of the farthest atoms in the structure
         self.end_i, self.end_j = self._find_farthest_atom_indices()
         self.m_translation, self.m_rotation = None, None
+        # a transform found for a previously loaded entity does not apply here
+        self.op_mat = None
 
     def _extract_atoms_and_coords(
         self, entity, include_alt
@@ -49,8 +51,13 @@ class CoordManipulator:
         )
         return idx_pair
 
-    def get_transformation_matrix(self) -> Tuple[np.array, np.array]:
-        """Return the 4x4 transformation matrix as numpy arrays."""
+    def get_transformation_matrix(self) -> np.array:
+        """Return the 4x4 transformation matrix `op_mat`.
+
+        This is the transform of the last orientation applied, or, before any,
+        the one `orient_coords` would apply. See `_build_op_mat` for the
+        convention.
+        """
         if self.op_mat is None:
             self.op_mat = self._find_transformation_operators()
         return self.op_mat
@@ -70,7 +77,21 @@ class CoordManipulator:
             raise ValueError("No structure entity loaded!")
         return float(self.dist_matrix[self.end_i, self.end_j])
 
-    def _find_transformation_operators(self) -> None:
+    @staticmethod
+    def _build_op_mat(rotation, translation) -> np.array:
+        """Return the 4x4 matrix of the transform `x -> rotation @ x + translation`.
+
+        This is the one convention for `op_mat`, used by every orientation
+        method: column vectors, so the rotation fills `[:3, :3]` and the
+        translation fills `[:3, 3]`. A point `x` maps to `op_mat @ [x, 1]`, and
+        an (N, 3) array to `[coords, 1] @ op_mat.T` (see `apply_coords`).
+        """
+        op_mat = np.eye(4)
+        op_mat[:3, :3] = rotation
+        op_mat[:3, 3] = translation
+        return op_mat
+
+    def _find_transformation_operators(self) -> np.array:
         a1, a2 = self.end_i, self.end_j
         # coordinates of the farthest atom pair
         o1, o2 = self.coords[a1], self.coords[a2]
@@ -105,18 +126,31 @@ class CoordManipulator:
         rotation = rot_obj.as_matrix()
         # Test if the rotation operators can be applied to the translated vectors
         assert np.allclose(vec_translated @ rotation.T, vec_rotated)
-        # combine the translation and rotation operators
-        combined = np.eye(4)
-        # since we translate first, the rotation needs to be applied to the translation vector too
-        combined[:3, 3] = translation @ rotation.T
-        combined[:3, :3] = rotation
-
         # find the final translation to recenter the structure
         temp_coords = temp_coords @ rotation.T
         recenter = -(temp_coords.max(0) + temp_coords.min(0)) / 2
-        combined[:3, 3] += recenter
+        # since we translate first, the rotation needs to be applied to the
+        # translation vector too
+        return self._build_op_mat(rotation, translation @ rotation.T + recenter)
 
-        return combined
+    def _find_pca_operators(self, sort_by_extent) -> np.array:
+        """Return the 4x4 matrix that moves the centroid to the origin and the
+        principal axes onto x, y and z.
+
+        If sort_by_extent, the axes are ordered by decreasing extent (largest
+        on x, smallest on z). The axes always form a proper rotation: the SVD
+        gives them an arbitrary sign, so when they span a left-handed frame the
+        last one is flipped. Otherwise the transform would be a reflection,
+        which inverts every chiral centre.
+        """
+        center = self.coords.mean(axis=0)
+        _, S, Vt = np.linalg.svd(self.coords - center, full_matrices=False)
+        # rows of Vt are the principal axes
+        axes = Vt[np.argsort(S)[::-1]] if sort_by_extent else Vt
+        if np.linalg.det(axes) < 0:
+            axes[-1] *= -1
+        # new = axes @ (x - center), which also centres on the centroid
+        return self._build_op_mat(axes, -axes @ center)
 
     @property
     def coord_center(self):
@@ -156,16 +190,16 @@ class CoordManipulator:
         for i, atom in enumerate(self._atoms):
             atom.coord = self.coords[i]
 
-    def orient_coords(self, apply_to_parent=False) -> None:
-        """Apply translation and rotation operations to orient the structure
-        such that the major axis of the structure is placed  along the x-axis,
-        and the farthest point from the major axis is along the y-axis.
-        If apply_to_parent, the same transformation will also be applied to the
-        parent structure entity.
+    def _apply_orientation(self, op_mat, apply_to_parent) -> None:
+        """Store op_mat and apply it, once, to the loaded entity or its parent.
+
+        If apply_to_parent and a parent exists, the transform is applied to
+        every atom of the parent only. The loaded entity's atoms are the
+        parent's atoms (shared objects), so they move with it and must not be
+        transformed a second time; the cached atoms and coordinates of the
+        loaded entity are then read back from them.
         """
-        if self.entity is None:
-            raise ValueError("No structure entity loaded!")
-        self._find_transformation_operators()
+        self.op_mat = op_mat
         if not apply_to_parent:
             self._apply_to_loaded_entity()
         elif self.entity.parent is not None:
@@ -178,44 +212,33 @@ class CoordManipulator:
             self._apply_to_loaded_entity()
             warnings.warn("No parent structure entity exists!")
 
+    def orient_coords(self, apply_to_parent=False) -> None:
+        """Apply translation and rotation operations to orient the structure
+        such that the major axis of the structure is placed  along the x-axis,
+        and the farthest point from the major axis is along the y-axis.
+        If apply_to_parent, the same transformation will also be applied to the
+        parent structure entity.
+        """
+        if self.entity is None:
+            raise ValueError("No structure entity loaded!")
+        self._apply_orientation(self._find_transformation_operators(), apply_to_parent)
+
     def orient_coords_octa(self, apply_to_parent=False) -> None:
         """
         Apply an alternative orientation aimed at minimizing the bounding
         truncated octahedron. This implementation uses a PCA-based approach to
-        align the principal axes with the coordinate axes.
+        align the principal axes with the coordinate axes, and centres the
+        structure on its centroid.
 
-        Note: If apply_to_parent=True, the transformation is applied to the
-        parent entity's atoms. Since atoms are shared objects in the Biopython
-        hierarchy (model atoms ARE structure atoms), modifying the loaded
-        entity's atoms already updates the parent. The apply_to_parent flag
-        is kept for API consistency but the transformation is only applied once.
+        If apply_to_parent, the transformation is applied to the whole parent
+        entity (for a model, every model of its structure) instead of only the
+        loaded entity. Each atom is moved exactly once, see `_apply_orientation`.
         """
         if self.entity is None:
             raise ValueError("No structure entity loaded!")
-        # Center the coordinates
-        center = self.coords.mean(axis=0)
-        centered_coords = self.coords - center
-        # Compute PCA (using SVD)
-        U, S, Vt = np.linalg.svd(centered_coords, full_matrices=False)
-        rotation = Vt.T  # principal axes
-        new_coords = centered_coords @ rotation
-        # Re-center the new coordinates around the origin
-        new_center = new_coords.mean(axis=0)
-        new_coords -= new_center
-
-        # Build the 4x4 transformation matrix for potential external use
-        # The transformation is: (coords - center) @ rotation - new_center
-        # Which equals: coords @ rotation - center @ rotation - new_center
-        translation = -center @ rotation - new_center
-        self.op_mat = np.eye(4)
-        self.op_mat[:3, :3] = rotation
-        self.op_mat[3, :3] = translation
-
-        self.coords = new_coords
-        # Update atoms - since atoms are shared between model and parent structure,
-        # this single update affects both. No need to call apply_entity separately.
-        for i, atom in enumerate(self._atoms):
-            atom.coord = new_coords[i]
+        self._apply_orientation(
+            self._find_pca_operators(sort_by_extent=False), apply_to_parent
+        )
 
     def orient_coords_ortho(self, apply_to_parent=False) -> None:
         """
@@ -229,43 +252,13 @@ class CoordManipulator:
         This orientation minimizes box volume for orthorhombic geometry by ensuring
         that box dimensions match the molecule's extent ordering.
 
-        Note: Same parent/child sharing behavior as orient_coords_octa.
+        Note: Same apply_to_parent behavior as orient_coords_octa.
         """
         if self.entity is None:
             raise ValueError("No structure entity loaded!")
-
-        # Center the coordinates
-        center = self.coords.mean(axis=0)
-        centered_coords = self.coords - center
-
-        # Compute PCA using SVD
-        U, S, Vt = np.linalg.svd(centered_coords, full_matrices=False)
-
-        # S contains singular values proportional to extents along each principal axis
-        # Sort principal components by decreasing extent (largest first → X axis)
-        sort_idx = np.argsort(S)[::-1]  # Indices for descending order
-        rotation = Vt[sort_idx].T
-
-        # Ensure right-handed coordinate system
-        if np.linalg.det(rotation) < 0:
-            rotation[:, -1] *= -1
-
-        # Apply rotation
-        new_coords = centered_coords @ rotation
-
-        # Re-center the new coordinates around the origin
-        new_center = new_coords.mean(axis=0)
-        new_coords -= new_center
-
-        # Build the 4x4 transformation matrix
-        translation = -center @ rotation - new_center
-        self.op_mat = np.eye(4)
-        self.op_mat[:3, :3] = rotation
-        self.op_mat[3, :3] = translation
-
-        self.coords = new_coords
-        for i, atom in enumerate(self._atoms):
-            atom.coord = new_coords[i]
+        self._apply_orientation(
+            self._find_pca_operators(sort_by_extent=True), apply_to_parent
+        )
 
     def orient_coords_hexa(self, apply_to_parent=False) -> None:
         """
@@ -280,45 +273,10 @@ class CoordManipulator:
         - Two largest extents → XY plane (hexagonal base)
         - Smallest extent → Z axis (prism height)
 
-        Note: Same parent/child sharing behavior as orient_coords_octa.
+        Note: Same apply_to_parent behavior as orient_coords_octa.
         """
         if self.entity is None:
             raise ValueError("No structure entity loaded!")
-
-        # Center the coordinates
-        center = self.coords.mean(axis=0)
-        centered_coords = self.coords - center
-
-        # Compute PCA using SVD
-        U, S, Vt = np.linalg.svd(centered_coords, full_matrices=False)
-
-        # S contains singular values proportional to extents
-        # We want: largest two extents in XY, smallest in Z
-        # Sort indices by S value
-        sort_idx = np.argsort(S)  # Ascending order (smallest first)
-
-        # Reorder: [largest, medium, smallest] → [X, Y, Z]
-        # sort_idx[2] is largest, sort_idx[1] is medium, sort_idx[0] is smallest
-        reorder = [sort_idx[2], sort_idx[1], sort_idx[0]]
-        rotation = Vt[reorder].T
-
-        # Ensure right-handed coordinate system
-        if np.linalg.det(rotation) < 0:
-            rotation[:, -1] *= -1
-
-        # Apply rotation
-        new_coords = centered_coords @ rotation
-
-        # Re-center the new coordinates around the origin
-        new_center = new_coords.mean(axis=0)
-        new_coords -= new_center
-
-        # Build the 4x4 transformation matrix
-        translation = -center @ rotation - new_center
-        self.op_mat = np.eye(4)
-        self.op_mat[:3, :3] = rotation
-        self.op_mat[3, :3] = translation
-
-        self.coords = new_coords
-        for i, atom in enumerate(self._atoms):
-            atom.coord = new_coords[i]
+        self._apply_orientation(
+            self._find_pca_operators(sort_by_extent=True), apply_to_parent
+        )
