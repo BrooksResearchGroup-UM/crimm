@@ -1,11 +1,6 @@
 # Default owner
 *                                   @Truman-Xu
 
-# Solvation and orientation
-/crimm/Modeller/Solvator.py         @stanislc
-/crimm/Modeller/CrystalSDF.py       @stanislc
-/crimm/Modeller/CoordManipulator.py @stanislc
-
 # Topology
 /crimm/Modeller/TopoFixer.py        @Truman-Xu
 /crimm/Modeller/TopoLoader.py       @Truman-Xu
