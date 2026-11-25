@@ -593,7 +593,11 @@ class OrganizedModel(Model):
 
         if chain_id is None:
             chain_id = index_to_letters(letters_to_index(self.chains[-1].id) + 1)
-            assert chain_id not in self
+            if chain_id in self:
+                raise RuntimeError(
+                    f"Generated ligand chain id {chain_id!r} already exists in the "
+                    "model; pass chain_id explicitly."
+                )
 
         chain = self.chain_types["Ligand"](chain_id)
         chain.pdbx_description = res.pdbx_description
