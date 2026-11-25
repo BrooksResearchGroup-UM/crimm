@@ -4,7 +4,8 @@ from typing import List, Tuple
 import numpy as np
 from Bio.PDB.Atom import Atom
 from numpy.linalg import norm
-from scipy.spatial.distance import pdist, squareform
+from scipy.spatial import ConvexHull, QhullError
+from scipy.spatial.distance import cdist, pdist, squareform
 from scipy.spatial.transform import Rotation as R
 
 
@@ -14,8 +15,11 @@ class CoordManipulator:
         self.include_alt = None
         self._atoms = None
         self.coords = None
-        self.dist_matrix = None
-        self.end_i, self.end_j = None, None
+        # coordinates as loaded, and the farthest pair found in them; both
+        # computed lazily by the `end_i`, `end_j` and `dist_matrix` properties
+        self._loaded_coords = None
+        self._farthest_pair = None
+        self._dist_matrix = None
         self.op_mat = None
         self._convex_hull = None
 
@@ -28,9 +32,12 @@ class CoordManipulator:
         self._atoms, self.coords = self._extract_atoms_and_coords(
             self.entity, include_alt=self.include_alt
         )
-        self.dist_matrix = squareform(pdist(self.coords))
-        # pair of indices of the farthest atoms in the structure
-        self.end_i, self.end_j = self._find_farthest_atom_indices()
+        # The farthest atom pair is found only when first needed (#52).
+        # Orientation replaces self.coords with a rigidly moved copy, so keep the
+        # loaded array: the pair is defined on it.
+        self._loaded_coords = self.coords
+        self._farthest_pair = None
+        self._dist_matrix = None
         self.m_translation, self.m_rotation = None, None
 
     def _extract_atoms_and_coords(
@@ -43,11 +50,72 @@ class CoordManipulator:
             atoms.append(atom)
         return atoms, np.asarray(coords)
 
+    @property
+    def end_i(self):
+        """Index of the first atom of the farthest pair (None if nothing is loaded)."""
+        pair = self._get_farthest_pair()
+        return None if pair is None else pair[0]
+
+    @property
+    def end_j(self):
+        """Index of the second atom of the farthest pair (None if nothing is loaded)."""
+        pair = self._get_farthest_pair()
+        return None if pair is None else pair[1]
+
+    @property
+    def dist_matrix(self):
+        """Full N by N distance matrix of the loaded coordinates.
+
+        Built on first access only: it takes quadratic memory (about 20 GB at
+        50,000 atoms), and nothing in crimm needs it.
+        """
+        if self._dist_matrix is None and self._loaded_coords is not None:
+            self._dist_matrix = squareform(pdist(self._loaded_coords))
+        return self._dist_matrix
+
+    def _get_farthest_pair(self):
+        if self._farthest_pair is None and self._loaded_coords is not None:
+            self._farthest_pair = self._find_farthest_atom_indices()
+        return self._farthest_pair
+
     def _find_farthest_atom_indices(self) -> Tuple[int, int]:
-        idx_pair = np.unravel_index(
-            np.argmax(self.dist_matrix, axis=None), self.dist_matrix.shape
-        )
-        return idx_pair
+        """Return the indices (i, j), i <= j, of the farthest pair of loaded atoms.
+
+        Both atoms of a farthest pair are extreme points of the point set, so
+        only the convex-hull vertices (plus the points Qhull reports as lying on
+        the hull, and duplicates of either) are compared. The result is the
+        pair the full distance matrix gives: same distances, and among equal
+        maxima the first pair in row-major order.
+        """
+        coords = self._loaded_coords
+        candidates = np.arange(len(coords))
+        if len(coords) > 4:
+            try:
+                hull = ConvexHull(coords)
+            except QhullError:
+                # flat (coplanar or collinear) input: compare every point
+                pass
+            else:
+                on_hull = np.union1d(hull.vertices, hull.coplanar[:, 0])
+                # keep atoms that duplicate a hull point: Qhull lists one of them
+                _, point_id = np.unique(coords, axis=0, return_inverse=True)
+                point_id = point_id.ravel()
+                candidates = np.flatnonzero(np.isin(point_id, point_id[on_hull]))
+        return self._farthest_pair_among(coords, candidates)
+
+    @staticmethod
+    def _farthest_pair_among(coords, candidates, block=1024) -> Tuple[int, int]:
+        """First farthest pair, in row-major order, among `candidates` (sorted
+        indices into `coords`), with at most `block` rows of distances in memory."""
+        points = coords[candidates]
+        best, best_pair = -1.0, (0, 0)
+        for start in range(0, len(points), block):
+            dists = cdist(points[start : start + block], points)
+            r, c = np.unravel_index(np.argmax(dists), dists.shape)
+            if dists[r, c] > best:
+                best = dists[r, c]
+                best_pair = (int(candidates[start + r]), int(candidates[c]))
+        return best_pair
 
     def get_transformation_matrix(self) -> Tuple[np.array, np.array]:
         """Return the 4x4 transformation matrix as numpy arrays."""
@@ -68,7 +136,8 @@ class CoordManipulator:
         """
         if self.entity is None:
             raise ValueError("No structure entity loaded!")
-        return float(self.dist_matrix[self.end_i, self.end_j])
+        coords = self._loaded_coords
+        return float(pdist(coords[[self.end_i, self.end_j]])[0])
 
     def _find_transformation_operators(self) -> None:
         a1, a2 = self.end_i, self.end_j
