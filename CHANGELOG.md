@@ -25,6 +25,12 @@ Releases up to 2026.2.1 are described on the
 
 ### Fixed
 
+- Checks that used `assert` now raise real exceptions, so they also run under `python -O`:
+  `ValueError` for a lower-case `Atom` element or a CMAP term with the wrong number of grid
+  values in a parameter file; `RuntimeError` when `OrganizedModel.add_ligand` generates a chain
+  ID that is already taken, when the solvent box has the wrong shape, or when
+  `CoordManipulator` cannot fit the orientation. Code that caught `AssertionError` must catch
+  these instead.
 - Renumbering a residue with alternative residue names (`DisorderedResidue`, e.g. a point
   mutation) now renumbers every alternative and the parent chain's lookup, not only the
   wrapper; `missing_res` no longer reports the new position as missing.

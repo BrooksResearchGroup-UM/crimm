@@ -1014,9 +1014,11 @@ class Solvator:
 
     def _solvate_model(self):
         self.water_box_coords = self.get_expelled_water_box_coords()
-        assert self.water_box_coords.shape[1:] == (3, 3), (
-            f"Invalid water box coords shape {self.water_box_coords.shape}"
-        )
+        if self.water_box_coords.shape[1:] != (3, 3):
+            raise RuntimeError(
+                f"Invalid water box coords shape {self.water_box_coords.shape}; "
+                "expected (N waters, 3 atoms, 3 coords)"
+            )
 
         # Create single water chain (PSF/CRD extended format supports large residue numbers)
         cur_water_chain = self._create_new_water_chain(0)

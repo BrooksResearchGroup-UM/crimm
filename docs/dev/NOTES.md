@@ -163,8 +163,8 @@ Described as they are, not as they should be. See the best-practices guide for t
   `warnings.warn` (29 files). `logging` is not used anywhere in the package.
 - Verbosity is controlled by `QUIET=False` keyword arguments threaded through
   `TopoLoader.py`.
-- Runtime checks sometimes use `assert` (`CoordManipulator`, `Solvator`, `OrganizedModel`,
-  `Atom`), which disappears under `python -O`.
+- Runtime checks raise `ValueError`, `TypeError` or `RuntimeError`; the library has no
+  `assert` statements left (#54).
 - Every HTTP call uses `timeout=500` (one uses 1000) with no retry.
 - Module-level global state: `LOADED_TOPOLOGY_TYPES` in `pyCHARMMAdaptors.py`, and
   `_backend` in `Visualization/__init__.py`.

@@ -123,7 +123,10 @@ def cmap_field_parser(lines, n):
     entries = []
     for line in lines:
         entries.extend([float(entry) for entry in line.split()])
-    assert len(entries) == n**2
+    if len(entries) != n**2:
+        raise ValueError(
+            f"CMAP term has {len(entries)} grid values; expected {n}x{n} = {n**2}"
+        )
     return entries
 
 

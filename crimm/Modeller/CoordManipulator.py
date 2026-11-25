@@ -104,7 +104,11 @@ class CoordManipulator:
         # Get the rotation operator as a numpy array
         rotation = rot_obj.as_matrix()
         # Test if the rotation operators can be applied to the translated vectors
-        assert np.allclose(vec_translated @ rotation.T, vec_rotated)
+        if not np.allclose(vec_translated @ rotation.T, vec_rotated):
+            raise RuntimeError(
+                "The rotation found by the Kabsch fit does not map the reference "
+                "atoms onto the target axes; cannot orient the structure."
+            )
         # combine the translation and rotation operators
         combined = np.eye(4)
         # since we translate first, the rotation needs to be applied to the translation vector too
