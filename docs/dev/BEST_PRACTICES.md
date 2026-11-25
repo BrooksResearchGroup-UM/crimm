@@ -128,8 +128,9 @@ If only ten things happen, these give the most for the effort:
 - **Versioning policy.** Calendar versions are fine; write down what the parts mean and the
   compatibility promise. A workable one: deprecations last at least two releases, and
   removals are listed in the changelog one release ahead.
-- **Changelog.** `CHANGELOG.md` in the Keep a Changelog layout, updated in the same pull
-  request as the change.
+- **Changelog.** `CHANGELOG.md` in the Keep a Changelog layout. Each pull request adds a
+  fragment to `changelog.d/` (one file per entry, see its README), and towncrier writes
+  them into `CHANGELOG.md` at release, so concurrent pull requests do not conflict (#180).
 - **Releases from CI.** A tag triggers build, test and upload to PyPI through trusted
   publishing, so no long-lived API token exists and a release never depends on one laptop.
 - **Check the artifact.** In CI, build the wheel, install it into a clean environment and
