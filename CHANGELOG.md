@@ -25,6 +25,12 @@ Releases up to 2026.2.1 are described on the
 
 ### Fixed
 
+- `TopologyGenerator.load_psf_crd` now gives each protein residue the patched definition it
+  was built with (ACE, CT3, NTER, GLYP, PROP, CTER and the other terminal patches, and DISU),
+  read off the residue's atoms and the PSF charges and types; nucleic-acid residues get DEO5,
+  DEOX, 5TER and 3PHO the same way. Patch atoms such as the ACE and CT3 caps no longer come
+  back without a `topo_definition`, so `total_charge` of a reloaded chain is a number, and the
+  bonds, angles, dihedrals and impropers of the patched residues are restored.
 - Renumbering a residue with alternative residue names (`DisorderedResidue`, e.g. a point
   mutation) now renumbers every alternative and the parent chain's lookup, not only the
   wrapper; `missing_res` no longer reports the new position as missing.

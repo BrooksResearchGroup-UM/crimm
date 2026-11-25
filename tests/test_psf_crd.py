@@ -132,19 +132,162 @@ def test_load_psf_crd_round_trip(written, pdb_id):
         assert after.coord == pytest.approx(before.coord, abs=1e-5), atom_key(before)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="#47: load_psf_crd leaves the terminal patch atoms (ACE and CT3 caps) without a "
-    "topo_definition, so total_charge of the reloaded chain is None",
-)
-def test_load_psf_crd_restores_charges(written):
-    model, psf_path, crd_path = written("1crn")
+def reload(psf_path, crd_path):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        reloaded = TopologyGenerator().load_psf_crd(psf_path, crd_path, QUIET=True)
-    old, new = model.protein[0], reloaded.protein[0]
+        return TopologyGenerator().load_psf_crd(psf_path, crd_path, QUIET=True)
+
+
+def patches(chain):
+    """(resseq, patch_with, patch_loc) of each patched residue of a chain."""
+    return [
+        (
+            res.id[1],
+            res.topo_definition.patch_with,
+            getattr(res.topo_definition, "patch_loc", None),
+        )
+        for res in chain
+        if getattr(res.topo_definition, "patch_with", None) is not None
+    ]
+
+
+def assert_same_definitions(old, new):
+    """Every atom has the same charge and type, and each residue the same patches."""
     assert all(atom.topo_definition is not None for atom in new.get_atoms())
     assert new.total_charge == pytest.approx(old.total_charge, abs=1e-4)
+    before = {atom_key(atom): atom.topo_definition for atom in old.get_atoms()}
+    after = {atom_key(atom): atom.topo_definition for atom in new.get_atoms()}
+    assert after.keys() == before.keys()
+    for key, definition in after.items():
+        assert definition.charge == pytest.approx(before[key].charge, abs=1e-6), key
+        assert definition.atom_type == before[key].atom_type, key
+    assert patches(new) == patches(old)
+    for kind in ("bonds", "angles", "dihedrals", "impropers"):
+        assert len(getattr(new.topology, kind)) == len(getattr(old.topology, kind)), (
+            kind
+        )
+
+
+@pytest.mark.parametrize("pdb_id", CONSISTENT)
+def test_load_psf_crd_restores_charges(written, pdb_id):
+    """ACE and CT3 caps (and DISU on 1CRN) come back with their patch definitions."""
+    model, psf_path, crd_path = written(pdb_id)
+    reloaded = reload(psf_path, crd_path)
+    assert_same_definitions(model.protein[0], reloaded.protein[0])
+
+
+@pytest.mark.parametrize(
+    "first, last, start",
+    [
+        ("NTER", "CTER", 1),
+        ("NTER", "CT2", 10),  # GLY 10: NTER becomes GLYP
+        ("ACE", "CTER", 19),  # PRO 19: ACE becomes PROP
+        ("ACP", "CNEU", 19),
+        ("NNEU", "PCTE", 1),
+    ],
+)
+def test_load_psf_crd_restores_terminal_patches(
+    organized_model, tmp_path, first, last, start
+):
+    model = organized_model("1ubq")
+    chain = model.protein[0]
+    for residue in list(chain):
+        if residue.id[1] < start:
+            chain.detach_child(residue.id)
+    psf_path, crd_path = str(tmp_path / "t.psf"), str(tmp_path / "t.crd")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        TopologyGenerator().generate_model(
+            model, prot_first_patch=first, prot_last_patch=last, QUIET=True
+        )
+        write_psf(model, psf_path)
+        write_crd(model, crd_path)
+    reloaded = reload(psf_path, crd_path)
+    assert_same_definitions(model.protein[0], reloaded.protein[0])
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="#162: load_psf_crd drops the disulfide bonds: the CRD has no connectivity, so "
+    "model.topology has 658 bonds for 1CRN where the original has 661",
+)
+def test_load_psf_crd_restores_disulfide_bonds(written):
+    model, psf_path, crd_path = written("1crn")
+    reloaded = reload(psf_path, crd_path)
+    assert len(reloaded.topology.bonds) == len(model.topology.bonds)
+
+
+def test_loading_infers_dna_patches(shared_prepared):
+    """5TER and DEO5 on the first residue, DEOX, then 3PHO and DEOX on the last.
+
+    load_psf_crd cannot load 1BNA yet (#45 and the two xfail tests below), so this
+    checks the patch inference of the loading step on the prepared model itself.
+    """
+    from crimm.IO.PSFReader import PSFAtom
+    from crimm.Modeller.TopoLoader import ResidueTopologySet
+
+    model = shared_prepared("1bna")
+    generator = TopologyGenerator()
+    generator.cur_defs = ResidueTopologySet("nucleic")
+    for chain in model.DNA:
+        psf_atom_map = {}
+        for serial, atom in enumerate(chain.get_atoms(), start=1):
+            definition = atom.topo_definition
+            segid = (atom.parent.segid or "").strip()
+            psf_atom_map[segid, str(atom.parent.id[1]), atom.name] = PSFAtom(
+                serial,
+                "",
+                "",
+                "",
+                atom.name,
+                definition.atom_type,
+                definition.charge,
+                0.0,
+            )
+        residues = list(chain)
+        for i, residue in enumerate(residues):
+            patch_loc = {0: "NTER", len(residues) - 1: "CTER"}.get(i, "MIDCHAIN")
+            inferred = generator._infer_patched_definition(
+                residue, generator.cur_defs[residue.resname], patch_loc, psf_atom_map
+            )
+            assert inferred.is_modified, residue
+            assert set(inferred.atom_dict) == {atom.name for atom in residue}
+            for atom in residue:
+                assert inferred[atom.name].charge == pytest.approx(
+                    atom.topo_definition.charge, abs=1e-6
+                ), (residue, atom.name)
+                assert inferred[atom.name].atom_type == atom.topo_definition.atom_type
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="#161: CRD-parsed DNA strands of 1BNA are organized as four Ligand chains, so "
+    "load_psf_crd cannot restore DNA",
+)
+def test_crd_dna_is_organized_as_dna(shared_prepared, tmp_path):
+    from crimm.StructEntities.OrganizedModel import OrganizedModel
+
+    model = shared_prepared("1bna")
+    crd_path = str(tmp_path / "d.crd")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        get_psf_str(model)  # assigns the segids the CRD needs
+        write_crd(model, crd_path)
+        structure = CRDParser(include_solvent=True, QUIET=True).get_structure(crd_path)
+        loaded = OrganizedModel(structure.models[0], fetch_web_data=False)
+    assert len(loaded.DNA) == 2
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=ValueError,
+    reason="#161: load_psf_crd reads Ligand chains with ResidueTopologySet('cgenff'), which "
+    "fails to parse cgenff.rtf (H_donors unpack)",
+)
+def test_load_path_reads_cgenff_topology():
+    from crimm.Modeller.TopoLoader import ResidueTopologySet
+
+    ResidueTopologySet("cgenff")
 
 
 def test_write_psf_reports_untyped_ligand(shared_prepared, tmp_path):
