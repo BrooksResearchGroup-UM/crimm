@@ -2,6 +2,7 @@ import os
 import subprocess
 import warnings
 from copy import copy, deepcopy
+from itertools import permutations
 from typing import List, Tuple
 
 import numpy as np
@@ -2116,7 +2117,9 @@ class TopologyGenerator:
             # Apply topo_definition to each residue (loading-safe: no
             # missing atoms created, since the PSF/CRD is the ground truth)
             chain.undefined_res = []
-            for residue in chain.get_residues():
+            is_polymer = entity_type in ("protein", "nucleic")
+            residues = list(chain.get_residues())
+            for i_res, residue in enumerate(residues):
                 residue_key = (
                     (getattr(residue, "segid", "") or "").strip(),
                     str(residue.id[1]).strip(),
@@ -2129,6 +2132,16 @@ class TopologyGenerator:
                 resname = residue.resname
                 if resname in self.cur_defs:
                     res_def = self.cur_defs[resname]
+                    if is_polymer:
+                        if i_res == 0:
+                            patch_loc = "NTER"
+                        elif i_res == len(residues) - 1:
+                            patch_loc = "CTER"
+                        else:
+                            patch_loc = "MIDCHAIN"
+                        res_def = self._infer_patched_definition(
+                            residue, res_def, patch_loc, psf_atom_map
+                        )
                     self._apply_topo_def_for_loading(residue, res_def, QUIET=QUIET)
                 else:
                     chain.undefined_res.append(residue)
@@ -2155,6 +2168,122 @@ class TopologyGenerator:
         # Build model topology
         model.topology = ModelTopology(model)
         model.topology_loader = self
+
+    # Most patches a loaded residue can carry: a terminal patch plus one more
+    # (5TER + DEO5 on the first DNA residue, 3PHO + DEOX on the last).
+    _MAX_INFERRED_PATCHES = 2
+
+    def _infer_patched_definition(self, residue, res_def, patch_loc, psf_atom_map):
+        """Find the patches a loaded residue carries; return its patched definition.
+
+        A PSF does not record which patches built it, so they are read off the
+        residue: a candidate is a sequence of patches whose patched definition
+        has exactly the residue's atoms, and the candidate whose charges and
+        atom types disagree with the PSF on the fewest atoms wins (fewer
+        patches first, then RTF order). ``res_def`` is returned unchanged when
+        it already fits, or when no candidate fits better.
+
+        Parameters
+        ----------
+        residue : Residue
+            Residue as parsed from the CRD
+        res_def : ResidueDefinition
+            Unpatched definition for the residue name
+        patch_loc : str
+            'NTER', 'CTER' or 'MIDCHAIN', from the residue's place in its chain
+        psf_atom_map : dict
+            Mapping of (segid, resid, atomname) to PSFAtom
+        """
+        segid = (getattr(residue, "segid", "") or "").strip()
+        resid = str(residue.id[1]).strip()
+        psf_atoms = {
+            atom.name: psf_atom_map.get((segid, resid, atom.name.strip()))
+            for atom in self._iter_residue_atoms_for_psf(residue)
+        }
+        present = set(psf_atoms)
+
+        def n_mismatches(definition):
+            if set(definition.atom_dict) != present:
+                return None
+            n = 0
+            for name, psf_atom in psf_atoms.items():
+                if psf_atom is None:
+                    continue
+                atom_def = definition[name]
+                if (
+                    abs(atom_def.charge - psf_atom.charge) > 1e-4
+                    or atom_def.atom_type != psf_atom.atomtype.strip()
+                ):
+                    n += 1
+            return n
+
+        best_def, best_score = res_def, n_mismatches(res_def)
+        if best_score == 0:
+            return res_def
+
+        candidates = self._candidate_patches(res_def, present)
+        for n_patches in range(1, self._MAX_INFERRED_PATCHES + 1):
+            for combo in permutations(candidates, n_patches):
+                # DISU is only applied to an otherwise unpatched CYS
+                if "DISU" in combo and len(combo) > 1:
+                    continue
+                definition = res_def
+                for patch in combo:
+                    definition = self._get_patched_definition(
+                        definition, patch, patch_loc
+                    )
+                score = n_mismatches(definition)
+                if score is not None and (best_score is None or score < best_score):
+                    best_def, best_score = definition, score
+            if best_score == 0:
+                break
+        return best_def
+
+    def _candidate_patches(self, res_def, present):
+        """Names of the patches that can apply to a residue with these atoms.
+
+        A patch qualifies when every atom it defines is present and no atom it
+        deletes is. Patches between residues (atom names such as ``1SG`` or
+        ``+P``) and patches without atoms are left out; DISU, which crimm
+        applies through ``ResiduePatcher.patch_disulfide``, is added for a CYS
+        without HG1.
+        """
+        names = []
+        for patch_def in self.cur_defs.patches:
+            atoms = set(patch_def.atom_dict)
+            deleted = {
+                name for kind, name in (patch_def.delete or ()) if kind == "ATOM"
+            }
+            if not atoms and not deleted:
+                continue
+            if any(not name[0].isalpha() for name in atoms | deleted):
+                continue
+            if atoms <= present and not deleted & present:
+                names.append(patch_def.resname)
+        if (
+            res_def.resname == "CYS"
+            and "HG1" in res_def.atom_dict
+            and "HG1" not in present
+            and not res_def.is_modified
+        ):
+            names.append("DISU")
+        return names
+
+    def _get_patched_definition(self, res_def, patch, patch_loc):
+        """Patched definition from the current topology set, built once and cached."""
+        if patch == "DISU":
+            patch_loc = "MIDCHAIN"
+        key = self._patched_definition_cache_key(res_def, patch, patch_loc)
+        patched_defs = self.cur_defs.patched_defs
+        if key not in patched_defs:
+            patcher = ResiduePatcher()
+            if patch == "DISU":
+                patched_defs[key] = patcher.patch_disulfide(res_def, res_def)
+            else:
+                patched_defs[key] = patcher.patch_residue_definition(
+                    res_def, self.cur_defs[patch], patch_loc=patch_loc
+                )
+        return patched_defs[key]
 
     @staticmethod
     def _chain_type_to_entity_type(chain_type):
