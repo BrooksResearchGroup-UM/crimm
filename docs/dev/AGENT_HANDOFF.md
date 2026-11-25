@@ -226,7 +226,7 @@ Things that cost a previous agent time or would produce wrong results silently.
 | G7 | `id(obj)` comparisons across a call that frees objects give false matches. Hold references. This caused an order-dependent test failure. | `[ran 2026-10-06]` |
 | G8 | `ndarray.ptp` does not exist on NumPy 2. Use `np.ptp(a, axis=...)`. | `[ran 2026-10-06]` |
 | G9 | `fetch_rcsb(local_entry=...)` expects `<root>/<id[1:3]>/<id>.cif`, lower case, not a flat directory. | `[read]`, `[ran]` |
-| G10 | `get_pdb_str` on a model with `TIP3` waters needs `convert_water=True` to be readable by `PDBParser`. | `[ran 2026-10-06]` |
+| G10 | Fixed (#49): `get_pdb_str` writes 4-character names such as `TIP3` in columns 18-21 and `PDBParser` reads them back; `convert_water=True` is no longer needed for a round trip. Biopython's own parser still reads only columns 18-20 (`TIP`). | `[ran 2026-11-25]` |
 | G11 | The CGenFF ligand path queries RCSB for the ligand's chemistry, so `cgenff` tests also need the network. | `[inferred: RDKitConverter posts to RCSB; test passed only with network available]` |
 | G12 | Other sessions edit `docs/dev/*.md` concurrently. Re-read a file immediately before editing it, and make targeted edits, never whole-file rewrites. | `[ran 2026-10-06: ROADMAP.md and NOTES.md changed under an active session]` |
 | G13 | ROADMAP section numbers are not stable identifiers. 1.3 to 1.5 were renumbered on 2026-10-06. Cite the section title with the number. | `[ran 2026-10-06]` |

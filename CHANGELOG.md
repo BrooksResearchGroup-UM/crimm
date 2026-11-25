@@ -30,3 +30,8 @@ Releases up to 2026.2.1 are described on the
   wrapper; `missing_res` no longer reports the new position as missing.
 - `heterogen_to_rdkit` no longer raises `AttributeError` on a residue without
   `pdbx_description`, such as one read from a CRD file.
+- `get_pdb_str` writes a 4-character residue name such as `TIP3` in columns 18-21, as CHARMM
+  and VMD do, so the chain ID stays in column 22; before, it shifted the chain ID and residue
+  number and the output could not be read. `PDBParser` reads such names in full, so `TIP3`
+  waters come back as a `Solvent` chain. Output for names of 3 characters or fewer is
+  unchanged.
