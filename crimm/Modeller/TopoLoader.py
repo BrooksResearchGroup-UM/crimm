@@ -2568,21 +2568,44 @@ class ResiduePatcher:
             self._remove_atom_from_groups(atom_name)
             self._remove_atom_from_cmap(self.res.cmap, atom_name)
 
+    def _apply_patch_groups(self, existing_atoms):
+        """Merge the patch's atom groups into the residue's, as CHARMM does.
+
+        Atoms inside a patch GROUP move to that group. Patch atoms listed
+        before any GROUP keep the group of the atom they modify; new ones join
+        the residue's last group (CHARMM struct.doc, PATCH rules 4 and 5).
+        """
+        ungrouped = set(getattr(self.patch, "ungrouped_atoms", ()))
+        new_groups = []
+        added_ungrouped = []
+        for group in self.patch.atom_groups:
+            if ungrouped and set(group) <= ungrouped:
+                added_ungrouped.extend(a for a in group if a not in existing_atoms)
+            else:
+                if group:
+                    new_groups.append(tuple(group))
+        regrouped = {atom_name for group in new_groups for atom_name in group}
+        res_groups = []
+        for group in self.res.atom_groups:
+            remaining = tuple(a for a in group if a not in regrouped)
+            if remaining:
+                res_groups.append(remaining)
+        if added_ungrouped:
+            if res_groups:
+                res_groups[-1] = res_groups[-1] + tuple(added_ungrouped)
+            else:
+                res_groups.append(tuple(added_ungrouped))
+        self.res.atom_groups = res_groups + new_groups
+
     def _apply_patch(self):
         """Apply the patch on the residue definition"""
         self._delete_atom_params()
+        existing_atoms = set(self.res.atom_dict)
         self.res.atom_dict.update(self.patch.atom_dict)
         for bond_type in self.res.bonds:
             self.res.bonds[bond_type].extend(self.patch.bonds[bond_type])
 
-        # Remove groups fully redefined by patch to avoid duplicates (e.g., CT3 patch)
-        patch_atoms = set(self.patch.atom_dict.keys())
-        self.res.atom_groups = [
-            group
-            for group in self.res.atom_groups
-            if not all(atom_name in patch_atoms for atom_name in group)
-        ]
-        self.res.atom_groups.extend(self.patch.atom_groups)
+        self._apply_patch_groups(existing_atoms)
         self.res.H_donors.extend(self.patch.H_donors)
         self.res.H_acceptors.extend(self.patch.H_acceptors)
         self.res.impropers.extend(self.patch.impropers)

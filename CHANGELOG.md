@@ -25,6 +25,10 @@ Releases up to 2026.2.1 are described on the
 
 ### Fixed
 
+- PSF files for DNA now have the model's atoms and charge. The deoxyribose patch (DEOX)
+  respecifies the phosphorus before any `GROUP`, and crimm listed it twice, so 1BNA got 394
+  atoms and +4.5 e per strand instead of 383 and -12 e (#45, #133). Patch atoms listed
+  outside a `GROUP` now keep the group of the atom they modify, as in CHARMM.
 - Renumbering a residue with alternative residue names (`DisorderedResidue`, e.g. a point
   mutation) now renumbers every alternative and the parent chain's lookup, not only the
   wrapper; `missing_res` no longer reports the new position as missing.

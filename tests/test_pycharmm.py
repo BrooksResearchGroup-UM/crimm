@@ -6,7 +6,7 @@ licensed (see CONTRIBUTING). Run with ``pytest -m pycharmm``.
 
 The reference is CHARMM generating the same segments itself from the RTF: same sequence,
 same terminal patches, ``patch DISU`` for each disulfide, and crimm's coordinates. Models are
-protein only (no solvent), so no water or ion segments need building on the CHARMM side.
+polymer only (no solvent), so no water or ion segments need building on the CHARMM side.
 
 pyCHARMM holds one PSF per process, so every test starts by deleting all atoms. Never call
 CHARMM's ``stop`` from here: pyCHARMM dumps core on it.
@@ -189,6 +189,45 @@ def test_energy_matches_charmm_generated(fresh_charmm, tmp_path, pdb_id, last_pa
     assert all(np.isfinite(value) for value in from_crimm.values())
     for term in ENERGY_TERMS:
         assert from_crimm[term] == pytest.approx(generated[term], abs=1e-3), term
+
+
+def test_dna_psf_and_crd_match_charmm_generated(fresh_charmm, tmp_path):
+    """1BNA as CHARMM builds it: 5TER/3PHO strands, DEO5 then DEOX on every residue."""
+    import pycharmm.generate as generate
+    import pycharmm.lingo as lingo
+    import pycharmm.psf as psf
+    import pycharmm.read as read
+
+    model = OrganizedModel(parse_structure("1bna", include_solvent=False).models[0])
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        TopologyGenerator().generate_model(model, QUIET=True)
+    n_atoms = len(list(model.get_atoms()))
+    load(fresh_charmm, model)  # CHARMM reads the PSF and CRD crimm writes
+    assert psf.get_natom() == n_atoms
+    assert sum(psf.get_charges()) == pytest.approx(-24.0, abs=1e-4)
+    from_crimm = charmm_psf(tmp_path / "from_crimm.psf")
+    crimm_terms = energy_terms()
+
+    crd_path = str(tmp_path / "model.crd")
+    write_crd(model, crd_path)
+    psf.delete_atoms()
+    for chain in model:
+        segid = polymer_chain_to_charmm_segid(chain)
+        read.sequence_string(" ".join(res.topo_definition.resname for res in chain))
+        generate.new_segment(
+            seg_name=segid, first_patch="5TER", last_patch="3PHO", setup_ic=True
+        )
+        resids = [res.id[1] for res in chain]
+        lingo.charmm_script(f"patch DEO5 {segid} {resids[0]} setup")
+        for resid in resids[1:]:
+            lingo.charmm_script(f"patch DEOX {segid} {resid} setup")
+    lingo.charmm_script("autogenerate angles dihedrals")
+    read.coor_card(crd_path)
+    assert_same_psf(from_crimm, charmm_psf(tmp_path / "generated.psf"))
+    charmm_terms = energy_terms()
+    for term in ENERGY_TERMS:
+        assert crimm_terms[term] == pytest.approx(charmm_terms[term], abs=1e-3), term
 
 
 def test_fetch_coords_from_charmm_moves_the_model(fresh_charmm):

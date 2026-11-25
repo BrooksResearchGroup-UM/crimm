@@ -15,7 +15,7 @@ from crimm.IO import (
 from crimm.Modeller import TopologyGenerator
 
 # Fixtures whose PSF and CRD agree today. The others are covered by the xfail tests below.
-CONSISTENT = ["1ubq", "1crn", "2igd"]
+CONSISTENT = ["1ubq", "1crn", "2igd", "1bna"]
 
 
 @pytest.fixture
@@ -114,7 +114,23 @@ def test_crd_round_trip_preserves_coordinates(written, pdb_id):
         assert after.coord == pytest.approx(before.coord, abs=1e-5), atom_key(before)
 
 
-@pytest.mark.parametrize("pdb_id", CONSISTENT)
+@pytest.mark.parametrize(
+    "pdb_id",
+    [
+        "1ubq",
+        "1crn",
+        "2igd",
+        pytest.param(
+            "1bna",
+            marks=pytest.mark.xfail(
+                strict=True,
+                reason="#161: load_psf_crd gives the DNA strands chain_type 'Ligand' and builds "
+                "cgenff.rtf definitions for them, which fail ('too many values to unpack' "
+                "in assign_donor_acceptor)",
+            ),
+        ),
+    ],
+)
 def test_load_psf_crd_round_trip(written, pdb_id):
     model, psf_path, crd_path = written(pdb_id)
     with warnings.catch_warnings():
@@ -162,22 +178,28 @@ def test_psf_and_crd_agree_with_untyped_ligand(written):
     assert len(read_psf(psf_path).atoms) == len(crd_atoms(crd_path))
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="#45: PSFWriter writes 394 atoms per DNA strand where the model has 383 "
-    "(one duplicated atom in 11 of 12 residues)",
-)
 def test_dna_psf_atom_count_matches_model(written):
     model, psf_path, _ = written("1bna")
     assert len(read_psf(psf_path).atoms) == len(list(model.get_atoms()))
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="#45: DNA PSF total charge is +9 where the model's is -24",
-)
 def test_dna_psf_charge_matches_model(written):
     model, psf_path, _ = written("1bna")
     psf_charge = sum(atom.charge for atom in read_psf(psf_path).atoms)
     model_charge = sum(atom.topo_definition.charge for atom in model.get_atoms())
     assert psf_charge == pytest.approx(model_charge, abs=1e-4)
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="#163: The atoms a nucleotide RESI lists before its first GROUP (P OP1 OP2 O5' "
+    "C5' H5' H5'') get a group of their own (charge -0.53, the C3' group -0.47); CHARMM "
+    "joins them to the previous residue's last group, so every group charge is integral",
+)
+def test_dna_psf_groups_have_integral_charge(written):
+    _, psf_path, _ = written("1bna")
+    psf = read_psf(psf_path)
+    starts = [group[0] for group in psf.groups] + [len(psf.atoms)]
+    for start, end in zip(starts, starts[1:]):
+        charge = sum(atom.charge for atom in psf.atoms[start:end])
+        assert charge == pytest.approx(round(charge), abs=1e-4)

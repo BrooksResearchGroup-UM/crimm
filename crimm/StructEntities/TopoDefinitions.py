@@ -390,6 +390,8 @@ class PatchDefinition(ResidueDefinition):
         is_hetero: bool = False,
     ):
         self.delete = None
+        # Atoms listed before any GROUP: they stay in their residue group
+        self.ungrouped_atoms = []
         super().__init__(file_source, resname, res_topo_dict, is_hetero)
 
     def build_standard_coord_from_ic_table(self):
