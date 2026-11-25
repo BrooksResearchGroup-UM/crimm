@@ -86,6 +86,39 @@ def test_terminal_patches_are_default_caps(shared_prepared):
     assert {"NT", "CAT"} <= {atom.name for atom in last}
 
 
+@pytest.mark.parametrize("pdb_id", ALL_IDS)
+def test_every_atom_is_in_exactly_one_group(shared_prepared, pdb_id):
+    # DEOX respecifies P before any GROUP; P must stay in its group, not gain a second one
+    for chain in polymers(shared_prepared(pdb_id)):
+        for residue in chain:
+            grouped = [atom for group in residue.atom_groups for atom in group]
+            assert sorted(a.name for a in grouped) == sorted(
+                a.name for a in residue.get_atoms()
+            ), residue
+
+
+def test_ungrouped_patch_atom_keeps_its_group(shared_prepared):
+    residue = polymers(shared_prepared("1bna"))[0].residues[1]
+    groups = [[atom.name for atom in group] for group in residue.atom_groups]
+    assert ["P", "OP1", "OP2", "O5'", "C5'", "H5'", "H5''"] in groups
+    assert sum(group.count("P") for group in groups) == 1
+    assert residue["P"].topo_definition.atom_type == "P2"
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=ValueError,
+    reason="#164: na.rtf 3PO3 has BILD lines naming O3T and H3T, atoms the patch does not "
+    "define; crimm raises 'Atom O3T not found in residue definition'",
+)
+def test_na_3po3_patch_generates(organized_model):
+    model = organized_model("1bna")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        TopologyGenerator().generate_model(model, QUIET=True, na_last_patch="3PO3")
+    assert "P3" in polymers(model)[0].residues[-1]
+
+
 def test_ligand_without_cgenff_warns_and_stays_untyped(organized_model):
     model = organized_model("3ptb")
     with pytest.warns(UserWarning, match="CGENFF is not configured"):

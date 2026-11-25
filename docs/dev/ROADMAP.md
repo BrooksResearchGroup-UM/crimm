@@ -122,7 +122,7 @@ and the marker is not removed.
 
 | Where | Problem | Test | Size |
 | --- | --- | --- | --- |
-| #45 `IO/PSFWriter.py`, DNA | For 1BNA the PSF has 394 atoms per strand where the model has 383 (one atom duplicated in 11 of 12 residues), and the PSF total charge is +9 where the model's is -24. The CRD has the model's count, so the pair cannot be loaded together. Cause not yet investigated. | `test_psf_crd.py::test_dna_psf_atom_count_matches_model`, `::test_dna_psf_charge_matches_model` | M |
+| #45 `IO/PSFWriter.py`, DNA | **Fixed 2026-11-25 (also #133).** For 1BNA the PSF had 394 atoms per strand where the model has 383 (one atom duplicated in 11 of 12 residues), and the PSF total charge was +9 where the model's is -24. Cause: `ResiduePatcher` gave DEOX's `ATOM P`, listed before any `GROUP`, a group of its own while P stayed in its RESI group; patch atoms outside a `GROUP` now keep their group, as in CHARMM. | `test_psf_crd.py::test_dna_psf_atom_count_matches_model`, `::test_dna_psf_charge_matches_model` | M |
 | #46 `IO/PSFWriter.py` and `IO/CRDWriter.py` | A ligand without topology (no CGenFF) is left out of the PSF but written to the CRD (3PTB: 3416 against 3425 atoms). Decide on one behaviour for both writers. | `test_psf_crd.py::test_psf_and_crd_agree_with_untyped_ligand` | S |
 | #47 `TopologyGenerator.load_psf_crd` | Terminal patch atoms (ACE and CT3 caps) come back without a `topo_definition`, so `total_charge` of a reloaded chain is `None`. | `test_psf_crd.py::test_load_psf_crd_restores_charges` | S |
 | #48 `PolymerChain.seq` | Returns `X` for every DNA residue; `can_seq` is correct. | `test_parsing.py::test_dna_present_sequence_matches_canonical` | S |

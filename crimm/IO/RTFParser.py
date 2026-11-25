@@ -331,7 +331,13 @@ class RTFParser:
                     cur_group_i = 0
                     cur_atom_group = {cur_group_i: {}}
                     cur_res["atoms"].update(cur_atom_group)
+                    # A patch's atoms that precede any GROUP keep the group of
+                    # the atom they modify (CHARMM struct.doc, PATCH rule 5)
+                    if cur_res["is_patch"]:
+                        cur_res["ungrouped_atoms"] = []
                 atom_name, atom_type, atom_charge = atom_parser(line)
+                if "ungrouped_atoms" in cur_res and cur_group_i == 0:
+                    cur_res["ungrouped_atoms"].append(atom_name)
                 if atom_type not in self.mass_dict:
                     # CGENFF rtf files do not have MASS table
                     cur_atom_dict = {
