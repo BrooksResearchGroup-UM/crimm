@@ -11,6 +11,7 @@ Releases up to 2026.2.1 are described on the
 
 ### Added
 
+- `crimm.__version__`, read from the installed package's metadata.
 - `test` extra: `pip install crimm[test]` installs pytest for running the test suite.
 
 ### Changed
