@@ -120,6 +120,17 @@ def test_tip3_and_hoh_of_the_same_number_both_parse():
     assert residues == [("HOH", "W"), ("TIP3", "H_TIP3")]
 
 
+def test_two_wide_resnames_of_the_same_number_both_restored():
+    lines = [
+        _hetatm("HETATM", 1, "P", "POPC", "L", 1, "P"),
+        _hetatm("HETATM", 2, "O3", "CHOL", "L", 1, "O"),
+    ]
+    structure = PDBParser(QUIET=True, strict_parser=False).get_structure(
+        io.StringIO("\n".join(lines) + "\nEND\n"), "two-lipids"
+    )
+    assert sorted(res.resname for res in structure.get_residues()) == ["CHOL", "POPC"]
+
+
 @pytest.mark.parametrize("resname", ["POPC", "ALA"])
 def test_parser_reads_an_open_file_handle(resname):
     # The SwissModel fetchers pass an io.StringIO and an explicit structure id.

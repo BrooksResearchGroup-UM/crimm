@@ -38,8 +38,9 @@ def _wide_resnames(lines):
     """Residue names that fill columns 18-21 (TIP3, POPC), as CHARMM and VMD write them.
 
     Biopython reads the residue name from columns 18-20 only. Takes the file's lines
-    and returns a dict keyed by (model index, chain ID, resseq, icode, is HETATM),
-    following Biopython's model numbering. Biopython tells an ATOM residue from a
+    and returns a dict keyed by (model index, chain ID, resseq, icode, the
+    three-character name Biopython reads, is HETATM), following Biopython's model
+    numbering. Biopython tells an ATOM residue from a
     HETATM residue with the same number apart by its hetero flag, so the key does too.
     """
     names = {}
@@ -64,7 +65,14 @@ def _wide_resnames(lines):
                 resseq = int(line[22:26])
             except ValueError:
                 continue
-            key = (model_index, line[21], resseq, line[26], record_type == "HETATM")
+            key = (
+                model_index,
+                line[21],
+                resseq,
+                line[26],
+                line[17:20].strip(),
+                record_type == "HETATM",
+            )
             names[key] = line[17:21].strip()
     return names
 
@@ -78,7 +86,14 @@ def _restore_wide_resnames(structure, lines):
         for chain in model:
             for res in list(chain):
                 hetflag, resseq, icode = res.get_id()
-                key = (model_index, chain.id, resseq, icode, hetflag != " ")
+                key = (
+                    model_index,
+                    chain.id,
+                    resseq,
+                    icode,
+                    res.resname,
+                    hetflag != " ",
+                )
                 resname = names.get(key)
                 if resname is None or res.is_disordered() == 2:
                     continue
