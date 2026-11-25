@@ -15,6 +15,7 @@ from crimm.StructEntities.Chain import Chain, Heterogens, Ion, PolymerChain, Sol
 from crimm.Utils.StructureUtils import index_to_letters
 
 protein_letters_3to1.update({"HSD": "H", "HSE": "H", "HSP": "H"})
+_WATER_RESNAMES = ("HOH", "TIP3")
 
 
 def check_chain_type(residues, resname_lookup, extended_lookup=None):
@@ -32,11 +33,65 @@ def check_chain_type(residues, resname_lookup, extended_lookup=None):
     return True
 
 
+def _wide_resnames(filepath):
+    """Residue names that fill columns 18-21 (TIP3, POPC), as CHARMM and VMD write them.
+
+    Biopython reads the residue name from columns 18-20 only. Returns a dict keyed by
+    (model index, chain ID, resseq, icode), following Biopython's model numbering.
+    """
+    names = {}
+    model_index = -1
+    model_open = False
+    with open(filepath) as handle:
+        for line in handle:
+            record_type = line[0:6]
+            if record_type == "MODEL ":
+                model_index += 1
+                model_open = True
+            elif record_type == "ENDMDL":
+                model_open = False
+            elif record_type in ("END   ", "CONECT"):
+                break
+            elif record_type in ("ATOM  ", "HETATM"):
+                if not model_open:
+                    model_index += 1
+                    model_open = True
+                if len(line) < 27 or line[20] == " ":
+                    continue
+                try:
+                    resseq = int(line[22:26])
+                except ValueError:
+                    continue
+                key = (model_index, line[21], resseq, line[26])
+                names[key] = line[17:21].strip()
+    return names
+
+
+def _restore_wide_resnames(structure, filepath):
+    """Give residues their full 4-character names from columns 18-21 of the file."""
+    names = _wide_resnames(filepath)
+    if not names:
+        return
+    for model_index, model in enumerate(structure):
+        for chain in model:
+            for res in list(chain):
+                hetflag, resseq, icode = res.get_id()
+                resname = names.get((model_index, chain.id, resseq, icode))
+                if resname is None or res.is_disordered() == 2:
+                    continue
+                if resname[:3] != res.resname:
+                    continue
+                res.resname = resname
+                if hetflag.startswith("H_"):
+                    hetflag = "W" if resname in _WATER_RESNAMES else f"H_{resname}"
+                    res.id = (hetflag, resseq, icode)
+
+
 def separate_solvent(residues):
     het = []
     water = []
     for res in residues:
-        if res.resname == "HOH" or res.resname == "TIP3":
+        if res.resname in _WATER_RESNAMES:
             water.append(res)
         else:
             het.append(res)
@@ -151,6 +206,7 @@ class PDBParser(_PDBParser):
         if structure_id is None:
             structure_id = pathlib.Path(filepath).stem
         structure = super().get_structure(structure_id, filepath)
+        _restore_wide_resnames(structure, filepath)
         if self.first_model_only:
             structure.child_list = structure.child_list[:1]
             structure.child_dict = {c.id: c for c in structure.child_list}

@@ -6,15 +6,23 @@ from Bio.Data.IUPACData import atom_weights
 
 from crimm.StructEntities.Atom import Atom
 
+# The residue name field is columns 18-21: a 3-character name is right-justified
+# in 18-20 with 21 blank (PDB standard); a 4-character name (TIP3, POPC) fills
+# 18-21 as CHARMM and VMD write it, so the chain ID stays in column 22.
 _ATOM_FORMAT_STRING = (
-    "%s%5i %-4s%c%3s %c%4i%c   %8.3f%8.3f%8.3f%s%6.2f      %4s%2s%2s\n"
+    "%s%5i %-4s%c%-4s%c%4i%c   %8.3f%8.3f%8.3f%s%6.2f      %4s%2s%2s\n"
 )
 _CHARMM_ATOM_FORMAT_STRING = "%s%5i %-4s%c%4s %4i%c   %8.3f%8.3f%8.3f%s%6.2f      %4s\n"
 _TER_FORMAT_STRING = (
-    "TER   %5i      %3s %c%4i%c                                                      \n"
+    "TER   %5i      %-4s%c%4i%c                                                      \n"
 )
 _STANDARD_PDB_CHAIN_IDS = ascii_uppercase + ascii_lowercase + digits
 _CHAIN_ID_POLICIES = {"preserve", "renumber"}
+
+
+def _resname_field(resname):
+    """Residue name padded for columns 18-21 of a standard PDB record."""
+    return f"{resname:>3}"
 
 
 def _make_standard_pdb_export_copy(entity):
@@ -106,7 +114,7 @@ def _get_ter_line(atom: Atom, trunc_resname=False, use_charmm_format=False):
         # the nglview visualization
         resname = resname[:3]
 
-    args = (atom.get_serial_number(), resname, chain_id, resseq, icode)
+    args = (atom.get_serial_number(), _resname_field(resname), chain_id, resseq, icode)
     return _TER_FORMAT_STRING % args
 
 
@@ -247,7 +255,7 @@ def _get_atom_line(
             atom_number,
             name,
             altloc,
-            resname,
+            _resname_field(resname),
             chain_id,
             resseq,
             icode,

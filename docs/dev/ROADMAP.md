@@ -128,7 +128,7 @@ and the marker is not removed.
 | #48 `PolymerChain.seq` | Returns `X` for every DNA residue; `can_seq` is correct. | `test_parsing.py::test_dna_present_sequence_matches_canonical` | S |
 | #112 `TopologyGenerator`, disulfides | Each disulfide cysteine gets `N-CA-CB-SG` and `C-CA-CB-SG` twice and lacks `HB1/HB2-CB-SG-SG'`; the dihedral count is unchanged, so count checks miss it. DIHE is 1.10 kcal/mol off CHARMM's on 1CRN; 3PTB has 24 duplicates. Probably the hand-written DISU path (#87, item 16). | `test_topology.py::test_no_dihedral_is_listed_twice[1crn,3ptb]`, `test_pycharmm.py` 1CRN comparisons | M |
 | #120 `IO/PSFWriter.py`, `TopologyGenerator` | Angles and dihedrals change order and direction from run to run, because they are collected in sets and `DisorderedAtom` hashes by address. The terms are the same, so CHARMM sees the same system. | `test_golden.py::test_psf_term_order_is_reproducible` | S |
-| #49 `IO/PDBString.get_pdb_str` | With default options, 4-character `TIP3` residue names shift the chain column and crimm's own `PDBParser` cannot read the output. `convert_water=True` works. | `test_pdb_io.py::test_round_trip_after_topology_default_options` | S |
+| #49 **Fixed 2026-11-25.** `IO/PDBString.get_pdb_str` | With default options, 4-character `TIP3` residue names shifted the chain column and crimm's own `PDBParser` could not read the output. Now written in columns 18-21 (CHARMM/VMD style) and read back in full by `PDBParser`. | `test_pdb_io.py::test_round_trip_after_topology_default_options` | S |
 
 ### 1.4 Other bugs
 
