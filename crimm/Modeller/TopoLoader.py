@@ -244,6 +244,76 @@ def traverse_graph(cur_atom, angle_set, dihedral_set, visited_set):
         traverse_graph(nei_atom, angle_set, dihedral_set, visited_set)
 
 
+def _atom_order(residues) -> Tuple[dict, list]:
+    """Number the atoms of the residues in the order the PSF writer numbers them:
+    residue by residue, topology groups first, then any other atom.
+
+    Return a dict from ``id(atom)`` to position, and the atoms by position. Keyed by
+    ``id`` because hashing an atom builds its full id, which is slow.
+    (Private function)
+    """
+    order, atoms = {}, []
+    for residue in residues:
+        for group in getattr(residue, "atom_groups", None) or ():
+            for atom in group:
+                if id(atom) not in order:
+                    order[id(atom)] = len(atoms)
+                    atoms.append(atom)
+        for atom in residue.get_atoms():
+            if id(atom) not in order:
+                order[id(atom)] = len(atoms)
+                atoms.append(atom)
+    return order, atoms
+
+
+def _find_angles_and_dihedrals(seed_atom, residues) -> Tuple[list, list, list]:
+    """Find the angles and dihedrals of the bonded graph that contains ``seed_atom``.
+
+    Return ``(angles, dihedrals, atoms)``, all in a defined order: atoms are
+    numbered as the PSF writer numbers them (see ``_atom_order``), every term starts
+    from its end atom with the lower number (``a-b-c`` and ``c-b-a`` are one CHARMM
+    term, as are ``a-b-c-d`` and ``d-c-b-a``), and the terms are sorted by their
+    atom numbers. ``traverse_graph`` collects the same terms in sets, whose order
+    depends on atom hashes and so changes from run to run (#120).
+    """
+    order, atoms = _atom_order(residues)
+
+    def position(atom):
+        # An atom outside the residues gets the next number when first reached.
+        key = id(atom)
+        if key not in order:
+            order[key] = len(atoms)
+            atoms.append(atom)
+        return order[key]
+
+    angle_keys, dihedral_keys = set(), set()
+    visited = {position(seed_atom)}
+    stack = [seed_atom]
+    while stack:
+        atom_a = stack.pop()
+        pos_a = position(atom_a)
+        for atom_b in atom_a.neighbors:
+            pos_b = position(atom_b)
+            for atom_c in atom_b.neighbors:
+                if atom_c is atom_a:
+                    continue
+                pos_c = position(atom_c)
+                angle_keys.add(min((pos_a, pos_b, pos_c), (pos_c, pos_b, pos_a)))
+                for atom_d in atom_c.neighbors:
+                    if atom_d is atom_b:
+                        continue
+                    dihe = (pos_a, pos_b, pos_c, position(atom_d))
+                    dihedral_keys.add(min(dihe, dihe[::-1]))
+            if pos_b not in visited:
+                visited.add(pos_b)
+                stack.append(atom_b)
+
+    angles = [Angle(*(atoms[i] for i in key)) for key in sorted(angle_keys)]
+    dihedrals = [Dihedral(*(atoms[i] for i in key)) for key in sorted(dihedral_keys)]
+    visited_atoms = [atoms[i] for i in sorted(visited)]
+    return angles, dihedrals, visited_atoms
+
+
 def _get_improper_from_atom_names(residue: Residue, atom_names: Tuple[str]) -> Improper:
     """Get improper from atom names. (Private function)"""
     atoms = []
@@ -689,14 +759,13 @@ class HeterogenTopology(BaseTopology):
             if len(cur_bonds) == 0:
                 continue
             self.bonds.extend(cur_bonds)
-            visited_atoms = set()
-            angles = set()
-            dihedrals = set()
             seed_atom = self._find_seeding_atom(residue)
-            traverse_graph(seed_atom, angles, dihedrals, visited_atoms)
-            self._visited_atoms.extend(list(visited_atoms))
-            self.angles.extend(list(angles))
-            self.dihedrals.extend(list(dihedrals))
+            angles, dihedrals, visited_atoms = _find_angles_and_dihedrals(
+                seed_atom, (residue,)
+            )
+            self._visited_atoms.extend(visited_atoms)
+            self.angles.extend(angles)
+            self.dihedrals.extend(dihedrals)
             self.impropers.extend(residue_get_impropers(residue))
 
     def _find_seeding_atom(self, residue):
@@ -761,14 +830,10 @@ class ChainTopology(BaseTopology):
             raise NotImplementedError("Chain type not supported!")
 
         self.bonds = chain_trace_atom_neighbors(chain, inter_res_bond)
-        visited_atoms = set()
-        angles = set()
-        dihedrals = set()
         seed_atom = self._find_seeding_atom()
-        traverse_graph(seed_atom, angles, dihedrals, visited_atoms)
-        self._visited_atoms = list(visited_atoms)
-        self.angles = list(angles)
-        self.dihedrals = list(dihedrals)
+        self.angles, self.dihedrals, self._visited_atoms = _find_angles_and_dihedrals(
+            seed_atom, chain.residues
+        )
         self.impropers = get_impropers(chain)
 
 

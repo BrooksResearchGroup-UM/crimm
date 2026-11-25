@@ -9,7 +9,11 @@ the 1CRN PSF waits for #112, 3PTB for #46, 1BNA for #45.
 """
 
 import difflib
+import os
+import subprocess
+import sys
 import warnings
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -21,10 +25,6 @@ GOLDEN_DIR = DATA_DIR / "golden"
 PSF_IDS = ["1ubq", "2igd"]
 CRD_IDS = ["1ubq", "1crn", "2igd"]
 
-# TODO(#120): remove once the writer gives these sections a defined order and direction.
-# Section marker -> atoms per term, terms per line.
-UNORDERED_SECTIONS = {"!NTHETA": (3, 3), "!NPHI": (4, 2)}
-
 
 def drop_title(text):
     """Remove the title lines, which carry a timestamp and the user name."""
@@ -33,38 +33,8 @@ def drop_title(text):
     )
 
 
-def sort_unordered_terms(psf_text):
-    """Put the angle and dihedral sections in a defined order and direction."""
-    lines = iter(psf_text.split("\n"))
-    result = []
-    for line in lines:
-        result.append(line)
-        shape = next(
-            (shape for key, shape in UNORDERED_SECTIONS.items() if key in line), None
-        )
-        if shape is None:
-            continue
-        n_atoms, per_line = shape
-        indices = []
-        for body in lines:
-            if not body.strip():
-                break
-            indices.extend(int(index) for index in body.split())
-        terms = sorted(
-            min(term, term[::-1])
-            for term in (
-                tuple(indices[i : i + n_atoms]) for i in range(0, len(indices), n_atoms)
-            )
-        )
-        for i in range(0, len(terms), per_line):
-            row = [index for term in terms[i : i + per_line] for index in term]
-            result.append("".join(f"{index:>10}" for index in row))
-        result.append("")
-    return "\n".join(result)
-
-
 def normalized_psf(model):
-    return sort_unordered_terms(drop_title(get_psf_str(model)))
+    return drop_title(get_psf_str(model))
 
 
 def normalized_crd(model):
@@ -138,23 +108,67 @@ def test_title_is_the_only_part_dropped():
     assert drop_title(text) == "   1 !NATOM\n  * not a title\n"
 
 
-def test_sorting_terms_ignores_order_and_direction():
-    row = "".join(f"{index:>10}" for index in (7, 8, 9, 3, 2, 1, 4, 5, 6))
-    text = f"   3 !NTHETA: angles\n{row}\n\n   0 !NPHI: dihedrals\n\n\n"
-    expected = "".join(f"{index:>10}" for index in (1, 2, 3, 4, 5, 6, 7, 8, 9))
-    assert sort_unordered_terms(text) == (
-        f"   3 !NTHETA: angles\n{expected}\n\n   0 !NPHI: dihedrals\n\n\n"
-    )
-
-
-@pytest.mark.xfail(
-    strict=True,
-    reason="#120: angles and dihedrals are collected in sets, and DisorderedAtom hashes by "
-    "address, so two builds of 2IGD in one process write them in a different order",
-)
 def test_psf_term_order_is_reproducible(prepared_model):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         first = prepared_model("2igd")
         second = prepared_model("2igd")
     assert drop_title(get_psf_str(first)) == drop_title(get_psf_str(second))
+
+
+PSF_DIGEST_SCRIPT = """
+import hashlib, sys, warnings
+sys.path.insert(0, sys.argv[1])
+from conftest import make_prepared_model
+from crimm.IO import get_psf_str
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    text = get_psf_str(make_prepared_model(sys.argv[2]))
+body = "".join(line for line in text.splitlines(True) if not line.startswith("*"))
+print(hashlib.sha256(body.encode()).hexdigest())
+"""
+
+
+def psf_digest_in_subprocess(pdb_id, hash_seed):
+    tests_dir = Path(__file__).resolve().parent
+    env = dict(os.environ, PYTHONHASHSEED=str(hash_seed))
+    env["PYTHONPATH"] = os.pathsep.join(
+        filter(None, [str(tests_dir.parent), env.get("PYTHONPATH")])
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", PSF_DIGEST_SCRIPT, str(tests_dir), pdb_id],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return result.stdout.split()[-1]
+
+
+def test_psf_is_identical_across_hash_seeds():
+    """String hashes, and with them set order, change with ``PYTHONHASHSEED`` (#120)."""
+    digests = {seed: psf_digest_in_subprocess("1ubq", seed) for seed in (1, 2)}
+    assert digests[1] == digests[2]
+
+
+def psf_terms(text, marker, n_atoms):
+    lines = iter(text.splitlines())
+    for line in lines:
+        if marker in line:
+            break
+    indices = []
+    for line in lines:
+        if not line.strip():
+            break
+        indices.extend(int(index) for index in line.split())
+    return [tuple(indices[i : i + n_atoms]) for i in range(0, len(indices), n_atoms)]
+
+
+@pytest.mark.parametrize("marker, n_atoms", [("!NTHETA", 3), ("!NPHI", 4)])
+def test_psf_terms_are_sorted_and_directed(shared_prepared, marker, n_atoms):
+    """Each angle or dihedral starts from its end with the lower serial, and the terms
+    are written in ascending order of serials."""
+    terms = psf_terms(get_psf_str(shared_prepared("1ubq")), marker, n_atoms)
+    assert terms
+    assert all(term <= term[::-1] for term in terms)
+    assert terms == sorted(terms)
