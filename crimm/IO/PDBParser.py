@@ -38,8 +38,9 @@ def _wide_resnames(lines):
     """Residue names that fill columns 18-21 (TIP3, POPC), as CHARMM and VMD write them.
 
     Biopython reads the residue name from columns 18-20 only. Takes the file's lines
-    and returns a dict keyed by (model index, chain ID, resseq, icode), following
-    Biopython's model numbering.
+    and returns a dict keyed by (model index, chain ID, resseq, icode, is HETATM),
+    following Biopython's model numbering. Biopython tells an ATOM residue from a
+    HETATM residue with the same number apart by its hetero flag, so the key does too.
     """
     names = {}
     model_index = -1
@@ -63,7 +64,7 @@ def _wide_resnames(lines):
                 resseq = int(line[22:26])
             except ValueError:
                 continue
-            key = (model_index, line[21], resseq, line[26])
+            key = (model_index, line[21], resseq, line[26], record_type == "HETATM")
             names[key] = line[17:21].strip()
     return names
 
@@ -77,15 +78,24 @@ def _restore_wide_resnames(structure, lines):
         for chain in model:
             for res in list(chain):
                 hetflag, resseq, icode = res.get_id()
-                resname = names.get((model_index, chain.id, resseq, icode))
+                key = (model_index, chain.id, resseq, icode, hetflag != " ")
+                resname = names.get(key)
                 if resname is None or res.is_disordered() == 2:
                     continue
                 if resname[:3] != res.resname:
                     continue
                 res.resname = resname
-                if hetflag.startswith("H_"):
-                    hetflag = "W" if resname in _WATER_RESNAMES else f"H_{resname}"
-                    res.id = (hetflag, resseq, icode)
+                if not hetflag.startswith("H_"):
+                    continue
+                # A water read as H_TIP becomes W, unless a residue with that id (an HOH
+                # of the same number) is already in the chain; then it keeps H_TIP3.
+                for new_flag in ("W", f"H_{resname}"):
+                    if new_flag == "W" and resname not in _WATER_RESNAMES:
+                        continue
+                    new_id = (new_flag, resseq, icode)
+                    if not chain.has_id(new_id):
+                        res.id = new_id
+                        break
 
 
 def separate_solvent(residues):

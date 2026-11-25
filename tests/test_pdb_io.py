@@ -89,6 +89,37 @@ def test_parser_reads_four_character_resnames_in_every_model(tmp_path):
     ]
 
 
+def _hetatm(record, serial, atom, resname, chain, resseq, element):
+    return (
+        f"{record:<6}{serial:>5} {atom:<4} {resname:<4}{chain}{resseq:>4}    "
+        f"   0.000   0.000{3.0 * serial:8.3f}  1.00  0.00          {element:>2}  "
+    )
+
+
+def test_wide_resname_does_not_rename_an_atom_residue_of_the_same_number():
+    lines = [
+        _hetatm("ATOM", 1, "CA", "ALA", "A", 1, "C"),
+        _hetatm("HETATM", 2, "C1", "ALAD", "A", 1, "C"),
+    ]
+    structure = PDBParser(QUIET=True, strict_parser=False).get_structure(
+        io.StringIO("\n".join(lines) + "\nEND\n"), "atom-and-hetatm"
+    )
+    protein = [res for res in structure.get_residues() if res.id[0] == " "]
+    assert [res.resname for res in protein] == ["ALA"]
+
+
+def test_tip3_and_hoh_of_the_same_number_both_parse():
+    lines = [
+        _hetatm("HETATM", 1, "O", "HOH", "W", 1, "O"),
+        _hetatm("HETATM", 2, "OH2", "TIP3", "W", 1, "O"),
+    ]
+    structure = PDBParser(QUIET=True, strict_parser=False).get_structure(
+        io.StringIO("\n".join(lines) + "\nEND\n"), "two-waters"
+    )
+    residues = sorted((res.resname, res.id[0]) for res in structure.get_residues())
+    assert residues == [("HOH", "W"), ("TIP3", "H_TIP3")]
+
+
 @pytest.mark.parametrize("resname", ["POPC", "ALA"])
 def test_parser_reads_an_open_file_handle(resname):
     # The SwissModel fetchers pass an io.StringIO and an explicit structure id.
