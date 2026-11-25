@@ -6,6 +6,27 @@ import numpy as np
 from Bio.PDB.Selection import unfold_entities
 
 
+def _dihedral_degrees(a, b, c, d):
+    """Return the dihedral angle a-b-c-d in degrees, in the range (-180, 180].
+
+    IUPAC sign convention, as CHARMM uses for dihedrals and impropers: looking along
+    b->c, the angle is positive when a must turn clockwise to eclipse d. Computed with
+    atan2, which stays accurate near 0 and 180 degrees where arccos does not.
+    """
+    a, b, c, d = (np.asarray(x, dtype=np.float64) for x in (a, b, c, d))
+    b1 = b - a
+    b2 = c - b
+    b3 = d - c
+    n1 = np.cross(b1, b2)
+    n2 = np.cross(b2, b3)
+    y = np.linalg.norm(b2) * np.dot(b1, n2)
+    x = np.dot(n1, n2)
+    phi = float(np.degrees(np.arctan2(y, x)))
+    if phi <= -180.0:
+        phi += 360.0
+    return phi
+
+
 class TopoEntity:
     """A TopoEntity is a base class for Topology entities such as Bonds, Angles,
     Dihedrals, and Impropers."""
@@ -201,18 +222,14 @@ class Dihedral(TopoEntity, DiheTuple):
         s += ">"
         return s
 
-    ## TODO(#53): implement dihedral angle calculation
     @property
     def angle(self):
-        """return the current dihedral in degrees"""
+        """return the current dihedral in degrees, in (-180, 180]"""
         a, b, c, d = (atom.coord for atom in self)
         for coord in (a, b, c, d):
             if coord is None:
                 return None
-        # ba = a - b
-        # dc = d - c
-
-        return 0.000
+        return _dihedral_degrees(a, b, c, d)
 
 
 ImprTuple = namedtuple("Improper", ["i", "j", "k", "l"])
@@ -243,12 +260,12 @@ class Improper(TopoEntity, ImprTuple):
 
     @property
     def angle(self):
-        """return the current improper in degrees"""
+        """return the current improper dihedral i-j-k-l in degrees, in (-180, 180]"""
         a, b, c, d = (atom.coord for atom in self)
         for coord in (a, b, c, d):
             if coord is None:
                 return None
-        return 0.000
+        return _dihedral_degrees(a, b, c, d)
 
 
 CmapTuple = namedtuple("CMap", ["dihe1", "dihe2"])

@@ -182,7 +182,8 @@ Described as they are, not as they should be. See the best-practices guide for t
   atoms moves the structure's too.
 - `CoordManipulator` has two matrix conventions. `orient_coords` builds a column-vector
   4x4 matrix; the PCA variants store a row-vector one in the same attribute.
-- `TopoElements.Dihedral.angle` is a stub that returns `0.000`.
+- `TopoElements.CMap.angle`, and so `repr` of a `CMap`, raises: it unpacks four coordinates
+  from its two `Dihedral`s. Nothing in crimm builds a `CMap` yet (#166).
 - `CGENFFTopologyLoader` writes into the current working directory when no `save_path` is
   given.
 - pyCHARMM holds one global PSF per process; the adaptor tracks what has been loaded in a

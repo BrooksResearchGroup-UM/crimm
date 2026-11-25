@@ -2,12 +2,16 @@
 
 import os
 import warnings
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
+from Bio.PDB.Polypeptide import PPBuilder
+from Bio.PDB.vectors import calc_dihedral
 from conftest import ALL_IDS, EXPECTED
 
 from crimm.Modeller import TopologyGenerator
+from crimm.StructEntities.TopoElements import CMap, Dihedral, Improper
 
 POLYMER_TYPES = ("Polypeptide(L)", "Polydeoxyribonucleotide", "Polyribonucleotide")
 
@@ -109,13 +113,91 @@ def test_generate_model_rejects_plain_model(load_structure):
         TopologyGenerator().generate_model(load_structure("1crn").models[0])
 
 
+def _angle_difference(a, b):
+    """a - b in degrees, wrapped into [-180, 180)."""
+    return (a - b + 180.0) % 360.0 - 180.0
+
+
+def _stub_atom(name, coord):
+    """The few Atom attributes a TopoEntity reads, with a given coordinate."""
+    return SimpleNamespace(
+        name=name,
+        coord=np.array(coord, dtype=np.float32),
+        topo_definition=SimpleNamespace(atom_type=name),
+        get_full_id=lambda: ("A", (" ", 1, " "), name),
+    )
+
+
+@pytest.mark.parametrize("element", [Dihedral, Improper])
+@pytest.mark.parametrize(
+    "expected", [0.0, 60.0, -60.0, 120.0, -120.0, 180.0, 179.9, -179.9]
+)
+def test_dihedral_angle_of_constructed_geometry(element, expected):
+    # Looking along b->c, d is turned counterclockwise from a by `expected` when
+    # seen from c, so the IUPAC dihedral (positive = clockwise from b) is `expected`.
+    r = np.radians(expected)
+    coords = [(1.0, 0.0, 0.0), (0, 0, 0), (0, 0, 1.5), (np.cos(r), np.sin(r), 1.5)]
+    atoms = [_stub_atom(n, c) for n, c in zip("ABCD", coords)]
+    angle = element(*atoms).angle
+    assert isinstance(angle, float)
+    assert -180.0 < angle <= 180.0
+    assert _angle_difference(angle, expected) == pytest.approx(0.0, abs=1e-3)
+
+
+@pytest.mark.parametrize("element", [Dihedral, Improper])
+def test_dihedral_angle_is_none_when_an_atom_has_no_coordinates(element):
+    atoms = [_stub_atom(n, (i, i * i, 0)) for i, n in enumerate("ABCD")]
+    atoms[2].coord = None
+    assert element(*atoms).angle is None
+
+
 @pytest.mark.xfail(
     strict=True,
-    reason="#53: Dihedral.angle is a stub that returns 0.0 for every dihedral",
+    reason="#166: CMap.angle unpacks four coordinates from its two Dihedrals and raises",
 )
+def test_cmap_repr_does_not_raise():
+    coords = [(1.0, 0.0, 0.0), (0, 0, 0), (0, 0, 1.5), (0, 1.0, 1.5), (1.0, 1.0, 2.0)]
+    atoms = [_stub_atom(n, c) for n, c in zip("ABCDE", coords)]
+    cmap = CMap(Dihedral(*atoms[:4]), Dihedral(*atoms[1:]))
+    repr(cmap)
+
+
 def test_dihedral_angle_is_computed(shared_prepared):
     dihedrals = shared_prepared("1crn").topology.dihedrals
     assert any(abs(dihedral.angle) > 1.0 for dihedral in dihedrals[:200])
+
+
+def test_dihedral_and_improper_angles_match_biopython(shared_prepared):
+    topology = shared_prepared("1crn").topology
+    for element in list(topology.dihedrals) + list(topology.impropers):
+        expected = np.degrees(calc_dihedral(*(atom.get_vector() for atom in element)))
+        assert _angle_difference(element.angle, expected) == pytest.approx(
+            0.0, abs=1e-3
+        ), element
+
+
+def test_backbone_phi_psi_match_biopython(shared_prepared):
+    """phi = C(i-1)-N-CA-C and psi = N-CA-C-N(i+1), against Bio.PDB's polypeptide."""
+    chain = shared_prepared("1crn").protein[0]
+    by_names = {}
+    for dihedral in chain.topology.dihedrals:
+        key = tuple((atom.get_parent().id[1], atom.name) for atom in dihedral)
+        by_names[key] = by_names[key[::-1]] = dihedral
+    residues = chain.residues
+    reference = PPBuilder().build_peptides(chain)[0].get_phi_psi_list()
+    assert len(reference) == len(residues)
+    n_checked = 0
+    for prev, res, nxt, (phi, psi) in zip(
+        residues[:-2], residues[1:-1], residues[2:], reference[1:-1]
+    ):
+        i = res.id[1]
+        phi_key = ((prev.id[1], "C"), (i, "N"), (i, "CA"), (i, "C"))
+        psi_key = ((i, "N"), (i, "CA"), (i, "C"), (nxt.id[1], "N"))
+        for key, expected in ((phi_key, phi), (psi_key, psi)):
+            difference = _angle_difference(by_names[key].angle, np.degrees(expected))
+            assert difference == pytest.approx(0.0, abs=1e-3), key
+        n_checked += 1
+    assert n_checked == len(residues) - 2
 
 
 DISULFIDE_DIHEDRALS = pytest.mark.xfail(

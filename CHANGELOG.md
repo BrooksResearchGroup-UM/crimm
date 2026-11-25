@@ -25,6 +25,8 @@ Releases up to 2026.2.1 are described on the
 
 ### Fixed
 
+- `Dihedral.angle` and `Improper.angle` return the dihedral in degrees, in (-180, 180] with
+  the IUPAC sign convention that CHARMM uses; they returned `0.0` for every term.
 - Renumbering a residue with alternative residue names (`DisorderedResidue`, e.g. a point
   mutation) now renumbers every alternative and the parent chain's lookup, not only the
   wrapper; `missing_res` no longer reports the new position as missing.

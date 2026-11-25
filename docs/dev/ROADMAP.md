@@ -137,7 +137,7 @@ and the marker is not removed.
 | #50 `Modeller/LoopBuilder.py:659` (`ArcLoopBuilder.reconstruct_backbone`) | Undefined name `topo`; the method raises `NameError` whenever it runs. `best_backbone` and `min_clashes` in `build` are assigned and never used, so the builder looks unfinished. | Decide whether `ArcLoopBuilder` is finished or removed; if kept, pass in a topology set and add a test. | M |
 | #51 `Modeller/CoordManipulator.py:128` (`box_dim`) | `self.coords.ptp(0)`; `ndarray.ptp` was removed in NumPy 2. | `np.ptp(self.coords, axis=0)`. | S |
 | #52 `CoordManipulator.load_entity` | Builds the full N by N distance matrix to find the farthest pair. Memory is quadratic: about 20 GB at 50,000 atoms. Runs even when a PCA method is used and the result is never needed. | Farthest pair over convex-hull vertices (`scipy.spatial.ConvexHull`), computed lazily. | S |
-| #53 `StructEntities/TopoElements.py` (`Dihedral.angle`) | Returns `0.000` for any dihedral. | Implement (this is also TODO 5 below). | S |
+| #53 `StructEntities/TopoElements.py` (`Dihedral.angle`) | Returns `0.000` for any dihedral. | Implement (this is also TODO 5 below). **Done: 2026-11-25, with `Improper.angle`, which had the same stub.** | S |
 | #54 `CoordManipulator`, `Solvator`, `OrganizedModel`, `Atom` | `assert` used for runtime validation; stripped under `python -O`. | Raise real exceptions. | S |
 | #55 Version strings | `pyproject.toml` 2026.2, `docs/conf.py` 2026.1a, tag 2026.2.1, no `crimm.__version__`. | Single source (see Phase 4); in the meantime align them. | S |
 | #56 `crimm/Data/residues.xml` | Tracked, not packaged, not referenced. | Delete, or package and use it. | S |
@@ -206,7 +206,7 @@ milestone.
 | 2 (#61) | `IO/RTFParser.py:160` | `DELETE` parser handles only atom type | Parse all `DELETE` forms used in the bundled toppar (ATOM, BOND, ANGL, DIHE, IMPR, IC). |
 | 3 (#62) | `IO/RTFParser.py:265` | Keywords DIHE, ANGLE and PATCH are not handled | Parse them, or raise on encountering them instead of skipping silently. |
 | 4 (#63) | `Utils/StructureUtils.py:211` | DNA and RNA are not distinguished; everything is RNA | Decide from residue names (DA/DC/DG/DT against A/C/G/U) with an O2' check as fallback. |
-| 5 (#53) | `StructEntities/TopoElements.py:190` | Dihedral angle calculation not implemented | Implement; same as bug 1.4. |
+| 5 (#53) | `StructEntities/TopoElements.py:190` | Dihedral angle calculation not implemented | Implement; same as bug 1.4. **Done: 2026-11-25.** |
 | 6 (#64) | `StructEntities/TopoDefinitions.py:30` | Element guessed from the first letter of the atom name | Look the element up from the atom type's MASS entry in the RTF; fall back to the name only with a warning. |
 | 7 (#65) | `Modeller/Solvator.py:170` | Atom serial numbers above 99,999 (Stan) | PDB output: hybrid-36 or wrap with a warning. CRD/PSF: confirm the extended format is used. Add a large-system test. |
 
