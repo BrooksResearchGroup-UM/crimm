@@ -217,7 +217,7 @@ Things that cost a previous agent time or would produce wrong results silently.
 
 | ID | Trap | Tag |
 | --- | --- | --- |
-| G1 | `Solvator.solvate()` with defaults returns a **mirror image** of the solute (ROADMAP 1.1). Do not trust coordinates from it for cube, octa or rhdo boxes until fixed. | `[ran 2026-10-06 on 1UBQ]` |
+| G1 | `Solvator.solvate()` with defaults returns a **mirror image** of the solute (ROADMAP 1.1). Do not trust coordinates from it for cube, octa or rhdo boxes until fixed. SUPERSEDED 2026-11-25: fixed on `fix/43-octa-reflection` (#43); still applies to `master` until that is merged. | `[ran 2026-10-06 on 1UBQ]` |
 | G2 | Atoms are shared between a model and its parent structure. Moving one moves the other. `solvate`, `orient_coords*` and `TopologyGenerator.generate*` all modify their argument in place. Build a fresh model per test. | `[read]`, `[ran]` |
 | G3 | `OrganizedModel` properties are `protein`, `DNA`, `RNA` (upper case for nucleic acids), `ligand`, `ion`, `solvent`, `co_solvent`. `model.dna` raises `AttributeError`. | `[ran 2026-10-06]` |
 | G4 | `OrganizedModel(...)` is offline by default. It only calls RCSB when `identify_ligands=True` or `fetch_web_data=True`. | `[read]` |

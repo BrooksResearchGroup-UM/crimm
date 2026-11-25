@@ -25,6 +25,14 @@ Releases up to 2026.2.1 are described on the
 
 ### Fixed
 
+- `Solvator.solvate()` no longer returns a mirror image of the solute. The PCA orientation
+  used for cube, octa and rhdo boxes (`CoordManipulator.orient_coords_octa`, the default)
+  applied a reflection to about half of all inputs, which inverts every chiral centre
+  (L-amino acids become D). Structures solvated by earlier versions in such a box, or with
+  `orient_method="octa"`, with `orient_coords=True` may be mirror images. To check one, compute for each residue the sign of
+  `dot(cross(N - CA, C - CA), CB - CA)`: it is positive for L-amino acids and negative for
+  all of them in a mirrored structure. Ortho, tetra and hexa boxes with their default orientation
+  were not affected.
 - Renumbering a residue with alternative residue names (`DisorderedResidue`, e.g. a point
   mutation) now renumbers every alternative and the parent chain's lookup, not only the
   wrapper; `missing_res` no longer reports the new position as missing.

@@ -198,6 +198,10 @@ class CoordManipulator:
         # Compute PCA (using SVD)
         U, S, Vt = np.linalg.svd(centered_coords, full_matrices=False)
         rotation = Vt.T  # principal axes
+        # Ensure right-handed coordinate system: the SVD axes form a reflection
+        # (det = -1) for about half of all inputs, which would invert chirality
+        if np.linalg.det(rotation) < 0:
+            rotation[:, -1] *= -1
         new_coords = centered_coords @ rotation
         # Re-center the new coordinates around the origin
         new_center = new_coords.mean(axis=0)

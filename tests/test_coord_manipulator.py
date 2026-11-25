@@ -84,23 +84,7 @@ def test_sorted_pca_orientation_orders_extents(method):
     assert spread[0] >= spread[1] >= spread[2]
 
 
-@pytest.mark.parametrize(
-    "method",
-    [
-        "orient_coords",
-        pytest.param(
-            "orient_coords_octa",
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason="#43: no determinant check on the PCA axes: about half of all inputs "
-                "are reflected, which inverts chirality. This is the default "
-                "orientation for cube, octa and rhdo solvation boxes",
-            ),
-        ),
-        "orient_coords_ortho",
-        "orient_coords_hexa",
-    ],
-)
+@pytest.mark.parametrize("method", ORIENT_METHODS)
 def test_orientation_preserves_handedness(method):
     flipped = [
         seed
@@ -159,6 +143,29 @@ def test_orientation_of_a_real_structure(load_structure):
     after = np.array([atom.coord for atom in model.get_atoms()])
     assert pdist(after[:150]) == pytest.approx(pdist(before[:150]), abs=1e-2)
     assert handedness(after) == handedness(before)
+
+
+def chiral_volumes(model):
+    """Signed volume of N, C, CB around each CA; positive for L-amino acids."""
+    volumes = []
+    for residue in model.get_residues():
+        if all(name in residue for name in ("N", "CA", "C", "CB")):
+            n, ca, c, cb = (residue[name].coord for name in ("N", "CA", "C", "CB"))
+            volumes.append(np.dot(np.cross(n - ca, c - ca), cb - ca))
+    return np.array(volumes)
+
+
+@pytest.mark.parametrize("method", ORIENT_METHODS)
+def test_orientation_preserves_chiral_centres(load_structure, method):
+    model = load_structure("1ubq").models[0]
+    before = chiral_volumes(model)
+    manipulator = CoordManipulator()
+    manipulator.load_entity(model)
+    getattr(manipulator, method)()
+    after = chiral_volumes(model)
+    assert len(before) > 60
+    # a proper rotation keeps each signed volume (about 2.5 A^3), sign included
+    assert after == pytest.approx(before, abs=1e-2)
 
 
 def test_find_max_dim_is_the_largest_interatomic_distance():
