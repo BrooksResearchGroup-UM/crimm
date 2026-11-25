@@ -1,5 +1,7 @@
 """PDB string output and the PDB parser."""
 
+import io
+
 import numpy as np
 import pytest
 
@@ -69,3 +71,21 @@ def test_include_alt_writes_all_locations(load_structure):
 
     assert n_records(get_pdb_str(model)) == 574
     assert n_records(get_pdb_str(model, include_alt=True)) == 606
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="#178: find_chain_type returns only the polymer of a chain that has ATOM "
+    "residues and discards its HETATM residues and waters",
+)
+def test_pdb_parser_keeps_hetatm_residues_of_a_polymer_chain():
+    lines = [
+        "ATOM      1  CA  ALA A   1       0.000   0.000   3.000  1.00  0.00           C  ",
+        "HETATM    2  C1  ALD A 101       0.000   0.000   6.000  1.00  0.00           C  ",
+        "HETATM    3  O   HOH A 201       0.000   0.000   9.000  1.00  0.00           O  ",
+    ]
+    structure = PDBParser(QUIET=True).get_structure(
+        io.StringIO("\n".join(lines) + "\nEND\n"), "polymer-and-hetatm"
+    )
+    resnames = sorted(res.resname for res in structure.get_residues())
+    assert resnames == ["ALA", "ALD", "HOH"]
